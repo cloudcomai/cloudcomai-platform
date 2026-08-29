@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
+import { createPollingMessageTransport, mergeMessageBatch } from '@cloudcomai/chat-core';
 import './styles.css';
 import Sidebar from './components/Sidebar';
 import ChatDirectory from './components/ChatDirectory';
@@ -23,6 +24,7 @@ import {
 
 const groupTypes = ['Family Group', 'Friend Group', 'Fan Group', 'Study Group', 'College Group', 'Class Group', 'Department Group', 'Project Group', 'Club Group', 'Alumni Group', 'Workplace Group', 'Neighborhood Group', 'Event Group', 'Staff Group'];
 const interests = ['Private Chats', 'Public Chat Rooms', ...groupTypes, 'Communities', 'Local Groups', 'Jobs and Internships', 'Business and Finance', 'Technology', 'Sports', 'Music', 'Movies', 'Education', 'Gaming', 'Travel', 'Career Guidance'];
+const messagePollInterval = Number(import.meta.env.VITE_MESSAGE_POLL_INTERVAL_MS || 3000);
 
 export default function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -146,44 +148,26 @@ export default function App() {
 
     useEffect(() => {
         if (!token || !selectedChat || screen !== 'app' || selectedChat.isContact) return undefined;
-        let cancelled = false;
         latestMessageIdRef.current = 0;
         setMessages([]);
-
-        const getMessageId = message => Number(message?.id || 0);
-        const mergeIncomingMessages = incoming => {
-            if (!Array.isArray(incoming) || incoming.length === 0) return;
-            setMessages(prev => {
-                const existingIds = new Set(prev.map(getMessageId).filter(Boolean));
-                const additions = incoming.filter(message => !existingIds.has(getMessageId(message))).sort((a, b) => getMessageId(a) - getMessageId(b));
-                if (additions.length === 0) return prev;
-                const next = [...prev, ...additions];
-                latestMessageIdRef.current = Math.max(latestMessageIdRef.current, ...next.map(getMessageId));
-                return next;
-            });
-        };
-
-        const loadMessages = async () => {
-            try {
-                const data = await api(ApiRoute.MESSAGES, { method: 'GET', query: { chat_id: selectedChat.id } });
-                if (cancelled || !data.messages) return;
-                const initialMessages = [...data.messages].sort((a, b) => getMessageId(a) - getMessageId(b));
-                latestMessageIdRef.current = initialMessages.reduce((max, message) => Math.max(max, getMessageId(message)), 0);
-                setMessages(initialMessages);
-            } catch (err) { if (!cancelled) console.error('Unable to load messages:', err); }
-        };
-
-        const pollForNewMessages = async () => {
-            try {
-                const afterId = latestMessageIdRef.current;
-                const data = await api(ApiRoute.MESSAGES, { method: 'GET', query: { chat_id: selectedChat.id, after_id: afterId } });
-                if (!cancelled) mergeIncomingMessages(data.messages);
-            } catch (err) { if (!cancelled) console.error('Unable to refresh new messages:', err); }
-        };
-
-        loadMessages();
-        const intervalId = window.setInterval(pollForNewMessages, 2000);
-        return () => { cancelled = true; window.clearInterval(intervalId); };
+        const transport = createPollingMessageTransport({
+            intervalMs: messagePollInterval,
+            getCursor: () => latestMessageIdRef.current,
+            fetchMessages: async (afterId, options) => {
+                const { data } = await platformApi.listMessages(selectedChat.id, afterId, options);
+                return data.messages || [];
+            },
+            onMessages: incoming => {
+                setMessages(current => {
+                    const result = mergeMessageBatch(current, incoming);
+                    latestMessageIdRef.current = result.cursor;
+                    return result.changed ? result.messages : current;
+                });
+            },
+            onError: err => console.error('Unable to synchronize messages:', err),
+        });
+        transport.start();
+        return () => transport.stop();
     }, [selectedChat, token, screen]);
 
     const handleSendMessage = async () => {

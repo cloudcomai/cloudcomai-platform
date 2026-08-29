@@ -11,6 +11,7 @@
   "dependencies": {
     "@cloudcomai/api-client": "workspace:*",
     "@cloudcomai/auth": "workspace:*",
+    "@cloudcomai/chat-core": "workspace:*",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "typescript": "latest",
