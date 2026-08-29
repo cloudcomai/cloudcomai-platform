@@ -27,6 +27,7 @@
     "v1/integrations/google/sync": { "handler": "google/sync.php", "methods": ["POST"], "auth": true },
     "v1/integrations/google/contacts": { "handler": "google/contacts.php", "methods": ["GET"], "auth": true },
     "v1/presence/heartbeat": { "handler": "heartbeat.php", "methods": ["POST"], "auth": true },
+    "v1/notifications/device-token": { "handler": "device_tokens.php", "methods": ["POST", "DELETE"], "auth": true },
     "v1/health": { "handler": "health.php", "methods": ["GET"], "auth": false },
     "v1/calls": { "handler": "calls.php", "methods": ["POST"], "auth": true },
     "v1/live-locations": { "handler": "live_location.php", "methods": ["POST"], "auth": true },
