@@ -1,1 +1,13 @@
-{"name":"@cloudcomai/auth","version":"0.1.0","private":true,"type":"module"}
+{
+  "name": "@cloudcomai/auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@cloudcomai/types": "workspace:*"
+  }
+}

@@ -31,9 +31,17 @@ importers:
         specifier: latest
         version: 8.2.2
 
-  packages/api-client: {}
+  packages/api-client:
+    dependencies:
+      '@cloudcomai/types':
+        specifier: workspace:*
+        version: link:../types
 
-  packages/auth: {}
+  packages/auth:
+    dependencies:
+      '@cloudcomai/types':
+        specifier: workspace:*
+        version: link:../types
 
   packages/chat-core: {}
 
