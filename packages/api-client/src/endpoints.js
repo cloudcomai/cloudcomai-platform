@@ -24,4 +24,10 @@ export const ApiEndpoint = Object.freeze({
   GOOGLE_CONTACTS: 'google/contacts.php',
   HEARTBEAT: 'heartbeat.php',
   HEALTH: 'health.php',
+  CALLS: 'calls.php',
+  LIVE_LOCATION: 'live_location.php',
+  STORIES: 'stories.php',
+  MEDIA: 'media.php',
+  MEDIA_UPLOAD: 'media_upload.php',
+  JOIN: 'join.php',
 });
