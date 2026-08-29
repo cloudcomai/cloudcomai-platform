@@ -1,0 +1,12 @@
+{
+  "name": "@cloudcomai/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CloudComAI React Native and Expo mobile application foundation",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  }
+}
+
