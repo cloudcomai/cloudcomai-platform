@@ -18,7 +18,7 @@ import {
 import { createPollingMessageTransport, mergeMessageBatch } from '@cloudcomai/chat-core';
 import * as DocumentPicker from 'expo-document-picker';
 import { platformApi, sessionManager } from './src/services/platform';
-import { getNotificationPreferences, requestNotificationPermission, setNotificationPreferences } from './src/services/notifications';
+import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -187,7 +187,7 @@ function NotificationSettings({ preferences, onBack, onChange }) {
   );
 }
 
-function ChatsScreen({ session, onLogout, onSettings }) {
+function ChatsScreen({ session, onLogout, onSettings, initialChatId }) {
   const [tab, setTab] = useState('private');
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -210,6 +210,11 @@ function ChatsScreen({ session, onLogout, onSettings }) {
   }, [tab]);
 
   useEffect(() => { loadChats(); }, [loadChats]);
+  useEffect(() => {
+    if (!initialChatId) return;
+    const target = chats.find(item => Number(item.id) === Number(initialChatId));
+    if (target) setSelectedChat(target);
+  }, [chats, initialChatId]);
 
   const logout = async () => {
     await sessionManager.clearSession();
@@ -248,6 +253,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [notificationPreferences, setNotificationPreferencesState] = useState(null);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [initialChatId, setInitialChatId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -264,10 +270,20 @@ export default function App() {
     }
   }, [session, notificationPreferences]);
 
+  useEffect(() => {
+    const openResponse = response => {
+      const chatId = response?.notification?.request?.content?.data?.chat_id;
+      if (chatId) { setInitialChatId(Number(chatId)); setShowNotificationSettings(false); }
+    };
+    getLastNotificationResponse().then(openResponse).catch(() => null);
+    const subscription = subscribeToNotificationResponses(openResponse);
+    return () => subscription.remove();
+  }, []);
+
   if (!ready) return <View style={styles.splash}><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></View>;
   if (!session) return <LoginScreen onAuthenticated={setSession} />;
   if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
-  return <ChatsScreen session={session} onLogout={() => setSession(null)} onSettings={() => setShowNotificationSettings(true)} />;
+  return <ChatsScreen session={session} onLogout={() => setSession(null)} onSettings={() => setShowNotificationSettings(true)} initialChatId={initialChatId} />;
 }
 
 const styles = StyleSheet.create({

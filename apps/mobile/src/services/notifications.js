@@ -50,3 +50,10 @@ export const subscribeToNotifications = async onNotification => {
     if (preferences.enabled && preferences[category] !== false) onNotification(event);
   });
 };
+
+export const subscribeToNotificationResponses = onResponse =>
+  Notifications.addNotificationResponseReceivedListener(onResponse);
+
+export async function getLastNotificationResponse() {
+  return Notifications.getLastNotificationResponseAsync();
+}
