@@ -1,4 +1,3 @@
-# Validation
+# Shared validation
 
-Validation rules shared by the web and mobile clients will live here.
-
+Pure validation functions shared by web and mobile. Backend validation remains authoritative; client validation improves feedback and keeps platform behavior consistent.

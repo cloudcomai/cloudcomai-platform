@@ -7,7 +7,7 @@
     "dev:web": "pnpm --filter @cloudcomai/web dev",
     "build:web": "pnpm --filter @cloudcomai/web build",
     "dev:mobile": "pnpm --filter @cloudcomai/mobile start",
-    "check": "pnpm build:web"
+    "test": "pnpm --recursive --if-present test",
+    "check": "pnpm test && pnpm build:web"
   }
 }
-

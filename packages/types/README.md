@@ -1,4 +1,5 @@
-# Types
+# Shared domain contracts
 
-Shared user, contact, chat, group, message, attachment, notification, and poll contracts will live here.
+JavaScript constants and JSDoc contracts for users, contacts, chats, groups, messages, attachments, polls, notifications, authentication, and API responses.
 
+These contracts contain no browser or React Native APIs and can be consumed by both clients.

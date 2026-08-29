@@ -1,4 +1,5 @@
-# API client
+# Shared API client
 
-Shared HTTP handling, authentication headers, error normalization, and API request/response mapping will live here after the existing PHP endpoints are formally mapped.
+Fetch-based client for the current PHP API with normalized URLs, query parameters, JSON and form-data requests, bearer-token injection, consistent errors, abort support, and endpoint constants.
 
+The package does not read browser storage directly. Web and mobile provide their own token provider.
