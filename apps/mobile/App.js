@@ -17,7 +17,7 @@ import {
 import { createPollingMessageTransport, mergeMessageBatch } from '@cloudcomai/chat-core';
 import * as DocumentPicker from 'expo-document-picker';
 import { platformApi, sessionManager } from './src/services/platform';
-import { requestNotificationPermission } from './src/services/notifications';
+import { getNotificationPreferences, requestNotificationPermission, setNotificationPreferences } from './src/services/notifications';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -226,21 +226,22 @@ function ChatsScreen({ session, onLogout }) {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState(null);
+  const [notificationPreferences, setNotificationPreferencesState] = useState(null);
 
   useEffect(() => {
     let active = true;
-    sessionManager.getSession().then(saved => { if (active) { setSession(saved); setReady(true); } });
+    Promise.all([sessionManager.getSession(), getNotificationPreferences()]).then(([saved, preferences]) => { if (active) { setSession(saved); setNotificationPreferencesState(preferences); setReady(true); } });
     return () => { active = false; };
   }, []);
 
   useEffect(() => {
-    if (session) {
+    if (session && notificationPreferences) {
       requestNotificationPermission().then(device => {
         if (device?.data) return platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() });
         return null;
       }).catch(() => null);
     }
-  }, [session]);
+  }, [session, notificationPreferences]);
 
   if (!ready) return <View style={styles.splash}><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></View>;
   if (!session) return <LoginScreen onAuthenticated={setSession} />;
