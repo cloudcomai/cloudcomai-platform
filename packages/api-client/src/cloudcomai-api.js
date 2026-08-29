@@ -143,6 +143,14 @@ export class CloudComAiApi {
   unregisterDeviceToken(options = {}) {
     return this.client.delete(ApiRoute.DEVICE_TOKEN, options);
   }
+
+  listNotifications(options = {}) {
+    return this.client.get(ApiRoute.NOTIFICATIONS, options);
+  }
+
+  markNotificationsRead(input, options = {}) {
+    return this.client.post(ApiRoute.NOTIFICATIONS_READ, input, options);
+  }
 }
 
 export const createCloudComAiApi = (client) => new CloudComAiApi(client);
