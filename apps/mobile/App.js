@@ -234,7 +234,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session) requestNotificationPermission().catch(() => null);
+    if (session) {
+      requestNotificationPermission().then(device => {
+        if (device?.data) return platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() });
+        return null;
+      }).catch(() => null);
+    }
   }, [session]);
 
   if (!ready) return <View style={styles.splash}><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></View>;

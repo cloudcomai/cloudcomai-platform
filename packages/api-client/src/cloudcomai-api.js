@@ -135,6 +135,14 @@ export class CloudComAiApi {
   heartbeat(options = {}) {
     return this.client.post(ApiRoute.HEARTBEAT, {}, options);
   }
+
+  registerDeviceToken(input, options = {}) {
+    return this.client.post(ApiRoute.DEVICE_TOKEN, input, options);
+  }
+
+  unregisterDeviceToken(options = {}) {
+    return this.client.delete(ApiRoute.DEVICE_TOKEN, options);
+  }
 }
 
 export const createCloudComAiApi = (client) => new CloudComAiApi(client);

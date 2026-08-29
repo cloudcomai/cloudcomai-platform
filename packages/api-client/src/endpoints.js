@@ -23,6 +23,7 @@ export const ApiRoute = Object.freeze({
   GOOGLE_SYNC: 'v1/integrations/google/sync',
   GOOGLE_CONTACTS: 'v1/integrations/google/contacts',
   HEARTBEAT: 'v1/presence/heartbeat',
+  DEVICE_TOKEN: 'v1/notifications/device-token',
   HEALTH: 'v1/health',
   CALLS: 'v1/calls',
   LIVE_LOCATION: 'v1/live-locations',
