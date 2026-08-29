@@ -61,6 +61,12 @@ export default function SettingsPanel({ user, setModal, onLogout, close, setScre
             <ChevronRight size={16} />
           </button>
 
+          <button type="button" onClick={() => setModal('notifications')} style={rowStyle}>
+            <span style={iconWrapStyle}><SlidersHorizontal size={17} /></span>
+            <span style={textWrapStyle}><strong>Notifications</strong><small>View notification history and control local alerts</small></span>
+            <ChevronRight size={16} />
+          </button>
+
           <button type="button" onClick={() => setModal('google_contacts')} style={rowStyle}>
             <span style={iconWrapStyle}><Contact size={17} /></span>
             <span style={textWrapStyle}><strong>Google Contacts</strong><small>Connect Google and synchronize your contacts</small></span>
