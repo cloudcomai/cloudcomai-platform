@@ -15,8 +15,8 @@ test('adds query parameters and a bearer token', async () => {
       });
     },
   });
-  await client.get('messages.php', { query: { chat_id: 7, after_id: 12 } });
-  assert.equal(captured.url, 'https://example.test/api/messages.php?chat_id=7&after_id=12');
+  await client.get('v1/messages', { query: { chat_id: 7, after_id: 12 } });
+  assert.equal(captured.url, 'https://example.test/api/v1/messages?chat_id=7&after_id=12');
   assert.equal(captured.options.headers.get('Authorization'), 'Bearer token-123');
 });
 
@@ -32,7 +32,7 @@ test('serializes JSON request bodies', async () => {
       });
     },
   });
-  const result = await client.post('messages.php', { chat_id: 2, text: 'Hello' });
+  const result = await client.post('v1/messages', { chat_id: 2, text: 'Hello' });
   assert.equal(captured.body, '{"chat_id":2,"text":"Hello"}');
   assert.equal(captured.headers.get('Content-Type'), 'application/json');
   assert.equal(result.status, 201);
@@ -48,7 +48,7 @@ test('normalizes API errors', async () => {
       }),
   });
   await assert.rejects(
-    () => client.post('login.php', {}, { auth: false }),
+    () => client.post('v1/auth/login', {}, { auth: false }),
     (error) =>
       error instanceof ApiError &&
       error.status === 401 &&

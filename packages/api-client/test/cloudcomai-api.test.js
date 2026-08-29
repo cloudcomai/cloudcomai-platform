@@ -21,7 +21,7 @@ test('maps incremental message retrieval to the PHP contract', async () => {
   await api.listMessages(8, 42);
   assert.deepEqual(calls[0], {
     method: 'get',
-    args: ['messages.php', { query: { chat_id: 8, after_id: 42 } }],
+    args: ['v1/messages', { query: { chat_id: 8, after_id: 42 } }],
   });
 });
 
@@ -31,7 +31,7 @@ test('maps private-chat creation to target_user_id', async () => {
   await api.createPrivateChat(17);
   assert.deepEqual(calls[0], {
     method: 'post',
-    args: ['chats.php', { type: 'private', target_user_id: 17 }, {}],
+    args: ['v1/chats', { type: 'private', target_user_id: 17 }, {}],
   });
 });
 
@@ -41,6 +41,6 @@ test('maps poll voting to the vote action', async () => {
   await api.voteInPoll(4, 9);
   assert.deepEqual(calls[0], {
     method: 'post',
-    args: ['polls.php', { poll_id: 4, option_id: 9 }, { query: { action: 'vote' } }],
+    args: ['v1/polls', { poll_id: 4, option_id: 9 }, { query: { action: 'vote' } }],
   });
 });

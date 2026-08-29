@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
-import { ApiEndpoint } from '../packages/api-client/src/endpoints.js';
+import { ApiRoute } from '../packages/api-client/src/endpoints.js';
 
 const contract = JSON.parse(
   await readFile(new URL('../backend/api-contract.json', import.meta.url), 'utf8'),
 );
 
-assert.equal(contract.contractVersion, '1.0.0');
-assert.ok(contract.endpoints && typeof contract.endpoints === 'object');
+assert.equal(contract.contractVersion, '1.1.0');
+assert.ok(contract.routes && typeof contract.routes === 'object');
 
-const clientEndpoints = Object.values(ApiEndpoint);
+const clientEndpoints = Object.values(ApiRoute);
 assert.equal(
   new Set(clientEndpoints).size,
   clientEndpoints.length,
@@ -17,17 +17,18 @@ assert.equal(
 );
 
 for (const endpoint of clientEndpoints) {
-  const definition = contract.endpoints[endpoint];
+  const definition = contract.routes[endpoint];
   assert.ok(definition, `Missing API contract entry for ${endpoint}`);
   assert.ok(definition.methods.length > 0, `No HTTP methods declared for ${endpoint}`);
-  await access(new URL(`../backend/api/${endpoint}`, import.meta.url));
+  await access(new URL(`../backend/api/${definition.handler}`, import.meta.url));
 }
 
-for (const [endpoint, definition] of Object.entries(contract.endpoints)) {
+for (const [endpoint, definition] of Object.entries(contract.routes)) {
   assert.equal(typeof definition.auth, 'boolean', `Missing auth rule for ${endpoint}`);
-  await access(new URL(`../backend/api/${endpoint}`, import.meta.url));
+  assert.equal(endpoint.includes('.php'), false, `Route exposes PHP: ${endpoint}`);
+  await access(new URL(`../backend/api/${definition.handler}`, import.meta.url));
 }
 
 console.log(
-  `API contract verified: ${Object.keys(contract.endpoints).length} backend endpoints, ${clientEndpoints.length} shared client routes.`,
+  `API contract verified: ${Object.keys(contract.routes).length} language-independent routes, ${clientEndpoints.length} shared client routes.`,
 );
