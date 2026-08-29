@@ -85,6 +85,19 @@ CREATE TABLE IF NOT EXISTS notification_devices (
     INDEX idx_notification_devices_user (user_id, revoked_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS notification_history (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    category ENUM('message','group','attachment','system') NOT NULL,
+    title VARCHAR(160) NOT NULL,
+    body VARCHAR(500) NOT NULL,
+    data_json JSON NULL,
+    read_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notification_history_user_cursor (user_id, id),
+    INDEX idx_notification_history_user_unread (user_id, read_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS message_user_states (
     message_id BIGINT UNSIGNED NOT NULL,
     user_id BIGINT UNSIGNED NOT NULL,
