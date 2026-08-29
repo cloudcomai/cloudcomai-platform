@@ -17,6 +17,7 @@ import {
 import { createPollingMessageTransport, mergeMessageBatch } from '@cloudcomai/chat-core';
 import * as DocumentPicker from 'expo-document-picker';
 import { platformApi, sessionManager } from './src/services/platform';
+import { requestNotificationPermission } from './src/services/notifications';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -231,6 +232,10 @@ export default function App() {
     sessionManager.getSession().then(saved => { if (active) { setSession(saved); setReady(true); } });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (session) requestNotificationPermission().catch(() => null);
+  }, [session]);
 
   if (!ready) return <View style={styles.splash}><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></View>;
   if (!session) return <LoginScreen onAuthenticated={setSession} />;
