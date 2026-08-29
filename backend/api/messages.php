@@ -83,6 +83,7 @@ if ($method === 'POST') {
     $st = db()->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
     $st->execute([$chat,$user['id'],$type,$body,$reply ?: null,$expires,$createdAt]);
     $messageId = (int)db()->lastInsertId();
+    create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], $body, $messageId);
 
     $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
     $created->execute([$messageId]);
