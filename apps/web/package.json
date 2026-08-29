@@ -9,6 +9,8 @@
     "preview": "vite preview --base=/app/"
   },
   "dependencies": {
+    "@cloudcomai/api-client": "workspace:*",
+    "@cloudcomai/auth": "workspace:*",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "typescript": "latest",

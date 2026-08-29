@@ -128,6 +128,10 @@ export class CloudComAiApi {
     return this.client.post(ApiRoute.UPLOAD_ATTACHMENT, formData, options);
   }
 
+  uploadMedia(formData, options = {}) {
+    return this.client.post(ApiRoute.MEDIA_UPLOAD, formData, options);
+  }
+
   heartbeat(options = {}) {
     return this.client.post(ApiRoute.HEARTBEAT, {}, options);
   }

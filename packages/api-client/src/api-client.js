@@ -32,13 +32,19 @@ const resolveErrorMessage = (payload, response) =>
   payload?.error ?? payload?.message ?? `Request failed with status ${response.status}`;
 
 export class ApiClient {
-  constructor({ baseUrl, fetchImpl = globalThis.fetch, tokenProvider = null } = {}) {
+  constructor({
+    baseUrl,
+    fetchImpl = globalThis.fetch,
+    tokenProvider = null,
+    onUnauthorized = null,
+  } = {}) {
     if (typeof fetchImpl !== 'function') {
       throw new TypeError('A Fetch-compatible implementation is required');
     }
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.fetchImpl = fetchImpl;
     this.tokenProvider = tokenProvider;
+    this.onUnauthorized = onUnauthorized;
   }
 
   async request(path, options = {}) {
@@ -83,6 +89,9 @@ export class ApiClient {
 
     const payload = await parseResponse(response);
     if (!response.ok) {
+      if (response.status === 401 && auth && this.onUnauthorized) {
+        await this.onUnauthorized();
+      }
       throw new ApiError(resolveErrorMessage(payload, response), {
         status: response.status,
         code: payload?.code ?? null,

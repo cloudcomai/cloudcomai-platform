@@ -12,32 +12,23 @@ import SettingsPanel from './components/SettingsPanel';
 import GoogleContactsPanel from './components/GoogleContactsPanel';
 import InterestsScreen from './components/InterestsScreen';
 import PollModal from './components/PollModal';
+import {
+    clearWebSession,
+    legacyApi as api,
+    loadWebSession,
+    platformApi,
+    saveWebSession
+} from './services/platform';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.com/apiapp/api';
 const groupTypes = ['Family Group', 'Friend Group', 'Fan Group', 'Study Group', 'College Group', 'Class Group', 'Department Group', 'Project Group', 'Club Group', 'Alumni Group', 'Workplace Group', 'Neighborhood Group', 'Event Group', 'Staff Group'];
 const interests = ['Private Chats', 'Public Chat Rooms', ...groupTypes, 'Communities', 'Local Groups', 'Jobs and Internships', 'Business and Finance', 'Technology', 'Sports', 'Music', 'Movies', 'Education', 'Gaming', 'Travel', 'Career Guidance'];
 
-async function api(path, options = {}) {
-    const token = localStorage.getItem('cc_token');
-    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
-    const response = await fetch(`${API}${path}`, {
-        ...options,
-        headers: {
-            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(options.headers || {})
-        }
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || 'Request failed');
-    return data;
-}
-
 export default function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [screen, setScreen] = useState(localStorage.getItem('cc_token') ? 'app' : 'login');
-    const [token, setToken] = useState(localStorage.getItem('cc_token') || '');
-    const [user, setUser] = useState(JSON.parse(localStorage.getItem('cc_user') || 'null'));
+    const [screen, setScreen] = useState('login');
+    const [token, setToken] = useState('');
+    const [user, setUser] = useState(null);
+    const [authReady, setAuthReady] = useState(false);
     const [chats, setChats] = useState([]);
     const [selectedChat, setSelectedChat] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -52,17 +43,40 @@ export default function App() {
     const [topInterests, setTopInterests] = useState(['Private Chats', 'Family Group', 'Study Group', 'Technology']);
     const latestMessageIdRef = useRef(0);
 
-    const auth = (u, t) => {
+    useEffect(() => {
+        let cancelled = false;
+        const initializeAuth = async () => {
+            const session = await loadWebSession();
+            if (cancelled) return;
+            if (session) {
+                setUser(session.user);
+                setToken(session.token);
+                setScreen('app');
+            }
+            setAuthReady(true);
+        };
+        const handleUnauthorized = () => {
+            setToken('');
+            setUser(null);
+            setScreen('login');
+        };
+        window.addEventListener('cloudcomai:unauthorized', handleUnauthorized);
+        initializeAuth();
+        return () => {
+            cancelled = true;
+            window.removeEventListener('cloudcomai:unauthorized', handleUnauthorized);
+        };
+    }, []);
+
+    const auth = async (u, t) => {
+        await saveWebSession({ user: u, token: t });
         setUser(u);
         setToken(t);
-        localStorage.setItem('cc_user', JSON.stringify(u));
-        localStorage.setItem('cc_token', t);
         setScreen('app');
     };
 
-    const logout = () => {
-        localStorage.removeItem('cc_token');
-        localStorage.removeItem('cc_user');
+    const logout = async () => {
+        await clearWebSession();
         setToken('');
         setUser(null);
         setSelectedChat(null);
@@ -245,8 +259,11 @@ export default function App() {
     };
 
     const handleUserUpdated = nextUser => {
-        setUser(prev => ({ ...prev, ...nextUser }));
-        localStorage.setItem('cc_user', JSON.stringify({ ...user, ...nextUser }));
+        const updatedUser = { ...user, ...nextUser };
+        setUser(updatedUser);
+        saveWebSession({ user: updatedUser, token }).catch(error => {
+            console.error('Unable to update stored session:', error);
+        });
     };
 
     const handleGroupUpdated = nextGroup => {
@@ -261,7 +278,8 @@ export default function App() {
         return matchesSearch;
     });
 
-    if (screen === 'login' || !token) return <Auth onAuth={auth} apiBridge={api} />;
+    if (!authReady) return <div className="auth-page"><div className="auth-card">Loading CloudComAI...</div></div>;
+    if (screen === 'login' || !token) return <Auth onAuth={auth} authApi={platformApi} />;
     if (screen === 'interests') return <InterestsScreen interests={interests} topInterests={topInterests} setTopInterests={setTopInterests} saveAndContinue={() => setScreen('app')} />;
 
     return (

@@ -55,3 +55,22 @@ test('normalizes API errors', async () => {
       error.message === 'Invalid credentials',
   );
 });
+
+test('notifies the session layer after an authenticated 401', async () => {
+  let unauthorizedCalls = 0;
+  const client = new ApiClient({
+    baseUrl: 'https://example.test/api/',
+    tokenProvider: () => 'expired-token',
+    onUnauthorized: async () => {
+      unauthorizedCalls += 1;
+    },
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ message: 'Token expired' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+  });
+
+  await assert.rejects(() => client.get('v1/chats'), ApiError);
+  assert.equal(unauthorizedCalls, 1);
+});
