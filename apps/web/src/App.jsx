@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import './styles.css';
 import Sidebar from './components/Sidebar';
 import ChatDirectory from './components/ChatDirectory';
@@ -14,7 +15,7 @@ import InterestsScreen from './components/InterestsScreen';
 import PollModal from './components/PollModal';
 import {
     clearWebSession,
-    legacyApi as api,
+    requestApi as api,
     loadWebSession,
     platformApi,
     saveWebSession
@@ -96,15 +97,16 @@ export default function App() {
     };
 
     const getActiveListPath = useCallback(() => {
-        if (activeTab === 'groups') return '/chats.php?type=group';
-        if (activeTab === 'people') return '/users_list.php';
-        return '/chats.php?type=private';
+        if (activeTab === 'groups') return { route: ApiRoute.CHATS, query: { type: 'group' } };
+        if (activeTab === 'people') return { route: ApiRoute.USERS };
+        return { route: ApiRoute.CHATS, query: { type: 'private' } };
     }, [activeTab]);
 
     const refreshConversationList = useCallback(async () => {
         if (!token || screen !== 'app') return;
         try {
-            const data = await api(getActiveListPath(), { method: 'GET' });
+            const { route, query } = getActiveListPath();
+            const data = await api(route, { method: 'GET', query });
             if (data.chats) {
                 const mapped = data.chats.map(chat => ({ ...chat, id: Number(chat.id), isGroup: chat.type === 'group' }));
                 setChats(mapped);
@@ -134,7 +136,7 @@ export default function App() {
         if (!token || screen !== 'app') return undefined;
         let stopped = false;
         const sendHeartbeat = async () => {
-            try { if (!stopped) await api('/heartbeat.php', { method: 'POST' }); }
+            try { if (!stopped) await api(ApiRoute.HEARTBEAT, { method: 'POST' }); }
             catch (err) { console.warn('Presence heartbeat failed:', err); }
         };
         sendHeartbeat();
@@ -163,7 +165,7 @@ export default function App() {
 
         const loadMessages = async () => {
             try {
-                const data = await api(`/messages.php?chat_id=${selectedChat.id}`, { method: 'GET' });
+                const data = await api(ApiRoute.MESSAGES, { method: 'GET', query: { chat_id: selectedChat.id } });
                 if (cancelled || !data.messages) return;
                 const initialMessages = [...data.messages].sort((a, b) => getMessageId(a) - getMessageId(b));
                 latestMessageIdRef.current = initialMessages.reduce((max, message) => Math.max(max, getMessageId(message)), 0);
@@ -174,7 +176,7 @@ export default function App() {
         const pollForNewMessages = async () => {
             try {
                 const afterId = latestMessageIdRef.current;
-                const data = await api(`/messages.php?chat_id=${selectedChat.id}&after_id=${afterId}`, { method: 'GET' });
+                const data = await api(ApiRoute.MESSAGES, { method: 'GET', query: { chat_id: selectedChat.id, after_id: afterId } });
                 if (!cancelled) mergeIncomingMessages(data.messages);
             } catch (err) { if (!cancelled) console.error('Unable to refresh new messages:', err); }
         };
@@ -188,7 +190,7 @@ export default function App() {
         if (!composer.trim() || !selectedChat) return;
         const payload = { chat_id: selectedChat.id, body: composer, reply_to_message_id: replyTo ? replyTo.id : null };
         try {
-            const targetEndpoint = editing ? '/edit_message.php' : '/messages.php';
+            const targetEndpoint = editing ? ApiRoute.EDIT_MESSAGE : ApiRoute.MESSAGES;
             if (editing) payload.editing_id = editing.id;
             const result = await api(targetEndpoint, { method: 'POST', body: JSON.stringify(payload) });
             if (editing) {
@@ -223,7 +225,7 @@ export default function App() {
         if (!selectedRowItem) return;
         if (!selectedRowItem.isContact) { setSelectedChat(selectedRowItem); return; }
         try {
-            const response = await api('/chats.php', { method: 'POST', body: JSON.stringify({ type: 'private', target_user_id: selectedRowItem.id }) });
+            const response = await api(ApiRoute.CHATS, { method: 'POST', body: JSON.stringify({ type: 'private', target_user_id: selectedRowItem.id }) });
             if (response.chat) {
                 const chat = { ...response.chat, id: Number(response.chat.id), isGroup: false };
                 setActiveTab('chats');
@@ -245,7 +247,7 @@ export default function App() {
         const confirmed = window.confirm(`Delete group \"${group.name}\"? This will remove the group for all members.`);
         if (!confirmed) return;
         try {
-            await api(`/groups.php?id=${group.id}`, { method: 'DELETE' });
+            await api(ApiRoute.GROUPS, { method: 'DELETE', query: { id: group.id } });
             setChats(prev => prev.filter(chat => chat.id !== group.id));
             setSelectedChat(null);
             setMessages([]);
@@ -255,7 +257,7 @@ export default function App() {
 
     const handleGroupInvite = async group => {
         if (!group?.id) return null;
-        return api(`/groups.php?action=invite&id=${group.id}`, { method: 'POST' });
+        return api(ApiRoute.GROUPS, { method: 'POST', query: { action: 'invite', id: group.id } });
     };
 
     const handleUserUpdated = nextUser => {

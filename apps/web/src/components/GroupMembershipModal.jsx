@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import { UserPlus, UserMinus, Search, X } from 'lucide-react';
 
 export default function GroupMembershipModal({ type, selectedChat, apiBridge, close, onActionComplete }) {
@@ -10,7 +11,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
 
   useEffect(() => {
     if ((type === 'manage_members' || type === 'add_member') && selectedChat) {
-      apiBridge(`/group_members.php?chat_id=${selectedChat.id}`)
+      apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } })
         .then(data => { if (data.members) setCurrentMembers(data.members); })
         .catch(err => console.error("Error loading group members:", err));
     }
@@ -21,7 +22,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     setLoading(true);
     setHasSearched(true);
     try {
-      const result = await apiBridge(`/search_users.php?q=${encodeURIComponent(searchTerm)}`);
+      const result = await apiBridge(ApiRoute.SEARCH_USERS, { query: { q: searchTerm } });
       if (result.users) setSearchResults(result.users);
     } catch (err) {
       alert(err.message || "Failed to locate matching accounts");
@@ -33,7 +34,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const executeMemberAction = async (targetUserId, actionType) => {
     setLoading(true);
     try {
-      await apiBridge('/group_members.php', {
+      await apiBridge(ApiRoute.GROUP_MEMBERS, {
         method: 'POST',
         body: JSON.stringify({
           chat_id: selectedChat.id,

@@ -1,4 +1,4 @@
-import { createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
+import { ApiRoute, createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
 import {
   createAuthSessionManager,
   createWebStorageAdapter,
@@ -10,47 +10,16 @@ export const API_BASE_URL =
 const storage = createWebStorageAdapter(window.localStorage);
 export const sessionManager = createAuthSessionManager({ storage });
 
-const syncLegacyKeys = (session) => {
-  if (session) {
-    window.localStorage.setItem('cc_token', session.token);
-    window.localStorage.setItem('cc_user', JSON.stringify(session.user));
-  } else {
-    window.localStorage.removeItem('cc_token');
-    window.localStorage.removeItem('cc_user');
-  }
-};
-
 export const saveWebSession = async (session) => {
   await sessionManager.setSession(session);
-  syncLegacyKeys(session);
   return session;
 };
 
 export const clearWebSession = async () => {
   await sessionManager.clearSession();
-  syncLegacyKeys(null);
 };
 
-export const loadWebSession = async () => {
-  const session = await sessionManager.getSession();
-  if (session) {
-    syncLegacyKeys(session);
-    return session;
-  }
-
-  const token = window.localStorage.getItem('cc_token');
-  const rawUser = window.localStorage.getItem('cc_user');
-  if (!token || !rawUser) return null;
-
-  try {
-    const legacySession = { token, user: JSON.parse(rawUser) };
-    await saveWebSession(legacySession);
-    return legacySession;
-  } catch {
-    await clearWebSession();
-    return null;
-  }
-};
+export const loadWebSession = () => sessionManager.getSession();
 
 export const apiClient = createApiClient({
   baseUrl: API_BASE_URL,
@@ -63,10 +32,7 @@ export const apiClient = createApiClient({
 
 export const platformApi = createCloudComAiApi(apiClient);
 
-// Compatibility bridge for web features that will move to platformApi during
-// the Web phase. It centralizes auth/error behavior without changing their
-// existing request and response shapes in the authentication phase.
-export const legacyApi = async (path, options = {}) => {
+export const requestApi = async (route, options = {}) => {
   const { method = 'GET', body, headers, ...requestOptions } = options;
   let normalizedBody = body;
   if (typeof body === 'string') {
@@ -77,11 +43,23 @@ export const legacyApi = async (path, options = {}) => {
     }
   }
 
-  const result = await apiClient.request(String(path).replace(/^\//, ''), {
+  const result = await apiClient.request(route, {
     ...requestOptions,
     method,
     body: normalizedBody,
     headers,
   });
   return result.data;
+};
+
+export const fetchApiBlob = async (route, query, options = {}) => {
+  const result = await apiClient.get(route, { ...options, query, responseType: 'blob' });
+  return result.data;
+};
+
+export const mediaUrl = (type, id) => {
+  const url = new URL(ApiRoute.MEDIA, `${API_BASE_URL.replace(/\/$/, '')}/`);
+  url.searchParams.set('type', type);
+  url.searchParams.set('id', String(id ?? ''));
+  return url.toString();
 };

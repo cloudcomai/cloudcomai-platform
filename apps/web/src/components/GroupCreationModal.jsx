@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import { Camera, Check, Copy, X } from 'lucide-react';
 
 export default function GroupCreationModal({ groupTypes, apiBridge, close, onGroupCreated }) {
@@ -26,7 +27,7 @@ export default function GroupCreationModal({ groupTypes, apiBridge, close, onGro
     if (!newGroupName.trim() || loading) return;
     setLoading(true);
     try {
-      const response = await apiBridge('/groups.php', {
+      const response = await apiBridge(ApiRoute.GROUPS, {
         method: 'POST',
         body: JSON.stringify({ name: newGroupName.trim(), group_category: newGroupType, retention_seconds: 0 })
       });
@@ -38,7 +39,7 @@ export default function GroupCreationModal({ groupTypes, apiBridge, close, onGro
         formData.append('type', 'group');
         formData.append('id', String(response.group.id));
         formData.append('image', imageFile);
-        const upload = await apiBridge('/media_upload.php', { method: 'POST', body: formData });
+        const upload = await apiBridge(ApiRoute.MEDIA_UPLOAD, { method: 'POST', body: formData });
         chat = { ...chat, image_url: upload.image_url, image_version: upload.updated_at };
       }
 

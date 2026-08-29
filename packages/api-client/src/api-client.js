@@ -20,8 +20,9 @@ const addQuery = (url, query) => {
   return result.toString();
 };
 
-const parseResponse = async (response) => {
+const parseResponse = async (response, responseType = 'auto') => {
   if (response.status === 204) return null;
+  if (responseType === 'blob') return response.blob();
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) return response.json();
   const text = await response.text();
@@ -55,6 +56,7 @@ export class ApiClient {
       headers = {},
       auth = true,
       signal,
+      responseType = 'auto',
     } = options;
     const requestHeaders = new Headers(headers);
     let requestBody = body;
@@ -87,7 +89,7 @@ export class ApiClient {
       });
     }
 
-    const payload = await parseResponse(response);
+    const payload = await parseResponse(response, responseType);
     if (!response.ok) {
       if (response.status === 401 && auth && this.onUnauthorized) {
         await this.onUnauthorized();

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import { Check, ChevronRight, Contact, RefreshCw, X } from 'lucide-react';
 
 export default function GoogleContactsPanel({ apiBridge, close }) {
@@ -10,13 +11,13 @@ export default function GoogleContactsPanel({ apiBridge, close }) {
   const [error, setError] = useState('');
 
   const loadStatus = useCallback(async () => {
-    const data = await apiBridge('/google/status.php', { method: 'GET' });
+    const data = await apiBridge(ApiRoute.GOOGLE_STATUS, { method: 'GET' });
     setStatus(data);
     return data;
   }, [apiBridge]);
 
   const loadContacts = useCallback(async () => {
-    const data = await apiBridge('/google/contacts.php?page=1&page_size=50', { method: 'GET' });
+    const data = await apiBridge(ApiRoute.GOOGLE_CONTACTS, { method: 'GET', query: { page: 1, page_size: 50 } });
     setContacts(Array.isArray(data.contacts) ? data.contacts : []);
   }, [apiBridge]);
 
@@ -50,7 +51,7 @@ export default function GoogleContactsPanel({ apiBridge, close }) {
     setConnecting(true);
     setError('');
     try {
-      const data = await apiBridge('/google/connect.php', { method: 'GET' });
+      const data = await apiBridge(ApiRoute.GOOGLE_CONNECT, { method: 'GET' });
       if (!data.authorization_url) throw new Error('Google authorization URL was not returned.');
       const popup = window.open(data.authorization_url, 'cloudcomai-google', 'width=520,height=700,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
       if (!popup) {
@@ -68,7 +69,7 @@ export default function GoogleContactsPanel({ apiBridge, close }) {
     setSyncing(true);
     setError('');
     try {
-      await apiBridge('/google/sync.php', { method: 'POST' });
+      await apiBridge(ApiRoute.GOOGLE_SYNC, { method: 'POST' });
       await load();
     } catch (err) {
       setError(err.message || 'Unable to synchronize Google Contacts.');

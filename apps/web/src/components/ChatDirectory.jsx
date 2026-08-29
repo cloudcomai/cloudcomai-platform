@@ -1,22 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, UserRound, Mail, Phone } from 'lucide-react';
+import { mediaUrl, platformApi } from '../services/platform';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.com/apiapp/api';
-const imageUrl = chat => chat?.image_url || `https://cloudcomai.com/apiapp/api/media.php?type=${chat?.isGroup ? 'group' : 'user'}&id=${encodeURIComponent(chat?.isGroup ? chat?.id || '' : chat?.other_user_id || chat?.id || '')}`;
-
-async function contactsRequest(path) {
-  const token = localStorage.getItem('cc_token');
-  const response = await fetch(`${API}${path}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || data.error || 'Unable to load contacts.');
-  return data;
-}
+const imageUrl = chat => chat?.image_url || mediaUrl(
+  chat?.isGroup ? 'group' : 'user',
+  chat?.isGroup ? chat?.id : chat?.other_user_id || chat?.id,
+);
 
 export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab }) {
   const [failedImages, setFailedImages] = useState({});
@@ -40,7 +29,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
         let hasMore = true;
 
         while (hasMore && !cancelled) {
-          const data = await contactsRequest(`/contacts.php?page=${page}&page_size=500`);
+          const { data } = await platformApi.listContacts(page, 500);
           const pageContacts = Array.isArray(data.contacts) ? data.contacts : [];
           allContacts.push(...pageContacts);
           setContacts([...allContacts]);

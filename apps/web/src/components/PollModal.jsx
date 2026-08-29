@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import { X, Plus, Trash2 } from 'lucide-react';
 
 export default function PollModal({ selectedChat, apiBridge, close, onPollCreated }) {
@@ -48,7 +49,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
         options: cleanOptions
       };
 
-      const response = await apiBridge('/polls.php', {
+      const response = await apiBridge(ApiRoute.POLLS, {
         method: 'POST',
         body: JSON.stringify(payload)
       });

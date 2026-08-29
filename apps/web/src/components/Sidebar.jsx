@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X } from 'lucide-react';
+import { mediaUrl } from '../services/platform';
 
-const mediaUrl = (user) => user?.image_url || `https://cloudcomai.com/apiapp/api/media.php?type=user&id=${encodeURIComponent(user?.id || '')}`;
+const profileImageUrl = user => user?.image_url || mediaUrl('user', user?.id);
 
 export default function Sidebar({ user, setModal, isDarkMode, setIsDarkMode, onLogout, isSidebarOpen, setIsSidebarOpen, activeTab, onTabChange, setScreen }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -18,7 +19,7 @@ export default function Sidebar({ user, setModal, isDarkMode, setIsDarkMode, onL
         <div className="avatar-frame">
           {!imageFailed ? (
             <img
-              src={mediaUrl(user)}
+              src={profileImageUrl(user)}
               alt="Profile"
               onError={() => setImageFailed(true)}
               style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}

@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import { Camera, X } from 'lucide-react';
 
 export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated }) {
@@ -22,7 +23,7 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
     if (!name.trim() || loading) return;
     setLoading(true);
     try {
-      const response = await apiBridge('/profile.php', {
+      const response = await apiBridge(ApiRoute.PROFILE, {
         method: 'PUT',
         body: JSON.stringify({ name: name.trim() })
       });
@@ -32,7 +33,7 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
         formData.append('type', 'user');
         formData.append('id', String(user.id));
         formData.append('image', file);
-        const upload = await apiBridge('/media_upload.php', { method: 'POST', body: formData });
+        const upload = await apiBridge(ApiRoute.MEDIA_UPLOAD, { method: 'POST', body: formData });
         nextUser = { ...nextUser, image_url: upload.image_url, image_version: upload.updated_at };
       }
       onUserUpdated(nextUser);
