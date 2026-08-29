@@ -13,6 +13,7 @@ import ProfileEditModal from './components/ProfileEditModal';
 import SettingsPanel from './components/SettingsPanel';
 import GoogleContactsPanel from './components/GoogleContactsPanel';
 import InterestsScreen from './components/InterestsScreen';
+import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
 import {
     clearWebSession,
@@ -283,6 +284,7 @@ export default function App() {
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
                     : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={setScreen} apiBridge={api} />
+                    : modal === 'notifications' ? <NotificationPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onPollCreated={pollMessageObject => setMessages(prev => {
                         const messageId = Number(pollMessageObject?.id || 0);
