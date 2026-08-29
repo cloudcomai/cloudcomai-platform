@@ -259,7 +259,7 @@ export default function App() {
     if (session && notificationPreferences) {
       requestNotificationPermission().then(device => {
         if (device?.data) return platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() });
-        return null;
+        return platformApi.unregisterDeviceToken();
       }).catch(() => null);
     }
   }, [session, notificationPreferences]);
