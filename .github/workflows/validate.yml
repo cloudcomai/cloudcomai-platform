@@ -24,3 +24,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
+      - run: php backend/tests/api_router_test.php

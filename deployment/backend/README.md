@@ -4,3 +4,11 @@ The PHP deployment sequence is: validate, back up application and database, depl
 
 Production deployment is not enabled in the foundation milestone.
 
+## API forwarding adapter
+
+Application clients use language-independent `/api/v1/*` routes. The PHP implementation routes them through `backend/api/index.php`.
+
+- Apache/GoDaddy uses the isolated `backend/api/.htaccess` adapter.
+- Nginx, Caddy, serverless, Java, Node.js, and other platforms should forward the same public paths to their application entrypoint.
+
+Only this forwarding adapter is hosting-specific. The API contract, clients, routes, and response shapes remain unchanged when the backend language or hosting provider changes.
