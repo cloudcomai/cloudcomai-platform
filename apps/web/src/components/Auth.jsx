@@ -3,7 +3,7 @@ import TermsModal from './TermsModal';
 import PrivacyPolicyModal from './PrivacyPolicyModal';
 import { Camera } from 'lucide-react';
 
-export default function Auth({ onAuth, apiBridge }) {
+export default function Auth({ onAuth, authApi }) {
   const initialResetToken = new URLSearchParams(window.location.search).get('reset_token') || '';
   const [mode, setMode] = useState(initialResetToken ? 'reset' : 'login');
   const [resetToken, setResetToken] = useState(initialResetToken);
@@ -41,34 +41,39 @@ export default function Auth({ onAuth, apiBridge }) {
     try {
       let response;
       if (mode === 'register') {
-        response = await apiBridge('/register.php', {
-          method: 'POST',
-          body: JSON.stringify({ name: form.name, email: form.email, mobile: form.mobile, user_id: form.user_id, password: form.password, dob: form.dob, gender: form.gender })
+        const result = await authApi.register({
+          name: form.name,
+          email: form.email,
+          mobile: form.mobile,
+          user_id: form.user_id,
+          password: form.password,
+          dob: form.dob,
+          gender: form.gender
         });
+        response = result.data;
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
 
         let nextUser = response.user;
-        localStorage.setItem('cc_token', response.token);
         if (avatarFile) {
           const formData = new FormData();
           formData.append('type', 'user');
           formData.append('id', String(response.user.id));
           formData.append('image', avatarFile);
-          const upload = await apiBridge('/media_upload.php', { method: 'POST', body: formData });
+          const uploadResult = await authApi.uploadMedia(formData, {
+            headers: { Authorization: `Bearer ${response.token}` }
+          });
+          const upload = uploadResult.data;
           nextUser = { ...nextUser, image_url: upload.image_url, image_version: upload.updated_at };
         }
-        onAuth(nextUser, response.token);
+        await onAuth(nextUser, response.token);
       } else if (mode === 'forgot') {
-        response = await apiBridge('/forgot_password.php', { method: 'POST', body: JSON.stringify({ identifier: form.email }) });
+        response = (await authApi.forgotPassword(form.email)).data;
         setSuccess(response?.message || 'If the account exists, password reset instructions have been sent.');
       } else if (mode === 'reset') {
         if (!resetToken) throw new Error('This password reset link is missing or invalid.');
         if (form.password.length < 8) throw new Error('Password must be at least 8 characters.');
         if (form.password !== confirmPassword) throw new Error('Passwords do not match.');
-        response = await apiBridge('/reset_password.php', {
-          method: 'POST',
-          body: JSON.stringify({ token: resetToken, password: form.password })
-        });
+        response = (await authApi.resetPassword(resetToken, form.password)).data;
         window.history.replaceState({}, document.title, window.location.pathname);
         setResetToken('');
         setConfirmPassword('');
@@ -76,9 +81,9 @@ export default function Auth({ onAuth, apiBridge }) {
         setMode('login');
         setSuccess(response?.message || 'Password has been reset successfully. You can now sign in.');
       } else {
-        response = await apiBridge('/login.php', { method: 'POST', body: JSON.stringify({ identifier: form.email, password: form.password }) });
+        response = (await authApi.login(form.email, form.password)).data;
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
-        onAuth(response.user, response.token);
+        await onAuth(response.user, response.token);
       }
     } catch (err) {
       setError(err.message || 'Unable to connect to the server');
