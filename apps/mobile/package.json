@@ -3,10 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "description": "CloudComAI React Native and Expo mobile application foundation",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "ios": "expo start --ios"
+    "ios": "expo start --ios",
+    "build": "expo export --platform all --output-dir dist"
+  },
+  "dependencies": {
+    "@cloudcomai/api-client": "workspace:*",
+    "@cloudcomai/auth": "workspace:*",
+    "@cloudcomai/chat-core": "workspace:*",
+    "expo": "^57.0.0",
+    "expo-secure-store": "~57.0.2",
+    "react": "19.2.3",
+    "react-native": "0.86.0"
   }
 }
-

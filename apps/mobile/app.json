@@ -4,7 +4,16 @@
     "slug": "cloudcomai",
     "version": "0.1.0",
     "orientation": "portrait",
-    "platforms": ["android", "ios"]
+    "platforms": ["android", "ios"],
+    "scheme": "cloudcomai",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "com.cloudcomai.mobile"
+    },
+    "ios": {
+      "bundleIdentifier": "com.cloudcomai.mobile",
+      "supportsTablet": true
+    },
+    "plugins": ["expo-secure-store"]
   }
 }
-

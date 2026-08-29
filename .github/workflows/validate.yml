@@ -18,6 +18,7 @@ jobs:
       - run: pnpm test
       - run: pnpm verify:api
       - run: pnpm build:web
+      - run: pnpm build:mobile
 
   php:
     runs-on: ubuntu-latest

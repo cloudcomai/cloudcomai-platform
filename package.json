@@ -7,6 +7,7 @@
     "dev:web": "pnpm --filter @cloudcomai/web dev",
     "build:web": "pnpm --filter @cloudcomai/web build",
     "dev:mobile": "pnpm --filter @cloudcomai/mobile start",
+    "build:mobile": "pnpm --filter @cloudcomai/mobile build",
     "test": "pnpm --recursive --if-present test",
     "verify:api": "node scripts/verify-api-contract.mjs",
     "check": "pnpm test && pnpm verify:api && pnpm build:web"
