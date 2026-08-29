@@ -1,0 +1,21 @@
+node_modules/
+.pnpm-store/
+dist/
+.expo/
+.env
+.env.*
+!.env.example
+
+# PHP production configuration and runtime data
+backend/config/config.php
+backend/config.php
+backend/error_log
+backend/cron_debug.log
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
