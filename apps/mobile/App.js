@@ -9,6 +9,7 @@ import {
   RefreshControl,
   SafeAreaView,
   StatusBar,
+  Switch,
   StyleSheet,
   Text,
   TextInput,
@@ -167,7 +168,26 @@ function ChatDetail({ chat, onBack }) {
   );
 }
 
-function ChatsScreen({ session, onLogout }) {
+function NotificationSettings({ preferences, onBack, onChange }) {
+  const items = [['enabled', 'Push notifications'], ['message', 'Messages'], ['group', 'Groups'], ['attachment', 'Attachments'], ['system', 'System']];
+  return (
+    <SafeAreaView style={styles.appPage}>
+      <View style={styles.header}>
+        <Pressable onPress={onBack}><Text style={styles.back}>‹ Back</Text></Pressable>
+        <Text style={styles.headerTitle}>Notifications</Text><View style={{ width: 54 }} />
+      </View>
+      <View style={styles.settingsCard}>
+        <Text style={styles.settingsIntro}>Choose which notifications this device can receive.</Text>
+        {items.map(([key, label]) => <View key={key} style={styles.settingRow}>
+          <Text style={styles.settingLabel}>{label}</Text>
+          <Switch value={Boolean(preferences[key])} onValueChange={value => onChange({ [key]: value })} />
+        </View>)}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function ChatsScreen({ session, onLogout, onSettings }) {
   const [tab, setTab] = useState('private');
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -203,7 +223,7 @@ function ChatsScreen({ session, onLogout }) {
       <StatusBar barStyle="light-content" backgroundColor="#3157d5" />
       <View style={styles.header}>
         <View><Text style={styles.headerTitle}>CloudComAI</Text><Text style={styles.headerUser}>{session.user?.name || 'Authorized user'}</Text></View>
-        <Pressable onPress={logout}><Text style={styles.logout}>Sign out</Text></Pressable>
+        <View style={styles.headerActions}><Pressable onPress={onSettings}><Text style={styles.logout}>Alerts</Text></Pressable><Pressable onPress={logout}><Text style={styles.logout}>Sign out</Text></Pressable></View>
       </View>
       <View style={styles.tabs}>
         {['private', 'group'].map(value => <Pressable key={value} style={[styles.tab, tab === value && styles.activeTab]} onPress={() => setTab(value)}><Text style={[styles.tabText, tab === value && styles.activeTabText]}>{value === 'private' ? 'Chats' : 'Groups'}</Text></Pressable>)}
@@ -227,6 +247,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState(null);
   const [notificationPreferences, setNotificationPreferencesState] = useState(null);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -245,10 +266,12 @@ export default function App() {
 
   if (!ready) return <View style={styles.splash}><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></View>;
   if (!session) return <LoginScreen onAuthenticated={setSession} />;
-  return <ChatsScreen session={session} onLogout={() => setSession(null)} />;
+  if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
+  return <ChatsScreen session={session} onLogout={() => setSession(null)} onSettings={() => setShowNotificationSettings(true)} />;
 }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: 'row', gap: 16 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashText: { color: '#526078' },
   loginPage: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#eef2ff' }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
