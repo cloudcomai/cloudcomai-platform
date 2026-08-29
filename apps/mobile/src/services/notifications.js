@@ -43,5 +43,10 @@ export async function requestNotificationPermission() {
 
 // Device-token registration is intentionally isolated until the PHP API gains
 // an approved device-token endpoint. No token is sent to an unregistered URL.
-export const subscribeToNotifications = onNotification =>
-  Notifications.addNotificationReceivedListener(onNotification);
+export const subscribeToNotifications = async onNotification => {
+  const preferences = await getNotificationPreferences();
+  return Notifications.addNotificationReceivedListener(event => {
+    const category = event?.request?.content?.data?.category || 'system';
+    if (preferences.enabled && preferences[category] !== false) onNotification(event);
+  });
+};
