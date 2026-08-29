@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Shield, SlidersHorizontal, LogOut, X, ChevronRight, Contact } from 'lucide-react';
+import { mediaUrl } from '../services/platform';
 
 export default function SettingsPanel({ user, setModal, onLogout, close, setScreen }) {
   const displayName = user?.name || 'Authorized User';
@@ -8,7 +9,7 @@ export default function SettingsPanel({ user, setModal, onLogout, close, setScre
   const phoneNumber = user?.phone_number || user?.phone || user?.mobile || '';
   const age = user?.age ?? '';
   const gender = user?.gender || '';
-  const imageUrl = user?.image_url || `https://cloudcomai.com/apiapp/api/media.php?type=user&id=${encodeURIComponent(user?.id || '')}`;
+  const imageUrl = user?.image_url || mediaUrl('user', user?.id);
   const [imageFailed, setImageFailed] = useState(false);
 
   const detailValue = value => value !== '' && value !== null && value !== undefined ? String(value) : 'Not set';

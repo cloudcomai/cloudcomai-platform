@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin } from 'lucide-react';
 import { formatMessageTime } from '../utils/messageTime';
 import AttachmentControls from './AttachmentControls';
@@ -45,7 +46,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   const handleCastVote = async (pollId, optionId) => {
     if (!apiBridge || !pollId || !optionId) return;
     try {
-      const response = await apiBridge('/polls.php?action=vote', { method: 'POST', body: JSON.stringify({ poll_id: Number(pollId), option_id: Number(optionId) }) });
+      const response = await apiBridge(ApiRoute.POLLS, { method: 'POST', query: { action: 'vote' }, body: JSON.stringify({ poll_id: Number(pollId), option_id: Number(optionId) }) });
       if (response?.options) setPollVoteState(prev => ({ ...prev, [pollId]: response.options }));
     } catch (err) { alert(err.message || 'Failed to submit vote.'); }
   };

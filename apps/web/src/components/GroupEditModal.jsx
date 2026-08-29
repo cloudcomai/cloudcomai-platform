@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import { Camera, X } from 'lucide-react';
 
 export default function GroupEditModal({ group, groupTypes, apiBridge, close, onGroupUpdated }) {
@@ -23,8 +24,9 @@ export default function GroupEditModal({ group, groupTypes, apiBridge, close, on
     if (!name.trim() || loading || !group?.id) return;
     setLoading(true);
     try {
-      const response = await apiBridge(`/groups.php?id=${group.id}`, {
+      const response = await apiBridge(ApiRoute.GROUPS, {
         method: 'PUT',
+        query: { id: group.id },
         body: JSON.stringify({ name: name.trim(), group_category: category })
       });
       let nextGroup = { ...group, ...(response.group || {}) };
@@ -33,7 +35,7 @@ export default function GroupEditModal({ group, groupTypes, apiBridge, close, on
         formData.append('type', 'group');
         formData.append('id', String(group.id));
         formData.append('image', file);
-        const upload = await apiBridge('/media_upload.php', { method: 'POST', body: formData });
+        const upload = await apiBridge(ApiRoute.MEDIA_UPLOAD, { method: 'POST', body: formData });
         nextGroup = { ...nextGroup, image_url: upload.image_url, image_version: upload.updated_at };
       }
       onGroupUpdated(nextGroup);

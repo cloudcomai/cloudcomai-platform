@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
+import { fetchApiBlob } from '../services/platform';
 
 export default function AttachmentPreview({ attachment }) {
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.com/apiapp/api';
   const isImage = String(attachment?.mime_type || '').startsWith('image/');
 
   useEffect(() => {
@@ -16,22 +17,11 @@ export default function AttachmentPreview({ attachment }) {
     const loadPreview = async () => {
       try {
         setError('');
-        const token = localStorage.getItem('cc_token');
-        const response = await fetch(
-          `${apiBase}/attachment.php?id=${encodeURIComponent(attachment.id)}&preview=1`,
-          {
-            method: 'GET',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            signal: controller.signal
-          }
+        const blob = await fetchApiBlob(
+          ApiRoute.ATTACHMENT,
+          { id: attachment.id, preview: 1 },
+          { signal: controller.signal },
         );
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.message || 'Unable to load image preview.');
-        }
-
-        const blob = await response.blob();
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setPreviewUrl(objectUrl);
@@ -50,7 +40,7 @@ export default function AttachmentPreview({ attachment }) {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [apiBase, attachment?.id, isImage]);
+  }, [attachment?.id, isImage]);
 
   if (!isImage) return null;
 

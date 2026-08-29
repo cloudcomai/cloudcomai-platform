@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
+import { fetchApiBlob } from '../services/platform';
 
 export default function AttachmentActions({ attachment, message, user, apiBridge }) {
   const [status, setStatus] = useState(attachment?.download_status || '');
@@ -7,7 +9,6 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
 
   const isSender = Number(message?.sender_id) === Number(user?.id) || Number(message?.user_id) === Number(user?.id) || message?.mine === true;
   const policy = attachment?.download_policy || 'APPROVAL_REQUIRED';
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.com/apiapp/api';
 
   useEffect(() => {
     setStatus(attachment?.download_status || '');
@@ -19,7 +20,7 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
     let cancelled = false;
     const loadPendingRequest = async () => {
       try {
-        const result = await apiBridge(`/attachment_download_requests.php?chat_id=${encodeURIComponent(message?.chat_id || '')}`, { method: 'GET' });
+        const result = await apiBridge(ApiRoute.ATTACHMENT_REQUESTS, { method: 'GET', query: { chat_id: message?.chat_id || '' } });
         const request = (result?.requests || []).find(item => Number(item.attachment_id) === Number(attachment.id));
         if (!cancelled && request) {
           setRequestId(Number(request.request_id));
@@ -36,16 +37,7 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
   const download = async () => {
     setBusy(true);
     try {
-      const token = localStorage.getItem('cc_token');
-      const response = await fetch(`${apiBase}/attachment.php?id=${encodeURIComponent(attachment.id)}`, {
-        method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Unable to download attachment.');
-      }
-      const blob = await response.blob();
+      const blob = await fetchApiBlob(ApiRoute.ATTACHMENT, { id: attachment.id });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -64,7 +56,7 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
   const requestDownload = async () => {
     setBusy(true);
     try {
-      const result = await apiBridge('/request_attachment_download.php', { method: 'POST', body: JSON.stringify({ attachment_id: Number(attachment.id) }) });
+      const result = await apiBridge(ApiRoute.REQUEST_ATTACHMENT_DOWNLOAD, { method: 'POST', body: JSON.stringify({ attachment_id: Number(attachment.id) }) });
       setStatus(result?.status || 'PENDING');
     } catch (err) {
       alert(err.message || 'Unable to request download.');
@@ -77,7 +69,7 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
     if (!requestId) return;
     setBusy(true);
     try {
-      const result = await apiBridge('/respond_attachment_download.php', { method: 'POST', body: JSON.stringify({ request_id: Number(requestId), status: nextStatus }) });
+      const result = await apiBridge(ApiRoute.RESPOND_ATTACHMENT_DOWNLOAD, { method: 'POST', body: JSON.stringify({ request_id: Number(requestId), status: nextStatus }) });
       setStatus(result?.status || nextStatus);
       setRequestId(null);
     } catch (err) {

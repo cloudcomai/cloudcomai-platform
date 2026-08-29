@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const ACCEPT = [
@@ -51,7 +52,7 @@ export default function AttachmentControls({ selectedChat, apiBridge, onUploaded
       // action is handled inside the message bubble, not in the composer.
       form.append('download_policy', 'APPROVAL_REQUIRED');
 
-      const result = await apiBridge('/upload_attachment.php', {
+      const result = await apiBridge(ApiRoute.UPLOAD_ATTACHMENT, {
         method: 'POST',
         body: form
       });
