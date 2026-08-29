@@ -14,6 +14,7 @@ authentication/API packages as the Web application.
 The authentication session is stored per installed app using Expo SecureStore.
 It is not shared between users, devices, the Web application, or other apps.
 
-This foundation includes login, session restore/logout, and private/group chat
-lists. Chat detail, registration, attachments, notifications, and offline
-behavior are intentionally incremental follow-up phases.
+The mobile app includes login, session restore/logout, private/group chat,
+attachments, Expo notifications, local notification preferences, and opening a
+chat from a notification tap. Expo/EAS credentials and production submission
+remain operator-managed; see the release checklist.
