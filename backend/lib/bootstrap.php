@@ -46,13 +46,21 @@ function out(array $data, int $status = 200): never {
 }
 function fail(string $message, int $status = 400): never { out(['message' => $message], $status); }
 function create_chat_notifications(int $chatId, int $senderId, string $senderName, string $body, int $messageId): void {
-    $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
+    $pdo = db();
+    $st = $pdo->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
     $st->execute([$chatId, $senderId]);
-    $insert = db()->prepare("INSERT INTO notification_history (user_id, category, title, body, data_json, created_at) VALUES (?, 'message', ?, ?, ?, UTC_TIMESTAMP())");
+    $insert = $pdo->prepare("INSERT INTO notification_history (user_id, category, title, body, data_json, created_at) VALUES (?, 'message', ?, ?, ?, UTC_TIMESTAMP())");
     $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
     $text = function_exists('mb_substr') ? mb_substr($text, 0, 500) : substr($text, 0, 500);
     $data = json_encode(['chat_id'=>$chatId, 'message_id'=>$messageId], JSON_UNESCAPED_SLASHES);
-    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $recipientId) $insert->execute([(int)$recipientId, $senderName, $text, $data]);
+    $queue = $pdo->prepare('INSERT IGNORE INTO notification_delivery_queue (notification_id, device_id) VALUES (?, ?)');
+    $devices = $pdo->prepare('SELECT id FROM notification_devices WHERE user_id=? AND revoked_at IS NULL');
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $recipientId) {
+        $insert->execute([(int)$recipientId, $senderName, $text, $data]);
+        $notificationId = (int)$pdo->lastInsertId();
+        $devices->execute([(int)$recipientId]);
+        foreach ($devices->fetchAll(PDO::FETCH_COLUMN) as $deviceId) $queue->execute([$notificationId, (int)$deviceId]);
+    }
 }
 function token_for(int $userId): string {
     global $config;
