@@ -4,7 +4,10 @@
     "slug": "cloudcomai",
     "version": "0.1.0",
     "orientation": "portrait",
-    "platforms": ["android", "ios"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "scheme": "cloudcomai",
     "userInterfaceStyle": "automatic",
     "android": {
@@ -14,6 +17,16 @@
       "bundleIdentifier": "com.cloudcomai.mobile",
       "supportsTablet": true
     },
-    "plugins": ["expo-secure-store", "expo-document-picker", "expo-notifications"]
+    "plugins": [
+      "expo-secure-store",
+      "expo-document-picker",
+      "expo-notifications"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8b5d2701-7628-494f-8d43-6df16f026fab"
+      }
+    },
+    "owner": "kumar_1325"
   }
 }
