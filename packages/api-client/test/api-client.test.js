@@ -74,3 +74,25 @@ test('notifies the session layer after an authenticated 401', async () => {
   await assert.rejects(() => client.get('v1/chats'), ApiError);
   assert.equal(unauthorizedCalls, 1);
 });
+
+
+test('binds the default global fetch implementation', async () => {
+  const originalFetch = globalThis.fetch;
+  let receiver;
+  globalThis.fetch = async function (url) {
+    receiver = this;
+    return new Response(JSON.stringify({ ok: true, url }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  try {
+    const client = new ApiClient({ baseUrl: 'https://example.test/api/' });
+    const result = await client.get('v1/health', { auth: false });
+    assert.equal(receiver, globalThis);
+    assert.equal(result.data.ok, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
