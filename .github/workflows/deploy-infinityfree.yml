@@ -1,0 +1,160 @@
+name: Deploy CloudComAI to InfinityFree
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudcomai-infinityfree-deployment
+  cancel-in-progress: false
+
+env:
+  INFINITYFREE_WEB_DIR: ${{ vars.INFINITYFREE_WEB_DIR || '/htdocs/' }}
+  INFINITYFREE_API_DIR: ${{ vars.INFINITYFREE_API_DIR || '/htdocs/apiapp/' }}
+
+jobs:
+  deploy:
+    name: Validate, build, and deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        env:
+          FTP_SERVER: ${{ secrets.INFINITYFREE_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+        run: |
+          missing=0
+          for variable_name in FTP_SERVER FTP_USERNAME FTP_PASSWORD; do
+            if [ -z "${!variable_name}" ]; then
+              echo "::error::Missing required GitHub secret: INFINITYFREE_${variable_name}"
+              missing=1
+            fi
+          done
+
+          case "$INFINITYFREE_WEB_DIR" in
+            */) ;;
+            *)
+              echo "::error::INFINITYFREE_WEB_DIR must end with a trailing slash."
+              missing=1
+              ;;
+          esac
+
+          case "$INFINITYFREE_API_DIR" in
+            */) ;;
+            *)
+              echo "::error::INFINITYFREE_API_DIR must end with a trailing slash."
+              missing=1
+              ;;
+          esac
+
+          if [ "$INFINITYFREE_WEB_DIR" = "$INFINITYFREE_API_DIR" ]; then
+            echo "::error::Web and API deployment directories must be different."
+            missing=1
+          fi
+
+          exit "$missing"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run JavaScript tests
+        run: pnpm test
+
+      - name: Verify API contract
+        run: pnpm verify:api
+
+      - name: Validate PHP backend
+        run: |
+          find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
+          php backend/tests/api_router_test.php
+
+      - name: Build web application for root domain
+        env:
+          VITE_API_BASE_URL: https://cloudcomai.freedev.app/apiapp/api
+          VITE_MESSAGE_POLL_INTERVAL_MS: 3000
+        run: pnpm --filter @cloudcomai/web exec vite build --base=/
+
+      - name: Prepare backend deployment package
+        run: |
+          mkdir -p .deploy/backend/config
+          cp -R backend/api .deploy/backend/api
+          cp -R backend/lib .deploy/backend/lib
+          cp backend/.htaccess .deploy/backend/.htaccess
+          cp backend/api-contract.json .deploy/backend/api-contract.json
+          cp backend/config/config.example.php .deploy/backend/config/config.example.php
+
+          rm -f .deploy/backend/api/deploy-backup.php
+          rm -f .deploy/backend/api/deploy-migrate.php
+          rm -f .deploy/backend/api/restore-backup.php
+
+      - name: Check InfinityFree file-size limits
+        run: |
+          oversized_code="$(
+            find apps/web/dist .deploy/backend -type f \( -name '*.html' -o -name '*.js' -o -name '*.php' \) -size +999999c -print
+          )"
+          oversized_files="$(
+            find apps/web/dist .deploy/backend -type f ! \( -name '*.html' -o -name '*.js' -o -name '*.php' \) -size +9999999c -print
+          )"
+
+          if [ -n "$oversized_code" ] || [ -n "$oversized_files" ]; then
+            echo "::error::Deployment contains files larger than InfinityFree permits."
+            [ -z "$oversized_code" ] || printf '%s\n' "$oversized_code"
+            [ -z "$oversized_files" ] || printf '%s\n' "$oversized_files"
+            exit 1
+          fi
+
+      - name: Deploy web application
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.INFINITYFREE_FTP_SERVER }}
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./apps/web/dist/
+          server-dir: ${{ env.INFINITYFREE_WEB_DIR }}
+          dangerous-clean-slate: false
+          state-name: .ftp-deploy-sync-state-web.json
+          log-level: standard
+          exclude: |
+            **/.git*
+            **/.git*/**
+            apiapp/**
+
+      - name: Deploy PHP backend
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.INFINITYFREE_FTP_SERVER }}
+          username: ${{ secrets.INFINITYFREE_FTP_USERNAME }}
+          password: ${{ secrets.INFINITYFREE_FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./.deploy/backend/
+          server-dir: ${{ env.INFINITYFREE_API_DIR }}
+          dangerous-clean-slate: false
+          state-name: .ftp-deploy-sync-state-backend.json
+          log-level: standard
+          exclude: |
+            **/.git*
+            **/.git*/**
+            config/config.php
+            uploads/**
+            storage/**
