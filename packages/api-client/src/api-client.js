@@ -74,19 +74,41 @@ export class ApiClient {
     }
 
     let response;
+    let requestUrl;
     try {
-      response = await this.fetchImpl(addQuery(new URL(path, this.baseUrl).toString(), query), {
+      requestUrl = addQuery(new URL(path, this.baseUrl).toString(), query);
+
+      console.log('[CloudComAI API Request]', {
+        method,
+        baseUrl: this.baseUrl,
+        path,
+        requestUrl,
+      });
+
+      response = await this.fetchImpl(requestUrl, {
         method,
         headers: requestHeaders,
         body: requestBody,
         signal,
       });
     } catch (error) {
-      if (error?.name === 'AbortError') throw error;
-      throw new ApiError('Unable to reach the CloudComAI API', {
-        code: 'NETWORK_ERROR',
-        details: error,
+      console.error('[CloudComAI API Error]', {
+        method,
+        baseUrl: this.baseUrl,
+        path,
+        requestUrl,
+        message: error?.message,
+        error,
       });
+
+      if (error?.name === 'AbortError') throw error;
+      throw new ApiError(
+        `Unable to reach the CloudComAI API${error?.message ? `: ${error.message}` : ''}`,
+        {
+          code: 'NETWORK_ERROR',
+          details: error,
+        },
+      );
     }
 
     const payload = await parseResponse(response, responseType);
