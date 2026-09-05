@@ -35,15 +35,16 @@ const resolveErrorMessage = (payload, response) =>
 export class ApiClient {
   constructor({
     baseUrl,
-    fetchImpl = globalThis.fetch,
+    fetchImpl = null,
     tokenProvider = null,
     onUnauthorized = null,
   } = {}) {
-    if (typeof fetchImpl !== 'function') {
+    const resolvedFetch = fetchImpl ?? globalThis.fetch?.bind(globalThis);
+    if (typeof resolvedFetch !== 'function') {
       throw new TypeError('A Fetch-compatible implementation is required');
     }
     this.baseUrl = normalizeBaseUrl(baseUrl);
-    this.fetchImpl = fetchImpl;
+    this.fetchImpl = resolvedFetch;
     this.tokenProvider = tokenProvider;
     this.onUnauthorized = onUnauthorized;
   }
