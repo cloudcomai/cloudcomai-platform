@@ -5,7 +5,7 @@ import {
 } from '@cloudcomai/auth';
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.com/apiapp/api';
+  import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.freedev.app/apiapp/api';
 
 console.log('[CloudComAI] API base URL:', API_BASE_URL);
 
