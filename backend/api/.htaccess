@@ -1,4 +1,9 @@
 # Apache deployment adapter for the code-level API router.
 # Other hosts should forward /api/v1/* to api/index.php using their equivalent.
 RewriteEngine On
+
+# Preserve Authorization for PHP on shared Apache hosting after rewrite.
+RewriteCond %{HTTP:Authorization} ^(.+)$
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
 RewriteRule ^v1(?:/.*)?$ index.php [QSA,L]
