@@ -98,6 +98,12 @@ function auth_user(): array {
     if (!$user || $user['account_status'] !== 'active') fail('Account unavailable', 401);
     return $user;
 }
+function normalize_mobile_identifier(string $mobile): string {
+    $mobile = trim($mobile);
+    if ($mobile === '') return '';
+    $normalized = preg_replace('/[\s().-]+/', '', $mobile);
+    return is_string($normalized) ? $normalized : $mobile;
+}
 function age_from_dob(string $dob): int {
     try { return (new DateTime($dob))->diff(new DateTime('today'))->y; }
     catch (Throwable $e) { return -1; }
