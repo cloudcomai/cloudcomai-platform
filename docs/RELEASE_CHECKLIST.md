@@ -11,10 +11,20 @@
 
 ## Database and backend
 
-- Take an application and database backup before deployment.
-- Apply `backend/database/fresh-install.sql` once for a new installation.
-- Run the authenticated health check after deployment.
+- Follow [`deployment/GODADDY_PRODUCTION.md`](../deployment/GODADDY_PRODUCTION.md).
+- Export a GoDaddy database backup before an existing-site deployment.
+- Apply `backend/database/fresh-install.sql` once only for a new, empty database.
+- Select `existing-production` to apply future versioned migrations.
+- Confirm the production `token_secret` remains unchanged for an existing site.
+- Verify `/apiapp/api/v1/health` and the clean Google callback route after deployment.
 - Configure both notification Cron workers and inspect their first logs.
+
+## Google OAuth
+
+- Keep test and production OAuth clients separate.
+- Confirm the production client uses the exact extensionless callback URL.
+- Confirm the OAuth consent application is published and ready for public users.
+- Test connect, callback, contact sync and registered-user filtering.
 
 ## Expo validation
 
@@ -28,5 +38,7 @@
 
 - Validate login, private/group chats, attachments, and notification inbox on
   web and mobile.
+- Keep the database export and previous web build until verification completes.
 - Confirm rollback artifacts are available and document the operator and time.
-- Production deployment and app-store submission require explicit approval.
+- Run production deployment only by manually dispatching the GoDaddy workflow
+  from `main` with the production environment selected.

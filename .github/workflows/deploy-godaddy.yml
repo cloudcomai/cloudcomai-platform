@@ -1,0 +1,389 @@
+name: Deploy CloudComAI to GoDaddy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Select DEPLOY to confirm a production deployment.
+        required: true
+        default: CANCEL
+        type: choice
+        options:
+          - CANCEL
+          - DEPLOY
+      database_mode:
+        description: Choose how the production database has been prepared.
+        required: true
+        default: existing-production
+        type: choice
+        options:
+          - existing-production
+          - fresh-install-already-imported
+      database_ready:
+        description: Confirm a DB backup exists, or fresh-install.sql was imported for a new database.
+        required: true
+        default: "NO"
+        type: choice
+        options:
+          - "NO"
+          - "YES"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudcomai-godaddy-production-deployment
+  cancel-in-progress: false
+
+env:
+  GODADDY_WEB_DIR: ${{ vars.GODADDY_WEB_DIR }}
+  GODADDY_API_DIR: ${{ vars.GODADDY_API_DIR }}
+  GODADDY_WEB_BASE_PATH: ${{ vars.GODADDY_WEB_BASE_PATH || '/' }}
+  PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL || 'https://www.cloudcomai.com' }}
+  PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL || 'https://www.cloudcomai.com/apiapp/api' }}
+
+jobs:
+  deploy:
+    name: Validate, back up, migrate, and deploy
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'DEPLOY'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate production configuration
+        shell: bash
+        env:
+          FTP_SERVER: ${{ secrets.GODADDY_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.GODADDY_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
+          DATABASE_MODE: ${{ inputs.database_mode }}
+          DATABASE_READY: ${{ inputs.database_ready }}
+        run: |
+          set -euo pipefail
+          invalid=0
+
+          for variable_name in FTP_SERVER FTP_USERNAME FTP_PASSWORD GODADDY_WEB_DIR GODADDY_API_DIR; do
+            if [ -z "${!variable_name}" ]; then
+              echo "::error::Missing required production setting: ${variable_name}"
+              invalid=1
+            fi
+          done
+
+          if [ "${DATABASE_READY}" != "YES" ]; then
+            echo "::error::Confirm the production database is ready before deploying."
+            invalid=1
+          fi
+
+          if [ "${DATABASE_MODE}" = "existing-production" ] && [ -z "${MIGRATION_TOKEN}" ]; then
+            echo "::error::GODADDY_MIGRATION_TOKEN is required for an existing production deployment."
+            invalid=1
+          fi
+
+          case "${GODADDY_WEB_DIR}" in
+            */) ;;
+            *)
+              echo "::error::GODADDY_WEB_DIR must end with a trailing slash."
+              invalid=1
+              ;;
+          esac
+
+          case "${GODADDY_API_DIR}" in
+            */apiapp/) ;;
+            *)
+              echo "::error::GODADDY_API_DIR must end with /apiapp/ for the protected backup tools."
+              invalid=1
+              ;;
+          esac
+
+          if [ "${GODADDY_WEB_DIR}" = "${GODADDY_API_DIR}" ]; then
+            echo "::error::Web and API deployment directories must be different."
+            invalid=1
+          fi
+
+          case "${GODADDY_WEB_BASE_PATH}" in
+            /|/*/) ;;
+            *)
+              echo "::error::GODADDY_WEB_BASE_PATH must start and end with /."
+              invalid=1
+              ;;
+          esac
+
+          case "${PRODUCTION_WEB_URL}" in
+            https://*) ;;
+            *)
+              echo "::error::PRODUCTION_WEB_URL must use HTTPS."
+              invalid=1
+              ;;
+          esac
+
+          case "${PRODUCTION_API_URL}" in
+            https://*/apiapp/api) ;;
+            *)
+              echo "::error::PRODUCTION_API_URL must use HTTPS and end with /apiapp/api."
+              invalid=1
+              ;;
+          esac
+
+          case "${PRODUCTION_WEB_URL} ${PRODUCTION_API_URL}" in
+            *freedev.app*)
+              echo "::error::InfinityFree URLs cannot be used by the production workflow."
+              invalid=1
+              ;;
+          esac
+
+          exit "${invalid}"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run JavaScript tests
+        run: pnpm test
+
+      - name: Verify API contract
+        run: pnpm verify:api
+
+      - name: Validate PHP backend
+        run: |
+          find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
+          php backend/tests/api_router_test.php
+          php backend/tests/contact_matching_test.php
+
+      - name: Validate API contract JSON
+        run: |
+          jq empty backend/api-contract.json
+
+      - name: Build production web application
+        env:
+          VITE_API_BASE_URL: ${{ env.PRODUCTION_API_URL }}
+          VITE_MESSAGE_POLL_INTERVAL_MS: 3000
+        run: pnpm --filter @cloudcomai/web exec vite build --base="${GODADDY_WEB_BASE_PATH}"
+
+      - name: Prepare production packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .deploy
+          mkdir -p \
+            .deploy/backend/config \
+            .deploy/recovery \
+            .deploy/migrations/api \
+            .deploy/migrations/lib \
+            .deploy/migrations/scripts \
+            .deploy/migrations/database/migrations
+
+          cp -R backend/api backend/lib .deploy/backend/
+          if [ -d backend/cron ]; then
+            cp -R backend/cron .deploy/backend/
+          fi
+          if [ -f backend/cron_cleanup.php ]; then
+            cp backend/cron_cleanup.php .deploy/backend/
+          fi
+          cp backend/.htaccess backend/api-contract.json .deploy/backend/
+          cp backend/config/config.example.php .deploy/backend/config/
+
+          # Deployment endpoints are isolated from the public application API.
+          cp backend/api/deploy-backup.php .deploy/recovery/
+          cp backend/api/restore-backup.php .deploy/recovery/
+          rm -f \
+            .deploy/backend/api/deploy-backup.php \
+            .deploy/backend/api/deploy-migrate.php \
+            .deploy/backend/api/restore-backup.php
+
+          cp backend/api/deploy-migrate.php .deploy/migrations/api/
+          cp backend/scripts/migrate.php .deploy/migrations/scripts/
+          cp backend/scripts/migration-bootstrap.php .deploy/migrations/lib/bootstrap.php
+          cp backend/database/migrations/*.sql .deploy/migrations/database/migrations/
+
+      - name: Upload protected recovery tools
+        if: inputs.database_mode == 'existing-production'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.GODADDY_FTP_SERVER }}
+          username: ${{ secrets.GODADDY_FTP_USERNAME }}
+          password: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./.deploy/recovery/
+          server-dir: ${{ env.GODADDY_API_DIR }}deploy-migrations/backup/
+          state-name: .cloudcomai-godaddy-recovery-state.json
+
+      - name: Create verified production filesystem backup
+        id: backup
+        if: inputs.database_mode == 'existing-production'
+        shell: bash
+        env:
+          MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
+        run: |
+          set -euo pipefail
+          deployment_url="${PRODUCTION_API_URL%/api}/deploy-migrations"
+          response_file="$(mktemp)"
+
+          http_code="$(curl --silent --show-error \
+            --retry 2 \
+            --output "${response_file}" \
+            --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${MIGRATION_TOKEN}" \
+            -H "Accept: application/json" \
+            "${deployment_url}/backup/deploy-backup.php")"
+
+          echo "Backup HTTP status: ${http_code}"
+          cat "${response_file}"
+          echo
+
+          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
+             ! jq -e '.success == true and (.backup | length > 0)' "${response_file}" >/dev/null; then
+            echo "::error::Production filesystem backup failed. Deployment stopped."
+            exit 1
+          fi
+
+          backup_name="$(jq -r '.backup' "${response_file}")"
+          echo "backup_name=${backup_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload migration package
+        if: inputs.database_mode == 'existing-production'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.GODADDY_FTP_SERVER }}
+          username: ${{ secrets.GODADDY_FTP_USERNAME }}
+          password: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./.deploy/migrations/
+          server-dir: ${{ env.GODADDY_API_DIR }}deploy-migrations/
+          state-name: .cloudcomai-godaddy-migration-state.json
+          exclude: |
+            backup/**
+
+      - name: Run versioned production database migrations
+        if: inputs.database_mode == 'existing-production'
+        shell: bash
+        env:
+          MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
+        run: |
+          set -euo pipefail
+          deployment_url="${PRODUCTION_API_URL%/api}/deploy-migrations"
+          response_file="$(mktemp)"
+
+          http_code="$(curl --silent --show-error \
+            --output "${response_file}" \
+            --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${MIGRATION_TOKEN}" \
+            -H "Accept: application/json" \
+            "${deployment_url}/api/deploy-migrate.php")"
+
+          echo "Migration HTTP status: ${http_code}"
+          cat "${response_file}"
+          echo
+
+          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
+             ! jq -e '.success == true' "${response_file}" >/dev/null; then
+            echo "::error::Production database migration failed."
+            exit 1
+          fi
+
+      - name: Deploy PHP backend
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.GODADDY_FTP_SERVER }}
+          username: ${{ secrets.GODADDY_FTP_USERNAME }}
+          password: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./.deploy/backend/
+          server-dir: ${{ env.GODADDY_API_DIR }}
+          state-name: .cloudcomai-godaddy-backend-state.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            config/**
+            deploy-migrations/**
+            storage/**
+
+      - name: Verify production backend and clean callback route
+        shell: bash
+        run: |
+          set -euo pipefail
+          health_response="$(curl --fail --silent --show-error \
+            --retry 5 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            "${PRODUCTION_API_URL}/v1/health")"
+          echo "${health_response}"
+          echo "${health_response}" | jq -e '.status == "ok"' >/dev/null
+
+          callback_response="$(curl --fail --silent --show-error \
+            "${PRODUCTION_API_URL}/v1/integrations/google/callback")"
+          echo "${callback_response}" | grep -Fq 'Invalid Google authorization response'
+
+      - name: Deploy production web application
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.GODADDY_FTP_SERVER }}
+          username: ${{ secrets.GODADDY_FTP_USERNAME }}
+          password: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./apps/web/dist/
+          server-dir: ${{ env.GODADDY_WEB_DIR }}
+          state-name: .cloudcomai-godaddy-web-state.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            apiapp/**
+            .well-known/**
+
+      - name: Verify production web application
+        run: |
+          curl --fail --silent --show-error \
+            --retry 5 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            --output /dev/null \
+            "${PRODUCTION_WEB_URL}"
+
+      - name: Restore previous backend after a failed existing-site deployment
+        if: ${{ failure() && inputs.database_mode == 'existing-production' && steps.backup.outputs.backup_name != '' }}
+        shell: bash
+        env:
+          MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
+          BACKUP_NAME: ${{ steps.backup.outputs.backup_name }}
+        run: |
+          set -euo pipefail
+          deployment_url="${PRODUCTION_API_URL%/api}/deploy-migrations"
+          response_file="$(mktemp)"
+
+          http_code="$(curl --silent --show-error \
+            --output "${response_file}" \
+            --write-out '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${MIGRATION_TOKEN}" \
+            -H "Accept: application/json" \
+            --data-urlencode "backup=${BACKUP_NAME}" \
+            "${deployment_url}/backup/restore-backup.php")"
+
+          echo "Rollback HTTP status: ${http_code}"
+          cat "${response_file}"
+          echo
+
+          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
+             ! jq -e '.success == true' "${response_file}" >/dev/null; then
+            echo "::error::Automatic backend rollback failed. Manual recovery is required."
+            exit 1
+          fi
+
+          echo "::warning::Previous backend files were restored. Review the database and web files manually."
