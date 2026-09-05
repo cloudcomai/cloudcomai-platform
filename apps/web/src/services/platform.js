@@ -4,8 +4,12 @@ import {
   createWebStorageAdapter,
 } from '@cloudcomai/auth';
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.com/apiapp/api';
+import { resolveWebApiBaseUrl } from './apiBaseUrl.js';
+
+export const API_BASE_URL = resolveWebApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL,
+  window.location.origin,
+);
 
 const storage = createWebStorageAdapter(window.localStorage);
 export const sessionManager = createAuthSessionManager({ storage });
