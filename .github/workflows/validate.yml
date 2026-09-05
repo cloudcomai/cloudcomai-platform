@@ -26,3 +26,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
       - run: php backend/tests/api_router_test.php
+      - run: php backend/tests/contact_matching_test.php

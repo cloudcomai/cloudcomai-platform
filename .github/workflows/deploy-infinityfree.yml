@@ -85,6 +85,7 @@ jobs:
         run: |
           find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
           php backend/tests/api_router_test.php
+          php backend/tests/contact_matching_test.php
 
       - name: Build web application for root domain
         env:
