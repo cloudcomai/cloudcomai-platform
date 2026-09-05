@@ -14,6 +14,7 @@ return [
         'allowed_origins' => [
             'https://www.cloudcomai.com',
             'https://cloudcomai.com',
+            'https://app.cloudcomai.com',
         ],
         'token_secret' => 'GENERATE_ONCE_AND_KEEP_THIS_PRODUCTION_SECRET_STABLE',
         'upload_dir' => __DIR__ . '/../storage/uploads',
