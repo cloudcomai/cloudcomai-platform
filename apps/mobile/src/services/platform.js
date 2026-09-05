@@ -3,7 +3,7 @@ import { createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
 import { createAuthSessionManager } from '@cloudcomai/auth';
 
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL || 'https://www.cloudcomai.com/apiapp/api';
+  process.env.EXPO_PUBLIC_API_BASE_URL || 'https://cloudcomai.freedev.app/apiapp/api';
 
 const secureStorage = {
   getItem: key => SecureStore.getItemAsync(key),

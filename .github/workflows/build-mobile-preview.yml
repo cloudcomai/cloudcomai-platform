@@ -1,0 +1,194 @@
+name: Build CloudComAI Mobile Preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+  EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+
+jobs:
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Expo configuration
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Missing GitHub secret EXPO_TOKEN."
+            exit 1
+          fi
+          if [ -z "$EAS_PROJECT_ID" ]; then
+            echo "::error::Missing GitHub Actions variable EAS_PROJECT_ID."
+            exit 1
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Link app config to EAS project
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'apps/mobile/app.json';
+          const app = JSON.parse(fs.readFileSync(path, 'utf8'));
+          app.expo.extra = app.expo.extra || {};
+          app.expo.extra.eas = {
+            ...(app.expo.extra.eas || {}),
+            projectId: process.env.EAS_PROJECT_ID,
+          };
+          fs.writeFileSync(path, JSON.stringify(app, null, 2) + '\n');
+          NODE
+
+      - name: Build Android preview APK on EAS
+        working-directory: apps/mobile
+        run: |
+          eas build --platform android --profile preview --non-interactive --wait --json > ../../android-build.json
+
+      - name: Download Android APK
+        run: |
+          BUILD_ID="$(jq -r 'if type == "array" then .[0].id else .id end' android-build.json)"
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "::error::Unable to determine Android EAS build ID."
+            cat android-build.json
+            exit 1
+          fi
+
+          cd apps/mobile
+          eas build:view "$BUILD_ID" --json > ../../android-build-view.json
+          cd ../..
+
+          ARCHIVE_URL="$(jq -r '.artifacts.applicationArchiveUrl // empty' android-build-view.json)"
+          if [ -z "$ARCHIVE_URL" ]; then
+            echo "::error::Android build finished without an application archive URL."
+            cat android-build-view.json
+            exit 1
+          fi
+
+          mkdir -p mobile-builds/android
+          curl --fail --location "$ARCHIVE_URL" --output mobile-builds/android/CloudComAI-preview.apk
+          cp android-build-view.json mobile-builds/android/build-info.json
+          ls -lh mobile-builds/android
+
+      - name: Store Android build
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudComAI-Android-Preview
+          path: mobile-builds/android/
+          retention-days: 30
+          if-no-files-found: error
+
+  ios:
+    name: Build iOS IPA
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Expo configuration
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Missing GitHub secret EXPO_TOKEN."
+            exit 1
+          fi
+          if [ -z "$EAS_PROJECT_ID" ]; then
+            echo "::error::Missing GitHub Actions variable EAS_PROJECT_ID."
+            exit 1
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Link app config to EAS project
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'apps/mobile/app.json';
+          const app = JSON.parse(fs.readFileSync(path, 'utf8'));
+          app.expo.extra = app.expo.extra || {};
+          app.expo.extra.eas = {
+            ...(app.expo.extra.eas || {}),
+            projectId: process.env.EAS_PROJECT_ID,
+          };
+          fs.writeFileSync(path, JSON.stringify(app, null, 2) + '\n');
+          NODE
+
+      - name: Build iOS preview IPA on EAS
+        working-directory: apps/mobile
+        run: |
+          eas build --platform ios --profile preview --non-interactive --wait --json > ../../ios-build.json
+
+      - name: Download iOS IPA
+        run: |
+          BUILD_ID="$(jq -r 'if type == "array" then .[0].id else .id end' ios-build.json)"
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" = "null" ]; then
+            echo "::error::Unable to determine iOS EAS build ID."
+            cat ios-build.json
+            exit 1
+          fi
+
+          cd apps/mobile
+          eas build:view "$BUILD_ID" --json > ../../ios-build-view.json
+          cd ../..
+
+          ARCHIVE_URL="$(jq -r '.artifacts.applicationArchiveUrl // empty' ios-build-view.json)"
+          if [ -z "$ARCHIVE_URL" ]; then
+            echo "::error::iOS build finished without an application archive URL."
+            cat ios-build-view.json
+            exit 1
+          fi
+
+          mkdir -p mobile-builds/ios
+          curl --fail --location "$ARCHIVE_URL" --output mobile-builds/ios/CloudComAI-preview.ipa
+          cp ios-build-view.json mobile-builds/ios/build-info.json
+          ls -lh mobile-builds/ios
+
+      - name: Store iOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudComAI-iOS-Preview
+          path: mobile-builds/ios/
+          retention-days: 30
+          if-no-files-found: error
