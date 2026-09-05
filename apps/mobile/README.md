@@ -18,3 +18,32 @@ The mobile app includes login, session restore/logout, private/group chat,
 attachments, Expo notifications, local notification preferences, and opening a
 chat from a notification tap. Expo/EAS credentials and production submission
 remain operator-managed; see the release checklist.
+
+
+## Preview builds from GitHub Actions
+
+The repository workflow `.github/workflows/build-mobile-preview.yml` builds:
+
+- Android: `CloudComAI-preview.apk`
+- iOS: `CloudComAI-preview.ipa`
+
+Both preview builds target:
+
+`https://cloudcomai.freedev.app/apiapp/api`
+
+Required GitHub repository configuration:
+
+1. Secret `EXPO_TOKEN`: Expo access token used by EAS CLI.
+2. Variable `EAS_PROJECT_ID`: Expo EAS project UUID.
+
+Before the first non-interactive CI build, initialize EAS credentials interactively for each platform from `apps/mobile`:
+
+```bash
+eas login
+eas build --platform android --profile preview
+eas build --platform ios --profile preview
+```
+
+This initializes the EAS project and signing credentials. Android can use EAS-managed signing. iOS device/internal builds require valid Apple signing credentials and provisioning.
+
+After the one-time setup, run **Build CloudComAI Mobile Preview** from GitHub Actions. Successful builds are retained as GitHub Actions artifacts for 30 days.
