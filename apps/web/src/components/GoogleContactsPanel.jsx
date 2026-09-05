@@ -4,7 +4,6 @@ import { Check, ChevronRight, Contact, RefreshCw, X } from 'lucide-react';
 
 export default function GoogleContactsPanel({ apiBridge, close }) {
   const [status, setStatus] = useState({ connected: false, email: null, contact_count: 0, last_contacts_sync_at: null });
-  const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -16,24 +15,17 @@ export default function GoogleContactsPanel({ apiBridge, close }) {
     return data;
   }, [apiBridge]);
 
-  const loadContacts = useCallback(async () => {
-    const data = await apiBridge(ApiRoute.GOOGLE_CONTACTS, { method: 'GET', query: { page: 1, page_size: 50 } });
-    setContacts(Array.isArray(data.contacts) ? data.contacts : []);
-  }, [apiBridge]);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const nextStatus = await loadStatus();
-      if (nextStatus.connected) await loadContacts();
-      else setContacts([]);
+      await loadStatus();
     } catch (err) {
       setError(err.message || 'Unable to load Google Contacts.');
     } finally {
       setLoading(false);
     }
-  }, [loadContacts, loadStatus]);
+  }, [loadStatus]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -114,21 +106,12 @@ export default function GoogleContactsPanel({ apiBridge, close }) {
             <div style={statCardStyle}><span>Last sync</span><strong>{formatSyncDate(status.last_contacts_sync_at)}</strong></div>
           </div>
 
-          <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden' }}>
-            <div style={{ padding: '11px 13px', background: 'var(--bg-directory)', fontWeight: 700, fontSize: '13px' }}>Google contacts</div>
-            {contacts.length === 0 ? (
-              <div style={{ padding: '24px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>No Google contacts found.</div>
-            ) : contacts.map(contact => (
-              <div key={contact.resource_name} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 13px', borderTop: '1px solid var(--border-color)' }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', flex: '0 0 34px', background: 'var(--bg-directory)', display: 'grid', placeItems: 'center', fontSize: '12px', fontWeight: 700 }}>
-                  {contact.photo_url ? <img src={contact.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : getInitials(contact.display_name || contact.email || contact.phone)}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.display_name || 'Unnamed contact'}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{contact.email || contact.phone || 'No email or phone number'}</div>
-                </div>
-              </div>
-            ))}
+          <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', padding: '14px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <Contact size={20} style={{ color: 'var(--primary-color)', flex: '0 0 auto' }} />
+            <div>
+              <strong style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>Registered contacts appear in People & Contacts</strong>
+              <span style={{ color: 'var(--text-muted)', fontSize: '12px', lineHeight: 1.5 }}>Only contacts that match an active CloudComAI account by email or phone are displayed there. Other imported contacts remain hidden.</span>
+            </div>
           </div>
         </>
       )}
@@ -144,10 +127,6 @@ function formatSyncDate(value) {
   const date = new Date(normalized.endsWith('Z') ? normalized : `${normalized}Z`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function getInitials(value = '') {
-  return value.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '?';
 }
 
 const primaryButtonStyle = { border: 'none', borderRadius: '9px', padding: '10px 16px', background: 'var(--primary-color)', color: '#fff', fontWeight: 600, cursor: 'pointer' };

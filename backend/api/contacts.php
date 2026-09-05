@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../lib/bootstrap.php';
+require_once __DIR__ . '/../lib/contact_matching.php';
 
 $user = auth_user();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -12,32 +13,62 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $pageSize = min(500, max(1, (int)($_GET['page_size'] ?? 500)));
 $offset = ($page - 1) * $pageSize;
 
-$countStmt = db()->prepare('
-    SELECT COUNT(*)
-    FROM google_contacts
-    WHERE user_id = ? AND deleted_at IS NULL
-');
-$countStmt->execute([$user['id']]);
-$total = (int)$countStmt->fetchColumn();
-
-$stmt = db()->prepare('
+$contactsStmt = db()->prepare('
     SELECT id, resource_name, display_name, given_name, family_name,
-           email, phone, photo_url, created_at, updated_at
+           email, phone, photo_url
     FROM google_contacts
     WHERE user_id = ? AND deleted_at IS NULL
     ORDER BY COALESCE(NULLIF(display_name, \'\'), email, phone, resource_name) ASC, id ASC
-    LIMIT ? OFFSET ?
 ');
-$stmt->bindValue(1, (int)$user['id'], PDO::PARAM_INT);
-$stmt->bindValue(2, $pageSize, PDO::PARAM_INT);
-$stmt->bindValue(3, $offset, PDO::PARAM_INT);
-$stmt->execute();
+$contactsStmt->execute([(int)$user['id']]);
+$googleContacts = $contactsStmt->fetchAll();
 
-$contacts = $stmt->fetchAll();
-foreach ($contacts as &$contact) {
-    $contact['id'] = (int)$contact['id'];
+$emailKeys = [];
+$phoneKeys = [];
+foreach ($googleContacts as $googleContact) {
+    $emailKey = contact_email_key($googleContact['email'] ?? null);
+    if ($emailKey !== '') {
+        $emailKeys[$emailKey] = true;
+    }
+
+    $phoneKey = contact_phone_key($googleContact['phone'] ?? null);
+    if ($phoneKey !== '') {
+        $phoneKeys[$phoneKey] = true;
+    }
 }
-unset($contact);
+
+$registeredUsers = [];
+$registeredUserIds = [];
+$loadCandidates = static function (string $column, array $identifiers) use (&$registeredUsers, &$registeredUserIds, $user): void {
+    foreach (array_chunk(array_keys($identifiers), 500) as $identifierChunk) {
+        $placeholders = implode(',', array_fill(0, count($identifierChunk), '?'));
+        $candidateStmt = db()->prepare("
+            SELECT id, name, user_id, email, mobile, account_status,
+                   CASE WHEN updated_at IS NOT NULL AND updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND THEN 1 ELSE 0 END AS online
+            FROM users
+            WHERE id <> ? AND account_status = 'active' AND {$column} IN ({$placeholders})
+        ");
+        $candidateStmt->execute(array_merge([(int)$user['id']], $identifierChunk));
+        foreach ($candidateStmt->fetchAll() as $candidate) {
+            $candidateId = (int)$candidate['id'];
+            if (!isset($registeredUserIds[$candidateId])) {
+                $registeredUserIds[$candidateId] = true;
+                $registeredUsers[] = $candidate;
+            }
+        }
+    }
+};
+
+if ($emailKeys) {
+    $loadCandidates('email', $emailKeys);
+}
+if ($phoneKeys) {
+    $loadCandidates('mobile', $phoneKeys);
+}
+
+$matchedContacts = match_registered_contacts($googleContacts, $registeredUsers, (int)$user['id']);
+$total = count($matchedContacts);
+$contacts = array_slice($matchedContacts, $offset, $pageSize);
 
 out([
     'contacts' => $contacts,

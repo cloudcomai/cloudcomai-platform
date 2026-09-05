@@ -67,6 +67,13 @@ Uses the saved People API sync token when available. A 410 response from Google 
 
 Returns contacts already synchronized into CloudComAI.
 
+The main `GET /api/v1/contacts` directory is intentionally narrower: it returns
+only synchronized contacts whose normalized email address or phone number
+matches an active, registered CloudComAI account. The signed-in user's own
+account, unregistered contacts, suspended/deleted accounts, duplicate matches,
+and ambiguous matches are excluded. Each result includes the registered account
+ID so the web application can create or open a private chat.
+
 ## Frontend flow
 
 1. Call `GET /api/google/connect.php` with the CloudComAI Bearer token.

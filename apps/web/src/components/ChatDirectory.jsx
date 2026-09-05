@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, UserRound, Mail, Phone } from 'lucide-react';
+import { MessageCircle, Search, UserRound } from 'lucide-react';
 import { mediaUrl, platformApi } from '../services/platform';
 
 const imageUrl = chat => chat?.image_url || mediaUrl(
@@ -58,7 +58,9 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
       contact.given_name,
       contact.family_name,
       contact.email,
-      contact.phone
+      contact.phone,
+      contact.registered_name,
+      contact.registered_user_id_text
     ].filter(Boolean).some(value => String(value).toLowerCase().includes(query)));
   }, [contacts, searchQuery]);
 
@@ -71,7 +73,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
             <div style={{ flex: 1, minWidth: 0 }}>
               <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>People & Contacts</h2>
               <span style={{ fontSize: '12px', color: 'var(--text-muted, #777)' }}>
-                {contactsTotal} contacts
+                {contactsTotal} registered {contactsTotal === 1 ? 'contact' : 'contacts'}
               </span>
             </div>
           </div>
@@ -93,25 +95,48 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
             <div className="empty-state">Loading contacts...</div>
           ) : visibleContacts.length === 0 && !contactsError ? (
             <div className="empty-state">
-              {contactsTotal === 0 ? 'No contacts available.' : 'No contacts match your search.'}
+              {contactsTotal === 0 ? 'None of your synced contacts are registered on CloudComAI yet.' : 'No registered contacts match your search.'}
             </div>
           ) : visibleContacts.map(contact => {
-            const imageKey = `contact-${contact.id || contact.resource_name}`;
+            const registeredUserId = Number(contact.registered_user_id);
+            const imageKey = `contact-${registeredUserId}`;
             const imageFailed = Boolean(failedImages[imageKey]);
-            const name = contact.display_name || [contact.given_name, contact.family_name].filter(Boolean).join(' ') || contact.email || contact.phone || 'Unnamed contact';
+            const name = contact.display_name || [contact.given_name, contact.family_name].filter(Boolean).join(' ') || contact.registered_name || 'CloudComAI user';
+            const registeredLabel = contact.registered_user_id_text ? `@${contact.registered_user_id_text}` : contact.registered_name;
+            const registeredContact = {
+              id: registeredUserId,
+              other_user_id: registeredUserId,
+              name: contact.registered_name || name,
+              preview: registeredLabel ? `${registeredLabel} - Click to start chat` : 'Click to start chat',
+              online: Boolean(contact.online),
+              isContact: true,
+            };
             return (
-              <div key={contact.id || contact.resource_name} className="conversation-row-card" style={{ cursor: 'default' }}>
+              <div
+                key={registeredUserId}
+                className="conversation-row-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedChat(registeredContact)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedChat(registeredContact);
+                  }
+                }}
+                aria-label={`Start a chat with ${name}`}
+              >
                 <div className="avatar-frame">
-                  {contact.photo_url && !imageFailed ? (
-                    <img src={contact.photo_url} alt="" onError={() => markImageFailed(imageKey)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  {!imageFailed ? (
+                    <img src={mediaUrl('user', registeredUserId)} alt="" onError={() => markImageFailed(imageKey)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                   ) : (
                     <div className="avatar-placeholder">{name[0]?.toUpperCase() || <UserRound size={18} />}</div>
                   )}
+                  {contact.online && <span className="online-indicator-dot"></span>}
                 </div>
                 <div className="conversation-meta-summary" style={{ minWidth: 0 }}>
                   <div className="top-row"><h5 title={name}>{name}</h5></div>
-                  {contact.email && <div className="bottom-row"><p className="message-snippet"><Mail size={13} style={{ verticalAlign: 'middle', marginRight: 5 }} />{contact.email}</p></div>}
-                  {contact.phone && <div className="bottom-row"><p className="message-snippet"><Phone size={13} style={{ verticalAlign: 'middle', marginRight: 5 }} />{contact.phone}</p></div>}
+                  <div className="bottom-row"><p className="message-snippet"><MessageCircle size={13} style={{ verticalAlign: 'middle', marginRight: 5 }} />{registeredLabel || 'Registered on CloudComAI'}</p></div>
                 </div>
               </div>
             );

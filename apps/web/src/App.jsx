@@ -101,14 +101,16 @@ export default function App() {
 
     const getActiveListPath = useCallback(() => {
         if (activeTab === 'groups') return { route: ApiRoute.CHATS, query: { type: 'group' } };
-        if (activeTab === 'people') return { route: ApiRoute.USERS };
+        if (activeTab === 'people') return null;
         return { route: ApiRoute.CHATS, query: { type: 'private' } };
     }, [activeTab]);
 
     const refreshConversationList = useCallback(async () => {
         if (!token || screen !== 'app') return;
         try {
-            const { route, query } = getActiveListPath();
+            const activeListPath = getActiveListPath();
+            if (!activeListPath) return;
+            const { route, query } = activeListPath;
             const data = await api(route, { method: 'GET', query });
             if (data.chats) {
                 const mapped = data.chats.map(chat => ({ ...chat, id: Number(chat.id), isGroup: chat.type === 'group' }));
@@ -118,8 +120,6 @@ export default function App() {
                     const refreshed = mapped.find(chat => chat.id === Number(prev.id));
                     return refreshed ? { ...prev, ...refreshed } : prev;
                 });
-            } else if (data.users) {
-                setChats(data.users.map(u => ({ id: Number(u.id), name: u.name, preview: `@${u.user_id} - Click to start chat`, time: '', unread: 0, online: Boolean(u.online), image_url: u.image_url, isContact: true })));
             }
         } catch (err) {
             console.error('Unable to refresh conversation list:', err);

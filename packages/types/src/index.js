@@ -39,7 +39,7 @@ export const AccountStatus = Object.freeze({
 });
 
 /** @typedef {{id:number,user_id:string|null,name:string,email:string|null,mobile:string|null,gender:'Male'|'Female',account_status:'active'|'suspended'|'deleted',online?:(boolean|number)}} User */
-/** @typedef {{id:number,display_name:string|null,given_name:string|null,family_name:string|null,email:string|null,phone:string|null,photo_url:string|null}} Contact */
+/** @typedef {{id:number,display_name:string|null,given_name:string|null,family_name:string|null,email:string|null,phone:string|null,photo_url:string|null,registered_user_id:number,registered_name:string|null,registered_user_id_text:string|null,online:boolean}} Contact */
 /** @typedef {{id:number,type:'private'|'group'|'public'|'community',name:string|null,group_category?:string|null,owner_id?:number|null,retention_seconds?:number|null,created_at?:string,last_message_at?:string|null}} Chat */
 /** @typedef {{id:number,message_id:number,original_filename:string,mime_type:string,file_size:number,download_policy:'ALLOW'|'APPROVAL_REQUIRED'|'VIEW_ONLY',request_status?:'PENDING'|'APPROVED'|'DENIED'|null}} Attachment */
 /** @typedef {{id:number,text:string,votes?:number,selected?:(boolean|number)}} PollOption */
