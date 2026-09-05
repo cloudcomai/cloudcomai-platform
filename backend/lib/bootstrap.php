@@ -70,7 +70,18 @@ function token_for(int $userId): string {
 }
 function auth_user(): array {
     global $config;
-    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $header = $_SERVER['HTTP_AUTHORIZATION']
+        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+        ?? '';
+
+    if ($header === '' && function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (is_array($headers)) {
+            $header = $headers['Authorization']
+                ?? $headers['authorization']
+                ?? '';
+        }
+    }
     if (!preg_match('/Bearer\s+(.+)/i', $header, $m)) fail('Authentication required', 401);
     $decoded = base64_decode($m[1], true);
     if (!$decoded) fail('Invalid token', 401);
