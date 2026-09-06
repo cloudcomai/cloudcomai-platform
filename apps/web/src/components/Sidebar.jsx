@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X } from 'lucide-react';
+import { Bell, MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X } from 'lucide-react';
 import { mediaUrl } from '../services/platform';
 import BrandLogo from './BrandLogo';
 
 const profileImageUrl = user => user?.image_url || mediaUrl('user', user?.id);
 
-export default function Sidebar({ user, setModal, isDarkMode, setIsDarkMode, onLogout, isSidebarOpen, setIsSidebarOpen, activeTab, onTabChange, setScreen }) {
+export default function Sidebar({ user, setModal, notificationUnreadCount = 0, isDarkMode, setIsDarkMode, onLogout, isSidebarOpen, setIsSidebarOpen, activeTab, onTabChange, setScreen }) {
   const [imageFailed, setImageFailed] = useState(false);
   const nav = tab => onTabChange(tab);
 
@@ -18,22 +18,39 @@ export default function Sidebar({ user, setModal, isDarkMode, setIsDarkMode, onL
         <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)} aria-label="Close sidebar"><X size={18} /></button>
       </div>
 
-      <button className="user-profile-card" onClick={() => setModal('profile')} type="button">
-        <div className="avatar-frame">
-          {!imageFailed ? (
-            <img
-              src={profileImageUrl(user)}
-              alt="Profile"
-              onError={() => setImageFailed(true)}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-            />
-          ) : (
-            <div className="avatar-placeholder">{user?.name ? user.name[0] : 'U'}</div>
+      <div className="sidebar-user-notification-row">
+        <button className="user-profile-card" onClick={() => setModal('profile')} type="button">
+          <div className="avatar-frame">
+            {!imageFailed ? (
+              <img
+                src={profileImageUrl(user)}
+                alt="Profile"
+                onError={() => setImageFailed(true)}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+              />
+            ) : (
+              <div className="avatar-placeholder">{user?.name ? user.name[0] : 'U'}</div>
+            )}
+            <span className="online-indicator-dot"></span>
+          </div>
+          <div className="user-info"><h4>{user?.name || 'Authorized User'}</h4><span className="status-badge"><span className="dot online"></span>Online</span></div>
+        </button>
+
+        <button
+          className="profile-notification-button"
+          onClick={() => setModal('notifications')}
+          type="button"
+          aria-label={notificationUnreadCount > 0 ? `Notifications, ${notificationUnreadCount} unread` : 'Notifications'}
+          title="Notifications"
+        >
+          <Bell size={20} />
+          {notificationUnreadCount > 0 && (
+            <span className="profile-notification-badge">
+              {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+            </span>
           )}
-          <span className="online-indicator-dot"></span>
-        </div>
-        <div className="user-info"><h4>{user?.name || 'Authorized User'}</h4><span className="status-badge"><span className="dot online"></span>Online</span></div>
-      </button>
+        </button>
+      </div>
 
       <nav className="sidebar-navigation">
         <button className={`nav-item ${activeTab === 'chats' ? 'active' : ''}`} onClick={() => nav('chats')}><MessageCircle size={20}/><span>Chats</span></button>
