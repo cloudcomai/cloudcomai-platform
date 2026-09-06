@@ -1,6 +1,6 @@
 name: Build CloudComAI Mobile Production
 
-run-name: Build production mobile app (${{ inputs.platform }})
+run-name: Build production mobile artifacts (${{ inputs.platform }})
 
 on:
   workflow_dispatch:
@@ -84,20 +84,133 @@ jobs:
       - name: Link app config to EAS project
         run: node apps/mobile/scripts/configure-eas-project.mjs
 
-      - name: Build production binary on EAS
+      - name: Build Android production AAB on EAS
+        if: inputs.platform == 'android' || inputs.platform == 'all'
         working-directory: apps/mobile
         run: |
           eas build \
-            --platform "$BUILD_PLATFORM" \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --wait \
+            --json > ../../android-aab-build.json
+
+      - name: Build Android production APK on EAS
+        if: inputs.platform == 'android' || inputs.platform == 'all'
+        working-directory: apps/mobile
+        run: |
+          eas build \
+            --platform android \
+            --profile production-apk \
+            --non-interactive \
+            --wait \
+            --json > ../../android-apk-build.json
+
+      - name: Download Android production artifacts
+        if: inputs.platform == 'android' || inputs.platform == 'all'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          download_build() {
+            local build_json="$1"
+            local expected_extension="$2"
+            local output_file="$3"
+            local metadata_file="$4"
+            local build_id
+            local archive_url
+
+            build_id="$(jq -r 'if type == "array" then .[0].id else .id end' "$build_json")"
+            if [ -z "$build_id" ] || [ "$build_id" = "null" ]; then
+              echo "::error::Unable to determine the EAS build ID from $build_json."
+              cat "$build_json"
+              exit 1
+            fi
+
+            cd apps/mobile
+            eas build:view "$build_id" --json > "../../$metadata_file"
+            cd ../..
+
+            archive_url="$(jq -r '.artifacts.applicationArchiveUrl // empty' "$metadata_file")"
+            if [ -z "$archive_url" ]; then
+              echo "::error::EAS build $build_id finished without an application archive URL."
+              cat "$metadata_file"
+              exit 1
+            fi
+
+            case "${archive_url%%\?*}" in
+              *".$expected_extension") ;;
+              *)
+                echo "::warning::EAS artifact URL does not expose the expected .$expected_extension suffix; the downloaded file will still be validated by the build metadata."
+                ;;
+            esac
+
+            curl --fail --location "$archive_url" --output "$output_file"
+          }
+
+          mkdir -p mobile-builds/android
+          download_build \
+            android-aab-build.json \
+            aab \
+            mobile-builds/android/CloudComAI-production.aab \
+            android-aab-build-view.json
+          download_build \
+            android-apk-build.json \
+            apk \
+            mobile-builds/android/CloudComAI-production.apk \
+            android-apk-build-view.json
+
+          AAB_VERSION_CODE="$(jq -r '.appBuildVersion // empty' android-aab-build-view.json)"
+          APK_VERSION_CODE="$(jq -r '.appBuildVersion // empty' android-apk-build-view.json)"
+          if [ -z "$AAB_VERSION_CODE" ] || [ -z "$APK_VERSION_CODE" ]; then
+            echo "::warning::EAS did not return both Android version codes; skipping the paired-version check."
+          elif [ "$AAB_VERSION_CODE" != "$APK_VERSION_CODE" ]; then
+            echo "::error::AAB version code $AAB_VERSION_CODE does not match APK version code $APK_VERSION_CODE."
+            exit 1
+          else
+            echo "AAB and APK both use Android version code $AAB_VERSION_CODE."
+          fi
+
+          cp android-aab-build-view.json mobile-builds/android/aab-build-info.json
+          cp android-apk-build-view.json mobile-builds/android/apk-build-info.json
+          test -s mobile-builds/android/CloudComAI-production.aab
+          test -s mobile-builds/android/CloudComAI-production.apk
+          ls -lh mobile-builds/android
+
+      - name: Store Android AAB and APK
+        if: inputs.platform == 'android' || inputs.platform == 'all'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudComAI-Android-Production
+          path: mobile-builds/android/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Build iOS production binary on EAS
+        if: inputs.platform == 'ios' || inputs.platform == 'all'
+        working-directory: apps/mobile
+        run: |
+          eas build \
+            --platform ios \
             --profile production \
             --non-interactive \
             --wait
 
       - name: Record build summary
+        if: success()
+        shell: bash
         run: |
           {
             echo "### Production mobile build completed"
             echo "- Platform: $BUILD_PLATFORM"
             echo "- Commit: $GITHUB_SHA"
+            if [ "$BUILD_PLATFORM" = "android" ] || [ "$BUILD_PLATFORM" = "all" ]; then
+              echo "- Android App Bundle: CloudComAI-production.aab (Google Play)"
+              echo "- Android Package: CloudComAI-production.apk (direct installation/testing)"
+              echo "- GitHub artifact: CloudComAI-Android-Production (retained for 30 days)"
+            fi
+            if [ "$BUILD_PLATFORM" = "ios" ] || [ "$BUILD_PLATFORM" = "all" ]; then
+              echo "- iOS production binary: available from the EAS build link"
+            fi
             echo "- App-store submission: not performed"
           } >> "$GITHUB_STEP_SUMMARY"

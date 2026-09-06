@@ -22,6 +22,14 @@
       "channel": "production",
       "environment": "production",
       "autoIncrement": true
+    },
+    "production-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "autoIncrement": false,
+      "android": {
+        "buildType": "apk"
+      }
     }
   }
 }
