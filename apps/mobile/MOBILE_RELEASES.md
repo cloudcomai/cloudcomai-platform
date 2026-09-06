@@ -55,6 +55,20 @@ Production builds use remote store build numbers and automatically increment
 them. Increment `expo.version` in `app.json` when creating a new user-visible
 store release.
 
+When `android` or `all` is selected, the production workflow creates both
+Android formats from the same source commit:
+
+| File | Purpose | Location |
+| --- | --- | --- |
+| `CloudComAI-production.aab` | Upload to Google Play | EAS Build and the `CloudComAI-Android-Production` GitHub Actions artifact |
+| `CloudComAI-production.apk` | Install directly on an Android device for release testing | EAS Build and the same GitHub Actions artifact |
+
+The workflow builds the AAB first with automatic version-code incrementing.
+The `production-apk` profile then reuses that remote version code without
+incrementing it again, keeping the paired AAB and APK on the same Android build
+number. The GitHub Actions download is retained for 30 days; EAS retains its
+own build records according to the Expo account plan.
+
 ## Incremental release decision
 
 | Change | Release path |
