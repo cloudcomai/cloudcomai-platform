@@ -21,7 +21,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#3157d5"
-      }
+      },
+      "edgeToEdgeEnabled": false
     },
     "ios": {
       "bundleIdentifier": "com.cloudcomai.mobile",
