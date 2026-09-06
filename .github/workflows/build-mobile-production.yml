@@ -34,6 +34,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
       BUILD_PLATFORM: ${{ inputs.platform }}
       BUILD_CONFIRMATION: ${{ inputs.confirmation }}
 
@@ -41,9 +42,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate production build request
+      - name: Validate and log production build request
         shell: bash
         run: |
+          set -euo pipefail
+
+          echo "Build platform: $BUILD_PLATFORM"
+          echo "EAS profiles: production, production-apk"
+          echo "EXPO_TOKEN configured: $([ -n "$EXPO_TOKEN" ] && echo YES || echo NO)"
+          echo "EAS_PROJECT_ID: ${EAS_PROJECT_ID:-<missing>}"
+          echo "EXPO_PUBLIC_API_BASE_URL: ${EXPO_PUBLIC_API_BASE_URL:-<missing>}"
+
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Production builds can only be created from main."
             exit 1
@@ -56,6 +65,17 @@ jobs:
             echo "::error::Missing GitHub Actions variable EAS_PROJECT_ID."
             exit 1
           fi
+          if [ -z "$EXPO_PUBLIC_API_BASE_URL" ]; then
+            echo "::error::Missing GitHub Actions variable EXPO_PUBLIC_API_BASE_URL."
+            exit 1
+          fi
+          case "$EXPO_PUBLIC_API_BASE_URL" in
+            https://*/apiapp/api) ;;
+            *)
+              echo "::error::EXPO_PUBLIC_API_BASE_URL must use HTTPS and end with /apiapp/api."
+              exit 1
+              ;;
+          esac
           if [ "$BUILD_CONFIRMATION" != "BUILD" ]; then
             echo "::error::Enter BUILD to confirm a production binary build."
             exit 1
@@ -83,6 +103,9 @@ jobs:
 
       - name: Link app config to EAS project
         run: node apps/mobile/scripts/configure-eas-project.mjs
+
+      - name: Inject validated API URL into production EAS profiles
+        run: node apps/mobile/scripts/configure-build-env.mjs production production-apk
 
       - name: Build Android production AAB on EAS
         if: inputs.platform == 'android' || inputs.platform == 'all'
