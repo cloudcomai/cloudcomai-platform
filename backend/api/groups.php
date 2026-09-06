@@ -54,9 +54,11 @@ if ($method === 'POST') {
     $d = input();
     $name = trim((string)($d['name'] ?? ''));
     $type = (string)($d['group_category'] ?? $d['group_type'] ?? '');
-    $retention = (int)($d['retention_seconds'] ?? 0);
+    $retention = array_key_exists('retention_seconds', $d)
+        ? (int)$d['retention_seconds']
+        : chat_retention_seconds('group');
     if ($name === '' || !in_array($type,$types,true)) fail('Valid group name and category are required');
-    if (!in_array($retention,[0,86400,604800,1296000,2592000,7776000],true)) fail('Invalid retention policy');
+    if ($retention <= 0) fail('Invalid retention policy');
 
     $pdo->beginTransaction();
     try {

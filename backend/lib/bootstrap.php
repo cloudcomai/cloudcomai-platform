@@ -98,6 +98,27 @@ function auth_user(): array {
     if (!$user || $user['account_status'] !== 'active') fail('Account unavailable', 401);
     return $user;
 }
+function chat_retention_seconds(string $chatType): int {
+    global $config;
+
+    $fallbacks = [
+        'private' => 30 * 24 * 60 * 60,
+        'group' => 30 * 24 * 60 * 60,
+        'public' => 4 * 60 * 60,
+    ];
+
+    if (!array_key_exists($chatType, $fallbacks)) {
+        throw new InvalidArgumentException("Unsupported chat type for retention: {$chatType}");
+    }
+
+    $configured = $config['app']['retention'][$chatType] ?? null;
+    if (is_numeric($configured)) {
+        $seconds = (int)$configured;
+        if ($seconds > 0) return $seconds;
+    }
+
+    return $fallbacks[$chatType];
+}
 function normalize_mobile_identifier(string $mobile): string {
     $mobile = trim($mobile);
     if ($mobile === '') return '';

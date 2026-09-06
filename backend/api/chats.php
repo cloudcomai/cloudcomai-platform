@@ -113,8 +113,9 @@ if ($method === 'POST') {
 
         if (!$chat) {
             $pdo->beginTransaction();
-            $insert = $pdo->prepare('INSERT INTO chats(type,name,owner_id,created_at) VALUES("private",NULL,?,UTC_TIMESTAMP())');
-            $insert->execute([$user['id']]);
+            $retention = chat_retention_seconds('private');
+            $insert = $pdo->prepare('INSERT INTO chats(type,name,owner_id,retention_seconds,created_at) VALUES("private",NULL,?,?,UTC_TIMESTAMP())');
+            $insert->execute([$user['id'], $retention]);
             $chatId = (int)$pdo->lastInsertId();
             $member = $pdo->prepare('INSERT INTO chat_members(chat_id,user_id,role,status,joined_at) VALUES(?,?,"member","active",UTC_TIMESTAMP())');
             $member->execute([$chatId, $user['id']]);
