@@ -1,27 +1,27 @@
 <?php
 return [
     'db' => [
-        'host' => 'localhost',
-        'name' => 'cloudcomai',
-        'user' => 'cloudcomai_user',
+        'host' => 'YOUR_GODADDY_MYSQL_HOST',
+        'name' => 'YOUR_GODADDY_DATABASE_NAME',
+        'user' => 'YOUR_GODADDY_DATABASE_USER',
         'pass' => 'CHANGE_ME',
         'charset' => 'utf8mb4',
     ],
     'app' => [
-        'base_url' => 'https://api.cloudcomai.com',
-        'web_url' => 'https://cloudcomai.com',
-        'mail_from' => 'no-reply@cloudcomai.com',
+        'base_url' => 'https://www.cloudcomai.com/apiapp/api',
+        'web_url' => 'https://www.cloudcomai.com',
+        'mail_from' => 'support@cloudcomai.com',
         'allowed_origins' => [
-            'https://cloudcomai.com',
             'https://www.cloudcomai.com',
+            'https://cloudcomai.com',
             'https://app.cloudcomai.com',
         ],
-        'token_secret' => 'CHANGE_TO_A_LONG_RANDOM_SECRET',
+        'token_secret' => 'GENERATE_ONCE_AND_KEEP_THIS_PRODUCTION_SECRET_STABLE',
         'upload_dir' => __DIR__ . '/../storage/uploads',
     ],
     'google' => [
-        'client_id' => 'YOUR_GOOGLE_OAUTH_CLIENT_ID',
-        'client_secret' => 'YOUR_GOOGLE_OAUTH_CLIENT_SECRET',
-        'redirect_uri' => 'https://www.cloudcomai.com/apiapp/api/google/callback.php',
+        'client_id' => 'YOUR_PRODUCTION_GOOGLE_OAUTH_CLIENT_ID',
+        'client_secret' => 'YOUR_PRODUCTION_GOOGLE_OAUTH_CLIENT_SECRET',
+        'redirect_uri' => 'https://www.cloudcomai.com/apiapp/api/v1/integrations/google/callback',
     ],
 ];

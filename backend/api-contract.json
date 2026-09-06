@@ -23,6 +23,7 @@
     "v1/attachment-requests/respond": { "handler": "respond_attachment_download.php", "methods": ["POST"], "auth": true },
     "v1/contacts": { "handler": "contacts.php", "methods": ["GET"], "auth": true },
     "v1/integrations/google/connect": { "handler": "google/connect.php", "methods": ["GET"], "auth": true },
+    "v1/integrations/google/callback": { "handler": "google/callback.php", "methods": ["GET"], "auth": false },
     "v1/integrations/google/status": { "handler": "google/status.php", "methods": ["GET"], "auth": true },
     "v1/integrations/google/sync": { "handler": "google/sync.php", "methods": ["POST"], "auth": true },
     "v1/integrations/google/contacts": { "handler": "google/contacts.php", "methods": ["GET"], "auth": true },

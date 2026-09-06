@@ -30,7 +30,17 @@ The production architecture targets static web assets plus PHP 8.3 and MySQL on 
 
 See [`backend/README.md`](backend/README.md). Production credentials and generated runtime files must not be committed.
 
+## Deployment
+
+- InfinityFree test deployment uses `.github/workflows/deploy-infinityfree.yml`.
+- GoDaddy production deployment uses the separate, manual
+  `.github/workflows/deploy-godaddy.yml` after it has been merged into `main`.
+- Complete the [GoDaddy production setup](deployment/GODADDY_PRODUCTION.md)
+  before the first production workflow run.
+
 ## Implementation status
 
-This branch establishes the approved monorepo foundation by reusing the latest code from the existing frontend and backend repositories. The existing repositories remain unchanged. Production deployment is outside this milestone.
-
+The monorepo reuses the approved frontend and backend foundations while keeping
+hosting credentials and runtime state outside the repository. Production
+deployment requires explicit manual confirmation and does not run from pull
+requests.
