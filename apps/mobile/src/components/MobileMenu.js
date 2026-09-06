@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { platformApi } from '../services/platform';
 
 const GROUP_TYPES = [
@@ -366,11 +367,13 @@ export default function MobileMenu({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={screen === 'menu' ? onClose : () => go('menu')}>
-      <View style={styles.page}>
-        {body()}
-        {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </View>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}>
+          {body()}
+          {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
