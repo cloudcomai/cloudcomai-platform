@@ -41,7 +41,7 @@ export default function Sidebar({ user, setModal, notificationUnreadCount = 0, i
           onClick={() => setModal('notifications')}
           type="button"
           aria-label={notificationUnreadCount > 0 ? `Notifications, ${notificationUnreadCount} unread` : 'Notifications'}
-          title="Notifications"
+          data-tooltip={notificationUnreadCount > 0 ? `Notifications — ${notificationUnreadCount} unread` : 'Notifications — no unread items'}
         >
           <Bell size={20} />
           {notificationUnreadCount > 0 && (
