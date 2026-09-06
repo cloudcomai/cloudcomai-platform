@@ -44,3 +44,35 @@ test('maps poll voting to the vote action', async () => {
     args: ['v1/polls', { poll_id: 4, option_id: 9 }, { query: { action: 'vote' } }],
   });
 });
+
+test('maps per-user chat deletion to the chats route', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.deleteChat(23);
+  assert.deepEqual(calls[0], {
+    method: 'delete',
+    args: ['v1/chats', { query: { id: 23 } }],
+  });
+});
+
+test('maps preferences and invitations without exposing PHP routes', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.updatePreferences(['Private Chats', 'Technology']);
+  await api.previewInvitation('invite-token');
+  await api.acceptInvitation('invite-token');
+  assert.deepEqual(calls, [
+    {
+      method: 'put',
+      args: ['v1/users/preferences', { interests: ['Private Chats', 'Technology'] }, {}],
+    },
+    {
+      method: 'get',
+      args: ['v1/invitations/join', { auth: false, query: { token: 'invite-token' } }],
+    },
+    {
+      method: 'post',
+      args: ['v1/invitations/join', { token: 'invite-token' }, {}],
+    },
+  ]);
+});

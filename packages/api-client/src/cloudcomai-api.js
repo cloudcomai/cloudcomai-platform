@@ -49,6 +49,14 @@ export class CloudComAiApi {
     });
   }
 
+  getPreferences(options = {}) {
+    return this.client.get(ApiRoute.PREFERENCES, options);
+  }
+
+  updatePreferences(interests, options = {}) {
+    return this.client.put(ApiRoute.PREFERENCES, { interests }, options);
+  }
+
   listChats(type, options = {}) {
     return this.client.get(ApiRoute.CHATS, {
       ...options,
@@ -64,12 +72,38 @@ export class CloudComAiApi {
     );
   }
 
+  deleteChat(id, options = {}) {
+    return this.client.delete(ApiRoute.CHATS, {
+      ...options,
+      query: { ...options.query, id },
+    });
+  }
+
   listGroups(options = {}) {
     return this.client.get(ApiRoute.GROUPS, options);
   }
 
   createGroup(input, options = {}) {
     return this.client.post(ApiRoute.GROUPS, input, options);
+  }
+
+  createGroupInvite(id, options = {}) {
+    return this.client.post(ApiRoute.GROUPS, {}, {
+      ...options,
+      query: { ...options.query, action: 'invite', id },
+    });
+  }
+
+  previewInvitation(token, options = {}) {
+    return this.client.get(ApiRoute.JOIN, {
+      ...options,
+      auth: false,
+      query: { ...options.query, token },
+    });
+  }
+
+  acceptInvitation(token, options = {}) {
+    return this.client.post(ApiRoute.JOIN, { token }, options);
   }
 
   updateGroup(id, input, options = {}) {

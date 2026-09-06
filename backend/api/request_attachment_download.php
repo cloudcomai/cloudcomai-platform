@@ -6,13 +6,16 @@ $d = input();
 $id = (int)($d['attachment_id'] ?? 0);
 if ($id <= 0) fail('Invalid attachment');
 
-$st = db()->prepare('SELECT a.id,a.download_policy,m.chat_id,m.sender_id FROM message_attachments a JOIN messages m ON m.id=a.message_id WHERE a.id=?');
+$st = db()->prepare('SELECT a.id,a.message_id,a.download_policy,m.chat_id,m.sender_id FROM message_attachments a JOIN messages m ON m.id=a.message_id WHERE a.id=?');
 $st->execute([$id]);
 $a = $st->fetch();
 if (!$a) fail('Attachment not found', 404);
 $m = db()->prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status="active"');
 $m->execute([(int)$a['chat_id'], $user['id']]);
 if (!$m->fetch()) fail('Not a member', 403);
+$cleared = db()->prepare('SELECT cleared_through_message_id FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
+$cleared->execute([(int)$a['chat_id'], $user['id']]);
+if ((int)$a['message_id'] <= (int)($cleared->fetchColumn() ?: 0)) fail('Attachment not found', 404);
 if ((int)$a['sender_id'] === (int)$user['id']) out(['status' => 'APPROVED']);
 if ($a['download_policy'] === 'ALLOW') out(['status' => 'APPROVED']);
 if ($a['download_policy'] === 'VIEW_ONLY') fail('Download is disabled for this attachment', 403);

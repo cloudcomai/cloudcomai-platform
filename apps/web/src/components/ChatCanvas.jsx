@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
-import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin } from 'lucide-react';
+import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy } from 'lucide-react';
 import { formatMessageTime } from '../utils/messageTime';
+import { copyText, shareOrCopyLink } from '../utils/shareLink';
 import AttachmentControls from './AttachmentControls';
 import AttachmentActions from './AttachmentActions';
 import AttachmentPreview from './AttachmentPreview';
@@ -22,10 +23,12 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteGroup, onGroupInvite, onAttachmentUploaded }) {
+export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded }) {
   const historyRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
+  const [groupInviteUrl, setGroupInviteUrl] = useState('');
+  const [preparingInvite, setPreparingInvite] = useState(false);
   const [pollVoteState, setPollVoteState] = useState({});
 
   useEffect(() => {
@@ -34,7 +37,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
     requestAnimationFrame(() => { viewport.scrollTop = viewport.scrollHeight; });
   }, [selectedChat?.id, messages.length]);
 
-  useEffect(() => { setGroupActionMessage(''); setPollVoteState({}); }, [selectedChat?.id]);
+  useEffect(() => { setGroupActionMessage(''); setGroupInviteUrl(''); setPollVoteState({}); }, [selectedChat?.id]);
 
   const handleHistoryScroll = () => {
     const viewport = historyRef.current;
@@ -53,6 +56,38 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
 
   const isGroup = selectedChat?.type === 'group' || selectedChat?.isGroup;
   const isGroupOwner = isGroup && Number(selectedChat?.owner_id) === Number(user?.id);
+
+  const prepareGroupInvite = async () => {
+    if (!onGroupInvite || preparingInvite) return;
+    setPreparingInvite(true);
+    setGroupActionMessage('');
+    try {
+      const response = await onGroupInvite(selectedChat);
+      if (!response?.invite_url) throw new Error('The server did not return an invitation link.');
+      setGroupInviteUrl(response.invite_url);
+      setGroupActionMessage('Invitation ready. Share it or copy the link below.');
+    } catch (error) {
+      setGroupActionMessage(error.message || 'Unable to generate group link');
+    } finally {
+      setPreparingInvite(false);
+    }
+  };
+
+  const shareInvite = async () => {
+    try {
+      const result = await shareOrCopyLink({
+        title: `Join ${selectedChat.name} on CloudComAI`,
+        text: `You are invited to join ${selectedChat.name} on CloudComAI.`,
+        url: groupInviteUrl,
+      });
+      if (result !== 'cancelled') setGroupActionMessage(result === 'shared' ? 'Invitation shared.' : 'Invitation link copied.');
+    } catch (error) { setGroupActionMessage(error.message || 'Unable to share invitation.'); }
+  };
+
+  const copyInvite = async () => {
+    try { await copyText(groupInviteUrl); setGroupActionMessage('Invitation link copied.'); }
+    catch (error) { setGroupActionMessage(error.message || 'Unable to copy invitation.'); }
+  };
 
   return (
     <main className="chat-interaction-canvas">
@@ -78,16 +113,26 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
             <button className="action-utility-btn" onClick={() => setModal('manage_members')}><Users size={16}/><span>Manage</span></button>
             {isGroupOwner && <>
               <button className="action-utility-btn" onClick={() => setModal('edit_group')}><Edit3 size={16}/><span>Edit Group</span></button>
-              <button className="action-utility-btn" onClick={async () => { try { const response = await onGroupInvite(selectedChat); if (response?.invite_url) { await navigator.clipboard.writeText(response.invite_url); setGroupActionMessage('Group link copied'); setTimeout(() => setGroupActionMessage(''), 1600); } } catch (err) { setGroupActionMessage(err.message || 'Unable to generate group link'); } }}><Link2 size={16}/><span>Copy Link</span></button>
+              <button className="action-utility-btn" onClick={prepareGroupInvite} disabled={preparingInvite}><Link2 size={16}/><span>{preparingInvite ? 'Preparing...' : 'Invite People'}</span></button>
               <button className="action-utility-btn text-red" style={{ color: '#ef4444' }} onClick={() => onDeleteGroup(selectedChat)}><Trash2 size={18}/><span>Delete Group</span></button>
             </>}
-          </> : <button className="action-utility-btn" onClick={() => setModal('group')}><Users size={18}/><span>New Group</span></button>}
+          </> : <>
+            <button className="action-utility-btn" onClick={() => setModal('group')}><Users size={18}/><span>New Group</span></button>
+            {selectedChat && <button className="action-utility-btn" style={{ color: '#ef4444' }} onClick={() => onDeleteChat(selectedChat)}><Trash2 size={18}/><span>Delete Chat</span></button>}
+          </>}
 
           <div className="vertical-divider" /><button className="icon-utility-only"><Search size={18}/></button><button className="icon-utility-only"><MoreHorizontal size={18}/></button>
         </div>
       </header>
 
-      {groupActionMessage && <div style={{ padding: '7px 14px', fontSize: '12px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)' }}>{groupActionMessage}</div>}
+      {(groupActionMessage || groupInviteUrl) && <div className="group-invite-bar">
+        {groupActionMessage && <span>{groupActionMessage}</span>}
+        {groupInviteUrl && <>
+          <input value={groupInviteUrl} readOnly aria-label="Group invitation link" />
+          <button type="button" onClick={shareInvite}><Share2 size={15} /> Share</button>
+          <button type="button" onClick={copyInvite}><Copy size={15} /> Copy</button>
+        </>}
+      </div>}
 
       <div className="message-history-viewport" ref={historyRef} onScroll={handleHistoryScroll}>
         <div className="encryption-note">Messages are protected in transit. E2EE configuration applied.</div>

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPollingMessageTransport, mergeMessageBatch } from '../src/index.js';
+import { createPollingMessageTransport, formatMessageTimestamp, mergeMessageBatch, parseMessageTimestamp } from '../src/index.js';
 
 test('merges incremental messages by ID in chronological order', () => {
   const result = mergeMessageBatch([{ id: 2 }, { id: 4, body: 'old' }], [{ id: 3 }, { id: 4, body: 'edited' }, { id: 5 }]);
@@ -55,4 +55,16 @@ test('polling skips network work while the page is hidden', async () => {
   assert.equal(calls, 0);
   assert.equal(scheduled.length, 1);
   transport.stop();
+});
+
+test('treats database timestamps without offsets as UTC', () => {
+  assert.equal(parseMessageTimestamp('2026-09-06 12:30:00').toISOString(), '2026-09-06T12:30:00.000Z');
+});
+
+test('formats today, yesterday, earlier dates, and previous years', () => {
+  const options = { now: '2026-09-06T18:00:00Z', locale: 'en-US', timeZone: 'UTC' };
+  assert.equal(formatMessageTimestamp('2026-09-06 12:30:00', options), '12:30 PM');
+  assert.equal(formatMessageTimestamp('2026-09-05 12:30:00', options), 'Yesterday, 12:30 PM');
+  assert.equal(formatMessageTimestamp('2026-08-30 12:30:00', options), 'Aug 30, 12:30 PM');
+  assert.equal(formatMessageTimestamp('2025-12-31 12:30:00', options), 'Dec 31, 2025, 12:30 PM');
 });

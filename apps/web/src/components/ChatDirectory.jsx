@@ -7,7 +7,7 @@ const imageUrl = chat => chat?.image_url || mediaUrl(
   chat?.isGroup ? chat?.id : chat?.other_user_id || chat?.id,
 );
 
-export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab }) {
+export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab, topInterests, onEditPreferences }) {
   const [failedImages, setFailedImages] = useState({});
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -64,6 +64,18 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
     ].filter(Boolean).some(value => String(value).toLowerCase().includes(query)));
   }, [contacts, searchQuery]);
 
+  const preferenceStrip = (
+    <div className="directory-preferences">
+      <div className="directory-preferences-heading">
+        <strong>Your preferences</strong>
+        <button type="button" onClick={onEditPreferences}>Edit</button>
+      </div>
+      <div className="directory-preference-chips">
+        {topInterests.map(interest => <span key={interest}>{interest}</span>)}
+      </div>
+    </div>
+  );
+
   if (activeTab === 'people') {
     return (
       <section className="chats-directory">
@@ -82,6 +94,8 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
             <input type="text" placeholder="Search contacts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           </div>
         </header>
+
+        {preferenceStrip}
 
         {contactsError && (
           <div className="empty-state" style={{ margin: '12px 16px', padding: '14px', textAlign: 'left' }}>
@@ -160,6 +174,8 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
           <div className="search-box-wrapper" style={{ flex: 1, position: 'relative' }}><Search size={18} className="search-icon"/><input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
         </div>
       </header>
+
+      {preferenceStrip}
 
       <div className="filter-pill-row"><button className={`filter-pill ${chatFilter === 'all' ? 'active' : ''}`} onClick={() => setChatFilter('all')}>All</button><button className={`filter-pill ${chatFilter === 'unread' ? 'active' : ''}`} onClick={() => setChatFilter('unread')}>Unread</button></div>
 
