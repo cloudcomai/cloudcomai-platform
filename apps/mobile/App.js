@@ -24,6 +24,7 @@ import { createPollingMessageTransport, formatMessageTimestamp, mergeMessageBatc
 import * as DocumentPicker from 'expo-document-picker';
 import { API_BASE_URL, mediaUrl, platformApi, sessionManager } from './src/services/platform';
 import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
+import MobileMenu from './src/components/MobileMenu';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -368,6 +369,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedChat, setSelectedChat] = useState(null);
+  const [menuVisible, setMenuVisible] = useState(false);
   const lastBackPressRef = useRef(0);
 
   const loadChats = useCallback(async (refresh = false) => {
@@ -426,7 +428,10 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId }) {
       <StatusBar barStyle="light-content" backgroundColor="#3157d5" />
       <View style={styles.header}>
         <View style={styles.headerIdentity}><Text style={styles.headerTitle} numberOfLines={1}>CloudComAI</Text><Text style={styles.headerUser} numberOfLines={1}>{session.user?.name || 'Authorized user'}</Text></View>
-        <View style={styles.headerActions}><Pressable onPress={onSettings}><Text style={styles.logout}>Alerts</Text></Pressable><Pressable onPress={logout}><Text style={styles.logout}>Sign out</Text></Pressable></View>
+        <View style={styles.headerActions}>
+          <Pressable onPress={onSettings}><Text style={styles.logout}>Alerts</Text></Pressable>
+          <Pressable onPress={() => setMenuVisible(true)}><Text style={styles.logout}>Menu</Text></Pressable>
+        </View>
       </View>
       <View style={styles.tabs}>
         {['private', 'group'].map(value => <Pressable key={value} style={[styles.tab, tab === value && styles.activeTab]} onPress={() => setTab(value)}><Text style={[styles.tabText, tab === value && styles.activeTabText]}>{value === 'private' ? 'Chats' : 'Groups'}</Text></Pressable>)}
@@ -445,6 +450,24 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId }) {
           }}
         />
       )}
+      <MobileMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onOpenNotificationSettings={onSettings}
+        onLogout={logout}
+        onChatCreated={chat => {
+          setMenuVisible(false);
+          setTab('private');
+          setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id))]);
+          setSelectedChat(chat);
+        }}
+        onGroupCreated={group => {
+          setMenuVisible(false);
+          setTab('group');
+          setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id))]);
+          setSelectedChat(group);
+        }}
+      />
     </SafeAreaView>
   );
 }
