@@ -1,0 +1,426 @@
+CLOUDCOMAI PRIVACY POLICY
+
+Website: CloudComAI.com
+Platform: CloudComAI / CloudComAI Chat
+Effective Date: 21 August 2026
+Last Updated: 21 August 2026
+
+1. Introduction
+
+CloudComAI (“CloudComAI”, “we”, “us”, “our”) respects your privacy and is committed to protecting your personal data.
+
+This Privacy Policy explains how CloudComAI collects, uses, stores, processes, shares and protects personal data when you access or use CloudComAI.com, the CloudComAI web platform, mobile applications, messaging services, communication services, communities, groups, public rooms, AI-enabled services and related products and services (“Services”).
+
+This Privacy Policy is intended to operate in accordance with applicable Indian laws and regulations, including, as applicable:
+
+* Digital Personal Data Protection Act, 2023;
+* Digital Personal Data Protection Rules, 2025;
+* Information Technology Act, 2000;
+* Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, as amended;
+* Consumer Protection Act, 2019 and applicable rules;
+* Consumer Protection (E-Commerce) Rules, 2020, where applicable; and
+* other applicable Indian laws, rules, regulations, governmental directions and lawful orders.
+
+Where CloudComAI becomes subject to additional privacy or data-protection laws in another jurisdiction, additional requirements may apply.
+
+2. Who Is Responsible for Your Data?
+
+CloudComAI is responsible for determining the purposes for which personal data is processed through its Services, subject to applicable law.
+
+Legal Entity / Data Fiduciary: [INSERT LEGAL COMPANY NAME]
+Registered Office: [INSERT REGISTERED ADDRESS]
+Email: support@cloudcomai.com
+Support: support@cloudcomai.com
+Grievance Officer: [INSERT NAME]
+Grievance Email: support@cloudcomai.com
+Contact Number: [INSERT NUMBER]
+
+CloudComAI will publish updated contact information whenever required.
+
+3. Information We Collect
+
+Depending on the Services you use, CloudComAI may collect the following information.
+
+3.1 Account Information
+
+This may include:
+
+* Full name;
+* Username;
+* User ID;
+* Email address;
+* Mobile telephone number;
+* Profile photograph;
+* Date of birth or age information;
+* Gender where voluntarily provided;
+* Login credentials and authentication information;
+* Verification information;
+* Account preferences;
+* Language and communication preferences.
+
+3.2 Device and Technical Information
+
+We may collect:
+
+* IP address;
+* Device type;
+* Operating system;
+* Browser type;
+* Application version;
+* Device identifiers;
+* Network information;
+* Approximate location derived from technical information where permitted;
+* Login dates and times;
+* Crash reports;
+* Diagnostic information;
+* Security and fraud-prevention information.
+
+3.3 Contacts
+
+If you choose to enable contact synchronisation, CloudComAI may process contact information from your device for the purpose of identifying people you may know, inviting contacts and enabling communication features.
+
+Contact access will be subject to your device permissions and applicable law.
+
+You may disable contact synchronisation through the applicable settings.
+
+3.4 Messages and Communications
+
+Depending on the Services you use, CloudComAI may process:
+
+* Text messages;
+* Replies;
+* Reactions;
+* Edited messages;
+* Deleted-message records where technically and legally necessary;
+* Group and community communications;
+* Public-room communications;
+* Metadata associated with communications;
+* Reports, complaints and moderation information.
+
+Where CloudComAI provides end-to-end encryption, the technical architecture will determine what information CloudComAI can and cannot access.
+
+CloudComAI does not promise that every type of communication or every feature is end-to-end encrypted unless the particular feature is expressly identified as such.
+
+3.5 Photos, Videos, Documents and Other Media
+
+If you upload, send, receive or otherwise process media through CloudComAI, we may process:
+
+* Photos;
+* Videos;
+* Audio;
+* Documents;
+* Files;
+* Voice messages;
+* File names and metadata;
+* Technical information associated with those files.
+
+CloudComAI may process media to provide delivery, storage, security, backup, moderation, abuse prevention and other requested functionality.
+
+3.6 Audio and Video Calls
+
+If you use audio or video calling, CloudComAI may process technical information required to establish and maintain calls, including:
+
+* Account identifiers;
+* Device information;
+* Network information;
+* Call timestamps;
+* Call duration;
+* Connection information;
+* Diagnostic information.
+
+Unless expressly stated for a particular feature, CloudComAI does not represent that audio or video calls are recorded.
+
+3.7 Location Information
+
+Where you voluntarily enable location services, CloudComAI may process location information to provide features such as:
+
+* Location sharing;
+* Live location sharing;
+* Location-based functionality;
+* Security features;
+* Other features requested by you.
+
+You can normally disable location permissions through your device settings.
+
+3.8 AI Services
+
+If you use an AI feature, information you submit may be processed to generate responses or provide the requested AI functionality.
+
+CloudComAI will identify where an AI feature involves processing of user-provided information.
+
+CloudComAI will not intentionally use private user communications for unrelated purposes without an appropriate legal basis, notice or consent where required by applicable law.
+
+3.9 Payment Information
+
+If CloudComAI offers paid subscriptions, purchases or other paid Services, payment information may be processed by CloudComAI and/or authorised payment service providers.
+
+CloudComAI may not directly store complete payment-card information where payment processing is handled by a third-party payment provider.
+
+Payment providers may have their own privacy policies and terms.
+
+4. How We Use Personal Data
+
+CloudComAI may process personal data for purposes including:
+
+1. Creating and maintaining user accounts;
+2. Verifying users;
+3. Providing messaging and communication Services;
+4. Delivering messages and media;
+5. Providing groups, communities and public communication features;
+6. Providing audio and video calling;
+7. Providing location-sharing features;
+8. Providing AI functionality;
+9. Providing customer support;
+10. Preventing fraud, spam, abuse and unlawful activity;
+11. Protecting users and the security of CloudComAI;
+12. Detecting unauthorised access;
+13. Enforcing our Terms and Community Standards;
+14. Complying with applicable law;
+15. Responding to lawful governmental or judicial requests;
+16. Processing payments;
+17. Maintaining and improving technical reliability;
+18. Diagnosing errors and crashes;
+19. Developing and improving Services;
+20. Sending service-related communications;
+21. Sending promotional communications where legally permitted and, where required, with your consent;
+22. Protecting our legal rights;
+23. Investigating violations; and
+24. Other purposes clearly disclosed to you at the time of collection.
+
+5. Consent and Lawful Processing
+
+CloudComAI will process personal data only where permitted under applicable law.
+
+Where consent is required, CloudComAI will seek consent through an appropriate mechanism.
+
+Consent requests should be presented clearly and separately from unrelated information where required.
+
+You may withdraw consent where the applicable law provides such a right.
+
+Withdrawal of consent may affect our ability to provide certain Services or features where processing is necessary for those Services.
+
+6. Data Minimisation
+
+CloudComAI intends to collect and process personal data that is reasonably necessary for the relevant purpose.
+
+We do not intend to collect personal information merely because it is technically possible to do so.
+
+7. Data Accuracy
+
+Users are responsible for keeping account information reasonably accurate and updated.
+
+Where applicable, you may request correction of inaccurate personal data.
+
+8. Sharing of Personal Data
+
+CloudComAI may disclose personal data to:
+
+* Service providers;
+* Cloud hosting providers;
+* Database and infrastructure providers;
+* Authentication providers;
+* SMS/OTP providers;
+* Email providers;
+* Payment processors;
+* Security providers;
+* Analytics providers where used;
+* Customer-support providers;
+* AI service providers where used;
+* Legal, regulatory or governmental authorities where legally required;
+* Courts, law-enforcement agencies or other authorised authorities pursuant to applicable law;
+* Professional advisers where reasonably necessary;
+* Successors or entities involved in a merger, acquisition, restructuring or transfer of business, subject to applicable law.
+
+CloudComAI will not sell personal data in violation of applicable law.
+
+Third-party service providers may process data according to their own contractual obligations and applicable privacy requirements.
+
+9. Public Content
+
+CloudComAI may provide public groups, public rooms, communities, profiles or other publicly accessible features.
+
+Information that you intentionally publish publicly may be visible to other users and potentially accessible through the Internet.
+
+Users should not publish confidential, sensitive or personal information publicly unless they understand the consequences.
+
+CloudComAI cannot guarantee that information voluntarily made public can be completely removed from copies, screenshots, caches or other systems operated by third parties.
+
+10. Message Deletion and Automatic Deletion
+
+CloudComAI may provide automatic deletion options for certain communications.
+
+The exact retention period may depend on the feature and settings selected by the user.
+
+Automatic deletion may not immediately remove:
+
+* Information required by law;
+* Security logs;
+* Abuse reports;
+* Information subject to a legal hold;
+* Backups for a limited period;
+* Information required to investigate security incidents;
+* Information retained in accordance with applicable law.
+
+Where technically feasible and legally permissible, deleted information will be removed from active systems according to CloudComAI’s deletion procedures.
+
+11. Security
+
+CloudComAI will implement reasonable technical and organisational safeguards appropriate to the nature of the personal data processed.
+
+Security measures may include:
+
+* Encryption in transit;
+* Encryption at rest where appropriate;
+* Access controls;
+* Authentication controls;
+* Monitoring;
+* Logging;
+* Security testing;
+* Backup and recovery procedures;
+* Vulnerability management;
+* Incident response procedures;
+* Protection against unauthorised access.
+
+No Internet service can guarantee absolute security.
+
+12. Personal Data Breaches
+
+If CloudComAI becomes aware of a personal data breach, it will take appropriate steps required under applicable law, including notification to affected individuals and/or the competent authority where legally required.
+
+CloudComAI may temporarily restrict or suspend affected Services when necessary to contain or investigate a security incident.
+
+13. Data Retention
+
+CloudComAI will retain personal data only for as long as reasonably necessary for the purposes for which it was collected, unless a longer period is required or permitted by law.
+
+Retention periods may depend upon:
+
+* The type of information;
+* The purpose of processing;
+* Account status;
+* Legal obligations;
+* Security requirements;
+* Dispute resolution;
+* Fraud prevention;
+* Regulatory requirements.
+
+When personal data is no longer required and there is no lawful reason to retain it, CloudComAI will take reasonable steps to delete or anonymise it.
+
+14. Children’s Data
+
+CloudComAI is intended for users who meet the minimum age requirements specified in its Terms of Service and applicable law.
+
+Where the law requires verifiable parental consent for processing a child’s personal data, CloudComAI will implement appropriate mechanisms before processing such data.
+
+Users must not falsely represent their age.
+
+If CloudComAI discovers that personal data of a child has been collected contrary to applicable law, appropriate action may include deletion, restriction of processing or account suspension.
+
+15. User Rights
+
+Subject to applicable law, users may have rights including:
+
+* Right to access information about processing;
+* Right to correction of personal data;
+* Right to erasure/deletion where applicable;
+* Right to withdraw consent where processing is based on consent;
+* Right to grievance redressal;
+* Right to nominate another individual where provided by applicable law;
+* Other rights provided under applicable law.
+
+Requests may be submitted to:
+
+Privacy Email: support@cloudcomai.com
+
+CloudComAI may need to verify the identity of the requester before processing a request.
+
+16. Grievance Redressal
+
+Users may submit privacy or platform complaints to:
+
+Grievance Officer: [INSERT NAME]
+Email: support@cloudcomai.com
+Address: [INSERT ADDRESS]
+
+CloudComAI will process grievances within the periods required by applicable law.
+
+Where applicable, CloudComAI will maintain and publish the required grievance mechanism under the IT Rules.
+
+17. Cookies and Similar Technologies
+
+CloudComAI may use cookies, local storage, pixels, SDKs and similar technologies for:
+
+* Login and authentication;
+* Security;
+* Preferences;
+* Session management;
+* Performance;
+* Analytics;
+* Service improvement;
+* Fraud prevention.
+
+Where legally required, CloudComAI will obtain appropriate consent for non-essential cookies or similar technologies.
+
+Users may control cookies through browser settings, although disabling certain cookies may affect functionality.
+
+18. Third-Party Services
+
+CloudComAI may integrate third-party services.
+
+Examples may include:
+
+* Authentication services;
+* Cloud hosting;
+* SMS/OTP services;
+* Email services;
+* Payment providers;
+* Analytics;
+* AI providers;
+* Push notifications;
+* Maps/location services;
+* Communication infrastructure.
+
+Third-party services are subject to their applicable terms and privacy policies.
+
+CloudComAI will take reasonable steps to select service providers appropriate for the relevant processing.
+
+19. International Data Transfers
+
+CloudComAI may use infrastructure or service providers located outside India.
+
+Where personal data is transferred outside India, CloudComAI will comply with applicable Indian law and any restrictions or requirements applicable to such transfers.
+
+Additional contractual, technical or organisational safeguards may be used where appropriate.
+
+20. Government and Law-Enforcement Requests
+
+CloudComAI may disclose information where required by:
+
+* Court orders;
+* Lawful governmental directions;
+* Law-enforcement requests;
+* Regulatory requirements;
+* Other legally binding processes.
+
+CloudComAI may also take action where reasonably necessary to prevent imminent harm, fraud, cybercrime or serious misuse, subject to applicable law.
+
+21. Changes to This Privacy Policy
+
+CloudComAI may update this Privacy Policy from time to time.
+
+Material changes may be notified through the website, application, email, notification or another legally appropriate method.
+
+The “Last Updated” date will indicate when this Policy was most recently revised.
+
+22. Contact
+
+For privacy questions, requests or complaints:
+
+CloudComAI
+Website: CloudComAI.com
+Email: support@cloudcomai.com
+Address: [INSERT REGISTERED ADDRESS]
+
+⸻
+
+Important implementation requirement: This Privacy Policy must accurately reflect CloudComAI’s actual technical operation. CloudComAI should not state that it provides end-to-end encryption, does not access messages, deletes data after a particular period, or does not share data unless the actual technical system does so.

@@ -1,0 +1,373 @@
+CLOUDCOMAI TERMS OF SERVICE
+
+Website: CloudComAI.com
+Platform: CloudComAI / CloudComAI Chat
+Effective Date: 21 August 2026
+Last Updated: 21 August 2026
+
+1. Acceptance of Terms
+
+These Terms of Service (“Terms”) govern your access to and use of CloudComAI.com, CloudComAI applications, CloudComAI Chat, messaging services, groups, communities, public rooms, audio/video calling, AI features and related services (“Services”).
+
+By creating an account, accessing or using CloudComAI, you agree to these Terms, our Privacy Policy and applicable Community Standards.
+
+If you do not agree with these Terms, you must not use the Services.
+
+2. Eligibility
+
+CloudComAI is intended for users who satisfy the minimum age requirements stated by CloudComAI and applicable law.
+
+Unless CloudComAI expressly provides otherwise, users must be at least 18 years old to create and operate an account.
+
+You must provide accurate information during registration.
+
+You may not create an account using another person’s identity or impersonate another individual.
+
+3. Account Registration
+
+Depending on available features, registration may require:
+
+* Mobile number;
+* Email address;
+* User ID;
+* Password or authentication credentials;
+* OTP verification;
+* Other verification information.
+
+You are responsible for maintaining the security of your account.
+
+You must immediately notify CloudComAI if you believe that your account has been compromised.
+
+You are responsible for activities performed through your account unless you can establish that the activity resulted from circumstances outside your reasonable control.
+
+4. Account Security
+
+You must:
+
+* Keep authentication credentials confidential;
+* Not share OTPs or passwords;
+* Not attempt to bypass authentication;
+* Not access another person’s account;
+* Not use another person’s credentials;
+* Not attempt to compromise CloudComAI’s infrastructure.
+
+CloudComAI may require additional security verification.
+
+5. Permitted Use
+
+You may use CloudComAI only for lawful purposes.
+
+You agree not to use CloudComAI to:
+
+1. Commit or facilitate crimes;
+2. Harass, threaten or intimidate others;
+3. Impersonate another person;
+4. Conduct fraud or scams;
+5. Distribute malware;
+6. Conduct phishing;
+7. Attempt unauthorised access;
+8. Interfere with the Services;
+9. Abuse automated systems;
+10. Scrape data without authorisation;
+11. Circumvent security controls;
+12. Violate privacy rights;
+13. Distribute child sexual abuse material;
+14. Distribute non-consensual intimate material;
+15. Promote terrorism or unlawful extremist activity;
+16. Promote violence;
+17. Engage in unlawful gambling where prohibited;
+18. Facilitate money laundering;
+19. Infringe copyright, trademark, patent or other intellectual-property rights;
+20. Publish content you do not have the right to publish;
+21. Send spam or bulk unsolicited communications;
+22. Distribute deceptive or materially misleading information;
+23. Conduct unauthorised surveillance;
+24. Manipulate or abuse platform functionality; or
+25. Violate applicable Indian law or another applicable law.
+
+6. User Content
+
+You retain ownership of content that you lawfully own and upload, transmit or publish through CloudComAI.
+
+By submitting content to CloudComAI, you grant CloudComAI only the rights reasonably necessary to host, transmit, store, process, display and technically deliver that content as required to provide the Services.
+
+This licence does not transfer ownership of your content to CloudComAI.
+
+You represent that you have the necessary rights and permissions to submit the content.
+
+7. Prohibited Content
+
+Users must not upload, transmit, store or publish content that violates applicable law or these Terms.
+
+Prohibited content includes, among other things:
+
+* Illegal content;
+* Content that infringes intellectual-property rights;
+* Child sexual abuse material;
+* Non-consensual intimate imagery;
+* Serious threats;
+* Malware;
+* Fraudulent schemes;
+* Phishing;
+* Unauthorised personal information;
+* Content designed to facilitate serious criminal activity;
+* Content that violates applicable court or governmental orders;
+* Content prohibited under applicable Indian law.
+
+CloudComAI may remove, restrict or disable access to content where required or permitted by law or where necessary to protect users and the platform.
+
+8. Copyright and Intellectual Property
+
+CloudComAI and its licensors own all rights in:
+
+* CloudComAI branding;
+* CloudComAI trademarks;
+* Logos;
+* Software;
+* Website design;
+* Application design;
+* Platform architecture;
+* Original text;
+* Graphics;
+* Documentation;
+* Other proprietary material.
+
+You may not copy, modify, reproduce, reverse engineer, distribute or commercially exploit CloudComAI intellectual property without written permission, except where permitted by law.
+
+9. Trademark
+
+“CloudComAI”, the CloudComAI name, logos, designs and related branding may constitute trademarks or other protected intellectual property.
+
+Unauthorised use is prohibited.
+
+Nothing in these Terms grants you ownership of CloudComAI intellectual property.
+
+10. User Privacy
+
+Your use of CloudComAI is also governed by the CloudComAI Privacy Policy.
+
+The Privacy Policy explains how personal data is processed.
+
+11. Messaging
+
+CloudComAI may provide private messaging, group messaging, public rooms and community functionality.
+
+Users are responsible for the content they send.
+
+Users must not use messaging functionality for harassment, spam, fraud, unlawful solicitation or other prohibited activities.
+
+CloudComAI may take action when legally required or when necessary to enforce these Terms and protect the platform.
+
+12. Groups and Communities
+
+Administrators and moderators may receive additional controls.
+
+Group and community administrators are responsible for using administrative privileges lawfully.
+
+Administrators must not use CloudComAI administrative functionality to unlawfully obtain, disclose or misuse users’ personal information.
+
+CloudComAI may suspend or remove groups or communities that seriously violate applicable law or these Terms.
+
+13. Public Content
+
+Information posted in public areas may be accessible to other users.
+
+Users should assume that public content may be copied, shared or retained by others.
+
+Do not publish confidential information in public areas.
+
+14. Audio and Video Calls
+
+CloudComAI may provide audio and video calling.
+
+Call quality may depend on:
+
+* Internet connection;
+* Device;
+* Network;
+* Third-party infrastructure;
+* Geographic location;
+* System availability.
+
+CloudComAI does not guarantee uninterrupted calling.
+
+Unless expressly stated otherwise, CloudComAI does not represent that calls are recorded.
+
+15. Location Sharing
+
+Location-sharing features are optional.
+
+You are responsible for choosing who receives your location.
+
+CloudComAI is not responsible for physical harm resulting from a user’s voluntary decision to share location information, except to the extent liability cannot legally be excluded.
+
+Do not use location sharing for unlawful surveillance.
+
+16. AI Features
+
+CloudComAI may offer AI-assisted functionality.
+
+AI-generated information may be inaccurate, incomplete or unsuitable for a particular purpose.
+
+You should independently verify important information.
+
+AI features must not be used as a substitute for professional legal, medical, financial or other professional advice.
+
+Users remain responsible for information they submit to AI services and for decisions made using AI-generated outputs.
+
+17. Payments and Subscriptions
+
+If CloudComAI introduces paid Services, applicable pricing, subscription, billing, renewal, cancellation and refund conditions will be displayed before purchase.
+
+Additional payment terms may apply.
+
+Where a payment is processed by a third-party payment provider, that provider’s applicable terms may also apply.
+
+Where consumer-protection law requires a refund, cancellation or other consumer remedy, CloudComAI will comply with the applicable law.
+
+18. Third-Party Services
+
+CloudComAI may integrate third-party services.
+
+CloudComAI is not responsible for the independent operation, availability, security or policies of third-party services.
+
+Your use of a third-party service may be subject to that provider’s terms.
+
+19. Availability
+
+CloudComAI attempts to maintain reliable Services but does not guarantee that the Services will always be:
+
+* Available;
+* Uninterrupted;
+* Error-free;
+* Secure against every possible attack;
+* Compatible with every device;
+* Free of technical defects.
+
+CloudComAI may perform maintenance, updates or emergency security work.
+
+20. Suspension and Termination
+
+CloudComAI may suspend, restrict or terminate accounts where reasonably necessary to:
+
+* Enforce these Terms;
+* Prevent fraud;
+* Prevent abuse;
+* Protect users;
+* Protect CloudComAI;
+* Respond to security incidents;
+* Comply with law;
+* Respond to lawful governmental or judicial orders.
+
+Where appropriate and legally permissible, CloudComAI may provide notice or an opportunity to appeal.
+
+21. User-Initiated Account Deletion
+
+You may request deletion of your CloudComAI account through available account controls or by contacting CloudComAI.
+
+Certain information may be retained where required or permitted by law, for security, fraud prevention, dispute resolution, legal compliance, or other lawful purposes.
+
+22. Grievance Redressal
+
+CloudComAI will maintain an appropriate grievance mechanism where required by applicable law.
+
+Grievance Officer: [INSERT NAME]
+Email: support@cloudcomai.com
+Address: [INSERT ADDRESS]
+
+Complaints should include sufficient information for CloudComAI to identify the relevant account, content or issue.
+
+23. Copyright Complaints
+
+If you believe content available through CloudComAI infringes your copyright or other intellectual-property rights, you may contact:
+
+Copyright / IP Email: support@cloudcomai.com
+
+Your complaint should contain sufficient information to identify:
+
+* The protected work;
+* The allegedly infringing material;
+* Your ownership or authority;
+* Your contact details;
+* A statement that the information provided is accurate.
+
+CloudComAI may take action in accordance with applicable law.
+
+24. Legal Compliance
+
+CloudComAI may cooperate with lawful requests from:
+
+* Courts;
+* Law-enforcement authorities;
+* Government agencies;
+* Regulators;
+* Other competent authorities.
+
+CloudComAI may preserve or disclose information where required by applicable law.
+
+25. Indemnification
+
+To the extent permitted by applicable law, you agree to indemnify and hold harmless CloudComAI, its owners, officers, employees, contractors and service providers from claims, losses, liabilities and expenses arising from:
+
+* Your unlawful use of the Services;
+* Your violation of these Terms;
+* Your violation of another person’s rights;
+* Content you unlawfully submit or distribute;
+* Your misuse of the Services.
+
+This clause does not exclude rights or remedies that cannot legally be excluded.
+
+26. Limitation of Liability
+
+To the maximum extent permitted by applicable law, CloudComAI will not be liable for indirect, incidental, special or consequential losses arising from use of the Services.
+
+Nothing in these Terms excludes or limits liability that cannot legally be excluded or limited under applicable Indian law.
+
+CloudComAI does not guarantee that the Services will satisfy every user’s particular requirements.
+
+27. No Waiver
+
+Failure by CloudComAI to enforce any provision of these Terms does not constitute a waiver of that provision.
+
+28. Severability
+
+If any provision of these Terms is held invalid or unenforceable, the remaining provisions will continue to apply to the extent permitted by law.
+
+29. Changes to These Terms
+
+CloudComAI may modify these Terms when reasonably necessary.
+
+Material changes may be notified through the website, application, email or another appropriate method.
+
+Continued use of the Services after the effective date of updated Terms constitutes acceptance where legally permissible.
+
+30. Governing Law
+
+These Terms will be governed by the laws of India, subject to applicable mandatory consumer-protection and other statutory rights.
+
+31. Jurisdiction
+
+Subject to applicable law and the jurisdiction of competent courts and statutory authorities, disputes relating to these Terms may be subject to the jurisdiction of the competent courts at:
+
+[INSERT CITY / STATE, INDIA]
+
+CloudComAI should obtain legal advice before selecting the final exclusive jurisdiction clause.
+
+32. Entire Agreement
+
+These Terms, together with the Privacy Policy and any additional service-specific terms displayed to you, constitute the agreement governing your use of CloudComAI, subject to applicable law.
+
+33. Contact
+
+CloudComAI
+
+Website: CloudComAI.com
+Legal Email: support@cloudcomai.com
+Support Email: support@cloudcomai.com
+Privacy Email: support@cloudcomai.com
+Grievance Email: support@cloudcomai.com
+Registered Address: [INSERT REGISTERED ADDRESS]
+
+⸻
+
+BY CREATING AN ACCOUNT OR USING CLOUDCOMAI, YOU CONFIRM THAT YOU HAVE READ AND AGREE TO THESE TERMS OF SERVICE AND THE CLOUDCOMAI PRIVACY POLICY.

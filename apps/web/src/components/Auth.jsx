@@ -4,9 +4,9 @@ import PrivacyPolicyModal from './PrivacyPolicyModal';
 import BrandLogo from './BrandLogo';
 import { Camera } from 'lucide-react';
 
-export default function Auth({ onAuth, authApi }) {
+export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigateHome, onModeChange }) {
   const initialResetToken = new URLSearchParams(window.location.search).get('reset_token') || '';
-  const [mode, setMode] = useState(initialResetToken ? 'reset' : 'login');
+  const [mode, setMode] = useState(initialResetToken ? 'reset' : initialMode);
   const [resetToken, setResetToken] = useState(initialResetToken);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -80,6 +80,7 @@ export default function Auth({ onAuth, authApi }) {
         setConfirmPassword('');
         setForm(prev => ({ ...prev, password: '' }));
         setMode('login');
+        onModeChange?.('login');
         setSuccess(response?.message || 'Password has been reset successfully. You can now sign in.');
       } else {
         response = (await authApi.login(form.email, form.password)).data;
@@ -100,11 +101,13 @@ export default function Auth({ onAuth, authApi }) {
     setAvatarPreview('');
     setConfirmPassword('');
     setMode(nextMode);
+    if (nextMode === 'login' || nextMode === 'register') onModeChange?.(nextMode);
   };
 
   return (
     <div className="auth-page">
       <div className="auth-card">
+        {onNavigateHome && <button type="button" className="auth-home-link" onClick={onNavigateHome}>← Back to home</button>}
         <div className="brand center auth-brand">
           <BrandLogo variant="dark" className="auth-brand-image" />
         </div>
