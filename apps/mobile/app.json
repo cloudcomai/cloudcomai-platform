@@ -17,7 +17,11 @@
       "url": "https://u.expo.dev/8b5d2701-7628-494f-8d43-6df16f026fab"
     },
     "android": {
-      "package": "com.cloudcomai.mobile"
+      "package": "com.cloudcomai.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icon.png",
+        "backgroundColor": "#3157d5"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.cloudcomai.mobile",
@@ -33,6 +37,21 @@
         "projectId": "8b5d2701-7628-494f-8d43-6df16f026fab"
       }
     },
-    "owner": "kumar_1325"
+    "owner": "kumar_1325",
+    "icon": "./assets/app-icon.png",
+    "splash": {
+      "image": "./assets/splash-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#3157d5"
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#3157d5",
+      "barStyle": "light-content",
+      "translucent": false
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#ffffff",
+      "barStyle": "dark-content"
+    }
   }
 }
