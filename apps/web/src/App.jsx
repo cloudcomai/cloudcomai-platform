@@ -74,6 +74,7 @@ export default function App() {
     const [activeTab, setActiveTab] = useState('chats');
     const [topInterests, setTopInterests] = useState(defaultInterests);
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
+    const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
     const latestMessageIdRef = useRef(0);
 
     const navigateTo = useCallback((nextScreen, { replace = false, inviteToken = '' } = {}) => {
@@ -170,6 +171,7 @@ export default function App() {
         setMessages([]);
         latestMessageIdRef.current = 0;
         setTopInterests(defaultInterests);
+        setNotificationUnreadCount(0);
         navigateTo('home', { replace: true });
     };
 
@@ -217,6 +219,30 @@ export default function App() {
         const intervalId = window.setInterval(run, 15000);
         return () => { cancelled = true; window.clearInterval(intervalId); };
     }, [refreshConversationList]);
+
+    useEffect(() => {
+        if (!token || screen !== 'app') {
+            setNotificationUnreadCount(0);
+            return undefined;
+        }
+
+        let cancelled = false;
+        const refreshNotificationCount = async () => {
+            try {
+                const data = await api(ApiRoute.NOTIFICATIONS || 'v1/notifications', { method: 'GET', query: { limit: 1 } });
+                if (!cancelled) setNotificationUnreadCount(Number(data.unread_count || 0));
+            } catch (err) {
+                console.warn('Unable to refresh notification count:', err);
+            }
+        };
+
+        refreshNotificationCount();
+        const intervalId = window.setInterval(refreshNotificationCount, 15000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [token, screen]);
 
     useEffect(() => {
         if (!token || screen !== 'app') return undefined;
@@ -434,7 +460,7 @@ export default function App() {
 
     return (
         <div className={`app-container ${isDarkMode ? 'dark-theme' : ''} ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
-            <Sidebar user={user} setModal={setModal} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
+            <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
             <ChatDirectory searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
@@ -447,7 +473,7 @@ export default function App() {
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
                     : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} apiBridge={api} />
-                    : modal === 'notifications' ? <NotificationPanel apiBridge={api} close={() => setModal(null)} />
+                    : modal === 'notifications' ? <NotificationPanel apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onPollCreated={pollMessageObject => setMessages(prev => {
                         const messageId = Number(pollMessageObject?.id || 0);
