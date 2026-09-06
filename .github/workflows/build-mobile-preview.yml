@@ -2,6 +2,16 @@ name: Build CloudComAI Mobile Preview
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Native platform to build
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
 
 permissions:
   contents: read
@@ -13,6 +23,7 @@ env:
 jobs:
   android:
     name: Build Android APK
+    if: inputs.platform == 'android' || inputs.platform == 'all'
     runs-on: ubuntu-latest
 
     steps:
@@ -51,18 +62,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Link app config to EAS project
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'apps/mobile/app.json';
-          const app = JSON.parse(fs.readFileSync(path, 'utf8'));
-          app.expo.extra = app.expo.extra || {};
-          app.expo.extra.eas = {
-            ...(app.expo.extra.eas || {}),
-            projectId: process.env.EAS_PROJECT_ID,
-          };
-          fs.writeFileSync(path, JSON.stringify(app, null, 2) + '\n');
-          NODE
+        run: node apps/mobile/scripts/configure-eas-project.mjs
 
       - name: Build Android preview APK on EAS
         working-directory: apps/mobile
@@ -104,6 +104,7 @@ jobs:
 
   ios:
     name: Build iOS IPA
+    if: inputs.platform == 'ios' || inputs.platform == 'all'
     runs-on: ubuntu-latest
 
     steps:
@@ -142,18 +143,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Link app config to EAS project
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'apps/mobile/app.json';
-          const app = JSON.parse(fs.readFileSync(path, 'utf8'));
-          app.expo.extra = app.expo.extra || {};
-          app.expo.extra.eas = {
-            ...(app.expo.extra.eas || {}),
-            projectId: process.env.EAS_PROJECT_ID,
-          };
-          fs.writeFileSync(path, JSON.stringify(app, null, 2) + '\n');
-          NODE
+        run: node apps/mobile/scripts/configure-eas-project.mjs
 
       - name: Build iOS preview IPA on EAS
         working-directory: apps/mobile

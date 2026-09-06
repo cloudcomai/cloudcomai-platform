@@ -19,9 +19,14 @@
 ## Expo validation
 
 - Set the final Android package and iOS bundle identifier in `app.json`.
-- Configure Expo/EAS credentials outside the repository.
+- Configure `EXPO_TOKEN` and `EAS_PROJECT_ID` outside the repository.
+- Configure `EXPO_PUBLIC_API_BASE_URL` in both the EAS `preview` and
+  `production` environments.
 - Test registration, global/category toggles, message delivery, receipt
   reconciliation, invalid-token revocation, and notification tap navigation.
+- Build and install new baseline artifacts after any native runtime change.
+- Publish an OTA update to `preview` and verify it before publishing the same
+  commit to `production`.
 - Build preview artifacts before a production build.
 
 ## Launch and rollback

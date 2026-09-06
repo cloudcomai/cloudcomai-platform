@@ -1,0 +1,103 @@
+name: Build CloudComAI Mobile Production
+
+run-name: Build production mobile app (${{ inputs.platform }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Native platform to build
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+      confirmation:
+        description: Enter BUILD to create production binaries
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-production-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build production ${{ inputs.platform }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+      BUILD_PLATFORM: ${{ inputs.platform }}
+      BUILD_CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate production build request
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Production builds can only be created from main."
+            exit 1
+          fi
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Missing GitHub secret EXPO_TOKEN."
+            exit 1
+          fi
+          if [ -z "$EAS_PROJECT_ID" ]; then
+            echo "::error::Missing GitHub Actions variable EAS_PROJECT_ID."
+            exit 1
+          fi
+          if [ "$BUILD_CONFIRMATION" != "BUILD" ]; then
+            echo "::error::Enter BUILD to confirm a production binary build."
+            exit 1
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Link app config to EAS project
+        run: node apps/mobile/scripts/configure-eas-project.mjs
+
+      - name: Build production binary on EAS
+        working-directory: apps/mobile
+        run: |
+          eas build \
+            --platform "$BUILD_PLATFORM" \
+            --profile production \
+            --non-interactive \
+            --wait
+
+      - name: Record build summary
+        run: |
+          {
+            echo "### Production mobile build completed"
+            echo "- Platform: $BUILD_PLATFORM"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- App-store submission: not performed"
+          } >> "$GITHUB_STEP_SUMMARY"

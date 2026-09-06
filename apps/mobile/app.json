@@ -10,6 +10,12 @@
     ],
     "scheme": "cloudcomai",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/8b5d2701-7628-494f-8d43-6df16f026fab"
+    },
     "android": {
       "package": "com.cloudcomai.mobile"
     },
