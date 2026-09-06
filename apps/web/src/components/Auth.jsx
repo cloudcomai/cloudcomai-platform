@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import TermsModal from './TermsModal';
 import PrivacyPolicyModal from './PrivacyPolicyModal';
+import BrandLogo from './BrandLogo';
 import { Camera } from 'lucide-react';
 
 export default function Auth({ onAuth, authApi }) {
@@ -104,7 +105,9 @@ export default function Auth({ onAuth, authApi }) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="brand center"><div className="logo">C</div><div><strong>CloudComAI</strong><small>Secure Messenger</small></div></div>
+        <div className="brand center auth-brand">
+          <BrandLogo variant="dark" className="auth-brand-image" />
+        </div>
         <h1>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your account' : mode === 'forgot' ? 'Reset your password' : 'Choose a new password'}</h1>
 
         <form onSubmit={submit}>

@@ -1196,27 +1196,51 @@ select {
 .sidebar-brand {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 24px;
 }
 
-.brand-logo {
-  background-color: var(--primary-color);
-  color: white;
-  font-weight: 800;
-  font-size: 20px;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
+.brand-layout-row {
+  min-width: 0;
+  max-width: 196px;
+  overflow: hidden;
+  background: #000000;
+  border-radius: 10px;
 }
 
-.brand-text {
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.5px;
+.brand-image {
+  display: block;
+  object-fit: contain;
+}
+
+.sidebar-brand-image {
+  width: 100%;
+  height: auto;
+}
+
+.auth-brand {
+  width: min(100%, 360px);
+  margin: 0 auto 18px;
+  padding: 0;
+  overflow: hidden;
+  background: #000000;
+  border-radius: 14px;
+}
+
+.auth-brand-image {
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 480px) {
+  .auth-brand {
+    width: min(100%, 300px);
+  }
+
+  .brand-layout-row {
+    max-width: 184px;
+  }
 }
 
 .user-profile-card {
