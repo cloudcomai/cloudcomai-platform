@@ -456,6 +456,21 @@ button {
   margin-bottom: 5px
 }
 
+.auth-home-link {
+  align-self: flex-start;
+  margin: -2px 0 4px;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  color: #a9b9d2;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.auth-home-link:hover {
+  color: #ffffff;
+}
+
 .auth-card p,
 .setup-card p {
   color: var(--muted)
@@ -938,6 +953,33 @@ form {
 
 .cloudcom-terms-content p {
   margin: 0 0 18px 0 !important;
+}
+
+.cloudcom-terms-content ul,
+.cloudcom-terms-content ol {
+  margin: 0 0 18px 20px !important;
+  padding: 0 !important;
+}
+
+.cloudcom-terms-content li {
+  margin: 0 0 7px 0 !important;
+}
+
+.cloudcom-legal-metadata {
+  display: grid !important;
+  gap: 4px !important;
+  margin: 0 0 22px 0 !important;
+  padding: 12px !important;
+  border: 1px solid #263a54 !important;
+  border-radius: 8px !important;
+  background: #101f33 !important;
+  color: #c7d3e2 !important;
+}
+
+.cloudcom-legal-separator {
+  margin: 22px 0 !important;
+  border: 0 !important;
+  border-top: 1px solid #40536d !important;
 }
 
 

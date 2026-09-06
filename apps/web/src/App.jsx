@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import ChatDirectory from './components/ChatDirectory';
 import ChatCanvas from './components/ChatCanvas';
 import Auth from './components/Auth';
+import HomePage from './components/HomePage';
 import GroupMembershipModal from './components/GroupMembershipModal';
 import GroupCreationModal from './components/GroupCreationModal';
 import GroupEditModal from './components/GroupEditModal';
@@ -27,9 +28,24 @@ const groupTypes = ['Family Group', 'Friend Group', 'Fan Group', 'Study Group', 
 const interests = ['Private Chats', 'Public Chat Rooms', ...groupTypes, 'Communities', 'Local Groups', 'Jobs and Internships', 'Business and Finance', 'Technology', 'Sports', 'Music', 'Movies', 'Education', 'Gaming', 'Travel', 'Career Guidance'];
 const messagePollInterval = Number(import.meta.env.VITE_MESSAGE_POLL_INTERVAL_MS || 3000);
 
+const screenFromLocation = () => {
+    if (new URLSearchParams(window.location.search).get('reset_token')) return 'login';
+
+    const route = window.location.hash.replace(/^#/, '').toLowerCase();
+    if (route === 'login' || route === 'register' || route === 'app') return route;
+    return 'home';
+};
+
+const screenHashes = {
+    home: '#top',
+    login: '#login',
+    register: '#register',
+    app: '#app',
+};
+
 export default function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [screen, setScreen] = useState('login');
+    const [screen, setScreen] = useState(screenFromLocation);
     const [token, setToken] = useState('');
     const [user, setUser] = useState(null);
     const [authReady, setAuthReady] = useState(false);
@@ -47,6 +63,17 @@ export default function App() {
     const [topInterests, setTopInterests] = useState(['Private Chats', 'Family Group', 'Study Group', 'Technology']);
     const latestMessageIdRef = useRef(0);
 
+    const navigateTo = useCallback((nextScreen, { replace = false } = {}) => {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.delete('reset_token');
+        nextUrl.hash = screenHashes[nextScreen] || screenHashes.home;
+
+        const relativeUrl = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+        window.history[replace ? 'replaceState' : 'pushState']({}, '', relativeUrl);
+        setScreen(nextScreen);
+        window.scrollTo({ top: 0, behavior: 'auto' });
+    }, []);
+
     useEffect(() => {
         let cancelled = false;
         const initializeAuth = async () => {
@@ -55,28 +82,44 @@ export default function App() {
             if (session) {
                 setUser(session.user);
                 setToken(session.token);
-                setScreen('app');
             }
             setAuthReady(true);
         };
         const handleUnauthorized = () => {
+            clearWebSession().catch(error => console.error('Unable to clear the expired session:', error));
             setToken('');
             setUser(null);
-            setScreen('login');
+            navigateTo('login', { replace: true });
         };
+        const handleLocationChange = () => setScreen(screenFromLocation());
         window.addEventListener('cloudcomai:unauthorized', handleUnauthorized);
+        window.addEventListener('hashchange', handleLocationChange);
+        window.addEventListener('popstate', handleLocationChange);
         initializeAuth();
         return () => {
             cancelled = true;
             window.removeEventListener('cloudcomai:unauthorized', handleUnauthorized);
+            window.removeEventListener('hashchange', handleLocationChange);
+            window.removeEventListener('popstate', handleLocationChange);
         };
-    }, []);
+    }, [navigateTo]);
+
+    useEffect(() => {
+        const pageTitles = {
+            home: 'CloudComAI — Secure Chats. Smart Features. Total Control.',
+            login: 'Sign in | CloudComAI',
+            register: 'Create an account | CloudComAI',
+            app: 'CloudComAI Messenger',
+            interests: 'Interests | CloudComAI',
+        };
+        document.title = pageTitles[screen] || pageTitles.home;
+    }, [screen]);
 
     const auth = async (u, t) => {
         await saveWebSession({ user: u, token: t });
         setUser(u);
         setToken(t);
-        setScreen('app');
+        navigateTo('app', { replace: true });
     };
 
     const logout = async () => {
@@ -87,7 +130,7 @@ export default function App() {
         setChats([]);
         setMessages([]);
         latestMessageIdRef.current = 0;
-        setScreen('login');
+        navigateTo('home', { replace: true });
     };
 
     const handleTabChange = (tab) => {
@@ -266,8 +309,30 @@ export default function App() {
     });
 
     if (!authReady) return <div className="auth-page"><div className="auth-card">Loading CloudComAI...</div></div>;
-    if (screen === 'login' || !token) return <Auth onAuth={auth} authApi={platformApi} />;
-    if (screen === 'interests') return <InterestsScreen interests={interests} topInterests={topInterests} setTopInterests={setTopInterests} saveAndContinue={() => setScreen('app')} />;
+    if (screen === 'home') {
+        return (
+            <HomePage
+                user={user}
+                onLogin={() => navigateTo('login')}
+                onRegister={() => navigateTo('register')}
+                onOpenApp={() => navigateTo('app')}
+                onLogout={logout}
+            />
+        );
+    }
+    if (screen === 'login' || screen === 'register' || !token) {
+        return (
+            <Auth
+                key={screen}
+                onAuth={auth}
+                authApi={platformApi}
+                initialMode={screen === 'register' ? 'register' : 'login'}
+                onNavigateHome={() => navigateTo('home')}
+                onModeChange={nextMode => navigateTo(nextMode, { replace: true })}
+            />
+        );
+    }
+    if (screen === 'interests') return <InterestsScreen interests={interests} topInterests={topInterests} setTopInterests={setTopInterests} saveAndContinue={() => navigateTo('app', { replace: true })} />;
 
     return (
         <div className={`app-container ${isDarkMode ? 'dark-theme' : ''} ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
