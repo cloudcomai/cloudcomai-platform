@@ -22,8 +22,8 @@ export default function BrandLogo({ variant = 'dark', className = '' }) {
       srcSet={`${assetUrl(files.small)} 320w, ${assetUrl(files.large)} 640w`}
       sizes="(max-width: 480px) 220px, 320px"
       width="320"
-      height="107"
-      alt="CloudComAI"
+      height="108"
+      alt="CloudComAI — Secure Chats, Smart Features, Total Control"
       decoding="async"
     />
   );
