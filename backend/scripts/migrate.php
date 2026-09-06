@@ -70,22 +70,20 @@ function cloudcomaiRunMigrations(): int
             echo "[RUN ] {$version}\n";
 
             try {
-                $pdo->beginTransaction();
+                // MySQL DDL statements such as CREATE/ALTER TABLE perform an
+                // implicit commit, so wrapping arbitrary SQL migration files in
+                // a PDO transaction can leave no active transaction to commit.
+                // Execute the migration first, then record it as applied.
                 $pdo->exec($sql);
 
                 $insert = $pdo->prepare(
                     'INSERT INTO schema_migrations(version, executed_at) VALUES (?, UTC_TIMESTAMP())'
                 );
                 $insert->execute([$version]);
-                $pdo->commit();
 
                 echo "[ OK ] {$version}\n";
                 $applied++;
             } catch (Throwable $e) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-
                 throw new RuntimeException(
                     "Migration failed: {$version}. {$e->getMessage()}",
                     0,
