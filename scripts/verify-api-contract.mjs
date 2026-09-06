@@ -6,7 +6,7 @@ const contract = JSON.parse(
   await readFile(new URL('../backend/api-contract.json', import.meta.url), 'utf8'),
 );
 
-assert.equal(contract.contractVersion, '1.1.0');
+assert.equal(contract.contractVersion, '1.2.0');
 assert.ok(contract.routes && typeof contract.routes === 'object');
 
 const clientEndpoints = Object.values(ApiRoute);

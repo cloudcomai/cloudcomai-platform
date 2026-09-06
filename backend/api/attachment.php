@@ -14,6 +14,11 @@ $member = db()->prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=
 $member->execute([(int)$a['chat_id'], $user['id']]);
 if (!$member->fetch()) fail('Not a member', 403);
 
+$cleared = db()->prepare('SELECT cleared_through_message_id FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
+$cleared->execute([(int)$a['chat_id'], $user['id']]);
+$clearedThrough = (int)($cleared->fetchColumn() ?: 0);
+if ((int)$a['message_id'] <= $clearedThrough) fail('Attachment not found', 404);
+
 $isImage = str_starts_with((string)$a['mime_type'], 'image/');
 if ($preview) {
     if (!$isImage) fail('Preview is not available for this file type', 400);

@@ -78,6 +78,7 @@ try {
     $messageInsert = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,expires_at,created_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP())');
     $messageInsert->execute([$chat,$user['id'],'poll',$messageBody,$expiresAt]);
     $messageId = (int)$pdo->lastInsertId();
+    $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
 
     $pdo->commit();
 } catch (Throwable $e) {

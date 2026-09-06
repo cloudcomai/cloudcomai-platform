@@ -34,12 +34,15 @@ if ($method === 'GET') {
     $chat = (int)($_GET['chat_id'] ?? 0);
     $after = (int)($_GET['after_id'] ?? 0);
 
-    $m = db()->prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status="active"');
+    $m = db()->prepare('SELECT COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id FROM chat_members cm LEFT JOIN chat_user_states cus ON cus.chat_id=cm.chat_id AND cus.user_id=cm.user_id WHERE cm.chat_id=? AND cm.user_id=? AND cm.status="active"');
     $m->execute([$chat, $user['id']]);
-    if (!$m->fetch()) fail('Not a member', 403);
+    $membership = $m->fetch();
+    if (!$membership) fail('Not a member', 403);
+    $clearedThrough = (int)$membership['cleared_through_message_id'];
+    $after = max($after, $clearedThrough);
 
-    $st = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.chat_id=? AND m.id>? AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) ORDER BY m.id ASC LIMIT 200');
-    $st->execute([$chat, $after]);
+    $st = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.id>? LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.chat_id=? AND m.id>? AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) ORDER BY m.id ASC LIMIT 200');
+    $st->execute([$clearedThrough, $chat, $after]);
     $messages = $st->fetchAll();
     hydrate_message_attachments($messages);
 
@@ -69,11 +72,12 @@ if ($method === 'POST') {
     $reply = (int)($d['reply_to_message_id'] ?? 0);
     if ($body === '' && $type === 'text') fail('Message is empty');
 
-    $m = db()->prepare('SELECT c.retention_seconds FROM chats c JOIN chat_members cm ON cm.chat_id=c.id WHERE c.id=? AND cm.user_id=? AND cm.status="active"');
+    $m = db()->prepare('SELECT c.retention_seconds,COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id FROM chats c JOIN chat_members cm ON cm.chat_id=c.id LEFT JOIN chat_user_states cus ON cus.chat_id=c.id AND cus.user_id=cm.user_id WHERE c.id=? AND cm.user_id=? AND cm.status="active"');
     $m->execute([$chat, $user['id']]);
     $row = $m->fetch();
     if (!$row) fail('Not a member', 403);
     if ($reply) {
+        if ($reply <= (int)$row['cleared_through_message_id']) fail('Invalid reply target');
         $r = db()->prepare('SELECT id FROM messages WHERE id=? AND chat_id=?');
         $r->execute([$reply, $chat]);
         if (!$r->fetch()) fail('Invalid reply target');
@@ -83,6 +87,7 @@ if ($method === 'POST') {
     $st = db()->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
     $st->execute([$chat,$user['id'],$type,$body,$reply ?: null,$expires,$createdAt]);
     $messageId = (int)db()->lastInsertId();
+    db()->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
     create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], $body, $messageId);
 
     $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');

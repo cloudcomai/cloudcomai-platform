@@ -16,6 +16,8 @@ import GoogleContactsPanel from './components/GoogleContactsPanel';
 import InterestsScreen from './components/InterestsScreen';
 import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
+import InvitationPage from './components/InvitationPage';
+import { inviteUrlFromResponse } from './utils/shareLink';
 import {
     clearWebSession,
     requestApi as api,
@@ -26,12 +28,22 @@ import {
 
 const groupTypes = ['Family Group', 'Friend Group', 'Fan Group', 'Study Group', 'College Group', 'Class Group', 'Department Group', 'Project Group', 'Club Group', 'Alumni Group', 'Workplace Group', 'Neighborhood Group', 'Event Group', 'Staff Group'];
 const interests = ['Private Chats', 'Public Chat Rooms', ...groupTypes, 'Communities', 'Local Groups', 'Jobs and Internships', 'Business and Finance', 'Technology', 'Sports', 'Music', 'Movies', 'Education', 'Gaming', 'Travel', 'Career Guidance'];
+const defaultInterests = ['Private Chats', 'Family Group', 'Study Group', 'Technology'];
 const messagePollInterval = Number(import.meta.env.VITE_MESSAGE_POLL_INTERVAL_MS || 3000);
+const pendingInviteStorageKey = 'cloudcomai.pendingInvite';
+
+const inviteTokenFromLocation = () => {
+    const match = window.location.hash.match(/^#invite=([^&]+)/i);
+    if (!match) return '';
+    try { return decodeURIComponent(match[1]); }
+    catch { return ''; }
+};
 
 const screenFromLocation = () => {
     if (new URLSearchParams(window.location.search).get('reset_token')) return 'login';
 
     const route = window.location.hash.replace(/^#/, '').toLowerCase();
+    if (route.startsWith('invite=')) return 'invite';
     if (route === 'login' || route === 'register' || route === 'app') return route;
     return 'home';
 };
@@ -60,13 +72,16 @@ export default function App() {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('chats');
-    const [topInterests, setTopInterests] = useState(['Private Chats', 'Family Group', 'Study Group', 'Technology']);
+    const [topInterests, setTopInterests] = useState(defaultInterests);
+    const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
     const latestMessageIdRef = useRef(0);
 
-    const navigateTo = useCallback((nextScreen, { replace = false } = {}) => {
+    const navigateTo = useCallback((nextScreen, { replace = false, inviteToken = '' } = {}) => {
         const nextUrl = new URL(window.location.href);
         nextUrl.searchParams.delete('reset_token');
-        nextUrl.hash = screenHashes[nextScreen] || screenHashes.home;
+        nextUrl.hash = nextScreen === 'invite' && inviteToken
+            ? `invite=${encodeURIComponent(inviteToken)}`
+            : screenHashes[nextScreen] || screenHashes.home;
 
         const relativeUrl = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
         window.history[replace ? 'replaceState' : 'pushState']({}, '', relativeUrl);
@@ -91,7 +106,14 @@ export default function App() {
             setUser(null);
             navigateTo('login', { replace: true });
         };
-        const handleLocationChange = () => setScreen(screenFromLocation());
+        const handleLocationChange = () => {
+            const locationInviteToken = inviteTokenFromLocation();
+            if (locationInviteToken) {
+                setPendingInviteToken(locationInviteToken);
+                window.sessionStorage.setItem(pendingInviteStorageKey, locationInviteToken);
+            }
+            setScreen(screenFromLocation());
+        };
         window.addEventListener('cloudcomai:unauthorized', handleUnauthorized);
         window.addEventListener('hashchange', handleLocationChange);
         window.addEventListener('popstate', handleLocationChange);
@@ -105,12 +127,28 @@ export default function App() {
     }, [navigateTo]);
 
     useEffect(() => {
+        if (!token) return undefined;
+        let cancelled = false;
+        platformApi.getPreferences()
+            .then(({ data }) => {
+                if (!cancelled && data.configured && Array.isArray(data.preferences)) setTopInterests(data.preferences);
+            })
+            .catch(error => console.warn('Unable to load preferences:', error));
+        return () => { cancelled = true; };
+    }, [token]);
+
+    useEffect(() => {
+        if (pendingInviteToken) window.sessionStorage.setItem(pendingInviteStorageKey, pendingInviteToken);
+    }, [pendingInviteToken]);
+
+    useEffect(() => {
         const pageTitles = {
             home: 'CloudComAI — Secure Chats. Smart Features. Total Control.',
             login: 'Sign in | CloudComAI',
             register: 'Create an account | CloudComAI',
             app: 'CloudComAI Messenger',
             interests: 'Interests | CloudComAI',
+            invite: 'Group invitation | CloudComAI',
         };
         document.title = pageTitles[screen] || pageTitles.home;
     }, [screen]);
@@ -119,7 +157,8 @@ export default function App() {
         await saveWebSession({ user: u, token: t });
         setUser(u);
         setToken(t);
-        navigateTo('app', { replace: true });
+        if (pendingInviteToken) navigateTo('invite', { replace: true, inviteToken: pendingInviteToken });
+        else navigateTo('app', { replace: true });
     };
 
     const logout = async () => {
@@ -130,6 +169,7 @@ export default function App() {
         setChats([]);
         setMessages([]);
         latestMessageIdRef.current = 0;
+        setTopInterests(defaultInterests);
         navigateTo('home', { replace: true });
     };
 
@@ -267,7 +307,6 @@ export default function App() {
         setActiveTab('groups');
         setChats(prev => [newChat, ...prev.filter(c => c.id !== newChat.id)]);
         setSelectedChat(newChat);
-        setModal(null);
     };
 
     const handleDeleteGroup = async (group) => {
@@ -283,9 +322,55 @@ export default function App() {
         } catch (err) { alert(err.message || 'Unable to delete group.'); }
     };
 
+    const handleDeleteChat = async chat => {
+        if (!chat?.id) return;
+        const confirmed = window.confirm(`Delete your chat with \"${chat.name}\"? Your full message history and attachments will be removed from your account. ${chat.name} will keep their copy. New messages will start a fresh history.`);
+        if (!confirmed) return;
+        try {
+            await platformApi.deleteChat(chat.id);
+            setChats(current => current.filter(item => item.id !== chat.id));
+            setSelectedChat(null);
+            setMessages([]);
+            latestMessageIdRef.current = 0;
+        } catch (error) { alert(error.message || 'Unable to delete chat.'); }
+    };
+
     const handleGroupInvite = async group => {
         if (!group?.id) return null;
-        return api(ApiRoute.GROUPS, { method: 'POST', query: { action: 'invite', id: group.id } });
+        const response = await api(ApiRoute.GROUPS, { method: 'POST', query: { action: 'invite', id: group.id } });
+        return { ...response, invite_url: inviteUrlFromResponse(response) };
+    };
+
+    const savePreferences = async selectedInterests => {
+        const { data } = await platformApi.updatePreferences(selectedInterests);
+        setTopInterests(data.preferences || selectedInterests);
+        setModal(null);
+        navigateTo('app', { replace: true });
+    };
+
+    const rememberInviteAndNavigate = nextScreen => {
+        if (pendingInviteToken) window.sessionStorage.setItem(pendingInviteStorageKey, pendingInviteToken);
+        navigateTo(nextScreen);
+    };
+
+    const leaveInvitation = () => {
+        setPendingInviteToken('');
+        window.sessionStorage.removeItem(pendingInviteStorageKey);
+        navigateTo('home', { replace: true });
+    };
+
+    const handleInvitationJoined = async result => {
+        const joinedGroup = result?.group;
+        if (!joinedGroup) throw new Error('The group could not be opened.');
+        const chat = { ...joinedGroup, id: Number(joinedGroup.id), type: 'group', isGroup: true };
+        setPendingInviteToken('');
+        window.sessionStorage.removeItem(pendingInviteStorageKey);
+        setActiveTab('groups');
+        setChats(current => [chat, ...current.filter(item => item.id !== chat.id)]);
+        setSelectedChat(chat);
+        setMessages([]);
+        latestMessageIdRef.current = 0;
+        navigateTo('app', { replace: true });
     };
 
     const handleUserUpdated = nextUser => {
@@ -320,6 +405,19 @@ export default function App() {
             />
         );
     }
+    if (screen === 'invite' && pendingInviteToken) {
+        return (
+            <InvitationPage
+                inviteToken={pendingInviteToken}
+                user={user}
+                invitationApi={platformApi}
+                onLogin={() => rememberInviteAndNavigate('login')}
+                onRegister={() => rememberInviteAndNavigate('register')}
+                onJoin={handleInvitationJoined}
+                onHome={leaveInvitation}
+            />
+        );
+    }
     if (screen === 'login' || screen === 'register' || !token) {
         return (
             <Auth
@@ -327,20 +425,20 @@ export default function App() {
                 onAuth={auth}
                 authApi={platformApi}
                 initialMode={screen === 'register' ? 'register' : 'login'}
-                onNavigateHome={() => navigateTo('home')}
+                onNavigateHome={pendingInviteToken ? leaveInvitation : () => navigateTo('home')}
                 onModeChange={nextMode => navigateTo(nextMode, { replace: true })}
             />
         );
     }
-    if (screen === 'interests') return <InterestsScreen interests={interests} topInterests={topInterests} setTopInterests={setTopInterests} saveAndContinue={() => navigateTo('app', { replace: true })} />;
+    if (screen === 'interests') return <InterestsScreen interests={interests} topInterests={topInterests} saveAndContinue={savePreferences} cancel={() => navigateTo('app', { replace: true })} />;
 
     return (
         <div className={`app-container ${isDarkMode ? 'dark-theme' : ''} ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
             <Sidebar user={user} setModal={setModal} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
-            <ChatDirectory searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} />
+            <ChatDirectory searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
-            <ChatCanvas selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} />
+            <ChatCanvas selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} />
 
             {modal && (
                 <div className="modal-backdrop">
@@ -348,7 +446,7 @@ export default function App() {
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
-                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={setScreen} apiBridge={api} />
+                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onPollCreated={pollMessageObject => setMessages(prev => {

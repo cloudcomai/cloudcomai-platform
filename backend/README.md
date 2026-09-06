@@ -6,10 +6,12 @@
 - Male/Female validation
 - Bearer-token authentication
 - Chat and message APIs
+- Per-user permanent chat-history deletion
 - Reply relationships
 - One-time message editing
 - Group category creation
-- Group-specific invitation links
+- Shareable group invitation links with browser-based joining
+- Persisted user preference ordering
 - In-app group shortcuts
 - Poll creation
 - 24-hour stories

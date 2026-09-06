@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
-import { Camera, Check, Copy, X } from 'lucide-react';
+import { Camera, Check, Copy, Share2, X } from 'lucide-react';
+import { copyText, inviteUrlFromResponse, shareOrCopyLink } from '../utils/shareLink';
 
 export default function GroupCreationModal({ groupTypes, apiBridge, close, onGroupCreated }) {
   const [newGroupName, setNewGroupName] = useState('');
@@ -44,7 +45,7 @@ export default function GroupCreationModal({ groupTypes, apiBridge, close, onGro
       }
 
       setCreatedGroup(chat);
-      setInviteUrl(response.invite_url || '');
+      setInviteUrl(inviteUrlFromResponse(response));
       onGroupCreated(chat);
       setNewGroupName('');
     } catch (err) {
@@ -56,8 +57,16 @@ export default function GroupCreationModal({ groupTypes, apiBridge, close, onGro
 
   const copyInvite = async () => {
     if (!inviteUrl) return;
-    try { await navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    try { await copyText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }
     catch { alert('Unable to copy the invite link.'); }
+  };
+
+  const shareInvite = async () => {
+    if (!inviteUrl) return;
+    try {
+      const result = await shareOrCopyLink({ title: `Join ${createdGroup.name} on CloudComAI`, text: `You are invited to join ${createdGroup.name} on CloudComAI.`, url: inviteUrl });
+      if (result === 'copied') { setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    } catch { alert('Unable to share the invite link.'); }
   };
 
   if (createdGroup) {
@@ -77,6 +86,7 @@ export default function GroupCreationModal({ groupTypes, apiBridge, close, onGro
           <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Group invite link</label>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <input value={inviteUrl} readOnly style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-main)' }} />
+            <button type="button" className="filter-pill" onClick={shareInvite}><Share2 size={17}/> Share</button>
             <button type="button" className="primary" onClick={copyInvite}>{copied ? <Check size={17}/> : <Copy size={17}/>} {copied ? 'Copied' : 'Copy'}</button>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '18px' }}><button type="button" className="primary" onClick={close}>Done</button></div>

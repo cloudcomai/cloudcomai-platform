@@ -8,6 +8,18 @@ $action = trim((string)($_GET['action'] ?? ''));
 
 $types = ['Family Group','Friend Group','Fan Group','Study Group','College Group','Class Group','Department Group','Project Group','Club Group','Alumni Group','Workplace Group','Neighborhood Group','Event Group','Staff Group'];
 
+function group_invite_payload(string $token): array {
+    global $config;
+    $encodedToken = rawurlencode($token);
+    $payload = [
+        'invite_token' => $token,
+        'invite_path' => '#invite=' . $encodedToken,
+    ];
+    $webUrl = rtrim((string)($config['app']['web_url'] ?? ''), '/');
+    if ($webUrl !== '') $payload['invite_url'] = $webUrl . '/#invite=' . $encodedToken;
+    return $payload;
+}
+
 if ($method === 'GET') {
     $st = $pdo->prepare('
         SELECT c.id,c.type,c.name,c.group_category,c.owner_id,c.retention_seconds,c.created_at,MAX(m.created_at) AS last_message_at
@@ -29,11 +41,13 @@ if ($method === 'POST' && $action === 'invite') {
     $owner->execute([$chatId,$user['id']]);
     if (!$owner->fetch()) fail('Only the group owner can generate an invite link',403);
     try {
+        $pdo->beginTransaction();
         $raw = random_token();
         $pdo->prepare('UPDATE group_invites SET active=0 WHERE chat_id=?')->execute([$chatId]);
         $pdo->prepare('INSERT INTO group_invites(chat_id,token_hash,created_by,active,created_at) VALUES(?,SHA2(?,256),?,1,UTC_TIMESTAMP())')->execute([$chatId,$raw,$user['id']]);
-        out(['invite_url'=>($config['app']['base_url'] ?? '').'/join.php?token='.urlencode($raw)]);
-    } catch(Throwable $e){ error_log('groups.php invite error: '.$e->getMessage()); fail('Unable to generate invite link',500); }
+        $pdo->commit();
+        out(group_invite_payload($raw));
+    } catch(Throwable $e){ if ($pdo->inTransaction()) $pdo->rollBack(); error_log('groups.php invite error: '.$e->getMessage()); fail('Unable to generate invite link',500); }
 }
 
 if ($method === 'POST') {
@@ -53,7 +67,9 @@ if ($method === 'POST') {
         $raw=random_token();
         $pdo->prepare('INSERT INTO group_invites(chat_id,token_hash,created_by,active,created_at) VALUES(?,SHA2(?,256),?,1,UTC_TIMESTAMP())')->execute([$chatId,$raw,$user['id']]);
         $pdo->commit();
-        out(['group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'owner_id'=>(int)$user['id'],'retention_seconds'=>$retention,'isGroup'=>true], 'invite_url'=>($config['app']['base_url'] ?? '').'/join.php?token='.urlencode($raw)],201);
+        out(array_merge([
+            'group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'owner_id'=>(int)$user['id'],'retention_seconds'=>$retention,'isGroup'=>true]
+        ], group_invite_payload($raw)),201);
     } catch(Throwable $e){ $pdo->rollBack(); error_log('groups.php POST error: '.$e->getMessage()); fail('Group creation failed',500); }
 }
 

@@ -1448,6 +1448,47 @@ select {
   padding: 16px;
 }
 
+.directory-preferences {
+  padding: 0 16px 14px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 12px;
+}
+
+.directory-preferences-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-main);
+  font-size: 12px;
+}
+
+.directory-preferences-heading button {
+  border: 0;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.directory-preference-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-top: 9px;
+  scrollbar-width: thin;
+}
+
+.directory-preference-chips span {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .search-box-wrapper {
   position: relative;
   width: 100%;
@@ -1630,6 +1671,8 @@ select {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .action-utility-btn {
@@ -1660,6 +1703,109 @@ select {
   padding: 8px;
   border-radius: 6px;
   color: var(--text-muted);
+}
+
+.group-invite-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.group-invite-bar span {
+  flex: 0 1 auto;
+}
+
+.group-invite-bar input {
+  flex: 1 1 220px;
+  min-width: 120px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--bg-directory);
+  color: var(--text-main);
+}
+
+.group-invite-bar button,
+.invite-auth-actions button,
+.invite-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.group-invite-bar button {
+  padding: 7px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--bg-directory);
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.invite-card {
+  max-width: 480px;
+  text-align: center;
+}
+
+.invite-card .auth-home-link {
+  display: block;
+}
+
+.invite-card .auth-brand-image {
+  display: block;
+  max-width: 230px;
+  margin: 8px auto 24px;
+}
+
+.invite-group-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 14px;
+  border-radius: 20px;
+  color: white;
+  background: var(--primary-color);
+}
+
+.invite-eyebrow {
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.invite-status {
+  padding: 38px 0;
+  color: var(--text-muted);
+}
+
+.invite-auth-note {
+  margin: 24px 0 12px;
+  font-size: 13px;
+}
+
+.invite-auth-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.invite-auth-actions button,
+.invite-primary {
+  padding: 10px 16px;
+  border-radius: 9px;
+}
+
+.invite-primary {
+  margin-top: 22px;
 }
 
 /* Message Display Core Window */

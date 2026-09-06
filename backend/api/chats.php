@@ -21,9 +21,14 @@ if ($method === 'GET') {
             MAX(m.created_at) AS last_message_at
         FROM chats c
         INNER JOIN chat_members cm ON cm.chat_id = c.id
+        LEFT JOIN chat_user_states cus ON cus.chat_id = c.id AND cus.user_id = cm.user_id
         LEFT JOIN messages m ON m.chat_id = c.id
+          AND m.id > COALESCE(cus.cleared_through_message_id, 0)
+          AND m.deleted_for_everyone = 0
+          AND (m.expires_at IS NULL OR m.expires_at > UTC_TIMESTAMP())
         WHERE cm.user_id = ?
           AND cm.status = "active"
+          AND (COALESCE(cus.hidden, 0) = 0 OR m.id IS NOT NULL)
     ';
 
     $params = [$user['id']];
@@ -34,7 +39,7 @@ if ($method === 'GET') {
     }
 
     $sql .= '
-        GROUP BY c.id, c.type, c.name, c.group_category, c.owner_id, c.retention_seconds, c.created_at
+        GROUP BY c.id, c.type, c.name, c.group_category, c.owner_id, c.retention_seconds, c.created_at, cus.hidden
         ORDER BY COALESCE(MAX(m.created_at), c.created_at) DESC
     ';
 
@@ -119,6 +124,12 @@ if ($method === 'POST') {
             $chatId = (int)$chat['id'];
         }
 
+        $pdo->prepare('
+            INSERT INTO chat_user_states(chat_id,user_id,hidden,cleared_through_message_id,updated_at)
+            VALUES(?,?,0,0,UTC_TIMESTAMP())
+            ON DUPLICATE KEY UPDATE hidden=0, updated_at=UTC_TIMESTAMP()
+        ')->execute([$chatId, $user['id']]);
+
         out(['chat' => [
             'id' => $chatId,
             'type' => 'private',
@@ -134,6 +145,62 @@ if ($method === 'POST') {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('chats.php POST error: ' . $e->getMessage());
         fail('Unable to create private chat', 500);
+    }
+}
+
+if ($method === 'DELETE') {
+    $chatId = (int)($_GET['id'] ?? 0);
+    if ($chatId <= 0) fail('Chat id is required');
+
+    $member = $pdo->prepare('
+        SELECT c.id
+        FROM chats c
+        INNER JOIN chat_members cm ON cm.chat_id=c.id
+        WHERE c.id=? AND c.type="private" AND cm.user_id=? AND cm.status="active"
+        LIMIT 1
+    ');
+    $member->execute([$chatId, $user['id']]);
+    if (!$member->fetch()) fail('Private chat not found', 404);
+
+    try {
+        $pdo->beginTransaction();
+        $latest = $pdo->prepare('SELECT COALESCE(MAX(id),0) FROM messages WHERE chat_id=?');
+        $latest->execute([$chatId]);
+        $clearedThrough = (int)$latest->fetchColumn();
+        $state = $pdo->prepare('
+            INSERT INTO chat_user_states(chat_id,user_id,hidden,cleared_through_message_id,updated_at)
+            VALUES(?,?,1,?,UTC_TIMESTAMP())
+            ON DUPLICATE KEY UPDATE
+                hidden=1,
+                cleared_through_message_id=GREATEST(cleared_through_message_id,VALUES(cleared_through_message_id)),
+                updated_at=UTC_TIMESTAMP()
+        ');
+        $state->execute([$chatId, $user['id'], $clearedThrough]);
+        $deleteDeliveries = $pdo->prepare('
+            DELETE q
+            FROM notification_delivery_queue q
+            INNER JOIN notification_history n ON n.id=q.notification_id
+            WHERE n.user_id=?
+              AND CAST(JSON_UNQUOTE(JSON_EXTRACT(n.data_json,"$.chat_id")) AS UNSIGNED)=?
+        ');
+        $deleteDeliveries->execute([$user['id'], $chatId]);
+        $deleteNotifications = $pdo->prepare('
+            DELETE FROM notification_history
+            WHERE user_id=?
+              AND CAST(JSON_UNQUOTE(JSON_EXTRACT(data_json,"$.chat_id")) AS UNSIGNED)=?
+        ');
+        $deleteNotifications->execute([$user['id'], $chatId]);
+        $pdo->commit();
+        out([
+            'message' => 'Chat deleted from your account',
+            'chat_id' => $chatId,
+            'scope' => 'current_user',
+            'cleared_through_message_id' => $clearedThrough,
+        ]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('chats.php DELETE error: ' . $e->getMessage());
+        fail('Unable to delete chat', 500);
     }
 }
 

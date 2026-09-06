@@ -6,6 +6,7 @@ export const ApiRoute = Object.freeze({
   PROFILE: 'v1/users/me',
   USERS: 'v1/users',
   SEARCH_USERS: 'v1/users/search',
+  PREFERENCES: 'v1/users/preferences',
   CHATS: 'v1/chats',
   GROUPS: 'v1/groups',
   GROUP_MEMBERS: 'v1/group-members',

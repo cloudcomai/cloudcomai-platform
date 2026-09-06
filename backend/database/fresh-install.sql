@@ -119,6 +119,16 @@ CREATE TABLE IF NOT EXISTS message_user_states (
     PRIMARY KEY (message_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS chat_user_states (
+    chat_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    hidden TINYINT(1) NOT NULL DEFAULT 0,
+    cleared_through_message_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (chat_id, user_id),
+    INDEX idx_chat_user_states_user_hidden (user_id, hidden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS group_invites (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     chat_id BIGINT UNSIGNED NOT NULL,
@@ -324,7 +334,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 INSERT INTO schema_migrations (version, executed_at)
 VALUES
     ('003_chat_attachments.sql', UTC_TIMESTAMP()),
-    ('004_google_contacts_sync.sql', UTC_TIMESTAMP())
+    ('004_google_contacts_sync.sql', UTC_TIMESTAMP()),
+    ('005_chat_user_states.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
