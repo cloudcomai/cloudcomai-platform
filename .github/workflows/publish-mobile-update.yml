@@ -1,0 +1,115 @@
+name: Publish CloudComAI Mobile Update
+
+run-name: Publish ${{ inputs.channel }} mobile update - ${{ inputs.message }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: EAS channel and environment to update
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production
+      message:
+        description: Short description shown in the EAS update history
+        required: true
+        type: string
+      confirmation:
+        description: Enter PUBLISH when targeting production
+        required: true
+        default: PREVIEW
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-update-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.channel }} OTA update
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.channel }}
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+      UPDATE_CHANNEL: ${{ inputs.channel }}
+      UPDATE_MESSAGE: ${{ inputs.message }}
+      UPDATE_CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate release request
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Missing GitHub secret EXPO_TOKEN."
+            exit 1
+          fi
+          if [ -z "$EAS_PROJECT_ID" ]; then
+            echo "::error::Missing GitHub Actions variable EAS_PROJECT_ID."
+            exit 1
+          fi
+          if [ -z "$UPDATE_MESSAGE" ]; then
+            echo "::error::An update message is required."
+            exit 1
+          fi
+          if [ "$UPDATE_CHANNEL" = "production" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::Production updates can only be published from main."
+              exit 1
+            fi
+            if [ "$UPDATE_CONFIRMATION" != "PUBLISH" ]; then
+              echo "::error::Enter PUBLISH to confirm a production update."
+              exit 1
+            fi
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Link app config to EAS project
+        run: node apps/mobile/scripts/configure-eas-project.mjs
+
+      - name: Publish update
+        working-directory: apps/mobile
+        run: |
+          eas update \
+            --channel "$UPDATE_CHANNEL" \
+            --environment "$UPDATE_CHANNEL" \
+            --message "$UPDATE_MESSAGE" \
+            --non-interactive
+
+      - name: Record release summary
+        run: |
+          {
+            echo "### Mobile update published"
+            echo "- Channel: $UPDATE_CHANNEL"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Message: $UPDATE_MESSAGE"
+            echo "- Native binary submitted: no"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -2,8 +2,15 @@ import * as SecureStore from 'expo-secure-store';
 import { createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
 import { createAuthSessionManager } from '@cloudcomai/auth';
 
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL || 'https://cloudcomai.freedev.app/apiapp/api';
+const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+
+if (!configuredApiBaseUrl) {
+  throw new Error(
+    'EXPO_PUBLIC_API_BASE_URL is required. Configure it in the local .env file or selected EAS environment.',
+  );
+}
+
+export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '');
 
 const secureStorage = {
   getItem: key => SecureStore.getItemAsync(key),
