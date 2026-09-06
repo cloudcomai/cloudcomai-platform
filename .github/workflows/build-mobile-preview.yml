@@ -19,6 +19,7 @@ permissions:
 env:
   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
   EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+  EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
 
 jobs:
   android:
@@ -30,8 +31,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate Expo configuration
+      - name: Validate and log mobile build configuration
+        shell: bash
         run: |
+          set -euo pipefail
+
+          echo "Build platform: ${{ inputs.platform }}"
+          echo "EAS profile: preview"
+          echo "EXPO_TOKEN configured: $([ -n "$EXPO_TOKEN" ] && echo YES || echo NO)"
+          echo "EAS_PROJECT_ID: ${EAS_PROJECT_ID:-<missing>}"
+          echo "EXPO_PUBLIC_API_BASE_URL: ${EXPO_PUBLIC_API_BASE_URL:-<missing>}"
+
           if [ -z "$EXPO_TOKEN" ]; then
             echo "::error::Missing GitHub secret EXPO_TOKEN."
             exit 1
@@ -40,6 +50,18 @@ jobs:
             echo "::error::Missing GitHub Actions variable EAS_PROJECT_ID."
             exit 1
           fi
+          if [ -z "$EXPO_PUBLIC_API_BASE_URL" ]; then
+            echo "::error::Missing GitHub Actions variable EXPO_PUBLIC_API_BASE_URL."
+            exit 1
+          fi
+
+          case "$EXPO_PUBLIC_API_BASE_URL" in
+            https://*/apiapp/api) ;;
+            *)
+              echo "::error::EXPO_PUBLIC_API_BASE_URL must use HTTPS and end with /apiapp/api."
+              exit 1
+              ;;
+          esac
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -63,6 +85,9 @@ jobs:
 
       - name: Link app config to EAS project
         run: node apps/mobile/scripts/configure-eas-project.mjs
+
+      - name: Inject validated API URL into preview EAS profile
+        run: node apps/mobile/scripts/configure-build-env.mjs preview
 
       - name: Build Android preview APK on EAS
         working-directory: apps/mobile
@@ -111,8 +136,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate Expo configuration
+      - name: Validate and log mobile build configuration
+        shell: bash
         run: |
+          set -euo pipefail
+
+          echo "Build platform: ${{ inputs.platform }}"
+          echo "EAS profile: preview"
+          echo "EXPO_TOKEN configured: $([ -n "$EXPO_TOKEN" ] && echo YES || echo NO)"
+          echo "EAS_PROJECT_ID: ${EAS_PROJECT_ID:-<missing>}"
+          echo "EXPO_PUBLIC_API_BASE_URL: ${EXPO_PUBLIC_API_BASE_URL:-<missing>}"
+
           if [ -z "$EXPO_TOKEN" ]; then
             echo "::error::Missing GitHub secret EXPO_TOKEN."
             exit 1
@@ -121,6 +155,18 @@ jobs:
             echo "::error::Missing GitHub Actions variable EAS_PROJECT_ID."
             exit 1
           fi
+          if [ -z "$EXPO_PUBLIC_API_BASE_URL" ]; then
+            echo "::error::Missing GitHub Actions variable EXPO_PUBLIC_API_BASE_URL."
+            exit 1
+          fi
+
+          case "$EXPO_PUBLIC_API_BASE_URL" in
+            https://*/apiapp/api) ;;
+            *)
+              echo "::error::EXPO_PUBLIC_API_BASE_URL must use HTTPS and end with /apiapp/api."
+              exit 1
+              ;;
+          esac
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
