@@ -37,3 +37,18 @@ This is a beta foundation, not a final audited production messenger. Before publ
 
 ## GoDaddy
 See `GODADDY_BACKEND_DEPLOYMENT.md`.
+
+
+## Chat retention defaults
+
+Chat retention is configured in `config/config.php` under `app.retention` using seconds:
+
+```php
+'retention' => [
+    'private' => 2592000, // 30 days
+    'group' => 2592000,   // 30 days
+    'public' => 14400,    // 4 hours
+],
+```
+
+If a value is missing, non-numeric, zero, or negative, the backend falls back to 30 days for private/group chats and 4 hours for public chats. Existing chats keep the retention value stored in `chats.retention_seconds`; changing config affects new chats unless existing rows are explicitly updated.
