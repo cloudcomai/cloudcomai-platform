@@ -11,6 +11,7 @@ import {
   Pressable,
   RefreshControl,
   SafeAreaView,
+  ScrollView,
   StatusBar,
   Switch,
   StyleSheet,
@@ -30,11 +31,26 @@ const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   isGroup,
 }));
 
-function LoginScreen({ onAuthenticated }) {
+function AuthScreen({ onAuthenticated }) {
+  const [mode, setMode] = useState('login');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [userId, setUserId] = useState('');
+  const [email, setEmail] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [dob, setDob] = useState('');
+  const [gender, setGender] = useState('Male');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const persistAuthenticatedSession = async data => {
+    if (!data?.token || !data?.user) throw new Error('Invalid authentication response.');
+    const session = { token: data.token, user: data.user };
+    await sessionManager.setSession(session);
+    onAuthenticated(session);
+  };
 
   const login = async () => {
     if (!identifier.trim() || !password || busy) return;
@@ -42,10 +58,7 @@ function LoginScreen({ onAuthenticated }) {
     setError('');
     try {
       const { data } = await platformApi.login(identifier.trim(), password);
-      if (!data?.token || !data?.user) throw new Error('Invalid login response.');
-      const session = { token: data.token, user: data.user };
-      await sessionManager.setSession(session);
-      onAuthenticated(session);
+      await persistAuthenticatedSession(data);
     } catch (loginError) {
       setError(loginError.message || 'Unable to sign in.');
     } finally {
@@ -53,23 +66,104 @@ function LoginScreen({ onAuthenticated }) {
     }
   };
 
+  const register = async () => {
+    if (busy) return;
+    if (!name.trim()) { setError('Full name is required.'); return; }
+    if (!email.trim() && !mobile.trim() && !userId.trim()) { setError('Email, mobile number or CloudComAI User ID is required.'); return; }
+    if (!dob.trim()) { setError('Date of birth is required in YYYY-MM-DD format.'); return; }
+    if (password.length < 8) { setError('Password must contain at least 8 characters.'); return; }
+    if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
+
+    setBusy(true);
+    setError('');
+    try {
+      const { data } = await platformApi.register({
+        name: name.trim(),
+        user_id: userId.trim().toLowerCase(),
+        email: email.trim().toLowerCase(),
+        mobile: mobile.trim(),
+        dob: dob.trim(),
+        gender,
+        password,
+      });
+      await persistAuthenticatedSession(data);
+    } catch (registerError) {
+      setError(registerError.message || 'Unable to create your account.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeMode = nextMode => {
+    setMode(nextMode);
+    setError('');
+    setPassword('');
+    setConfirmPassword('');
+  };
+
   return (
-    <KeyboardAvoidingView style={styles.loginPage} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.loginCard}>
-        <View style={styles.logo}><Text style={styles.logoText}>C</Text></View>
-        <Text style={styles.title}>CloudComAI</Text>
-        <Text style={styles.subtitle}>Sign in to continue your conversations</Text>
-        <TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} placeholder="Email, phone or username" placeholderTextColor="#7f8aa3" />
-        <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="Password" placeholderTextColor="#7f8aa3" onSubmitEditing={login} />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={login} disabled={busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Sign in</Text>}
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+    <SafeAreaView style={styles.loginPage}>
+      <StatusBar barStyle="dark-content" backgroundColor="#eef2ff" />
+      <KeyboardAvoidingView style={styles.authKeyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.authScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.loginCard}>
+            <Image source={require('./assets/splash-logo.png')} style={styles.authLogo} resizeMode="contain" />
+            <Text style={styles.title}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
+            <Text style={styles.subtitle}>
+              {mode === 'login'
+                ? 'Sign in once and CloudComAI will keep you signed in securely on this device.'
+                : 'Create your CloudComAI account to start secure conversations.'}
+            </Text>
+
+            {mode === 'login' ? (
+              <>
+                <TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} placeholder="Email, phone or username" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="Password" placeholderTextColor="#7f8aa3" onSubmitEditing={login} />
+                <View style={styles.rememberRow}>
+                  <Text style={styles.rememberCheck}>✓</Text>
+                  <Text style={styles.rememberText}>Keep me signed in on this device</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={userId} onChangeText={setUserId} autoCapitalize="none" autoCorrect={false} placeholder="CloudComAI User ID" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="Email address" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" placeholder="Mobile number" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={dob} onChangeText={setDob} autoCapitalize="none" placeholder="Date of birth (YYYY-MM-DD)" placeholderTextColor="#7f8aa3" />
+                <View style={styles.genderRow}>
+                  {['Male', 'Female'].map(value => (
+                    <Pressable key={value} style={[styles.genderButton, gender === value && styles.genderButtonActive]} onPress={() => setGender(value)}>
+                      <Text style={[styles.genderButtonText, gender === value && styles.genderButtonTextActive]}>{value}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="Password (minimum 8 characters)" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholder="Confirm password" placeholderTextColor="#7f8aa3" onSubmitEditing={register} />
+              </>
+            )}
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={mode === 'login' ? login : register} disabled={busy}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{mode === 'login' ? 'Sign in' : 'Register'}</Text>}
+            </Pressable>
+
+            <View style={styles.authSwitchRow}>
+              <Text style={styles.authSwitchText}>{mode === 'login' ? "Don't have an account?" : 'Already have an account?'}</Text>
+              <Pressable onPress={() => changeMode(mode === 'login' ? 'register' : 'login')}>
+                <Text style={styles.authSwitchLink}>{mode === 'login' ? 'Register' : 'Sign in'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
-
 function ChatDetail({ chat, authToken, onBack, onDeleted }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
@@ -375,7 +469,7 @@ function AppContent() {
   }, []);
 
   if (!ready) return <SafeAreaView style={styles.splash}><Image source={require('./assets/splash-logo.png')} style={styles.splashLogo} resizeMode="contain" /><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></SafeAreaView>;
-  if (!session) return <LoginScreen onAuthenticated={setSession} />;
+  if (!session) return <AuthScreen onAuthenticated={setSession} />;
   if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
   return <ChatsScreen session={session} onLogout={() => setSession(null)} onSettings={() => setShowNotificationSettings(true)} initialChatId={initialChatId} />;
 }
@@ -385,9 +479,9 @@ export default AppContent;
 const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, paddingBottom: Platform.OS === 'android' ? 8 : 0 }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
-  loginPage: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#eef2ff' }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 },
+  loginPage: { flex: 1, backgroundColor: '#eef2ff', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0 }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
-  input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
+  input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
   appPage: { flex: 1, backgroundColor: '#f5f7fb', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0, paddingBottom: Platform.OS === 'android' ? 8 : 0 }, header: { paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' }, headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', flexShrink: 1 }, headerUser: { marginTop: 2, color: '#dbe4ff', fontSize: 12 }, logout: { color: '#fff', fontWeight: '700' }, back: { color: '#fff', fontWeight: '700', width: 54 }, deleteChat: { color: '#fee2e2', fontWeight: '700', textAlign: 'right', minWidth: 54 }, tabs: { flexDirection: 'row', padding: 8, margin: 14, borderRadius: 12, backgroundColor: '#e5eaf4' }, tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 }, activeTab: { backgroundColor: '#fff' }, tabText: { color: '#69758b', fontWeight: '700' }, activeTabText: { color: '#3157d5' },
   loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, attachButton: { minHeight: 44, width: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4' }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 44, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, sendText: { color: '#fff', fontWeight: '700' },
 });
