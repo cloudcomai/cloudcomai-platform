@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X } from 'lucide-react';
 import { mediaUrl } from '../services/platform';
+import BrandLogo from './BrandLogo';
 
 const profileImageUrl = user => user?.image_url || mediaUrl('user', user?.id);
 
@@ -11,7 +12,9 @@ export default function Sidebar({ user, setModal, isDarkMode, setIsDarkMode, onL
   return (
     <aside className={`main-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
       <div className="sidebar-brand">
-        <div className="brand-layout-row"><div className="brand-logo">C</div><span className="brand-text">CloudComAI</span></div>
+        <div className="brand-layout-row">
+          <BrandLogo variant="dark" className="sidebar-brand-image" />
+        </div>
         <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)} aria-label="Close sidebar"><X size={18} /></button>
       </div>
 
