@@ -11,16 +11,16 @@ on:
         options:
           - CANCEL
           - DEPLOY
-      database_mode:
-        description: Choose how the production database has been prepared.
+      deployment_mode:
+        description: Choose INITIAL for the first deployment to a freshly imported database, or RELEASE for normal incremental deployments.
         required: true
-        default: existing-production
+        default: release
         type: choice
         options:
-          - existing-production
-          - fresh-install-already-imported
+          - initial
+          - release
       database_ready:
-        description: Confirm a DB backup exists, or fresh-install.sql was imported for a new database.
+        description: Select YES only after fresh-install.sql is imported for INITIAL, or after a current DB backup exists for RELEASE.
         required: true
         default: "NO"
         type: choice
@@ -44,7 +44,7 @@ env:
 
 jobs:
   deploy:
-    name: Validate, back up, migrate, and deploy
+    name: Validate and deploy CloudComAI
     if: github.ref == 'refs/heads/main' && inputs.confirmation == 'DEPLOY'
     runs-on: ubuntu-latest
     environment: production
@@ -53,6 +53,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Show deployment plan
+        run: |
+          echo "Deployment mode: ${{ inputs.deployment_mode }}"
+          if [ "${{ inputs.deployment_mode }}" = "initial" ]; then
+            echo "INITIAL: assumes backend/database/fresh-install.sql has already been imported."
+            echo "INITIAL: skips production backup and versioned migrations."
+          else
+            echo "RELEASE: creates a production backup, runs pending migrations, then deploys."
+          fi
+
       - name: Validate production configuration
         shell: bash
         env:
@@ -60,7 +70,7 @@ jobs:
           FTP_USERNAME: ${{ secrets.GODADDY_FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.GODADDY_FTP_PASSWORD }}
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
-          DATABASE_MODE: ${{ inputs.database_mode }}
+          DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
           DATABASE_READY: ${{ inputs.database_ready }}
         run: |
           set -euo pipefail
@@ -78,8 +88,8 @@ jobs:
             invalid=1
           fi
 
-          if [ "${DATABASE_MODE}" = "existing-production" ] && [ -z "${MIGRATION_TOKEN}" ]; then
-            echo "::error::GODADDY_MIGRATION_TOKEN is required for an existing production deployment."
+          if [ "${DEPLOYMENT_MODE}" = "release" ] && [ -z "${MIGRATION_TOKEN}" ]; then
+            echo "::error::GODADDY_MIGRATION_TOKEN is required for RELEASE deployments."
             invalid=1
           fi
 
@@ -210,7 +220,7 @@ jobs:
           cp backend/database/migrations/*.sql .deploy/migrations/database/migrations/
 
       - name: Upload protected recovery tools
-        if: inputs.database_mode == 'existing-production'
+        if: inputs.deployment_mode == 'release'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.GODADDY_FTP_SERVER }}
@@ -224,7 +234,7 @@ jobs:
 
       - name: Create verified production filesystem backup
         id: backup
-        if: inputs.database_mode == 'existing-production'
+        if: inputs.deployment_mode == 'release'
         shell: bash
         env:
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
@@ -255,7 +265,7 @@ jobs:
           echo "backup_name=${backup_name}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload migration package
-        if: inputs.database_mode == 'existing-production'
+        if: inputs.deployment_mode == 'release'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.GODADDY_FTP_SERVER }}
@@ -270,7 +280,7 @@ jobs:
             backup/**
 
       - name: Run versioned production database migrations
-        if: inputs.database_mode == 'existing-production'
+        if: inputs.deployment_mode == 'release'
         shell: bash
         env:
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
@@ -356,8 +366,8 @@ jobs:
             --output /dev/null \
             "${PRODUCTION_WEB_URL}"
 
-      - name: Restore previous backend after a failed existing-site deployment
-        if: ${{ failure() && inputs.database_mode == 'existing-production' && steps.backup.outputs.backup_name != '' }}
+      - name: Restore previous backend after a failed release deployment
+        if: ${{ failure() && inputs.deployment_mode == 'release' && steps.backup.outputs.backup_name != '' }}
         shell: bash
         env:
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
