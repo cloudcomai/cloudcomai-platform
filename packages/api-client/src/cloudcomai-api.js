@@ -150,6 +150,10 @@ export class CloudComAiApi {
     });
   }
 
+  getGoogleConnect(options = {}) {
+    return this.client.get(ApiRoute.GOOGLE_CONNECT, options);
+  }
+
   getGoogleStatus(options = {}) {
     return this.client.get(ApiRoute.GOOGLE_STATUS, options);
   }
