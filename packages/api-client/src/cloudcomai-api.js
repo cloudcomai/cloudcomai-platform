@@ -143,6 +143,21 @@ export class CloudComAiApi {
     });
   }
 
+  listGroupMembers(chatId, options = {}) {
+    return this.client.get(ApiRoute.GROUP_MEMBERS, {
+      ...options,
+      query: { ...options.query, chat_id: chatId },
+    });
+  }
+
+  updateGroupMember(chatId, userId, action, options = {}) {
+    return this.client.post(
+      ApiRoute.GROUP_MEMBERS,
+      { chat_id: chatId, user_id: userId, action },
+      options,
+    );
+  }
+
   listMessages(chatId, afterId = 0, options = {}) {
     return this.client.get(ApiRoute.MESSAGES, {
       ...options,
