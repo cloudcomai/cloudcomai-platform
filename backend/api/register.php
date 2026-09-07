@@ -9,10 +9,8 @@ $userId = strtolower(trim((string)($d['user_id'] ?? '')));
 $password = (string)($d['password'] ?? '');
 $dob = (string)($d['dob'] ?? '');
 $gender = (string)($d['gender'] ?? '');
-$qualification = trim((string)($d['qualification'] ?? ''));
 if ($name === '' || strlen($password) < 8) fail('Name and a password of at least 8 characters are required');
-if (!$userId) fail('CloudComAI User ID is required');
-if (strlen($qualification) > 190) fail('Qualification is too long');
+if (!$email && !$mobile && !$userId) fail('Email, mobile or User ID is required');
 if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Invalid email');
 if ($mobile && !preg_match('/^\+?[0-9]{7,15}$/', $mobile)) fail('Invalid mobile number');
 if ($userId && !preg_match('/^[a-z0-9_]{3,30}$/', $userId)) fail('User ID must contain 3-30 letters, numbers or underscores');
@@ -40,11 +38,11 @@ try {
     }
 
     $pdo->beginTransaction();
-    $st = $pdo->prepare('INSERT INTO users (user_id,name,email,mobile,password_hash,dob,gender,qualification,email_verified,mobile_verified,account_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())');
-    $st->execute([$userId,$name,$email ?: null,$mobile ?: null,password_hash($password,PASSWORD_DEFAULT),$dob,$gender,$qualification ?: null,$email?0:1,$mobile?0:1,'active']);
+    $st = $pdo->prepare('INSERT INTO users (user_id,name,email,mobile,password_hash,dob,gender,email_verified,mobile_verified,account_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())');
+    $st->execute([$userId ?: null,$name,$email ?: null,$mobile ?: null,password_hash($password,PASSWORD_DEFAULT),$dob,$gender,$email?0:1,$mobile?0:1,'active']);
     $id = (int)$pdo->lastInsertId();
     $pdo->commit();
-    out(['token'=>token_for($id),'user'=>['id'=>$id,'name'=>$name,'user_id'=>$userId,'email'=>$email,'mobile'=>$mobile,'gender'=>$gender,'dob'=>$dob,'qualification'=>$qualification]],201);
+    out(['token'=>token_for($id),'user'=>['id'=>$id,'name'=>$name,'user_id'=>$userId,'email'=>$email,'mobile'=>$mobile,'gender'=>$gender]],201);
 } catch (PDOException $e) {
     if (db()->inTransaction()) db()->rollBack();
     if ($e->getCode()==='23000') fail('Email, mobile number or User ID is already registered',409);
