@@ -30,6 +30,7 @@ import { API_BASE_URL, mediaUrl, platformApi, sessionManager } from './src/servi
 import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
 import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
+import GroupManagement from './src/components/GroupManagement';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -189,6 +190,8 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [searchStatus, setSearchStatus] = useState('');
   const [replyTo, setReplyTo] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [groupManagementOpen, setGroupManagementOpen] = useState(false);
+  const [groupName, setGroupName] = useState(chat.name || 'Group');
   const searchActive = searchOpen && query.trim().length > 0;
 
   useEffect(() => {
@@ -368,8 +371,8 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
       >
       <View style={styles.header}>
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{chat.name || 'Conversation'}</Text>
-        {chat.isGroup ? <View style={{ width: 54 }} /> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
+        <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
+        {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
       </View>
       <View style={styles.searchRow}><Pressable onPress={() => { setSearchOpen(value => !value); setQuery(''); }}><Text style={styles.searchLink}>{searchOpen ? 'Close search' : 'Search messages'}</Text></Pressable>{chat.blocked && <Text style={styles.error}>Contact blocked</Text>}</View>
       {searchOpen && <View style={styles.searchBox}><TextInput style={styles.input} value={query} onChangeText={setQuery} maxLength={120} autoFocus placeholder="Search messages and filenames" />{searchActive && <Text>{searchStatus}</Text>}</View>}
@@ -404,6 +407,14 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
       <MediaComposer chat={chat} onMessage={onMediaMessage} />
       <View style={styles.composer}><Pressable style={styles.attachButton} onPress={pickAttachment} disabled={uploading || chat.blocked}><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
+      {chat.isGroup ? <GroupManagement
+        visible={groupManagementOpen}
+        group={{ ...chat, name: groupName }}
+        user={user}
+        onClose={() => setGroupManagementOpen(false)}
+        onGroupUpdated={updated => setGroupName(updated.name || groupName)}
+        onGroupDeleted={onDeleted}
+      /> : null}
     </SafeAreaView>
   );
 }
