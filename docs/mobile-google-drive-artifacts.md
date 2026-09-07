@@ -48,3 +48,17 @@ Production Android:
 Preview builds include the platform preview binary and its build metadata.
 
 GitHub Actions artifacts are still retained for 30 days. The Drive upload is an additional persistent copy.
+
+
+## Temporarily disabling Drive upload
+
+The workflows default Google Drive artifact upload to disabled.
+
+Repository variable:
+
+`ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD`
+
+- unset or `false`: mobile builds continue normally and only GitHub/EAS artifacts are produced.
+- `true`: Drive configuration is validated and the Drive upload step runs.
+
+Do not set this variable to `true` until OAuth/Shared Drive authentication is ready.
