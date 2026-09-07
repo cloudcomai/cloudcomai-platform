@@ -43,6 +43,8 @@ jobs:
           echo "EXPO_TOKEN configured: $([ -n "$EXPO_TOKEN" ] && echo YES || echo NO)"
           echo "EAS_PROJECT_ID: ${EAS_PROJECT_ID:-<missing>}"
           echo "EXPO_PUBLIC_API_BASE_URL: ${EXPO_PUBLIC_API_BASE_URL:-<missing>}"
+          echo "GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-<missing>}"
+          echo "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON configured: $([ -n "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ] && echo YES || echo NO)"
 
           if [ -z "$EXPO_TOKEN" ]; then
             echo "::error::Missing GitHub secret EXPO_TOKEN."
@@ -54,6 +56,14 @@ jobs:
           fi
           if [ -z "$EXPO_PUBLIC_API_BASE_URL" ]; then
             echo "::error::Missing GitHub Actions variable EXPO_PUBLIC_API_BASE_URL."
+            exit 1
+          fi
+          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+            exit 1
+          fi
+          if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+            echo "::error::Missing Google Drive artifact folder ID."
             exit 1
           fi
 
@@ -170,6 +180,8 @@ jobs:
           echo "EXPO_TOKEN configured: $([ -n "$EXPO_TOKEN" ] && echo YES || echo NO)"
           echo "EAS_PROJECT_ID: ${EAS_PROJECT_ID:-<missing>}"
           echo "EXPO_PUBLIC_API_BASE_URL: ${EXPO_PUBLIC_API_BASE_URL:-<missing>}"
+          echo "GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-<missing>}"
+          echo "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON configured: $([ -n "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ] && echo YES || echo NO)"
 
           if [ -z "$EXPO_TOKEN" ]; then
             echo "::error::Missing GitHub secret EXPO_TOKEN."
@@ -181,6 +193,14 @@ jobs:
           fi
           if [ -z "$EXPO_PUBLIC_API_BASE_URL" ]; then
             echo "::error::Missing GitHub Actions variable EXPO_PUBLIC_API_BASE_URL."
+            exit 1
+          fi
+          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+            exit 1
+          fi
+          if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+            echo "::error::Missing Google Drive artifact folder ID."
             exit 1
           fi
 
