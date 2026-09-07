@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { platformApi } from '../services/platform';
+import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
 
 const GROUP_TYPES = [
   'Family Group','Friend Group','Fan Group','Study Group','College Group','Class Group',
@@ -62,6 +63,9 @@ export default function MobileMenu({
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profileDob, setProfileDob] = useState(user?.dob || '');
   const [profileGender, setProfileGender] = useState(user?.gender || 'Male');
+  const [appLockEnabled, setAppLockEnabled] = useState(false);
+  const [appLockPin, setAppLockPinValue] = useState('');
+  const [appLockConfirm, setAppLockConfirm] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -69,6 +73,7 @@ export default function MobileMenu({
       setProfileName(user?.name || '');
       setProfileDob(user?.dob || '');
       setProfileGender(user?.gender || 'Male');
+      isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
     } else {
       setScreen('menu');
       setError('');
@@ -266,6 +271,41 @@ export default function MobileMenu({
     }
   };
 
+  const saveAppLock = async () => {
+    if (busy) return;
+    if (appLockPin !== appLockConfirm) { setError('App lock PINs do not match.'); return; }
+    setBusy(true); setError('');
+    try {
+      await setAppLockPin(appLockPin);
+      setAppLockEnabled(true);
+      setAppLockPinValue('');
+      setAppLockConfirm('');
+      Alert.alert('App Lock enabled', 'CloudComAI will require this PIN when the app is reopened or resumed.');
+      setScreen('settings');
+    } catch (e) {
+      setError(e.message || 'Unable to enable App Lock.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const turnOffAppLock = async () => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      await disableAppLock();
+      setAppLockEnabled(false);
+      setAppLockPinValue('');
+      setAppLockConfirm('');
+      Alert.alert('App Lock disabled', 'CloudComAI will no longer ask for an App Lock PIN.');
+      setScreen('settings');
+    } catch (e) {
+      setError(e.message || 'Unable to disable App Lock.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const body = () => {
     if (screen === 'private') return (
       <>
@@ -356,6 +396,41 @@ export default function MobileMenu({
       </>
     );
 
+    if (screen === 'app_lock') return (
+      <>
+        <ScreenHeader title="App Lock" onBack={() => go('settings')} onClose={onClose} />
+        <View style={styles.content}>
+          <Text style={styles.resultTitle}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text>
+          <Text style={styles.help}>
+            {appLockEnabled
+              ? 'Your PIN is required when CloudComAI is reopened or resumed from the background.'
+              : 'Set a 4 to 6 digit PIN. This PIN is stored only in secure device storage.'}
+          </Text>
+          {!appLockEnabled ? <>
+            <TextInput
+              style={styles.input}
+              value={appLockPin}
+              onChangeText={value => setAppLockPinValue(value.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              secureTextEntry
+              placeholder="New PIN (4-6 digits)"
+              maxLength={6}
+            />
+            <TextInput
+              style={styles.input}
+              value={appLockConfirm}
+              onChangeText={value => setAppLockConfirm(value.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              secureTextEntry
+              placeholder="Confirm PIN"
+              maxLength={6}
+            />
+            <Pressable style={styles.primary} onPress={saveAppLock}><Text style={styles.primaryText}>Enable App Lock</Text></Pressable>
+          </> : <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={turnOffAppLock}><Text style={styles.dangerText}>Disable App Lock</Text></Pressable>}
+        </View>
+      </>
+    );
+
     if (screen === 'profile') return (
       <>
         <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
@@ -390,6 +465,10 @@ export default function MobileMenu({
           <Pressable style={styles.menuItem} onPress={() => go('profile')}>
             <Text style={styles.menuTitle}>Profile</Text>
             <Text style={styles.menuSub}>Name, date of birth and account information</Text>
+          </Pressable>
+          <Pressable style={styles.menuItem} onPress={() => go('app_lock')}>
+            <Text style={styles.menuTitle}>App Lock</Text>
+            <Text style={styles.menuSub}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'Protect the app with a 4-6 digit PIN'}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
             <Text style={styles.menuTitle}>Privacy, account & notifications</Text>
