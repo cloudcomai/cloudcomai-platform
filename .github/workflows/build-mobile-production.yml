@@ -37,6 +37,7 @@ jobs:
       EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
       BUILD_PLATFORM: ${{ inputs.platform }}
       BUILD_CONFIRMATION: ${{ inputs.confirmation }}
+      ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${{ vars.ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD || 'false' }}
       GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_ARTIFACT_FOLDER_ID || '1Qs0iWqJbn-2D46S0ef6ddaMFQgHqmY1u' }}
       GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
 
@@ -54,8 +55,13 @@ jobs:
           echo "EXPO_TOKEN configured: $([ -n "$EXPO_TOKEN" ] && echo YES || echo NO)"
           echo "EAS_PROJECT_ID: ${EAS_PROJECT_ID:-<missing>}"
           echo "EXPO_PUBLIC_API_BASE_URL: ${EXPO_PUBLIC_API_BASE_URL:-<missing>}"
-          echo "GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-<missing>}"
-          echo "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON configured: $([ -n "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ] && echo YES || echo NO)"
+          echo "ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}"
+          if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
+            echo "GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-<missing>}"
+            echo "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON configured: $([ -n "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ] && echo YES || echo NO)"
+          else
+            echo "Google Drive artifact upload: disabled"
+          fi
 
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Production builds can only be created from main."
@@ -73,13 +79,15 @@ jobs:
             echo "::error::Missing GitHub Actions variable EXPO_PUBLIC_API_BASE_URL."
             exit 1
           fi
-          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
-            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
-            exit 1
-          fi
-          if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
-            echo "::error::Missing Google Drive artifact folder ID."
-            exit 1
+          if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
+            if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
+              echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+              exit 1
+            fi
+            if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+              echo "::error::Missing Google Drive artifact folder ID."
+              exit 1
+            fi
           fi
           case "$EXPO_PUBLIC_API_BASE_URL" in
             https://*/apiapp/api) ;;
@@ -222,7 +230,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Android artifacts to Google Drive
-        if: inputs.platform == 'android' || inputs.platform == 'all'
+        if: (inputs.platform == 'android' || inputs.platform == 'all') && vars.ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -272,7 +280,11 @@ jobs:
               echo "- Android App Bundle: CloudComAI-production.aab (Google Play)"
               echo "- Android Package: CloudComAI-production.apk (direct installation/testing)"
               echo "- GitHub artifact: CloudComAI-Android-Production (retained for 30 days)"
-              echo "- Google Drive: uploaded under production/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/android"
+              if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
+                echo "- Google Drive: uploaded under production/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/android"
+              else
+                echo "- Google Drive upload: disabled"
+              fi
             fi
             if [ "$BUILD_PLATFORM" = "ios" ] || [ "$BUILD_PLATFORM" = "all" ]; then
               echo "- iOS production binary: available from the EAS build link"
