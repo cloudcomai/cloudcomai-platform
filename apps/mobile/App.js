@@ -615,7 +615,6 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryStrip} contentContainerStyle={styles.categoryTabs}>
         {topTabs.map(([value,label]) => <Pressable key={value} style={[styles.categoryTab, section === value && styles.categoryTabActive]} onPress={() => { setSection(value); setSearchText(''); }}><Text style={[styles.categoryTabText, section === value && styles.categoryTabTextActive]}>{label}</Text></Pressable>)}
-        <Pressable style={styles.categoryTab} onPress={() => openMenu('menu')}><Text style={styles.categoryTabText}>More</Text></Pressable>
       </ScrollView>
 
       <View style={styles.mobileContent}>
