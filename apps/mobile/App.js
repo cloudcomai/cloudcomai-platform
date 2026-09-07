@@ -29,6 +29,8 @@ import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-nati
 import { API_BASE_URL, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration } from './src/services/platform';
 import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
 import MobileMenu from './src/components/MobileMenu';
+import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
+import GroupManagement from './src/components/GroupManagement';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -211,6 +213,10 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searchStatus, setSearchStatus] = useState('');
+  const [replyTo, setReplyTo] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [groupManagementOpen, setGroupManagementOpen] = useState(false);
+  const [groupName, setGroupName] = useState(chat.name || 'Group');
   const searchActive = searchOpen && query.trim().length > 0;
 
   useEffect(() => {
@@ -313,16 +319,22 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
     setSending(true);
     setError('');
     try {
-      const { data } = await platformApi.sendMessage({ chat_id: chat.id, body });
-      if (data.message) {
-        setMessages(current => {
-          const result = mergeMessageBatch(current, [data.message]);
-          return result.messages;
+      if (editing) {
+        await platformApi.editMessage(editing.id, body);
+        setMessages(current => current.map(item => Number(item.id) === Number(editing.id) ? { ...item, body, edit_count: 1, edited: true } : item));
+        setEditing(null);
+      } else {
+        const { data } = await platformApi.sendMessage({
+          chat_id: chat.id,
+          body,
+          reply_to_message_id: replyTo?.id || null,
         });
+        if (data.message) setMessages(current => mergeMessageBatch(current, [data.message]).messages);
+        setReplyTo(null);
       }
       setComposer('');
     } catch (sendError) {
-      setError(sendError.message || 'Unable to send message.');
+      setError(sendError.message || (editing ? 'Unable to edit message.' : 'Unable to send message.'));
     } finally {
       setSending(false);
     }
@@ -382,8 +394,8 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
       >
       <View style={styles.header}>
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{chat.name || 'Conversation'}</Text>
-        {chat.isGroup ? <View style={{ width: 54 }} /> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
+        <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
+        {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
       </View>
       <View style={styles.searchRow}><Pressable onPress={() => { setSearchOpen(value => !value); setQuery(''); }}><Text style={styles.searchLink}>{searchOpen ? 'Close search' : 'Search messages'}</Text></Pressable>{chat.blocked && <Text style={styles.error}>Contact blocked</Text>}</View>
       {searchOpen && <View style={styles.searchBox}><TextInput style={styles.input} value={query} onChangeText={setQuery} maxLength={120} autoFocus placeholder="Search messages and filenames" />{searchActive && <Text>{searchStatus}</Text>}</View>}
@@ -398,12 +410,34 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
           scrollEventThrottle={100}
           onContentSizeChange={() => { if (atBottomRef.current && !searchActive) listRef.current?.scrollToEnd?.({ animated: false }); }}
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
-          renderItem={({ item }) => <Pressable onLongPress={() => deleteMessage(item)} style={[styles.messageBubble, Number(item.sender_id) === Number(user.id) && styles.myMessage]}>{chat.isGroup && <Text style={styles.sender}>{item.sender_name || 'Member'}</Text>}<MediaMessage message={item} autoDownload={privacy.media_auto_download} /><Text style={styles.messageTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text><Pressable onPress={() => deleteMessage(item)}><Text style={styles.messageDelete}>Delete</Text></Pressable></Pressable>}
+          renderItem={({ item }) => {
+            const mine = Number(item.sender_id) === Number(user.id);
+            return <View style={[styles.messageBubble, mine && styles.myMessage]}>
+              {chat.isGroup && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
+              {item.reply_to_text ? <View style={styles.replyPreview}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
+              <MediaMessage message={item} autoDownload={privacy.media_auto_download} />
+              <Text style={styles.messageTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
+              <View style={styles.messageActions}>
+                <Pressable onPress={() => { setReplyTo(item); setEditing(null); setComposer(''); }}><Text style={styles.messageActionText}>Reply</Text></Pressable>
+                {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); }}><Text style={styles.messageActionText}>Edit</Text></Pressable> : null}
+                <Pressable onPress={() => deleteMessage(item)}><Text style={styles.messageActionText}>Delete</Text></Pressable>
+              </View>
+            </View>;
+          }}
         />
       )}
+      {(replyTo || editing) ? <View style={styles.contextBar}><View style={styles.contextBarText}><Text style={styles.contextBarLabel}>{editing ? 'Editing message' : 'Replying to'}</Text><Text numberOfLines={1} style={styles.contextBarValue}>{(editing || replyTo)?.body || (editing || replyTo)?.text || 'Message'}</Text></View><Pressable onPress={() => { setReplyTo(null); setEditing(null); setComposer(''); }}><Text style={styles.contextBarClose}>×</Text></Pressable></View> : null}
       <MediaComposer chat={chat} onMessage={onMediaMessage} />
       <View style={styles.composer}><Pressable style={styles.attachButton} onPress={pickAttachment} disabled={uploading || chat.blocked}><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
+      {chat.isGroup ? <GroupManagement
+        visible={groupManagementOpen}
+        group={{ ...chat, name: groupName }}
+        user={user}
+        onClose={() => setGroupManagementOpen(false)}
+        onGroupUpdated={updated => setGroupName(updated.name || groupName)}
+        onGroupDeleted={onDeleted}
+      /> : null}
     </SafeAreaView>
   );
 }
@@ -428,116 +462,213 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy }) {
   );
 }
 
-function ChatsScreen({ session, onLogout, onSettings, initialChatId }) {
-  const [tab, setTab] = useState('private');
+function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUpdated }) {
+  const [section, setSection] = useState('all');
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedChat, setSelectedChat] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [menuInitialScreen, setMenuInitialScreen] = useState('menu');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const lastBackPressRef = useRef(0);
 
   const loadChats = useCallback(async (refresh = false) => {
+    if (section === 'contacts' || section === 'notifications') {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      const { data } = await platformApi.listChats(tab);
-      setChats(normalizeChats(data.chats, tab === 'group'));
+      if (section === 'all') {
+        const [{ data: privateData }, { data: groupData }] = await Promise.all([
+          platformApi.listChats('private'),
+          platformApi.listChats('group'),
+        ]);
+        setChats([
+          ...normalizeChats(privateData.chats, false),
+          ...normalizeChats(groupData.chats, true),
+        ].sort((a, b) => String(b.last_message_at || b.created_at || '').localeCompare(String(a.last_message_at || a.created_at || ''))));
+      } else {
+        const type = section === 'groups' ? 'group' : 'private';
+        const { data } = await platformApi.listChats(type);
+        setChats(normalizeChats(data.chats, type === 'group'));
+      }
     } catch (loadError) {
       setError(loadError.message || 'Unable to load chats.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tab]);
+  }, [section]);
 
   useEffect(() => { loadChats(); }, [loadChats]);
+
   useEffect(() => {
     if (!initialChatId) return;
-    const target = chats.find(item => Number(item.id) === Number(initialChatId));
-    if (target) setSelectedChat(target);
+    const openInitial = async () => {
+      const local = chats.find(item => Number(item.id) === Number(initialChatId));
+      if (local) { setSelectedChat(local); return; }
+      try {
+        const [{ data: privateData }, { data: groupData }] = await Promise.all([
+          platformApi.listChats('private'),
+          platformApi.listChats('group'),
+        ]);
+        const target = [
+          ...normalizeChats(privateData.chats, false),
+          ...normalizeChats(groupData.chats, true),
+        ].find(item => Number(item.id) === Number(initialChatId));
+        if (target) setSelectedChat(target);
+      } catch {}
+    };
+    openInitial();
   }, [chats, initialChatId]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined;
-
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (selectedChat) {
         setSelectedChat(null);
         return true;
       }
-
+      if (section !== 'all') {
+        setSection('all');
+        return true;
+      }
       const now = Date.now();
       if (now - lastBackPressRef.current < 2000) {
         BackHandler.exitApp();
         return true;
       }
-
       lastBackPressRef.current = now;
       ToastAndroid.show('Press back again to exit CloudComAI', ToastAndroid.SHORT);
       return true;
     });
-
     return () => subscription.remove();
-  }, [selectedChat]);
+  }, [selectedChat, section]);
 
   const logout = async () => {
     await sessionManager.clearSession();
     onLogout();
   };
+  const openMenu = initialScreen => {
+    setMenuInitialScreen(initialScreen || 'menu');
+    setMenuVisible(true);
+  };
+  const openChatFromNotification = async chatId => {
+    try {
+      const [{ data: privateData }, { data: groupData }] = await Promise.all([
+        platformApi.listChats('private'),
+        platformApi.listChats('group'),
+      ]);
+      const target = [
+        ...normalizeChats(privateData.chats, false),
+        ...normalizeChats(groupData.chats, true),
+      ].find(item => Number(item.id) === Number(chatId));
+      if (target) {
+        setSection(target.isGroup ? 'groups' : 'private');
+        setSelectedChat(target);
+      }
+    } catch (e) {
+      setError(e.message || 'Unable to open notification chat.');
+    }
+  };
 
   if (selectedChat) return <ChatDetail key={selectedChat.id} chat={selectedChat} user={session.user} onBack={() => setSelectedChat(null)} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
+  const filteredChats = searchText.trim()
+    ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
+    : chats;
+  const navItems = [['all','Chats','💬'],['contacts','Contacts','👥'],['notifications','Alerts','🔔'],['groups','Groups','👪'],['more','More','•••']];
+  const topTabs = [['all','All Chats'],['private','Private'],['groups','Groups'],['contacts','Contacts']];
+
   return (
-    <SafeAreaView style={styles.appPage} edges={['top', 'bottom', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor="#3157d5" />
-      <View style={styles.header}>
-        <View style={styles.headerIdentity}><Text style={styles.headerTitle} numberOfLines={1}>CloudComAI</Text><Text style={styles.headerUser} numberOfLines={1}>{session.user?.name || 'Authorized user'}</Text></View>
-        <View style={styles.headerActions}>
-          <Pressable onPress={onSettings}><Text style={styles.logout}>Settings</Text></Pressable>
-          <Pressable onPress={() => setMenuVisible(true)}><Text style={styles.logout}>Menu</Text></Pressable>
+    <SafeAreaView style={styles.mobileHome} edges={['top', 'bottom', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <View style={styles.mobileTopBar}>
+        <Pressable style={styles.topIconButton} onPress={() => openMenu('menu')}><Text style={styles.topIconText}>☰</Text></Pressable>
+        <View style={styles.mobileBrand}><Image source={require('./assets/app-icon.png')} style={styles.mobileBrandIcon} resizeMode="contain" /><Text style={styles.mobileBrandText}>CloudComAI</Text></View>
+        <View style={styles.mobileTopActions}>
+          <Pressable style={styles.topIconButton} onPress={() => { setSearchOpen(value => !value); setSearchText(''); }}><Text style={styles.topIconText}>⌕</Text></Pressable>
+          <Pressable style={styles.topIconButton} onPress={() => setSection('notifications')}><Text style={styles.topIconText}>🔔</Text></Pressable>
         </View>
       </View>
-      <View style={styles.tabs}>
-        {['private', 'group'].map(value => <Pressable key={value} style={[styles.tab, tab === value && styles.activeTab]} onPress={() => setTab(value)}><Text style={[styles.tabText, tab === value && styles.activeTabText]}>{value === 'private' ? 'Chats' : 'Groups'}</Text></Pressable>)}
+      {searchOpen ? <View style={styles.mobileSearchWrap}><TextInput style={styles.mobileSearchInput} value={searchText} onChangeText={setSearchText} autoFocus placeholder="Search conversations" placeholderTextColor="#8a94a6" /></View> : null}
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActions}>
+        <Pressable style={styles.quickAction} onPress={() => openMenu('private')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>＋</Text></View><Text style={styles.quickLabel}>New Chat</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => openMenu('group')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👪</Text></View><Text style={styles.quickLabel}>New Group</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👥</Text></View><Text style={styles.quickLabel}>Contacts</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => openMenu('menu')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>▥</Text></View><Text style={styles.quickLabel}>Polls</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={onSettings}><View style={styles.quickCircle}><Text style={styles.quickIcon}>⚙</Text></View><Text style={styles.quickLabel}>Settings</Text></Pressable>
+      </ScrollView>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryTabs}>
+        {topTabs.map(([value,label]) => <Pressable key={value} style={[styles.categoryTab, section === value && styles.categoryTabActive]} onPress={() => { setSection(value); setSearchText(''); }}><Text style={[styles.categoryTabText, section === value && styles.categoryTabTextActive]}>{label}</Text></Pressable>)}
+        <Pressable style={styles.categoryTab} onPress={() => openMenu('menu')}><Text style={styles.categoryTabText}>More</Text></Pressable>
+      </ScrollView>
+
+      <View style={styles.mobileContent}>
+        {section === 'contacts' ? <ContactsList onOpenChat={chat => { setSection('private'); setSelectedChat(chat); }} />
+          : section === 'notifications' ? <NotificationsList onOpenChat={openChatFromNotification} />
+          : <>
+            {error ? <Text style={styles.listError}>{error}</Text> : null}
+            {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : <FlatList
+              data={filteredChats}
+              keyExtractor={item => `${item.isGroup ? 'g' : 'p'}-${item.id}`}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadChats(true)} />}
+              contentContainerStyle={filteredChats.length ? styles.mobileChatList : styles.emptyList}
+              ListEmptyComponent={<Text style={styles.emptyText}>No conversations found.</Text>}
+              renderItem={({ item }) => {
+                const imageId = item.isGroup ? item.id : (item.other_user_id || item.id);
+                const title = item.name || 'Conversation';
+                return <Pressable onPress={() => setSelectedChat(item)} style={styles.mobileChatRow}>
+                  <View style={styles.mobileAvatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId) }} style={styles.mobileAvatarImage} /><View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View></View>
+                  <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={styles.mobileChatName}>{title}</Text><Text numberOfLines={1} style={styles.mobilePreview}>{item.preview || (item.isGroup ? 'Group conversation' : 'No messages yet')}</Text></View>
+                  <View style={styles.mobileChatRight}><Text style={styles.mobileTime}>{compactTime(item.last_message_at || item.created_at)}</Text>{Number(item.unread || 0) > 0 ? <View style={styles.mobileUnread}><Text style={styles.mobileUnreadText}>{Number(item.unread) > 99 ? '99+' : item.unread}</Text></View> : null}</View>
+                </Pressable>;
+              }}
+            />}
+          </>}
       </View>
-      {error ? <Text style={styles.listError}>{error}</Text> : null}
-      {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : (
-        <FlatList
-          data={chats}
-          keyExtractor={item => String(item.id)}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadChats(true)} />}
-          contentContainerStyle={chats.length ? styles.list : styles.emptyList}
-          ListEmptyComponent={<Text style={styles.emptyText}>No {tab === 'group' ? 'groups' : 'conversations'} found.</Text>}
-          renderItem={({ item }) => {
-            const imageId = item.isGroup ? item.id : (item.other_user_id || item.id);
-            return <Pressable onPress={() => setSelectedChat(item)} style={styles.chatRow}><View style={styles.avatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId) }} style={styles.avatarImage} /><View style={styles.avatarFallback}><Text style={styles.avatarText}>{item.name?.[0]?.toUpperCase() || 'C'}</Text></View></View><View style={styles.chatMeta}><Text style={styles.chatName}>{item.name || 'Conversation'}</Text><Text numberOfLines={1} style={styles.preview}>{item.preview || 'No messages yet'}</Text></View>{item.unread > 0 ? <View style={styles.unread}><Text style={styles.unreadText}>{item.unread}</Text></View> : null}</Pressable>;
-          }}
-        />
-      )}
+
+      {section !== 'notifications' && section !== 'contacts' ? <Pressable style={styles.floatingChatButton} onPress={() => openMenu(section === 'groups' ? 'group' : 'private')}><Text style={styles.floatingChatIcon}>💬</Text></Pressable> : null}
+
+      <View style={styles.bottomNav}>
+        {navItems.map(([value,label,icon]) => {
+          const active = (value === 'all' && (section === 'all' || section === 'private')) || section === value;
+          return <Pressable key={value} style={styles.bottomNavItem} onPress={() => value === 'more' ? openMenu('menu') : setSection(value)}><Text style={[styles.bottomNavIcon, active && styles.bottomNavIconActive]}>{icon}</Text><Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>{label}</Text></Pressable>;
+        })}
+      </View>
+
       <MobileMenu
         visible={menuVisible}
+        initialScreen={menuInitialScreen}
+        user={session.user}
         onClose={() => setMenuVisible(false)}
         onOpenNotificationSettings={onSettings}
         onLogout={logout}
-        onChatCreated={chat => {
-          setMenuVisible(false);
-          setTab('private');
-          setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id))]);
-          setSelectedChat(chat);
-        }}
-        onGroupCreated={group => {
-          setMenuVisible(false);
-          setTab('group');
-          setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id))]);
-          setSelectedChat(group);
-        }}
+        onProfileUpdated={onProfileUpdated}
+        onChatCreated={chat => { setMenuVisible(false); setSection('private'); setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id) || item.isGroup)]); setSelectedChat(chat); }}
+        onGroupCreated={group => { setMenuVisible(false); setSection('groups'); setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id) || !item.isGroup)]); setSelectedChat(group); }}
       />
     </SafeAreaView>
   );
 }
 
+function compactTime(value) {
+  if (!value) return '';
+  const normalized = String(value).includes('T') ? String(value) : String(value).replace(' ', 'T');
+  const date = new Date(normalized.endsWith('Z') ? normalized : `${normalized}Z`);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
 function AppContent() {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState(null);
@@ -592,7 +723,17 @@ function AppContent() {
   if (!session) return <AuthScreen onAuthenticated={setSession} />;
   if (showPrivacySettings) return <PrivacySettings onBack={() => setShowPrivacySettings(false)} />;
   if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
-  return <ChatsScreen session={session} onLogout={() => setSession(null)} onSettings={() => setShowNotificationSettings(true)} initialChatId={initialChatId} />;
+  return <ChatsScreen
+    session={session}
+    onLogout={() => setSession(null)}
+    onSettings={() => setShowNotificationSettings(true)}
+    initialChatId={initialChatId}
+    onProfileUpdated={async user => {
+      const next = { ...session, user };
+      await sessionManager.setSession(next);
+      setSession(next);
+    }}
+  />;
 }
 
 export default function App() {
@@ -605,12 +746,54 @@ export default function App() {
 
 const styles = StyleSheet.create({
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
-  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
+  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
   input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
-  appPage: { flex: 1, backgroundColor: '#f5f7fb' }, chatKeyboard: { flex: 1 }, header: { paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' }, headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', flexShrink: 1 }, headerUser: { marginTop: 2, color: '#dbe4ff', fontSize: 12 }, logout: { color: '#fff', fontWeight: '700' }, back: { color: '#fff', fontWeight: '700', width: 54 }, deleteChat: { color: '#fee2e2', fontWeight: '700', textAlign: 'right', minWidth: 54 }, tabs: { flexDirection: 'row', padding: 8, margin: 14, borderRadius: 12, backgroundColor: '#e5eaf4' }, tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 }, activeTab: { backgroundColor: '#fff' }, tabText: { color: '#69758b', fontWeight: '700' }, activeTabText: { color: '#3157d5' },
+  mobileHome: { flex: 1, backgroundColor: '#fff' },
+  mobileTopBar: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
+  topIconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  topIconText: { color: '#172033', fontSize: 24, fontWeight: '700' },
+  mobileBrand: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 4 },
+  mobileBrandIcon: { width: 34, height: 34, marginRight: 8 },
+  mobileBrandText: { color: '#172033', fontSize: 21, fontWeight: '900' },
+  mobileTopActions: { flexDirection: 'row', gap: 2 },
+  mobileSearchWrap: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' },
+  mobileSearchInput: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#f2f5fa', color: '#172033' },
+  quickActions: { paddingHorizontal: 12, paddingVertical: 12, gap: 14, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  quickAction: { width: 68, alignItems: 'center' },
+  quickCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#dbe4ff', backgroundColor: '#f8faff' },
+  quickIcon: { fontSize: 21, color: '#3157d5', fontWeight: '800' },
+  quickLabel: { marginTop: 5, color: '#4b5563', fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  categoryTabs: { minHeight: 54, paddingHorizontal: 10, alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  categoryTab: { minHeight: 38, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  categoryTabActive: { backgroundColor: '#eef2ff' },
+  categoryTabText: { color: '#596579', fontSize: 12, fontWeight: '700' },
+  categoryTabTextActive: { color: '#3157d5' },
+  mobileContent: { flex: 1, backgroundColor: '#fff' },
+  mobileChatList: { paddingBottom: 96 },
+  mobileChatRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
+  mobileAvatar: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff' },
+  mobileAvatarImage: { ...StyleSheet.absoluteFillObject, width: 50, height: 50, zIndex: 2 },
+  mobileAvatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  mobileAvatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' },
+  mobileChatMeta: { flex: 1, minWidth: 0, marginLeft: 12 },
+  mobileChatName: { color: '#111827', fontSize: 16, fontWeight: '800' },
+  mobilePreview: { marginTop: 4, color: '#667085', fontSize: 13 },
+  mobileChatRight: { minWidth: 58, alignItems: 'flex-end', justifyContent: 'center', marginLeft: 8 },
+  mobileTime: { color: '#667085', fontSize: 10 },
+  mobileUnread: { minWidth: 23, height: 23, paddingHorizontal: 6, marginTop: 7, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' },
+  mobileUnreadText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  floatingChatButton: { position: 'absolute', right: 20, bottom: 88, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5', elevation: 8, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8 },
+  floatingChatIcon: { fontSize: 24 },
+  bottomNav: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#e5e7eb', backgroundColor: '#fff' },
+  bottomNavItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
+  bottomNavIcon: { color: '#4b5563', fontSize: 18, fontWeight: '700' },
+  bottomNavIconActive: { color: '#3157d5' },
+  bottomNavLabel: { marginTop: 3, color: '#4b5563', fontSize: 10, fontWeight: '600' },
+  bottomNavLabelActive: { color: '#3157d5', fontWeight: '800' },
+    appPage: { flex: 1, backgroundColor: '#f5f7fb' }, chatKeyboard: { flex: 1 }, header: { paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' }, headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', flexShrink: 1 }, headerUser: { marginTop: 2, color: '#dbe4ff', fontSize: 12 }, logout: { color: '#fff', fontWeight: '700' }, back: { color: '#fff', fontWeight: '700', width: 54 }, deleteChat: { color: '#fee2e2', fontWeight: '700', textAlign: 'right', minWidth: 54 }, tabs: { flexDirection: 'row', padding: 8, margin: 14, borderRadius: 12, backgroundColor: '#e5eaf4' }, tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 }, activeTab: { backgroundColor: '#fff' }, tabText: { color: '#69758b', fontWeight: '700' }, activeTabText: { color: '#3157d5' },
   loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, minHeight: 64, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, attachButton: { minHeight: 46, width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4', flexShrink: 0 }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 46, minWidth: 64, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5', flexShrink: 0 }, sendText: { color: '#fff', fontWeight: '700' },
 });

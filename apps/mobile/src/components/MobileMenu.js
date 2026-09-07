@@ -30,10 +30,13 @@ const ScreenHeader = ({ title, onBack, onClose }) => (
 
 export default function MobileMenu({
   visible,
+  initialScreen = 'menu',
+  user,
   onClose,
   onChatCreated,
   onGroupCreated,
   onOpenNotificationSettings,
+  onProfileUpdated,
   onLogout,
 }) {
   const [screen, setScreen] = useState('menu');
@@ -56,9 +59,17 @@ export default function MobileMenu({
   const [pollOptionB, setPollOptionB] = useState('');
 
   const [googleStatus, setGoogleStatus] = useState(null);
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profileDob, setProfileDob] = useState(user?.dob || '');
+  const [profileGender, setProfileGender] = useState(user?.gender || 'Male');
 
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      setScreen(initialScreen || 'menu');
+      setProfileName(user?.name || '');
+      setProfileDob(user?.dob || '');
+      setProfileGender(user?.gender || 'Male');
+    } else {
       setScreen('menu');
       setError('');
       setBusy(false);
@@ -234,6 +245,27 @@ export default function MobileMenu({
     }
   };
 
+  const saveProfile = async () => {
+    if (!profileName.trim() || !profileDob.trim() || busy) return;
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.updateProfile({
+        name: profileName.trim(),
+        dob: profileDob.trim(),
+        gender: profileGender,
+      });
+      if (data.user) {
+        onProfileUpdated?.(data.user);
+        Alert.alert('Profile updated', 'Your profile changes were saved.');
+        setScreen('menu');
+      }
+    } catch (e) {
+      setError(e.message || 'Unable to update profile.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const body = () => {
     if (screen === 'private') return (
       <>
@@ -324,10 +356,41 @@ export default function MobileMenu({
       </>
     );
 
+    if (screen === 'profile') return (
+      <>
+        <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={styles.label}>Full name</Text>
+          <TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" />
+          <Text style={styles.label}>CloudComAI User ID</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.user_id ? `@${user.user_id}` : 'Not set'}</Text></View>
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.email || 'Not set'}</Text></View>
+          <Text style={styles.label}>Mobile</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.mobile || 'Not set'}</Text></View>
+          <Text style={styles.label}>Date of birth</Text>
+          <TextInput style={styles.input} value={profileDob} onChangeText={setProfileDob} placeholder="YYYY-MM-DD" autoCapitalize="none" />
+          <Text style={styles.label}>Gender</Text>
+          <View style={styles.chips}>
+            {['Male', 'Female'].map(value => (
+              <Pressable key={value} style={[styles.chip, profileGender === value && styles.chipActive]} onPress={() => setProfileGender(value)}>
+                <Text style={[styles.chipText, profileGender === value && styles.chipTextActive]}>{value}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={styles.primary} onPress={saveProfile}><Text style={styles.primaryText}>Save profile</Text></Pressable>
+        </ScrollView>
+      </>
+    );
+
     if (screen === 'settings') return (
       <>
         <ScreenHeader title="Settings" onBack={() => go('menu')} onClose={onClose} />
         <View style={styles.content}>
+          <Pressable style={styles.menuItem} onPress={() => go('profile')}>
+            <Text style={styles.menuTitle}>Profile</Text>
+            <Text style={styles.menuSub}>Name, date of birth and account information</Text>
+          </Pressable>
           <Pressable style={styles.menuItem} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
             <Text style={styles.menuTitle}>Privacy, account & notifications</Text>
             <Text style={styles.menuSub}>Push notification preferences</Text>
@@ -348,6 +411,7 @@ export default function MobileMenu({
         <ScreenHeader title="CloudComAI Menu" onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content}>
           {[
+            ['Profile', 'View and edit your CloudComAI profile', () => go('profile')],
             ['Start private chat', 'Search users and begin a direct conversation', () => go('private')],
             ['Create group', 'Create a new CloudComAI group', () => go('group')],
             ['Preferences', 'Edit your interests and preferences', loadPreferences],
@@ -405,6 +469,8 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#3157d5' },
   busy: { position: 'absolute', right: 18, bottom: 18, width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', elevation: 5 },
   error: { margin: 16, marginTop: 0, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' },
+  readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
+  readOnlyText: { color: '#64748b' },
   dangerItem: { borderColor: '#fecaca' },
   dangerText: { color: '#b91c1c', fontWeight: '800' },
 });
