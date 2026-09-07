@@ -29,6 +29,7 @@ export const ApiRoute = Object.freeze({
   DEVICE_TOKEN: 'v1/notifications/device-token',
   NOTIFICATIONS: 'v1/notifications',
   NOTIFICATIONS_READ: 'v1/notifications/read',
+  CHAT_NOTIFICATION_STATE: 'v1/notifications/chat-state',
   SCREENSHOT_EVENT: 'v1/security/screenshot',
   HEALTH: 'v1/health',
   CALLS: 'v1/calls',

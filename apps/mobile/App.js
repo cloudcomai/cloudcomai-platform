@@ -215,8 +215,10 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [searchStatus, setSearchStatus] = useState('');
   const [replyTo, setReplyTo] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
   const [groupManagementOpen, setGroupManagementOpen] = useState(false);
   const [groupName, setGroupName] = useState(chat.name || 'Group');
+  const [muted, setMuted] = useState(Boolean(chat.notifications_muted));
   const searchActive = searchOpen && query.trim().length > 0;
 
   useEffect(() => {
@@ -395,7 +397,10 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
       <View style={styles.header}>
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
-        {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
+        <View style={styles.chatHeaderActions}>
+          <Pressable onPress={async () => { const next = !muted; try { await platformApi.updateChatNotificationState(chat.id, { muted: next }); setMuted(next); } catch (e) { setError(e.message || 'Unable to update mute setting.'); } }}><Text style={styles.headerActionText}>{muted ? '🔕' : '🔔'}</Text></Pressable>
+          {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
+        </View>
       </View>
       <View style={styles.searchRow}><Pressable onPress={() => { setSearchOpen(value => !value); setQuery(''); }}><Text style={styles.searchLink}>{searchOpen ? 'Close search' : 'Search messages'}</Text></Pressable>{chat.blocked && <Text style={styles.error}>Contact blocked</Text>}</View>
       {searchOpen && <View style={styles.searchBox}><TextInput style={styles.input} value={query} onChangeText={setQuery} maxLength={120} autoFocus placeholder="Search messages and filenames" />{searchActive && <Text>{searchStatus}</Text>}</View>}
@@ -412,17 +417,18 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
           renderItem={({ item }) => {
             const mine = Number(item.sender_id) === Number(user.id);
-            return <View style={[styles.messageBubble, mine && styles.myMessage]}>
+            const selected = Number(selectedMessage?.id) === Number(item.id);
+            return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, selected && styles.selectedMessage]}>
               {chat.isGroup && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <View style={styles.replyPreview}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
               <MediaMessage message={item} autoDownload={privacy.media_auto_download} />
               <Text style={styles.messageTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
-              <View style={styles.messageActions}>
-                <Pressable onPress={() => { setReplyTo(item); setEditing(null); setComposer(''); }}><Text style={styles.messageActionText}>Reply</Text></Pressable>
-                {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); }}><Text style={styles.messageActionText}>Edit</Text></Pressable> : null}
-                <Pressable onPress={() => deleteMessage(item)}><Text style={styles.messageActionText}>Delete</Text></Pressable>
-              </View>
-            </View>;
+              {selected ? <View style={styles.messageActions}>
+                <Pressable onPress={() => { setReplyTo(item); setEditing(null); setComposer(''); setSelectedMessage(null); }}><Text style={styles.messageActionText}>↩ Reply</Text></Pressable>
+                {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}><Text style={styles.messageActionText}>Edit</Text></Pressable> : null}
+                <Pressable onPress={() => { setSelectedMessage(null); deleteMessage(item); }}><Text style={[styles.messageActionText, styles.messageDeleteAction]}>🗑 Delete</Text></Pressable>
+              </View> : null}
+            </Pressable>;
           }}
         />
       )}
@@ -599,7 +605,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
       </View>
       {searchOpen ? <View style={styles.mobileSearchWrap}><TextInput style={styles.mobileSearchInput} value={searchText} onChangeText={setSearchText} autoFocus placeholder="Search conversations" placeholderTextColor="#8a94a6" /></View> : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActions}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalStrip} contentContainerStyle={styles.quickActions}>
         <Pressable style={styles.quickAction} onPress={() => openMenu('private')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>＋</Text></View><Text style={styles.quickLabel}>New Chat</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => openMenu('group')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👪</Text></View><Text style={styles.quickLabel}>New Group</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👥</Text></View><Text style={styles.quickLabel}>Contacts</Text></Pressable>
@@ -607,7 +613,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
         <Pressable style={styles.quickAction} onPress={onSettings}><View style={styles.quickCircle}><Text style={styles.quickIcon}>⚙</Text></View><Text style={styles.quickLabel}>Settings</Text></Pressable>
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryTabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryStrip} contentContainerStyle={styles.categoryTabs}>
         {topTabs.map(([value,label]) => <Pressable key={value} style={[styles.categoryTab, section === value && styles.categoryTabActive]} onPress={() => { setSection(value); setSearchText(''); }}><Text style={[styles.categoryTabText, section === value && styles.categoryTabTextActive]}>{label}</Text></Pressable>)}
         <Pressable style={styles.categoryTab} onPress={() => openMenu('menu')}><Text style={styles.categoryTabText}>More</Text></Pressable>
       </ScrollView>
@@ -746,7 +752,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
-  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
+  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, messageDeleteAction: { color: '#b91c1c' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
@@ -762,12 +768,14 @@ const styles = StyleSheet.create({
   mobileTopActions: { flexDirection: 'row', gap: 2 },
   mobileSearchWrap: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' },
   mobileSearchInput: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#f2f5fa', color: '#172033' },
-  quickActions: { paddingHorizontal: 12, paddingVertical: 12, gap: 14, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  horizontalStrip: { flexGrow: 0, flexShrink: 0, height: 112, backgroundColor: '#fff' },
+  quickActions: { height: 112, paddingHorizontal: 12, paddingVertical: 12, gap: 14, alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   quickAction: { width: 68, alignItems: 'center' },
   quickCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#dbe4ff', backgroundColor: '#f8faff' },
   quickIcon: { fontSize: 21, color: '#3157d5', fontWeight: '800' },
   quickLabel: { marginTop: 5, color: '#4b5563', fontSize: 11, fontWeight: '600', textAlign: 'center' },
-  categoryTabs: { minHeight: 54, paddingHorizontal: 10, alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  categoryStrip: { flexGrow: 0, flexShrink: 0, height: 54, backgroundColor: '#fff' },
+  categoryTabs: { height: 54, paddingHorizontal: 10, alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   categoryTab: { minHeight: 38, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   categoryTabActive: { backgroundColor: '#eef2ff' },
   categoryTabText: { color: '#596579', fontSize: 12, fontWeight: '700' },
@@ -795,5 +803,5 @@ const styles = StyleSheet.create({
   bottomNavLabel: { marginTop: 3, color: '#4b5563', fontSize: 10, fontWeight: '600' },
   bottomNavLabelActive: { color: '#3157d5', fontWeight: '800' },
     appPage: { flex: 1, backgroundColor: '#f5f7fb' }, chatKeyboard: { flex: 1 }, header: { paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' }, headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', flexShrink: 1 }, headerUser: { marginTop: 2, color: '#dbe4ff', fontSize: 12 }, logout: { color: '#fff', fontWeight: '700' }, back: { color: '#fff', fontWeight: '700', width: 54 }, deleteChat: { color: '#fee2e2', fontWeight: '700', textAlign: 'right', minWidth: 54 }, tabs: { flexDirection: 'row', padding: 8, margin: 14, borderRadius: 12, backgroundColor: '#e5eaf4' }, tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 }, activeTab: { backgroundColor: '#fff' }, tabText: { color: '#69758b', fontWeight: '700' }, activeTabText: { color: '#3157d5' },
-  loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, minHeight: 64, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, attachButton: { minHeight: 46, width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4', flexShrink: 0 }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 46, minWidth: 64, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5', flexShrink: 0 }, sendText: { color: '#fff', fontWeight: '700' },
+  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerActionText: { fontSize: 18 }, loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, minHeight: 64, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, attachButton: { minHeight: 46, width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4', flexShrink: 0 }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 46, minWidth: 64, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5', flexShrink: 0 }, sendText: { color: '#fff', fontWeight: '700' },
 });

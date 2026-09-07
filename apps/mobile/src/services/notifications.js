@@ -22,7 +22,7 @@ Notifications.setNotificationHandler({
     const preferences = await getNotificationPreferences();
     const category = notification?.request?.content?.data?.category || 'system';
     const show = preferences.enabled && preferences[category] !== false;
-    return { shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: show, shouldShowList: show };
+    return { shouldPlaySound: show, shouldSetBadge: show, shouldShowBanner: show, shouldShowList: show };
   },
 });
 
@@ -31,7 +31,7 @@ export async function requestNotificationPermission() {
   if (!preferences.enabled) return null;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('messages', {
-      name: 'Messages', importance: Notifications.AndroidImportance.DEFAULT,
+      name: 'Messages', importance: Notifications.AndroidImportance.HIGH, sound: 'default', enableVibrate: true,
     });
   }
   const current = await Notifications.getPermissionsAsync();
@@ -55,4 +55,8 @@ export const subscribeToNotificationResponses = onResponse =>
 
 export async function getLastNotificationResponse() {
   return Notifications.getLastNotificationResponseAsync();
+}
+
+export async function setApplicationBadge(count) {
+  try { await Notifications.setBadgeCountAsync(Math.max(0, Number(count) || 0)); } catch {}
 }

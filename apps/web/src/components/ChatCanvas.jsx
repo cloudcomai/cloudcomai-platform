@@ -38,11 +38,15 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   const [searchStatus, setSearchStatus] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState(null);
+  const [chatMuted, setChatMuted] = useState(Boolean(selectedChat?.notifications_muted));
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
 
   useEffect(() => {
-    setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null);
+    setChatMuted(Boolean(selectedChat?.notifications_muted));
+    if (selectedChat?.id) apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, mark_read: true }) }).catch(() => {});
+    setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null); setSelectedMessageId(null);
     shouldAutoScrollRef.current = true;
   }, [selectedChat?.id]);
 
@@ -163,6 +167,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
             {selectedChat && <button className="action-utility-btn" style={{ color: '#ef4444' }} onClick={() => onDeleteChat(selectedChat)}><Trash2 size={18}/><span>Delete Chat</span></button>}
           </>}
 
+          {selectedChat && <button className="action-utility-btn" onClick={async () => { const next = !chatMuted; try { await apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, muted: next }) }); setChatMuted(next); } catch (error) { alert(error.message || 'Unable to update mute setting.'); } }}><span>{chatMuted ? '🔕 Unmute' : '🔔 Mute'}</span></button>}
           <div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
         </div>
       </header>
@@ -192,7 +197,8 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
           const senderLabel = isGroup ? (isMine ? 'You' : (msg.sender_name || 'Member')) : null;
           const attachmentIsImage = isAttachment && String(msg.attachment.mime_type || '').startsWith('image/');
 
-          return <div key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'}`}>
+          const selected = Number(selectedMessageId) === Number(msg.id);
+          return <div key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'} ${selected ? 'message-selected' : ''}`} onClick={() => setSelectedMessageId(current => Number(current) === Number(msg.id) ? null : msg.id)}>
             {isPoll ? <div className="poll-bubble-card" style={pollCardStyle}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
@@ -227,7 +233,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
                 </div>
               </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : messageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
-              <div className="bubble-action-triggers"><button onClick={() => setReplyTo(msg)} title="Reply" aria-label="Reply"><Reply size={12} /></button>{isMine && msg.type === 'text' && <button onClick={() => { setEditing(msg); setComposer(messageContent); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /></button>}<button onClick={() => setDeleteTarget(msg)} title="Delete" aria-label="Delete message"><Trash2 size={12} /></button></div>
+              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => { setReplyTo(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button>{isMine && msg.type === 'text' && <button onClick={() => { setEditing(msg); setComposer(messageContent); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
             </div>}
           </div>;
         })}

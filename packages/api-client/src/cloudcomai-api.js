@@ -260,6 +260,17 @@ export class CloudComAiApi {
     return this.client.post(ApiRoute.NOTIFICATIONS_READ, input, options);
   }
 
+  getChatNotificationState(chatId, options = {}) {
+    return this.client.get(ApiRoute.CHAT_NOTIFICATION_STATE, {
+      ...options,
+      query: { ...options.query, chat_id: chatId },
+    });
+  }
+
+  updateChatNotificationState(chatId, input, options = {}) {
+    return this.client.post(ApiRoute.CHAT_NOTIFICATION_STATE, { chat_id: chatId, ...input }, options);
+  }
+
   reportScreenshot(chatId, options = {}) {
     return this.client.post(ApiRoute.SCREENSHOT_EVENT, { chat_id: chatId }, options);
   }

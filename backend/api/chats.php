@@ -18,6 +18,9 @@ if ($method === 'GET') {
             c.owner_id,
             c.retention_seconds,
             c.created_at,
+            COALESCE(cus.notifications_muted,0) AS notifications_muted,
+            COALESCE(cus.last_read_message_id,0) AS last_read_message_id,
+            SUM(CASE WHEN m.id > COALESCE(cus.last_read_message_id,0) AND m.sender_id <> cm.user_id THEN 1 ELSE 0 END) AS unread,
             MAX(m.created_at) AS last_message_at
         FROM chats c
         INNER JOIN chat_members cm ON cm.chat_id = c.id
@@ -40,7 +43,7 @@ if ($method === 'GET') {
     }
 
     $sql .= '
-        GROUP BY c.id, c.type, c.name, c.group_category, c.owner_id, c.retention_seconds, c.created_at, cus.hidden
+        GROUP BY c.id, c.type, c.name, c.group_category, c.owner_id, c.retention_seconds, c.created_at, cus.hidden, cus.notifications_muted, cus.last_read_message_id
         ORDER BY COALESCE(MAX(m.created_at), c.created_at) DESC
     ';
 
@@ -53,6 +56,8 @@ if ($method === 'GET') {
             $chat['id'] = (int)$chat['id'];
             $chat['owner_id'] = $chat['owner_id'] !== null ? (int)$chat['owner_id'] : null;
             $chat['isGroup'] = $chat['type'] === 'group';
+            $chat['unread'] = (int)($chat['unread'] ?? 0);
+            $chat['notifications_muted'] = (bool)($chat['notifications_muted'] ?? false);
 
             if ($chat['type'] === 'private') {
                 $other = $pdo->prepare('

@@ -34,6 +34,7 @@
     "v1/notifications/device-token": { "handler": "device_tokens.php", "methods": ["POST", "DELETE"], "auth": true },
     "v1/notifications": { "handler": "notifications.php", "methods": ["GET"], "auth": true },
     "v1/notifications/read": { "handler": "notifications_read.php", "methods": ["POST"], "auth": true },
+    "v1/notifications/chat-state": { "handler": "chat_notification_state.php", "methods": ["GET", "POST"], "auth": true },
     "v1/security/screenshot": { "handler": "screenshot_event.php", "methods": ["POST"], "auth": true },
     "v1/health": { "handler": "health.php", "methods": ["GET"], "auth": false },
     "v1/calls": { "handler": "calls.php", "methods": ["POST"], "auth": true },
