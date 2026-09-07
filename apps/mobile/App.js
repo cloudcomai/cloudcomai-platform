@@ -21,6 +21,10 @@ import {
 } from 'react-native';
 import { createPollingMessageTransport, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ScreenCapture from 'expo-screen-capture';
+import MediaMessage from './src/components/MediaMessage';
+import MediaComposer from './src/components/MediaComposer';
+import PrivacySettings from './src/components/PrivacySettings';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { API_BASE_URL, mediaUrl, platformApi, sessionManager } from './src/services/platform';
 import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
@@ -165,7 +169,8 @@ function AuthScreen({ onAuthenticated }) {
     </SafeAreaView>
   );
 }
-function ChatDetail({ chat, authToken, onBack, onDeleted }) {
+
+function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
   const [loading, setLoading] = useState(true);
@@ -175,22 +180,72 @@ function ChatDetail({ chat, authToken, onBack, onDeleted }) {
   const [error, setError] = useState('');
   const cursorRef = useRef(0);
   const listRef = useRef(null);
+  const atBottomRef = useRef(true);
+  const [privacy, setPrivacy] = useState({ media_auto_download: false });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [searchStatus, setSearchStatus] = useState('');
+  const searchActive = searchOpen && query.trim().length > 0;
+
+  useEffect(() => {
+    let active = true;
+    platformApi.getPrivacySettings().then(({ data }) => { if (active) setPrivacy(data.settings || {}); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    // Android 13 and older require broad gallery access for detection; do not request it solely for this feature.
+    if (Platform.OS !== 'ios' && !(Platform.OS === 'android' && Number(Platform.Version) >= 34)) return undefined;
+    let lastCapture = 0;
+    const subscription = ScreenCapture.addScreenshotListener(async () => {
+      if (AppState.currentState !== 'active' || chat.blocked || Date.now() - lastCapture < 10000) return;
+      lastCapture = Date.now();
+      try {
+        const { data } = await platformApi.reportScreenshot(chat.id);
+        Alert.alert('Screenshot detected', data.notified_users ? 'Chat participants with screenshot alerts enabled have been notified.' : 'Screenshot detected in this conversation.');
+      } catch { Alert.alert('Screenshot detected', 'Unable to notify participants.'); }
+    });
+    return () => subscription.remove();
+  }, [chat.id, chat.blocked]);
+
+  useEffect(() => {
+    if (!searchActive) return undefined;
+    let active = true;
+    const controller = new AbortController();
+    setSearchStatus('Searching…');
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await platformApi.searchMessages(chat.id, query.trim(), { signal: controller.signal });
+        if (active) { setResults(data.messages || []); setSearchStatus(`${data.messages?.length || 0} results (up to 100)`); }
+      } catch (error) { if (active) { setResults([]); setSearchStatus(error.message); } }
+    }, 300);
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
+  }, [chat.id, query, searchActive, messages]);
 
   useEffect(() => {
     cursorRef.current = 0;
     setMessages([]);
+    let syncedAt = '';
+    let syncFromId = 1;
+    const shownAlerts = new Set();
     const transport = createPollingMessageTransport({
       intervalMs: Number(process.env.EXPO_PUBLIC_MESSAGE_POLL_INTERVAL_MS || 3000),
       getCursor: () => cursorRef.current,
       fetchMessages: async (afterId, options) => {
-        const { data } = await platformApi.listMessages(chat.id, afterId, options);
-        return data.messages || [];
+        const { data } = await platformApi.listMessages(chat.id, afterId, { ...options, query: { sync_from_id: syncFromId, updated_after: syncedAt } });
+        if (!afterId && data.messages?.length) syncFromId = Number(data.messages[0].id);
+        syncedAt = data.synced_at || syncedAt;
+        return data;
       },
       onMessages: incoming => {
         setLoading(false);
+        for (const item of incoming.screenshot_alerts || []) {
+          if (!shownAlerts.has(item.id)) { shownAlerts.add(item.id); Alert.alert('Screenshot alert', item.body); }
+        }
         setMessages(current => {
           const result = mergeMessageBatch(current, incoming);
-          cursorRef.current = result.cursor;
+          cursorRef.current = (incoming.messages || incoming).reduce((max, item) => Math.max(max, Number(item.id || 0)), cursorRef.current);
           return result.changed ? result.messages : current;
         });
       },
@@ -205,9 +260,31 @@ function ChatDetail({ chat, authToken, onBack, onDeleted }) {
     return () => { subscription.remove(); transport.stop(); };
   }, [chat.id]);
 
+  const onMediaMessage = message => {
+    if (!message) return;
+    setMessages(current => {
+      const result = mergeMessageBatch(current, [message]);
+      return result.messages;
+    });
+  };
+  const deleteMessage = message => {
+    const remove = async scope => {
+      try {
+        await platformApi.deleteMessage(message.id, scope);
+        setMessages(current => mergeMessageBatch(current, [], [message.id]).messages);
+        setResults(current => current.filter(item => Number(item.id) !== Number(message.id)));
+      } catch (error) { Alert.alert('Unable to delete message', error.message); }
+    };
+    Alert.alert('Delete message?', 'Delete for me removes it only from your account.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete for me', onPress: () => remove('self') },
+      ...(Number(message.sender_id) === Number(user.id) ? [{ text: 'Delete for everyone', style: 'destructive', onPress: () => remove('everyone') }] : []),
+    ]);
+  };
+
   const sendMessage = async () => {
     const body = composer.trim();
-    if (!body || sending) return;
+    if (!body || sending || chat.blocked) return;
     setSending(true);
     setError('');
     try {
@@ -215,7 +292,6 @@ function ChatDetail({ chat, authToken, onBack, onDeleted }) {
       if (data.message) {
         setMessages(current => {
           const result = mergeMessageBatch(current, [data.message]);
-          cursorRef.current = result.cursor;
           return result.messages;
         });
       }
@@ -228,18 +304,20 @@ function ChatDetail({ chat, authToken, onBack, onDeleted }) {
   };
 
   const pickAttachment = async () => {
-    if (uploading) return;
-    const picked = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+    if (uploading || chat.blocked) return;
+    let picked;
+    try { picked = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true }); }
+    catch (error) { setError(error.message || 'Unable to open file picker.'); return; }
     if (picked.canceled || !picked.assets?.[0]) return;
     const asset = picked.assets[0];
-    if (asset.size && asset.size > 20 * 1024 * 1024) { setError('Attachments must be 20 MB or smaller.'); return; }
+    if (asset.size && asset.size > 25 * 1024 * 1024) { setError('Attachments must be 25 MB or smaller.'); return; }
     setUploading(true); setError('');
     try {
       const form = new FormData();
       form.append('chat_id', String(chat.id));
       form.append('file', { uri: asset.uri, name: asset.name || 'attachment', type: asset.mimeType || 'application/octet-stream' });
       const { data } = await platformApi.uploadAttachment(form);
-      if (data.message) setMessages(current => { const result = mergeMessageBatch(current, [data.message]); cursorRef.current = result.cursor; return result.messages; });
+      if (data.message) setMessages(current => mergeMessageBatch(current, [data.message]).messages);
     } catch (uploadError) { setError(uploadError.message || 'Unable to upload attachment.'); }
     finally { setUploading(false); }
   };
@@ -282,76 +360,39 @@ function ChatDetail({ chat, authToken, onBack, onDeleted }) {
         <Text style={styles.headerTitle} numberOfLines={1}>{chat.name || 'Conversation'}</Text>
         {chat.isGroup ? <View style={{ width: 54 }} /> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
       </View>
+      <View style={styles.searchRow}><Pressable onPress={() => { setSearchOpen(value => !value); setQuery(''); }}><Text style={styles.searchLink}>{searchOpen ? 'Close search' : 'Search messages'}</Text></Pressable>{chat.blocked && <Text style={styles.error}>Contact blocked</Text>}</View>
+      {searchOpen && <View style={styles.searchBox}><TextInput style={styles.input} value={query} onChangeText={setQuery} maxLength={120} autoFocus placeholder="Search messages and filenames" />{searchActive && <Text>{searchStatus}</Text>}</View>}
       {error ? <Text style={styles.listError}>{error}</Text> : null}
       {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : (
         <FlatList
           ref={listRef}
-          data={messages}
+          data={searchActive ? results : messages}
           keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.messageList}
-          onContentSizeChange={() => listRef.current?.scrollToEnd?.({ animated: false })}
+          onScroll={event => { const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent; atBottomRef.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 100; }}
+          scrollEventThrottle={100}
+          onContentSizeChange={() => { if (atBottomRef.current && !searchActive) listRef.current?.scrollToEnd?.({ animated: false }); }}
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
-          renderItem={({ item }) => {
-            const attachment = item.attachment || item.attachments?.[0] || null;
-            const isImage = attachment?.mime_type?.startsWith('image/');
-            const previewUrl = attachment?.id
-              ? `${API_BASE_URL}/v1/attachments?id=${encodeURIComponent(attachment.id)}&preview=1`
-              : '';
-            const body = item.body || item.text || '';
-
-            return (
-              <View style={[styles.messageBubble, item.mine && styles.myMessage]}>
-                {isImage && previewUrl ? (
-                  <Image
-                    source={{
-                      uri: previewUrl,
-                      headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
-                    }}
-                    style={styles.messageImage}
-                    resizeMode="cover"
-                  />
-                ) : null}
-                {body ? <Text style={styles.messageText}>{body}</Text> : null}
-                {!body && attachment && !isImage ? (
-                  <Text style={styles.attachmentLabel}>📎 {attachment.name || 'Attachment'}</Text>
-                ) : null}
-                <Text style={styles.messageTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}</Text>
-              </View>
-            );
-          }}
+          renderItem={({ item }) => <Pressable onLongPress={() => deleteMessage(item)} style={[styles.messageBubble, Number(item.sender_id) === Number(user.id) && styles.myMessage]}>{chat.isGroup && <Text style={styles.sender}>{item.sender_name || 'Member'}</Text>}<MediaMessage message={item} autoDownload={privacy.media_auto_download} /><Text style={styles.messageTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text><Pressable onPress={() => deleteMessage(item)}><Text style={styles.messageDelete}>Delete</Text></Pressable></Pressable>}
         />
       )}
-      <View style={styles.composer}>
-        <Pressable style={styles.attachButton} onPress={pickAttachment} disabled={uploading}>
-          <Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text>
-        </Pressable>
-        <TextInput
-          style={styles.composerInput}
-          value={composer}
-          onChangeText={setComposer}
-          placeholder="Type a message..."
-          placeholderTextColor="#7f8aa3"
-          multiline
-          onSubmitEditing={sendMessage}
-        />
-        <Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending}>
-          <Text style={styles.sendText}>Send</Text>
-        </Pressable>
-      </View>
+      <MediaComposer chat={chat} onMessage={onMediaMessage} />
+      <View style={styles.composer}><Pressable style={styles.attachButton} onPress={pickAttachment} disabled={uploading || chat.blocked}><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function NotificationSettings({ preferences, onBack, onChange }) {
+function NotificationSettings({ preferences, onBack, onChange, onPrivacy }) {
   const items = [['enabled', 'Push notifications'], ['message', 'Messages'], ['group', 'Groups'], ['attachment', 'Attachments'], ['system', 'System']];
   return (
     <SafeAreaView style={styles.appPage} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.header}>
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Back</Text></Pressable>
-        <Text style={styles.headerTitle}>Notifications</Text><View style={{ width: 54 }} />
+        <Text style={styles.headerTitle}>Settings</Text><View style={{ width: 54 }} />
       </View>
       <View style={styles.settingsCard}>
+        <Pressable onPress={onPrivacy} style={styles.settingRow}><Text style={styles.settingLabel}>Privacy & Account</Text><Text>›</Text></Pressable>
         <Text style={styles.settingsIntro}>Choose which notifications this device can receive.</Text>
         {items.map(([key, label]) => <View key={key} style={styles.settingRow}>
           <Text style={styles.settingLabel}>{label}</Text>
@@ -421,7 +462,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId }) {
     onLogout();
   };
 
-  if (selectedChat) return <ChatDetail chat={selectedChat} authToken={session.token} onBack={() => setSelectedChat(null)} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail key={selectedChat.id} chat={selectedChat} user={session.user} onBack={() => setSelectedChat(null)} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   return (
     <SafeAreaView style={styles.appPage} edges={['top', 'bottom', 'left', 'right']}>
@@ -429,7 +470,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId }) {
       <View style={styles.header}>
         <View style={styles.headerIdentity}><Text style={styles.headerTitle} numberOfLines={1}>CloudComAI</Text><Text style={styles.headerUser} numberOfLines={1}>{session.user?.name || 'Authorized user'}</Text></View>
         <View style={styles.headerActions}>
-          <Pressable onPress={onSettings}><Text style={styles.logout}>Alerts</Text></Pressable>
+          <Pressable onPress={onSettings}><Text style={styles.logout}>Settings</Text></Pressable>
           <Pressable onPress={() => setMenuVisible(true)}><Text style={styles.logout}>Menu</Text></Pressable>
         </View>
       </View>
@@ -477,6 +518,7 @@ function AppContent() {
   const [session, setSession] = useState(null);
   const [notificationPreferences, setNotificationPreferencesState] = useState(null);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [showPrivacySettings, setShowPrivacySettings] = useState(false);
   const [initialChatId, setInitialChatId] = useState(null);
 
   useEffect(() => {
@@ -486,13 +528,14 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'android' || !showNotificationSettings) return undefined;
+    if (Platform.OS !== 'android' || (!showNotificationSettings && !showPrivacySettings)) return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      setShowNotificationSettings(false);
+      if (showPrivacySettings) setShowPrivacySettings(false);
+      else setShowNotificationSettings(false);
       return true;
     });
     return () => subscription.remove();
-  }, [showNotificationSettings]);
+  }, [showNotificationSettings, showPrivacySettings]);
 
   useEffect(() => {
     if (session && notificationPreferences) {
@@ -506,7 +549,7 @@ function AppContent() {
   useEffect(() => {
     const openResponse = response => {
       const chatId = response?.notification?.request?.content?.data?.chat_id;
-      if (chatId) { setInitialChatId(Number(chatId)); setShowNotificationSettings(false); }
+      if (chatId) { setInitialChatId(Number(chatId)); setShowNotificationSettings(false); setShowPrivacySettings(false); }
     };
     getLastNotificationResponse().then(openResponse).catch(() => null);
     const subscription = subscribeToNotificationResponses(openResponse);
@@ -515,7 +558,8 @@ function AppContent() {
 
   if (!ready) return <SafeAreaView style={styles.splash} edges={['top', 'bottom', 'left', 'right']}><Image source={require('./assets/splash-logo.png')} style={styles.splashLogo} resizeMode="contain" /><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></SafeAreaView>;
   if (!session) return <AuthScreen onAuthenticated={setSession} />;
-  if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
+  if (showPrivacySettings) return <PrivacySettings onBack={() => setShowPrivacySettings(false)} />;
+  if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
   return <ChatsScreen session={session} onLogout={() => setSession(null)} onSettings={() => setShowNotificationSettings(true)} initialChatId={initialChatId} />;
 }
 
@@ -528,6 +572,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },

@@ -25,6 +25,7 @@ if ($method === 'GET') {
         LEFT JOIN messages m ON m.chat_id = c.id
           AND m.id > COALESCE(cus.cleared_through_message_id, 0)
           AND m.deleted_for_everyone = 0
+          AND NOT EXISTS (SELECT 1 FROM message_user_states mus WHERE mus.message_id=m.id AND mus.user_id=cm.user_id AND mus.hidden=1)
           AND (m.expires_at IS NULL OR m.expires_at > UTC_TIMESTAMP())
         WHERE cm.user_id = ?
           AND cm.status = "active"
@@ -56,16 +57,26 @@ if ($method === 'GET') {
             if ($chat['type'] === 'private') {
                 $other = $pdo->prepare('
                     SELECT u.id, u.name, u.user_id, u.updated_at,
-                           CASE WHEN u.updated_at IS NOT NULL AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND THEN 1 ELSE 0 END AS online
+                           CASE WHEN u.updated_at IS NOT NULL
+                                  AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
+                                  AND COALESCE(ups.hide_online_status,0)=0
+                                  AND blocked_by_me.user_id IS NULL
+                                  AND blocked_me.user_id IS NULL
+                                THEN 1 ELSE 0 END AS online,
+                           CASE WHEN blocked_by_me.user_id IS NULL THEN 0 ELSE 1 END AS blocked_by_me,
+                           CASE WHEN blocked_me.user_id IS NULL THEN 0 ELSE 1 END AS blocked_me
                     FROM chat_members cm
                     INNER JOIN users u ON u.id = cm.user_id
+                    LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
+                    LEFT JOIN user_blocks blocked_by_me ON blocked_by_me.user_id=? AND blocked_by_me.blocked_user_id=u.id
+                    LEFT JOIN user_blocks blocked_me ON blocked_me.user_id=u.id AND blocked_me.blocked_user_id=?
                     WHERE cm.chat_id = ?
                       AND cm.user_id <> ?
                       AND cm.status = "active"
                     ORDER BY u.id ASC
                     LIMIT 1
                 ');
-                $other->execute([$chat['id'], $user['id']]);
+                $other->execute([$user['id'], $user['id'], $chat['id'], $user['id']]);
                 $participant = $other->fetch();
                 if ($participant) {
                     $chat['other_user_id'] = (int)$participant['id'];
@@ -74,6 +85,9 @@ if ($method === 'GET') {
                     $chat['name'] = $participant['name'];
                     $chat['online'] = (bool)$participant['online'];
                     $chat['other_user_online'] = (bool)$participant['online'];
+                    $chat['blocked_by_me'] = (bool)$participant['blocked_by_me'];
+                    $chat['blocked_me'] = (bool)$participant['blocked_me'];
+                    $chat['blocked'] = $chat['blocked_by_me'] || $chat['blocked_me'];
                 }
             }
         }
@@ -95,7 +109,8 @@ if ($method === 'POST') {
     if ($targetUserId <= 0 || $targetUserId === (int)$user['id']) fail('A valid target user is required');
 
     try {
-        $target = $pdo->prepare('SELECT id, name, user_id, account_status, updated_at, CASE WHEN updated_at IS NOT NULL AND updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND THEN 1 ELSE 0 END AS online FROM users WHERE id=? LIMIT 1');
+        if (users_block_state((int)$user['id'], $targetUserId)['blocked']) fail('This contact is blocked', 403);
+        $target = $pdo->prepare('SELECT u.id,u.name,u.user_id,u.account_status,u.updated_at,CASE WHEN u.updated_at IS NOT NULL AND u.updated_at>=UTC_TIMESTAMP()-INTERVAL 90 SECOND AND COALESCE(ups.hide_online_status,0)=0 THEN 1 ELSE 0 END AS online FROM users u LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id WHERE u.id=? LIMIT 1');
         $target->execute([$targetUserId]);
         $targetUser = $target->fetch();
         if (!$targetUser || $targetUser['account_status'] !== 'active') fail('Target user is unavailable', 404);

@@ -5,13 +5,19 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $st = db()->prepare('
-        SELECT id, name, user_id, updated_at,
-               CASE WHEN updated_at IS NOT NULL AND updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND THEN 1 ELSE 0 END AS online
-        FROM users
-        WHERE id != ? AND account_status="active"
+        SELECT u.id, u.name, u.user_id,
+               CASE WHEN u.updated_at IS NOT NULL AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(ups.hide_online_status,0)=0 THEN 1 ELSE 0 END AS online
+        FROM users u
+        LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
+        WHERE u.id != ? AND u.account_status="active"
+          AND NOT EXISTS (
+              SELECT 1 FROM user_blocks ub
+              WHERE (ub.user_id=? AND ub.blocked_user_id=u.id)
+                 OR (ub.user_id=u.id AND ub.blocked_user_id=?)
+          )
         LIMIT 100
     ');
-    $st->execute([$user['id']]);
+    $st->execute([$user['id'], $user['id'], $user['id']]);
     $users = $st->fetchAll();
     foreach ($users as &$row) {
         $row['id'] = (int)$row['id'];

@@ -75,7 +75,7 @@ export default function AttachmentControls({ selectedChat, apiBridge, onUploaded
         type="button"
         className="composer-addon-btn attachment-picker-btn"
         onClick={openPicker}
-        disabled={!selectedChat || busy}
+        disabled={!selectedChat || selectedChat.blocked || busy}
         title={busy ? 'Uploading attachment...' : 'Attach image or document'}
         aria-label={busy ? 'Uploading attachment' : 'Attach image or document'}
       >
@@ -87,7 +87,7 @@ export default function AttachmentControls({ selectedChat, apiBridge, onUploaded
         type="file"
         accept={ACCEPT}
         onChange={upload}
-        disabled={!selectedChat || busy}
+        disabled={!selectedChat || selectedChat.blocked || busy}
         style={{ display: 'none' }}
       />
     </div>

@@ -45,21 +45,59 @@ function out(array $data, int $status = 200): never {
     exit;
 }
 function fail(string $message, int $status = 400): never { out(['message' => $message], $status); }
-function create_chat_notifications(int $chatId, int $senderId, string $senderName, string $body, int $messageId): void {
+function queue_user_notification(int $userId, string $category, string $title, string $body, array $data = []): int {
     $pdo = db();
-    $st = $pdo->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
-    $st->execute([$chatId, $senderId]);
-    $insert = $pdo->prepare("INSERT INTO notification_history (user_id, category, title, body, data_json, created_at) VALUES (?, 'message', ?, ?, ?, UTC_TIMESTAMP())");
-    $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
+    $text = trim($body);
     $text = function_exists('mb_substr') ? mb_substr($text, 0, 500) : substr($text, 0, 500);
-    $data = json_encode(['chat_id'=>$chatId, 'message_id'=>$messageId], JSON_UNESCAPED_SLASHES);
-    $queue = $pdo->prepare('INSERT IGNORE INTO notification_delivery_queue (notification_id, device_id) VALUES (?, ?)');
+    $insert = $pdo->prepare('INSERT INTO notification_history (user_id, category, title, body, data_json, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())');
+    $insert->execute([$userId, $category, $title, $text, json_encode($data, JSON_UNESCAPED_SLASHES)]);
+    $notificationId = (int)$pdo->lastInsertId();
     $devices = $pdo->prepare('SELECT id FROM notification_devices WHERE user_id=? AND revoked_at IS NULL');
+    $devices->execute([$userId]);
+    $queue = $pdo->prepare('INSERT IGNORE INTO notification_delivery_queue (notification_id, device_id) VALUES (?, ?)');
+    foreach ($devices->fetchAll(PDO::FETCH_COLUMN) as $deviceId) $queue->execute([$notificationId, (int)$deviceId]);
+    return $notificationId;
+}
+function create_chat_notifications(int $chatId, int $senderId, string $senderName, string $body, int $messageId): void {
+    $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
+    $st->execute([$chatId, $senderId]);
+    $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $recipientId) {
-        $insert->execute([(int)$recipientId, $senderName, $text, $data]);
-        $notificationId = (int)$pdo->lastInsertId();
-        $devices->execute([(int)$recipientId]);
-        foreach ($devices->fetchAll(PDO::FETCH_COLUMN) as $deviceId) $queue->execute([$notificationId, (int)$deviceId]);
+        queue_user_notification((int)$recipientId, 'message', $senderName, $text, [
+            'category' => 'message',
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+        ]);
+    }
+}
+function user_privacy_settings(int $userId): array {
+    $st = db()->prepare('SELECT hide_online_status,media_auto_download,screenshot_alerts FROM user_privacy_settings WHERE user_id=? LIMIT 1');
+    $st->execute([$userId]);
+    $row = $st->fetch() ?: [];
+    return [
+        'hide_online_status' => (bool)($row['hide_online_status'] ?? false),
+        'media_auto_download' => (bool)($row['media_auto_download'] ?? false),
+        'screenshot_alerts' => !array_key_exists('screenshot_alerts', $row) || (bool)$row['screenshot_alerts'],
+    ];
+}
+function users_block_state(int $viewerId, int $otherUserId): array {
+    $st = db()->prepare('SELECT user_id,blocked_user_id FROM user_blocks WHERE (user_id=? AND blocked_user_id=?) OR (user_id=? AND blocked_user_id=?)');
+    $st->execute([$viewerId, $otherUserId, $otherUserId, $viewerId]);
+    $blockedByMe = false;
+    $blockedMe = false;
+    foreach ($st->fetchAll() as $row) {
+        if ((int)$row['user_id'] === $viewerId) $blockedByMe = true;
+        if ((int)$row['user_id'] === $otherUserId) $blockedMe = true;
+    }
+    return ['blocked_by_me' => $blockedByMe, 'blocked_me' => $blockedMe, 'blocked' => $blockedByMe || $blockedMe];
+}
+function assert_chat_allows_messages(int $chatId, int $userId): void {
+    $st = db()->prepare('SELECT c.type,cm.user_id FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id<>? AND cm.status="active" WHERE c.id=? LIMIT 1');
+    $st->execute([$userId, $chatId]);
+    $chat = $st->fetch();
+    if (!$chat || $chat['type'] !== 'private') return;
+    if (users_block_state($userId, (int)$chat['user_id'])['blocked']) {
+        fail('Messages are unavailable because this contact is blocked', 403);
     }
 }
 function token_for(int $userId): string {
@@ -67,6 +105,11 @@ function token_for(int $userId): string {
     $payload = $userId . '|' . time() . '|' . bin2hex(random_bytes(12));
     $sig = hash_hmac('sha256', $payload, $config['app']['token_secret']);
     return base64_encode($payload . '|' . $sig);
+}
+function assert_visible_message(int $messageId, int $userId): void {
+    $st = db()->prepare('SELECT m.id FROM messages m INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id WHERE m.id=? AND m.id>COALESCE(cus.cleared_through_message_id,0) AND COALESCE(mus.hidden,0)=0 AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
+    $st->execute([$userId, $messageId]);
+    if (!$st->fetch()) fail('Message not found', 404);
 }
 function auth_user(): array {
     global $config;

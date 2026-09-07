@@ -17,6 +17,7 @@ import InterestsScreen from './components/InterestsScreen';
 import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
 import InvitationPage from './components/InvitationPage';
+import PrivacyAccountPanel from './components/PrivacyAccountPanel';
 import { inviteUrlFromResponse } from './utils/shareLink';
 import {
     clearWebSession,
@@ -31,6 +32,7 @@ const interests = ['Private Chats', 'Public Chat Rooms', ...groupTypes, 'Communi
 const defaultInterests = ['Private Chats', 'Family Group', 'Study Group', 'Technology'];
 const messagePollInterval = Number(import.meta.env.VITE_MESSAGE_POLL_INTERVAL_MS || 3000);
 const pendingInviteStorageKey = 'cloudcomai.pendingInvite';
+const defaultPrivacySettings = { hide_online_status: false, media_auto_download: false, screenshot_alerts: true };
 
 const inviteTokenFromLocation = () => {
     const match = window.location.hash.match(/^#invite=([^&]+)/i);
@@ -74,6 +76,7 @@ export default function App() {
     const [activeTab, setActiveTab] = useState('chats');
     const [topInterests, setTopInterests] = useState(defaultInterests);
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
+    const [privacySettings, setPrivacySettings] = useState(defaultPrivacySettings);
     const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
     const latestMessageIdRef = useRef(0);
 
@@ -139,6 +142,17 @@ export default function App() {
     }, [token]);
 
     useEffect(() => {
+        if (!token) return undefined;
+        let cancelled = false;
+        platformApi.getPrivacySettings()
+            .then(({ data }) => {
+                if (!cancelled) setPrivacySettings(current => ({ ...current, ...(data.settings || {}) }));
+            })
+            .catch(error => console.warn('Unable to load privacy settings:', error));
+        return () => { cancelled = true; };
+    }, [token]);
+
+    useEffect(() => {
         if (pendingInviteToken) window.sessionStorage.setItem(pendingInviteStorageKey, pendingInviteToken);
     }, [pendingInviteToken]);
 
@@ -171,6 +185,7 @@ export default function App() {
         setMessages([]);
         latestMessageIdRef.current = 0;
         setTopInterests(defaultInterests);
+        setPrivacySettings(defaultPrivacySettings);
         setNotificationUnreadCount(0);
         navigateTo('home', { replace: true });
     };
@@ -260,17 +275,25 @@ export default function App() {
         if (!token || !selectedChat || screen !== 'app' || selectedChat.isContact) return undefined;
         latestMessageIdRef.current = 0;
         setMessages([]);
+        let syncFromId = 1;
+        let syncedAt = '';
+        const shownScreenshotAlerts = new Set();
         const transport = createPollingMessageTransport({
             intervalMs: messagePollInterval,
             getCursor: () => latestMessageIdRef.current,
             fetchMessages: async (afterId, options) => {
-                const { data } = await platformApi.listMessages(selectedChat.id, afterId, options);
-                return data.messages || [];
+                const { data } = await platformApi.listMessages(selectedChat.id, afterId, { ...options, query: { sync_from_id: syncFromId, updated_after: syncedAt } });
+                if (!afterId && data.messages?.length) syncFromId = Number(data.messages[0].id);
+                syncedAt = data.synced_at || syncedAt;
+                return data;
             },
             onMessages: incoming => {
+                for (const item of incoming.screenshot_alerts || []) {
+                    if (!shownScreenshotAlerts.has(item.id)) { shownScreenshotAlerts.add(item.id); window.alert(`Screenshot alert: ${item.body}`); }
+                }
                 setMessages(current => {
                     const result = mergeMessageBatch(current, incoming);
-                    latestMessageIdRef.current = result.cursor;
+                    latestMessageIdRef.current = (incoming.messages || incoming).reduce((max, item) => Math.max(max, Number(item.id || 0)), latestMessageIdRef.current);
                     return result.changed ? result.messages : current;
                 });
             },
@@ -278,7 +301,7 @@ export default function App() {
         });
         transport.start();
         return () => transport.stop();
-    }, [selectedChat, token, screen]);
+    }, [selectedChat?.id, selectedChat?.isContact, token, screen]);
 
     const handleSendMessage = async () => {
         if (!composer.trim() || !selectedChat) return;
@@ -293,7 +316,6 @@ export default function App() {
             } else if (result.message) {
                 setMessages(prev => {
                     const messageId = Number(result.message.id || 0);
-                    latestMessageIdRef.current = Math.max(latestMessageIdRef.current, messageId);
                     if (prev.some(message => Number(message.id) === messageId)) return prev;
                     return [...prev, result.message];
                 });
@@ -308,10 +330,20 @@ export default function App() {
         if (!message) return;
         setMessages(prev => {
             const messageId = Number(message.id || 0);
-            if (messageId) latestMessageIdRef.current = Math.max(latestMessageIdRef.current, messageId);
             if (messageId && prev.some(item => Number(item.id) === messageId)) return prev;
             return [...prev, message];
         });
+        refreshConversationList();
+    }, [refreshConversationList]);
+
+    const handleDeleteMessage = useCallback(async (message, scope) => {
+        if (!message?.id) return;
+        await platformApi.deleteMessage(message.id, scope);
+        setMessages(current => mergeMessageBatch(current, [], [message.id]).messages);
+    }, []);
+
+    const handlePrivacySettingsChanged = useCallback(nextSettings => {
+        setPrivacySettings(current => ({ ...current, ...nextSettings }));
         refreshConversationList();
     }, [refreshConversationList]);
 
@@ -464,7 +496,7 @@ export default function App() {
 
             <ChatDirectory searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
-            <ChatCanvas selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} />
+            <ChatCanvas selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
 
             {modal && (
                 <div className="modal-backdrop">
@@ -475,6 +507,7 @@ export default function App() {
                     : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
+                    : modal === 'privacy_account' ? <PrivacyAccountPanel privacyApi={platformApi} close={() => setModal(null)} onSettingsChanged={handlePrivacySettingsChanged} />
                     : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onPollCreated={pollMessageObject => setMessages(prev => {
                         const messageId = Number(pollMessageObject?.id || 0);
                         if (messageId) latestMessageIdRef.current = Math.max(latestMessageIdRef.current, messageId);

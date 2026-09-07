@@ -57,6 +57,29 @@ export class CloudComAiApi {
     return this.client.put(ApiRoute.PREFERENCES, { interests }, options);
   }
 
+  getPrivacySettings(options = {}) {
+    return this.client.get(ApiRoute.PRIVACY, options);
+  }
+
+  updatePrivacySettings(settings, options = {}) {
+    return this.client.put(ApiRoute.PRIVACY, settings, options);
+  }
+
+  blockContact(userId, options = {}) {
+    return this.client.post(ApiRoute.PRIVACY, { user_id: userId }, options);
+  }
+
+  unblockContact(userId, options = {}) {
+    return this.client.delete(ApiRoute.PRIVACY, {
+      ...options,
+      query: { ...options.query, user_id: userId },
+    });
+  }
+
+  downloadAccountBackup(options = {}) {
+    return this.client.get(ApiRoute.ACCOUNT_BACKUP, options);
+  }
+
   listChats(type, options = {}) {
     return this.client.get(ApiRoute.CHATS, {
       ...options,
@@ -127,8 +150,32 @@ export class CloudComAiApi {
     });
   }
 
+  searchMessages(chatId, query, options = {}) {
+    return this.client.get(ApiRoute.MESSAGES, {
+      ...options,
+      query: { ...options.query, chat_id: chatId, after_id: 0, q: query },
+    });
+  }
+
+  deleteMessage(id, scope = 'self', options = {}) {
+    return this.client.delete(ApiRoute.MESSAGES, {
+      ...options,
+      query: { ...options.query, id, scope },
+    });
+  }
+
   sendMessage(input, options = {}) {
     return this.client.post(ApiRoute.MESSAGES, input, options);
+  }
+
+  shareLocation(chatId, latitude, longitude, label = 'Shared location', options = {}) {
+    return this.sendMessage({
+      chat_id: chatId,
+      type: 'location',
+      latitude,
+      longitude,
+      label,
+    }, options);
   }
 
   createPoll(input, options = {}) {
@@ -188,6 +235,10 @@ export class CloudComAiApi {
 
   markNotificationsRead(input, options = {}) {
     return this.client.post(ApiRoute.NOTIFICATIONS_READ, input, options);
+  }
+
+  reportScreenshot(chatId, options = {}) {
+    return this.client.post(ApiRoute.SCREENSHOT_EVENT, { chat_id: chatId }, options);
   }
 }
 

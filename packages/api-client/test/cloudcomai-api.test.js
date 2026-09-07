@@ -76,3 +76,27 @@ test('maps preferences and invitations without exposing PHP routes', async () =>
     },
   ]);
 });
+
+test('maps privacy, message deletion, search, location, screenshot, and backup routes', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.updatePrivacySettings({ hide_online_status: true });
+  await api.blockContact(17);
+  await api.unblockContact(17);
+  await api.searchMessages(8, 'launch');
+  await api.deleteMessage(42, 'everyone');
+  await api.shareLocation(8, 17.385, 78.4867, 'Current location');
+  await api.reportScreenshot(8);
+  await api.downloadAccountBackup({ responseType: 'blob' });
+
+  assert.deepEqual(calls, [
+    { method: 'put', args: ['v1/users/privacy', { hide_online_status: true }, {}] },
+    { method: 'post', args: ['v1/users/privacy', { user_id: 17 }, {}] },
+    { method: 'delete', args: ['v1/users/privacy', { query: { user_id: 17 } }] },
+    { method: 'get', args: ['v1/messages', { query: { chat_id: 8, after_id: 0, q: 'launch' } }] },
+    { method: 'delete', args: ['v1/messages', { query: { id: 42, scope: 'everyone' } }] },
+    { method: 'post', args: ['v1/messages', { chat_id: 8, type: 'location', latitude: 17.385, longitude: 78.4867, label: 'Current location' }, {}] },
+    { method: 'post', args: ['v1/security/screenshot', { chat_id: 8 }, {}] },
+    { method: 'get', args: ['v1/users/backup', { responseType: 'blob' }] },
+  ]);
+});

@@ -7,6 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('Method not allowed', 405);
 $chat = (int)($_POST['chat_id'] ?? 0);
 $body = trim((string)($_POST['body'] ?? ''));
 $reply = (int)($_POST['reply_to_message_id'] ?? 0);
+$requestedType = strtolower(trim((string)($_POST['message_type'] ?? 'attachment')));
 $policy = strtoupper((string)($_POST['download_policy'] ?? 'APPROVAL_REQUIRED'));
 if (!in_array($policy, ['ALLOW','APPROVAL_REQUIRED','VIEW_ONLY'], true)) fail('Invalid download policy');
 if ($chat <= 0) fail('Invalid chat');
@@ -16,6 +17,7 @@ $m = db()->prepare('SELECT c.retention_seconds,COALESCE(cus.cleared_through_mess
 $m->execute([$chat, $user['id']]);
 $row = $m->fetch();
 if (!$row) fail('Not a member', 403);
+assert_chat_allows_messages($chat, (int)$user['id']);
 
 $file = $_FILES['file'];
 if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) fail('File upload failed');
@@ -27,16 +29,31 @@ $allowed = [
  'application/pdf' => 'pdf', 'text/plain' => 'txt',
  'application/msword' => 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
  'application/vnd.ms-excel' => 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
- 'application/vnd.ms-powerpoint' => 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx'
+ 'application/vnd.ms-powerpoint' => 'ppt', 'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
+ 'audio/mpeg' => 'mp3', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a', 'audio/aac' => 'aac',
+ 'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/ogg' => 'ogg', 'audio/webm' => 'webm', 'audio/3gpp' => '3gp',
+ 'video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm', 'video/3gpp' => '3gp'
 ];
 $finfo = new finfo(FILEINFO_MIME_TYPE);
 $mime = $finfo->file($file['tmp_name']);
 if (!isset($allowed[$mime])) fail('File type is not allowed');
+$messageType = 'attachment';
+if ($requestedType === 'voice') {
+ $originalExtension = strtolower((string)pathinfo((string)$file['name'], PATHINFO_EXTENSION));
+ // libmagic reports audio-only WebM as video/webm on several hosts.
+ if (!str_starts_with($mime, 'audio/') && $mime !== 'video/webm' && !($mime === 'video/mp4' && in_array($originalExtension, ['m4a','aac'], true))) fail('Voice messages must contain audio');
+ $messageType = 'voice';
+} elseif ($requestedType === 'video') {
+ if (!str_starts_with($mime, 'video/')) fail('Video messages must contain video');
+ $messageType = 'video';
+} elseif ($requestedType !== 'attachment') {
+ fail('Invalid attachment message type');
+}
 
 if ($reply) {
  if ($reply <= (int)$row['cleared_through_message_id']) fail('Invalid reply target');
- $r = db()->prepare('SELECT id FROM messages WHERE id=? AND chat_id=?');
- $r->execute([$reply, $chat]);
+ $r = db()->prepare('SELECT m.id FROM messages m LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.id=? AND m.chat_id=? AND m.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
+ $r->execute([$user['id'], $reply, $chat]);
  if (!$r->fetch()) fail('Invalid reply target');
 }
 
@@ -52,12 +69,13 @@ $pdo = db();
 try {
  $pdo->beginTransaction();
  $st = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
- $st->execute([$chat,$user['id'],'attachment',$body !== '' ? $body : null,$reply ?: null,$expires,$createdAt]);
+ $st->execute([$chat,$user['id'],$messageType,$body !== '' ? $body : null,$reply ?: null,$expires,$createdAt]);
  $messageId = (int)$pdo->lastInsertId();
  $st = $pdo->prepare('INSERT INTO message_attachments(message_id,original_filename,stored_filename,storage_path,mime_type,file_size,download_policy,created_at) VALUES(?,?,?,?,?,?,?,?)');
  $st->execute([$messageId, basename((string)$file['name']), $stored, 'storage/attachments/' . $stored, $mime, (int)$file['size'], $policy, $createdAt]);
  $attachmentId = (int)$pdo->lastInsertId();
  $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
+ create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], $messageType === 'voice' ? 'Voice message' : ($messageType === 'video' ? 'Video message' : ($body !== '' ? $body : 'Sent you an attachment')), $messageId);
  $pdo->commit();
 } catch (Throwable $e) {
  if ($pdo->inTransaction()) $pdo->rollBack();
@@ -67,6 +85,6 @@ try {
 
 out(['message' => [
  'id' => $messageId, 'chat_id' => $chat, 'sender_id' => (int)$user['id'], 'sender_name' => $user['name'],
- 'type' => 'attachment', 'body' => $body, 'reply_to_message_id' => $reply ?: null, 'created_at' => $createdAt,
+ 'type' => $messageType, 'body' => $body, 'reply_to_message_id' => $reply ?: null, 'created_at' => $createdAt,
  'attachment' => ['id' => $attachmentId, 'name' => basename((string)$file['name']), 'mime_type' => $mime, 'file_size' => (int)$file['size'], 'download_policy' => $policy]
 ]], 201);

@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
+import { parseSharedLocation } from '@cloudcomai/chat-core';
 import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy } from 'lucide-react';
 import { formatMessageTime } from '../utils/messageTime';
 import { copyText, shareOrCopyLink } from '../utils/shareLink';
 import AttachmentControls from './AttachmentControls';
 import AttachmentActions from './AttachmentActions';
 import AttachmentPreview from './AttachmentPreview';
+import MediaMessageControls from './MediaMessageControls';
 
 const pollCardStyle = { background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', minWidth: '280px', maxWidth: '70%', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginBottom: '4px' };
 const pollHeaderStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' };
@@ -23,17 +25,57 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded }) {
+export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false }) {
   const historyRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
   const [groupInviteUrl, setGroupInviteUrl] = useState('');
   const [preparingInvite, setPreparingInvite] = useState(false);
   const [pollVoteState, setPollVoteState] = useState({});
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchStatus, setSearchStatus] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const searchActive = searchOpen && searchQuery.trim().length > 0;
+  const visibleMessages = searchActive ? searchResults : messages;
+
+  useEffect(() => {
+    setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null);
+    shouldAutoScrollRef.current = true;
+  }, [selectedChat?.id]);
+
+  useEffect(() => {
+    if (!searchActive || !selectedChat) return undefined;
+    let cancelled = false;
+    const controller = new AbortController();
+    setSearchStatus('Searching…');
+    const timer = setTimeout(async () => {
+      try {
+        const result = await apiBridge(ApiRoute.MESSAGES, { method: 'GET', query: { chat_id: selectedChat.id, q: searchQuery.trim() }, signal: controller.signal });
+        if (!cancelled) { setSearchResults(result.messages || []); setSearchStatus(`${result.messages?.length || 0} results (up to 100)`); }
+      } catch (error) { if (!cancelled) { setSearchResults([]); setSearchStatus(error.message || 'Search failed.'); } }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); controller.abort(); };
+  }, [selectedChat?.id, searchQuery, searchActive, messages]);
+
+  const deleteMessage = async scope => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      await onDeleteMessage(deleteTarget, scope);
+      setSearchResults(current => current.filter(item => Number(item.id) !== Number(deleteTarget.id)));
+      if (Number(replyTo?.id) === Number(deleteTarget.id)) setReplyTo(null);
+      if (Number(editing?.id) === Number(deleteTarget.id)) { setEditing(null); setComposer(''); }
+      setDeleteTarget(null);
+    } catch (error) { alert(error.message || 'Unable to delete message.'); }
+    finally { setDeleting(false); }
+  };
 
   useEffect(() => {
     const viewport = historyRef.current;
-    if (!viewport || !shouldAutoScrollRef.current) return;
+    if (!viewport || searchActive || !shouldAutoScrollRef.current) return;
     requestAnimationFrame(() => { viewport.scrollTop = viewport.scrollHeight; });
   }, [selectedChat?.id, messages.length]);
 
@@ -121,9 +163,10 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
             {selectedChat && <button className="action-utility-btn" style={{ color: '#ef4444' }} onClick={() => onDeleteChat(selectedChat)}><Trash2 size={18}/><span>Delete Chat</span></button>}
           </>}
 
-          <div className="vertical-divider" /><button className="icon-utility-only"><Search size={18}/></button><button className="icon-utility-only"><MoreHorizontal size={18}/></button>
+          <div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
         </div>
       </header>
+      {searchOpen && <div className="chat-search-bar"><Search size={18} /><input autoFocus aria-label="Search this conversation" placeholder="Search messages and filenames…" maxLength={120} value={searchQuery} onChange={event => setSearchQuery(event.target.value)} /><span role="status">{searchActive ? searchStatus : 'Search this conversation'}</span><button aria-label="Close search" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}><X size={18} /></button></div>}
 
       {(groupActionMessage || groupInviteUrl) && <div className="group-invite-bar">
         {groupActionMessage && <span>{groupActionMessage}</span>}
@@ -135,12 +178,13 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
       </div>}
 
       <div className="message-history-viewport" ref={historyRef} onScroll={handleHistoryScroll}>
-        <div className="encryption-note">Messages are protected in transit. E2EE configuration applied.</div>
+        {selectedChat?.blocked && <div className="chat-status-note">Messaging is unavailable for this blocked contact. Manage your blocked contacts in Privacy &amp; Account.</div>}
 
-        {messages.map(msg => {
+        {visibleMessages.map(msg => {
           const isMine = msg.sender_id == user?.id || msg.user_id == user?.id || msg.mine === true;
           const isPoll = msg.type === 'poll';
-          const isAttachment = msg.type === 'attachment' && msg.attachment;
+          const isAttachment = Boolean(msg.attachment);
+          const location = msg.type === 'location' ? parseSharedLocation(msg.body) : null;
           const messageContent = msg.body || msg.text || '';
           const poll = msg.poll;
           const visibleOptions = pollVoteState[msg.poll_id] || poll?.options || [];
@@ -154,6 +198,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
               <div style={pollOptionsStyle}>{visibleOptions.map(option => <button key={option.id} type="button" onClick={() => handleCastVote(msg.poll_id || poll?.id, option.id)} style={pollOptionStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}><span>{option.text}</span><strong>{option.votes || 0}</strong></div>{option.selected && <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--primary-color)' }}>Your vote</div>}</button>)}</div>
               <div className="bubble-meta-footer" style={pollFooterStyle}><span>Active Voting Room</span><span>{messageTime}</span></div>
+              <button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
             </div> : <div className={`message-data-bubble ${isMine ? 'primary-accent' : 'neutral-fallback'}`}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               {msg.reply_to_message_id && msg.reply_to_text && <div style={replyPreviewStyle}>
@@ -169,7 +214,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
                   <AttachmentActions attachment={msg.attachment} message={msg} user={user} apiBridge={apiBridge} />
                 </div>
 
-                {attachmentIsImage && <AttachmentPreview attachment={msg.attachment} />}
+                <AttachmentPreview attachment={msg.attachment} messageType={msg.type} autoDownload={mediaAutoDownload} />
 
                 <div style={attachmentMetaStyle}>
                   {!attachmentIsImage && <span style={attachmentIconStyle}>📎</span>}
@@ -180,9 +225,9 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
                     </div>
                   </div>
                 </div>
-              </div> : <p className="bubble-text-content">{messageContent}</p>}
+              </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : messageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
-              <div className="bubble-action-triggers"><button onClick={() => setReplyTo(msg)} title="Reply"><Reply size={12} /></button>{isMine && !isAttachment && <button onClick={() => { setEditing(msg); setComposer(messageContent); }} title="Edit"><Edit3 size={12} /></button>}</div>
+              <div className="bubble-action-triggers"><button onClick={() => setReplyTo(msg)} title="Reply" aria-label="Reply"><Reply size={12} /></button>{isMine && msg.type === 'text' && <button onClick={() => { setEditing(msg); setComposer(messageContent); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /></button>}<button onClick={() => setDeleteTarget(msg)} title="Delete" aria-label="Delete message"><Trash2 size={12} /></button></div>
             </div>}
           </div>;
         })}
@@ -196,11 +241,12 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
 
         {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { setReplyTo(null); setEditing(null); setComposer(''); }}><X size={16}/></button></div> : null}
         <div className="message-input-composer-bar">
-          <button className="composer-addon-btn">😊</button><AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><button className="composer-addon-btn"><Pin size={18} /></button><button className="composer-addon-btn"><Send size={18} /></button>
-          <input type="text" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => setComposer(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSendMessage()} disabled={!selectedChat} className="composer-text-input" />
-          <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={!selectedChat}><Send size={18} /></button>
+          <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
+          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => setComposer(e.target.value)} onKeyDown={e => e.key === 'Enter' && !selectedChat?.blocked && onSendMessage()} disabled={!selectedChat || selectedChat.blocked} className="composer-text-input" />
+          <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={!selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
+      {deleteTarget && <div className="modal-overlay"><div className="modal-content-card message-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete message"><h3>Delete message?</h3><p>Delete for me removes it from your account. Only the sender can delete it for everyone.</p><button disabled={deleting} onClick={() => deleteMessage('self')}>Delete for me</button>{Number(deleteTarget.sender_id) === Number(user?.id) && <button className="danger" disabled={deleting} onClick={() => deleteMessage('everyone')}>Delete for everyone</button>}<button disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button></div></div>}
     </main>
   );
 }

@@ -15,15 +15,42 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resolved-dependency-lockfile
+          path: pnpm-lock.yaml
+          retention-days: 1
       - run: pnpm test
       - run: pnpm verify:api
       - run: pnpm build:web
       - run: pnpm build:mobile
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://example.invalid/api
 
   php:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: cloudcomai_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pcloudcomai_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, fileinfo
       - run: find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
       - run: php backend/tests/api_router_test.php
       - run: php backend/tests/contact_matching_test.php
+      - run: php backend/tests/privacy_messaging_test.php
+        env:
+          CLOUDCOMAI_RUN_DB_TESTS: '1'
+          CLOUDCOMAI_TEST_DB_PASSWORD: cloudcomai_test

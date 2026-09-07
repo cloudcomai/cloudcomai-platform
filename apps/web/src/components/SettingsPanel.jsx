@@ -73,10 +73,11 @@ export default function SettingsPanel({ user, setModal, onLogout, close, setScre
             <ChevronRight size={16} />
           </button>
 
-          <div style={rowStyleNonButton}>
+          <button type="button" onClick={() => setModal('privacy_account')} style={rowStyle}>
             <span style={iconWrapStyle}><Shield size={17} /></span>
             <span style={textWrapStyle}><strong>Privacy & Account</strong><small>Your account controls and privacy options</small></span>
-          </div>
+            <ChevronRight size={16} />
+          </button>
 
           <button type="button" onClick={onLogout} style={{ ...rowStyle, color: '#ef4444' }}>
             <span style={{ ...iconWrapStyle, color: '#ef4444' }}><LogOut size={17} /></span>
@@ -89,7 +90,6 @@ export default function SettingsPanel({ user, setModal, onLogout, close, setScre
 }
 
 const rowStyle = { width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'var(--bg-primary)', color: 'var(--text-main)', textAlign: 'left' };
-const rowStyleNonButton = { ...rowStyle, cursor: 'default' };
 const iconWrapStyle = { width: '32px', height: '32px', borderRadius: '9px', display: 'grid', placeItems: 'center', background: 'var(--bg-directory)', color: 'var(--primary-color)', flex: '0 0 32px' };
 const textWrapStyle = { display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, minWidth: 0 };
 const detailCardStyle = { display: 'flex', flexDirection: 'column', gap: '4px', padding: '11px 12px', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'var(--bg-primary)', minWidth: 0 };

@@ -112,7 +112,7 @@ export class ApiClient {
       );
     }
 
-    const payload = await parseResponse(response, responseType);
+    const payload = await parseResponse(response, response.ok ? responseType : 'auto');
     if (!response.ok) {
       if (response.status === 401 && auth && this.onUnauthorized) {
         await this.onUnauthorized();
