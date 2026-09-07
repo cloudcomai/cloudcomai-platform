@@ -2334,3 +2334,8 @@ select {
 .notification-setting-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; border: 1px solid var(--border-color); border-radius: 9px; }
 .notification-help { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
 .notification-empty { color: var(--text-muted); text-align: center; padding: 24px; }
+
+.emoji-picker-row { display:flex; gap:4px; overflow-x:auto; padding:8px 10px; border-top:1px solid var(--border-color); background:var(--bg-primary); }
+.emoji-picker-row button { border:0; background:transparent; font-size:24px; width:40px; height:40px; border-radius:8px; }
+.emoji-picker-row button:hover { background:var(--bg-directory); }
+.emoji-toggle-btn { min-width:40px; height:40px; border:0; border-radius:10px; background:var(--bg-directory); font-size:22px; }

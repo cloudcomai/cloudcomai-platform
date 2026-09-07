@@ -44,9 +44,9 @@ if (!$imageInfo || empty($imageInfo[0]) || empty($imageInfo[1])) {
     fail('Unable to read image dimensions');
 }
 
-$maxDimension = 1024;
+$maxDimension = 6000;
 if ((int)$imageInfo[0] > $maxDimension || (int)$imageInfo[1] > $maxDimension) {
-    fail('Image dimensions must not exceed 1024 x 1024 pixels');
+    fail('Image dimensions must not exceed 6000 x 6000 pixels');
 }
 
 $folder = dirname(__DIR__) . '/uploads/' . ($type === 'user' ? 'users' : 'groups');

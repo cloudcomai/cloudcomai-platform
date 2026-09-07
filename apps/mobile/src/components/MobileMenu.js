@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Modal,
   Pressable,
@@ -12,7 +13,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
-import { platformApi } from '../services/platform';
+import * as ImagePicker from 'expo-image-picker';
+import { mediaUrl, platformApi } from '../services/platform';
+import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
 
 const GROUP_TYPES = [
   'Family Group','Friend Group','Fan Group','Study Group','College Group','Class Group',
@@ -62,6 +65,10 @@ export default function MobileMenu({
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profileDob, setProfileDob] = useState(user?.dob || '');
   const [profileGender, setProfileGender] = useState(user?.gender || 'Male');
+  const [profileImageVersion, setProfileImageVersion] = useState(user?.image_version || Date.now());
+  const [appLockEnabled, setAppLockEnabled] = useState(false);
+  const [appLockPin, setAppLockPinValue] = useState('');
+  const [appLockConfirm, setAppLockConfirm] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -69,6 +76,8 @@ export default function MobileMenu({
       setProfileName(user?.name || '');
       setProfileDob(user?.dob || '');
       setProfileGender(user?.gender || 'Male');
+      setProfileImageVersion(user?.image_version || Date.now());
+      isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
     } else {
       setScreen('menu');
       setError('');
@@ -245,6 +254,43 @@ export default function MobileMenu({
     }
   };
 
+  const chooseProfilePhoto = async () => {
+    if (busy) return;
+    setError('');
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) { setError('Photo library permission is required to update your profile image.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.72,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
+
+      setBusy(true);
+      const form = new FormData();
+      form.append('type', 'user');
+      form.append('id', String(user.id));
+      form.append('image', {
+        uri: asset.uri,
+        name: asset.fileName || `profile-${user.id}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+      });
+      const { data } = await platformApi.uploadMedia(form);
+      const nextUser = { ...user, image_url: data.image_url, image_version: data.updated_at };
+      setProfileImageVersion(data.updated_at || Date.now());
+      onProfileUpdated?.(nextUser);
+      Alert.alert('Photo updated', 'Your cropped profile photo was saved.');
+    } catch (e) {
+      setError(e.message || 'Unable to update profile photo.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveProfile = async () => {
     if (!profileName.trim() || !profileDob.trim() || busy) return;
     setBusy(true); setError('');
@@ -261,6 +307,41 @@ export default function MobileMenu({
       }
     } catch (e) {
       setError(e.message || 'Unable to update profile.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveAppLock = async () => {
+    if (busy) return;
+    if (appLockPin !== appLockConfirm) { setError('App lock PINs do not match.'); return; }
+    setBusy(true); setError('');
+    try {
+      await setAppLockPin(appLockPin);
+      setAppLockEnabled(true);
+      setAppLockPinValue('');
+      setAppLockConfirm('');
+      Alert.alert('App Lock enabled', 'CloudComAI will require this PIN when the app is reopened or resumed.');
+      setScreen('settings');
+    } catch (e) {
+      setError(e.message || 'Unable to enable App Lock.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const turnOffAppLock = async () => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      await disableAppLock();
+      setAppLockEnabled(false);
+      setAppLockPinValue('');
+      setAppLockConfirm('');
+      Alert.alert('App Lock disabled', 'CloudComAI will no longer ask for an App Lock PIN.');
+      setScreen('settings');
+    } catch (e) {
+      setError(e.message || 'Unable to disable App Lock.');
     } finally {
       setBusy(false);
     }
@@ -356,10 +437,50 @@ export default function MobileMenu({
       </>
     );
 
+    if (screen === 'app_lock') return (
+      <>
+        <ScreenHeader title="App Lock" onBack={() => go('settings')} onClose={onClose} />
+        <View style={styles.content}>
+          <Text style={styles.resultTitle}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text>
+          <Text style={styles.help}>
+            {appLockEnabled
+              ? 'Your PIN is required when CloudComAI is reopened or resumed from the background.'
+              : 'Set a 4 to 6 digit PIN. This PIN is stored only in secure device storage.'}
+          </Text>
+          {!appLockEnabled ? <>
+            <TextInput
+              style={styles.input}
+              value={appLockPin}
+              onChangeText={value => setAppLockPinValue(value.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              secureTextEntry
+              placeholder="New PIN (4-6 digits)"
+              maxLength={6}
+            />
+            <TextInput
+              style={styles.input}
+              value={appLockConfirm}
+              onChangeText={value => setAppLockConfirm(value.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              secureTextEntry
+              placeholder="Confirm PIN"
+              maxLength={6}
+            />
+            <Pressable style={styles.primary} onPress={saveAppLock}><Text style={styles.primaryText}>Enable App Lock</Text></Pressable>
+          </> : <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={turnOffAppLock}><Text style={styles.dangerText}>Disable App Lock</Text></Pressable>}
+        </View>
+      </>
+    );
+
     if (screen === 'profile') return (
       <>
         <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.profilePhotoWrap}>
+            <Image source={{ uri: `${mediaUrl('user', user?.id)}&v=${profileImageVersion}` }} style={styles.profilePhoto} />
+            <Pressable style={styles.photoButton} onPress={chooseProfilePhoto}><Text style={styles.photoButtonText}>Change & crop photo</Text></Pressable>
+            <Text style={styles.help}>JPG, PNG or WebP · max 2 MB · square crop</Text>
+          </View>
           <Text style={styles.label}>Full name</Text>
           <TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" />
           <Text style={styles.label}>CloudComAI User ID</Text>
@@ -390,6 +511,10 @@ export default function MobileMenu({
           <Pressable style={styles.menuItem} onPress={() => go('profile')}>
             <Text style={styles.menuTitle}>Profile</Text>
             <Text style={styles.menuSub}>Name, date of birth and account information</Text>
+          </Pressable>
+          <Pressable style={styles.menuItem} onPress={() => go('app_lock')}>
+            <Text style={styles.menuTitle}>App Lock</Text>
+            <Text style={styles.menuSub}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'Protect the app with a 4-6 digit PIN'}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
             <Text style={styles.menuTitle}>Privacy, account & notifications</Text>
@@ -469,7 +594,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#3157d5' },
   busy: { position: 'absolute', right: 18, bottom: 18, width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', elevation: 5 },
   error: { margin: 16, marginTop: 0, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' },
-  readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
+  profilePhotoWrap: { alignItems: 'center', gap: 8, marginBottom: 8 }, profilePhoto: { width: 104, height: 104, borderRadius: 52, backgroundColor: '#e5e7eb' }, photoButton: { minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#eef2ff' }, photoButtonText: { color: '#3157d5', fontWeight: '800' }, readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
   readOnlyText: { color: '#64748b' },
   dangerItem: { borderColor: '#fecaca' },
   dangerText: { color: '#b91c1c', fontWeight: '800' },

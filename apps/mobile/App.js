@@ -27,6 +27,7 @@ import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { API_BASE_URL, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration } from './src/services/platform';
+import { isAppLockEnabled, verifyAppLockPin } from './src/services/appLock';
 import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
 import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
@@ -219,6 +220,7 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [groupManagementOpen, setGroupManagementOpen] = useState(false);
   const [groupName, setGroupName] = useState(chat.name || 'Group');
   const [muted, setMuted] = useState(Boolean(chat.notifications_muted));
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const searchActive = searchOpen && query.trim().length > 0;
 
   useEffect(() => {
@@ -434,7 +436,10 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
       )}
       {(replyTo || editing) ? <View style={styles.contextBar}><View style={styles.contextBarText}><Text style={styles.contextBarLabel}>{editing ? 'Editing message' : 'Replying to'}</Text><Text numberOfLines={1} style={styles.contextBarValue}>{(editing || replyTo)?.body || (editing || replyTo)?.text || 'Message'}</Text></View><Pressable onPress={() => { setReplyTo(null); setEditing(null); setComposer(''); }}><Text style={styles.contextBarClose}>×</Text></Pressable></View> : null}
       <MediaComposer chat={chat} onMessage={onMediaMessage} />
-      <View style={styles.composer}><Pressable style={styles.attachButton} onPress={pickAttachment} disabled={uploading || chat.blocked}><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
+      {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiStrip} contentContainerStyle={styles.emojiStripContent}>
+        <Pressable key="😀" onPress={() => setComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => setComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => setComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => setComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => setComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => setComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => setComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => setComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => setComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => setComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => setComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => setComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
+      </ScrollView> : null}
+      <View style={styles.composer}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={pickAttachment} disabled={uploading || chat.blocked}><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
       {chat.isGroup ? <GroupManagement
         visible={groupManagementOpen}
@@ -615,7 +620,6 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryStrip} contentContainerStyle={styles.categoryTabs}>
         {topTabs.map(([value,label]) => <Pressable key={value} style={[styles.categoryTab, section === value && styles.categoryTabActive]} onPress={() => { setSection(value); setSearchText(''); }}><Text style={[styles.categoryTabText, section === value && styles.categoryTabTextActive]}>{label}</Text></Pressable>)}
-        <Pressable style={styles.categoryTab} onPress={() => openMenu('menu')}><Text style={styles.categoryTabText}>More</Text></Pressable>
       </ScrollView>
 
       <View style={styles.mobileContent}>
@@ -675,6 +679,44 @@ function compactTime(value) {
   if (date.toDateString() === now.toDateString()) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
+function AppLockScreen({ onUnlocked }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const unlock = async () => {
+    if (pin.length < 4) return;
+    const ok = await verifyAppLockPin(pin);
+    if (ok) {
+      setPin('');
+      setError('');
+      onUnlocked();
+    } else {
+      setPin('');
+      setError('Incorrect PIN.');
+    }
+  };
+  return <SafeAreaView style={styles.loginPage} edges={['top','bottom','left','right']}>
+    <View style={styles.appLockCard}>
+      <Image source={require('./assets/app-icon.png')} style={styles.appLockIcon} resizeMode="contain" />
+      <Text style={styles.title}>CloudComAI locked</Text>
+      <Text style={styles.subtitle}>Enter your App Lock PIN to continue.</Text>
+      <TextInput
+        autoFocus
+        style={styles.input}
+        value={pin}
+        onChangeText={value => setPin(value.replace(/\D/g, '').slice(0, 6))}
+        keyboardType="number-pad"
+        secureTextEntry
+        maxLength={6}
+        placeholder="App Lock PIN"
+        placeholderTextColor="#7f8aa3"
+        onSubmitEditing={unlock}
+      />
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Pressable style={styles.primaryButton} onPress={unlock}><Text style={styles.primaryButtonText}>Unlock</Text></Pressable>
+    </View>
+  </SafeAreaView>;
+}
+
 function AppContent() {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState(null);
@@ -682,6 +724,7 @@ function AppContent() {
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showPrivacySettings, setShowPrivacySettings] = useState(false);
   const [initialChatId, setInitialChatId] = useState(null);
+  const [appLocked, setAppLocked] = useState(false);
 
   useEffect(() => subscribeToSessionExpiration(() => {
     setSession(null);
@@ -692,9 +735,29 @@ function AppContent() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([sessionManager.getSession(), getNotificationPreferences()]).then(([saved, preferences]) => { if (active) { setSession(saved); setNotificationPreferencesState(preferences); setReady(true); } });
+    Promise.all([sessionManager.getSession(), getNotificationPreferences(), isAppLockEnabled()]).then(([saved, preferences, lockEnabled]) => {
+      if (active) {
+        setSession(saved);
+        setNotificationPreferencesState(preferences);
+        setAppLocked(Boolean(saved && lockEnabled));
+        setReady(true);
+      }
+    });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let backgrounded = false;
+    const subscription = AppState.addEventListener('change', async nextState => {
+      if (nextState !== 'active') {
+        backgrounded = true;
+        return;
+      }
+      if (backgrounded && session && await isAppLockEnabled()) setAppLocked(true);
+      backgrounded = false;
+    });
+    return () => subscription.remove();
+  }, [session]);
 
   useEffect(() => {
     if (Platform.OS !== 'android' || (!showNotificationSettings && !showPrivacySettings)) return undefined;
@@ -726,7 +789,11 @@ function AppContent() {
   }, []);
 
   if (!ready) return <SafeAreaView style={styles.splash} edges={['top', 'bottom', 'left', 'right']}><Image source={require('./assets/splash-logo.png')} style={styles.splashLogo} resizeMode="contain" /><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></SafeAreaView>;
-  if (!session) return <AuthScreen onAuthenticated={setSession} />;
+  if (!session) return <AuthScreen onAuthenticated={async nextSession => {
+    setSession(nextSession);
+    setAppLocked(await isAppLockEnabled());
+  }} />;
+  if (appLocked) return <AppLockScreen onUnlocked={() => setAppLocked(false)} />;
   if (showPrivacySettings) return <PrivacySettings onBack={() => setShowPrivacySettings(false)} />;
   if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
   return <ChatsScreen
@@ -755,7 +822,7 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, messageDeleteAction: { color: '#b91c1c' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
-  loginPage: { flex: 1, backgroundColor: '#eef2ff' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
+  loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
   input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
   mobileHome: { flex: 1, backgroundColor: '#fff' },
@@ -803,5 +870,5 @@ const styles = StyleSheet.create({
   bottomNavLabel: { marginTop: 3, color: '#4b5563', fontSize: 10, fontWeight: '600' },
   bottomNavLabelActive: { color: '#3157d5', fontWeight: '800' },
     appPage: { flex: 1, backgroundColor: '#f5f7fb' }, chatKeyboard: { flex: 1 }, header: { paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' }, headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', flexShrink: 1 }, headerUser: { marginTop: 2, color: '#dbe4ff', fontSize: 12 }, logout: { color: '#fff', fontWeight: '700' }, back: { color: '#fff', fontWeight: '700', width: 54 }, deleteChat: { color: '#fee2e2', fontWeight: '700', textAlign: 'right', minWidth: 54 }, tabs: { flexDirection: 'row', padding: 8, margin: 14, borderRadius: 12, backgroundColor: '#e5eaf4' }, tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 }, activeTab: { backgroundColor: '#fff' }, tabText: { color: '#69758b', fontWeight: '700' }, activeTabText: { color: '#3157d5' },
-  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerActionText: { fontSize: 18 }, loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, minHeight: 64, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, attachButton: { minHeight: 46, width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4', flexShrink: 0 }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 46, minWidth: 64, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5', flexShrink: 0 }, sendText: { color: '#fff', fontWeight: '700' },
+  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerActionText: { fontSize: 18 }, loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, emojiStrip: { flexGrow: 0, maxHeight: 54, borderTopWidth: 1, borderTopColor: '#edf0f5', backgroundColor: '#fff' }, emojiStripContent: { paddingHorizontal: 8, alignItems: 'center', gap: 4 }, emojiButton: { width: 42, height: 48, alignItems: 'center', justifyContent: 'center' }, emojiText: { fontSize: 26 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, minHeight: 64, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, emojiToggle: { minHeight: 46, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#f3f4f6', flexShrink: 0 }, emojiToggleText: { fontSize: 24 }, attachButton: { minHeight: 46, width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4', flexShrink: 0 }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 46, minWidth: 64, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5', flexShrink: 0 }, sendText: { color: '#fff', fontWeight: '700' },
 });

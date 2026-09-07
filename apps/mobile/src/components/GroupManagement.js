@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -12,7 +13,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { platformApi } from '../services/platform';
+import * as ImagePicker from 'expo-image-picker';
+import { mediaUrl, platformApi } from '../services/platform';
 
 export default function GroupManagement({ visible, group, user, onClose, onGroupUpdated, onGroupDeleted }) {
   const [members, setMembers] = useState([]);
@@ -21,6 +23,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
   const load = useCallback(async () => {
     if (!visible || !group?.id) return;
@@ -47,6 +50,39 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       await Share.share({ title: `Join ${group.name}`, message: `Join my CloudComAI group: ${url}`, url });
     } catch (e) {
       setError(e.message || 'Unable to create group invitation.');
+    } finally { setBusy(false); }
+  };
+
+  const chooseGroupPhoto = async () => {
+    if (busy) return;
+    setError('');
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) { setError('Photo library permission is required to update the group image.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.72,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
+      setBusy(true);
+      const form = new FormData();
+      form.append('type', 'group');
+      form.append('id', String(group.id));
+      form.append('image', {
+        uri: asset.uri,
+        name: asset.fileName || `group-${group.id}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+      });
+      const { data } = await platformApi.uploadMedia(form);
+      setImageVersion(data.updated_at || Date.now());
+      onGroupUpdated?.({ ...group, image_url: data.image_url, image_version: data.updated_at });
+      Alert.alert('Group photo updated', 'The cropped group photo was saved.');
+    } catch (e) {
+      setError(e.message || 'Unable to update group photo.');
     } finally { setBusy(false); }
   };
 
@@ -130,6 +166,10 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.card}>
             <Text style={styles.heading}>Group details</Text>
+            <View style={styles.photoWrap}>
+              <Image source={{ uri: `${mediaUrl('group', group.id)}&v=${imageVersion}` }} style={styles.groupPhoto} />
+              <Pressable style={styles.linkButton} onPress={chooseGroupPhoto}><Text style={styles.link}>Change & crop group photo</Text></Pressable>
+            </View>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Group name" />
             <Text style={styles.note}>{group.group_category || 'Group'}</Text>
             <Pressable style={styles.primary} onPress={save}><Text style={styles.primaryText}>Save group</Text></Pressable>
@@ -159,7 +199,7 @@ const styles = StyleSheet.create({
   headerLink: { color: '#fff', fontWeight: '700', minWidth: 54 },
   content: { padding: 14, paddingBottom: 40 },
   card: { padding: 16, marginBottom: 12, borderRadius: 14, backgroundColor: '#fff' },
-  heading: { color: '#172033', fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  photoWrap: { alignItems: 'center', marginBottom: 12 }, groupPhoto: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#e5e7eb' }, heading: { color: '#172033', fontSize: 16, fontWeight: '800', marginBottom: 10 },
   input: { minHeight: 46, paddingHorizontal: 12, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, color: '#172033' },
   note: { color: '#68748a', fontSize: 11, marginTop: 4 },
   primary: { minHeight: 46, marginTop: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#3157d5' },
