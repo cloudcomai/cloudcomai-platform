@@ -151,7 +151,7 @@ function auth_user(): array {
     if (!hash_equals($expected, $sig)) fail('Invalid token', 401);
     if ((int)$issued < time() - 60*60*24*30) fail('Token expired', 401);
     if (!ctype_digit($sessionVersion)) fail('Invalid token', 401);
-    $st = db()->prepare('SELECT u.id, u.user_id, u.name, u.email, u.mobile, u.gender, u.dob, u.qualification, u.account_status, COALESCE(s.session_version,0) AS session_version FROM users u LEFT JOIN user_session_versions s ON s.user_id=u.id WHERE u.id=?');
+    $st = db()->prepare('SELECT u.id, u.user_id, u.name, u.email, u.mobile, u.gender, u.account_status, COALESCE(s.session_version,0) AS session_version FROM users u LEFT JOIN user_session_versions s ON s.user_id=u.id WHERE u.id=?');
     $st->execute([(int)$uid]);
     $user = $st->fetch();
     if (!$user || $user['account_status'] !== 'active') fail('Account unavailable', 401);
