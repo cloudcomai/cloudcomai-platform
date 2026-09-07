@@ -168,6 +168,14 @@ export class CloudComAiApi {
     return this.client.post(ApiRoute.MESSAGES, input, options);
   }
 
+  editMessage(messageId, body, options = {}) {
+    return this.client.post(
+      ApiRoute.EDIT_MESSAGE,
+      { editing_id: messageId, body },
+      options,
+    );
+  }
+
   shareLocation(chatId, latitude, longitude, label = 'Shared location', options = {}) {
     return this.sendMessage({
       chat_id: chatId,
