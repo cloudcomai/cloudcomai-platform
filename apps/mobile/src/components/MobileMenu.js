@@ -329,7 +329,7 @@ export default function MobileMenu({
         <ScreenHeader title="Settings" onBack={() => go('menu')} onClose={onClose} />
         <View style={styles.content}>
           <Pressable style={styles.menuItem} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
-            <Text style={styles.menuTitle}>Notifications</Text>
+            <Text style={styles.menuTitle}>Privacy, account & notifications</Text>
             <Text style={styles.menuSub}>Push notification preferences</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={openSyncContacts}>

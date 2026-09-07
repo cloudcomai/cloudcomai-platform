@@ -1,5 +1,14 @@
 const messageId = message => Number(message?.id || 0);
 
+export const parseSharedLocation = body => {
+  try {
+    const location = typeof body === 'string' ? JSON.parse(body) : body;
+    const { latitude, longitude } = location || {};
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' || !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+    return { latitude, longitude, label: String(location.label || 'Shared location'), url: `https://www.google.com/maps/search/?api=1&query=${latitude}%2C${longitude}` };
+  } catch { return null; }
+};
+
 const MYSQL_UTC_TIMESTAMP = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?$/;
 
 export const parseMessageTimestamp = value => {
@@ -44,25 +53,31 @@ export const formatMessageTimestamp = (value, options = {}) => {
   return `${calendarDate}, ${time}`;
 };
 
-export const mergeMessageBatch = (current, incoming) => {
+export const mergeMessageBatch = (current, incoming, removedIds = []) => {
   const existing = Array.isArray(current) ? current : [];
-  const batch = Array.isArray(incoming) ? incoming : [];
-  if (batch.length === 0) {
+  const batch = Array.isArray(incoming) ? incoming : (incoming?.messages || []);
+  const removed = new Set((incoming?.removed_ids || removedIds).map(Number));
+  if (batch.length === 0 && removed.size === 0) {
     return { messages: existing, cursor: existing.reduce((max, item) => Math.max(max, messageId(item)), 0), changed: false };
   }
 
-  const byId = new Map(existing.map(item => [messageId(item), item]));
-  let changed = false;
+  const byId = new Map(existing.filter(item => !removed.has(messageId(item))).map(item => [messageId(item), item]));
+  let changed = byId.size !== existing.length;
   batch.forEach(item => {
     const id = messageId(item);
-    if (!id) return;
-    if (byId.get(id) !== item) changed = true;
+    if (!id || removed.has(id)) return;
+    if (JSON.stringify(byId.get(id)) === JSON.stringify(item)) return;
+    changed = true;
     byId.set(id, item);
   });
-  const messages = [...byId.values()].sort((a, b) => messageId(a) - messageId(b));
+  const messages = [...byId.values()].map(item => {
+    if (!removed.has(Number(item.reply_to_message_id)) || !item.reply_to_text) return item;
+    changed = true;
+    return { ...item, reply_to_text: null, reply_to_sender_name: null };
+  }).sort((a, b) => messageId(a) - messageId(b));
   return {
     messages,
-    cursor: messages.reduce((max, item) => Math.max(max, messageId(item)), 0),
+    cursor: [...existing, ...batch].reduce((max, item) => Math.max(max, messageId(item)), 0),
     changed,
   };
 };
@@ -109,7 +124,7 @@ export const createPollingMessageTransport = ({
     controller = new AbortController();
     try {
       const messages = await fetchMessages(getCursor(), { signal: controller.signal });
-      if (running && Array.isArray(messages) && messages.length > 0) onMessages(messages);
+      if (running && (Array.isArray(messages) || Array.isArray(messages?.messages))) onMessages(messages);
     } catch (error) {
       if (running && error?.name !== 'AbortError') onError(error);
     } finally {

@@ -18,6 +18,7 @@ if ($action === 'vote') {
     $membership->execute([$pollId, $user['id']]);
     $poll = $membership->fetch();
     if (!$poll) fail('Poll not found or access denied', 403);
+    assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
 
     $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
     $option->execute([$optionId, $pollId]);
@@ -63,6 +64,7 @@ $membership = $pdo->prepare('SELECT c.retention_seconds FROM chats c INNER JOIN 
 $membership->execute([$chat, $user['id']]);
 $chatRow = $membership->fetch();
 if (!$chatRow) fail('Not a member', 403);
+assert_chat_allows_messages($chat, (int)$user['id']);
 
 $expiresAt = !empty($chatRow['retention_seconds']) ? gmdate('Y-m-d H:i:s', time() + (int)$chatRow['retention_seconds']) : null;
 
@@ -79,6 +81,7 @@ try {
     $messageInsert->execute([$chat,$user['id'],'poll',$messageBody,$expiresAt]);
     $messageId = (int)$pdo->lastInsertId();
     $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
+    create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], 'Created a poll: ' . $question, $messageId);
 
     $pdo->commit();
 } catch (Throwable $e) {

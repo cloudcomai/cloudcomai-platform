@@ -7,11 +7,13 @@ $id = (int)($d['request_id'] ?? 0);
 $status = strtoupper((string)($d['status'] ?? ''));
 if ($id <= 0 || !in_array($status, ['APPROVED','DENIED'], true)) fail('Invalid request');
 
-$st = db()->prepare('SELECT r.id,r.status,r.sender_id,a.id AS attachment_id,m.chat_id FROM attachment_download_requests r JOIN message_attachments a ON a.id=r.attachment_id JOIN messages m ON m.id=a.message_id WHERE r.id=?');
+$st = db()->prepare('SELECT r.id,r.status,r.sender_id,r.requester_id,a.id AS attachment_id,m.id AS message_id,m.chat_id FROM attachment_download_requests r JOIN message_attachments a ON a.id=r.attachment_id JOIN messages m ON m.id=a.message_id WHERE r.id=?');
 $st->execute([$id]);
 $r = $st->fetch();
 if (!$r) fail('Download request not found', 404);
 if ((int)$r['sender_id'] !== (int)$user['id']) fail('Only the sender can approve this request', 403);
+assert_visible_message((int)$r['message_id'], (int)$user['id']);
+assert_visible_message((int)$r['message_id'], (int)$r['requester_id']);
 if ($r['status'] !== 'PENDING') fail('Request has already been answered');
 
 $member = db()->prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status="active"');

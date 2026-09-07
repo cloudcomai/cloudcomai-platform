@@ -43,12 +43,18 @@ $loadCandidates = static function (string $column, array $identifiers) use (&$re
     foreach (array_chunk(array_keys($identifiers), 500) as $identifierChunk) {
         $placeholders = implode(',', array_fill(0, count($identifierChunk), '?'));
         $candidateStmt = db()->prepare("
-            SELECT id, name, user_id, email, mobile, account_status,
-                   CASE WHEN updated_at IS NOT NULL AND updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND THEN 1 ELSE 0 END AS online
-            FROM users
-            WHERE id <> ? AND account_status = 'active' AND {$column} IN ({$placeholders})
+            SELECT u.id, u.name, u.user_id, u.email, u.mobile, u.account_status,
+                   CASE WHEN u.updated_at IS NOT NULL AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(ups.hide_online_status,0)=0 THEN 1 ELSE 0 END AS online
+            FROM users u
+            LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
+            WHERE u.id <> ? AND u.account_status = 'active' AND u.{$column} IN ({$placeholders})
+              AND NOT EXISTS (
+                  SELECT 1 FROM user_blocks ub
+                  WHERE (ub.user_id=? AND ub.blocked_user_id=u.id)
+                     OR (ub.user_id=u.id AND ub.blocked_user_id=?)
+              )
         ");
-        $candidateStmt->execute(array_merge([(int)$user['id']], $identifierChunk));
+        $candidateStmt->execute(array_merge([(int)$user['id']], $identifierChunk, [(int)$user['id'], (int)$user['id']]));
         foreach ($candidateStmt->fetchAll() as $candidate) {
             $candidateId = (int)$candidate['id'];
             if (!isset($registeredUserIds[$candidateId])) {

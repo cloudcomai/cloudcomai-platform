@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
+import appConfig from '../../app.json';
 
 const PREFERENCE_KEY = 'cloudcomai.notification.preferences';
 export const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({ enabled: true, message: true, group: true, attachment: true, system: true });
@@ -17,12 +18,12 @@ export async function setNotificationPreferences(preferences) {
 }
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async notification => {
+    const preferences = await getNotificationPreferences();
+    const category = notification?.request?.content?.data?.category || 'system';
+    const show = preferences.enabled && preferences[category] !== false;
+    return { shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: show, shouldShowList: show };
+  },
 });
 
 export async function requestNotificationPermission() {
@@ -38,11 +39,9 @@ export async function requestNotificationPermission() {
     const requested = await Notifications.requestPermissionsAsync();
     if (requested.status !== 'granted') return null;
   }
-  return Notifications.getDevicePushTokenAsync();
+  return Notifications.getExpoPushTokenAsync({ projectId: appConfig.expo.extra.eas.projectId });
 }
 
-// Device-token registration is intentionally isolated until the PHP API gains
-// an approved device-token endpoint. No token is sent to an unregistered URL.
 export const subscribeToNotifications = async onNotification => {
   const preferences = await getNotificationPreferences();
   return Notifications.addNotificationReceivedListener(event => {

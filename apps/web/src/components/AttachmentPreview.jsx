@@ -2,89 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { fetchApiBlob } from '../services/platform';
 
-export default function AttachmentPreview({ attachment }) {
+export default function AttachmentPreview({ attachment, messageType, autoDownload = false }) {
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
-  const isImage = String(attachment?.mime_type || '').startsWith('image/');
-
+  const [requested, setRequested] = useState(false);
+  const mime = String(attachment?.mime_type || '');
+  const kind = messageType === 'voice' || mime.startsWith('audio/') ? 'audio' : mime.startsWith('video/') ? 'video' : mime.startsWith('image/') ? 'image' : '';
+  useEffect(() => { setRequested(false); setPreviewUrl(''); setError(''); }, [attachment?.id]);
   useEffect(() => {
-    if (!attachment?.id || !isImage) return undefined;
-
+    if (!attachment?.id || !kind || (!requested && !autoDownload)) return undefined;
     let cancelled = false;
-    let objectUrl = '';
+    let url = '';
     const controller = new AbortController();
-
-    const loadPreview = async () => {
-      try {
-        setError('');
-        const blob = await fetchApiBlob(
-          ApiRoute.ATTACHMENT,
-          { id: attachment.id, preview: 1 },
-          { signal: controller.signal },
-        );
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
-      } catch (err) {
-        if (!cancelled && err?.name !== 'AbortError') {
-          console.error('Unable to load attachment preview:', err);
-          setError('Preview unavailable');
-        }
-      }
-    };
-
-    loadPreview();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [attachment?.id, isImage]);
-
-  if (!isImage) return null;
-
-  return (
-    <div
-      className="attachment-preview-wrap"
-      style={{
-        width: '100%',
-        maxWidth: '340px',
-        maxHeight: '300px',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        background: 'var(--bg-directory)',
-        border: '1px solid var(--border-color)'
-      }}
-    >
-      {previewUrl ? (
-        <img
-          src={previewUrl}
-          alt={attachment?.name || 'Attachment'}
-          className="attachment-image-preview"
-          style={{
-            display: 'block',
-            width: '100%',
-            maxHeight: '300px',
-            objectFit: 'contain'
-          }}
-        />
-      ) : (
-        <div
-          className="attachment-preview-placeholder"
-          style={{
-            minHeight: '100px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '12px',
-            fontSize: '11px',
-            color: 'var(--text-muted)'
-          }}
-        >
-          {error || 'Loading image...'}
-        </div>
-      )}
-    </div>
-  );
+    fetchApiBlob(ApiRoute.ATTACHMENT, { id: attachment.id, preview: 1 }, { signal: controller.signal }).then(blob => {
+      if (cancelled) return;
+      url = URL.createObjectURL(blob); setPreviewUrl(url); setError('');
+    }).catch(error => { if (!cancelled && error.name !== 'AbortError') setError(error.message || 'Preview unavailable'); });
+    return () => { cancelled = true; controller.abort(); if (url) URL.revokeObjectURL(url); };
+  }, [attachment?.id, kind, requested, autoDownload]);
+  if (!kind) return null;
+  return <div className="attachment-preview-wrap">
+    {previewUrl ? kind === 'image' ? <img src={previewUrl} alt={attachment.name || 'Attachment'} /> : kind === 'audio' ? <audio src={previewUrl} controls controlsList="nodownload" /> : <video src={previewUrl} controls playsInline controlsList="nodownload" /> : error ? <span role="alert">{error}</span> : requested || autoDownload ? <span>Loading media…</span> : <button onClick={() => setRequested(true)}>Load {kind === 'audio' ? 'voice/audio' : kind} · {Math.ceil(Number(attachment.file_size || 0) / 1024)} KB</button>}
+  </div>;
 }

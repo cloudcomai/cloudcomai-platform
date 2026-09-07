@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.2.0",
+  "contractVersion": "1.3.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
@@ -11,10 +11,12 @@
     "v1/users": { "handler": "users_list.php", "methods": ["GET"], "auth": true },
     "v1/users/search": { "handler": "search_users.php", "methods": ["GET"], "auth": true },
     "v1/users/preferences": { "handler": "preferences.php", "methods": ["GET", "PUT"], "auth": true },
+    "v1/users/privacy": { "handler": "privacy.php", "methods": ["GET", "PUT", "POST", "DELETE"], "auth": true },
+    "v1/users/backup": { "handler": "backup.php", "methods": ["GET"], "auth": true },
     "v1/chats": { "handler": "chats.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/groups": { "handler": "groups.php", "methods": ["GET", "POST", "PUT", "DELETE"], "auth": true },
     "v1/group-members": { "handler": "group_members.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
-    "v1/messages": { "handler": "messages.php", "methods": ["GET", "POST"], "auth": true },
+    "v1/messages": { "handler": "messages.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/messages/edit": { "handler": "edit_message.php", "methods": ["POST"], "auth": true },
     "v1/polls": { "handler": "polls.php", "methods": ["POST"], "auth": true },
     "v1/attachments/upload": { "handler": "upload_attachment.php", "methods": ["POST"], "auth": true, "contentType": "multipart/form-data" },
@@ -32,6 +34,7 @@
     "v1/notifications/device-token": { "handler": "device_tokens.php", "methods": ["POST", "DELETE"], "auth": true },
     "v1/notifications": { "handler": "notifications.php", "methods": ["GET"], "auth": true },
     "v1/notifications/read": { "handler": "notifications_read.php", "methods": ["POST"], "auth": true },
+    "v1/security/screenshot": { "handler": "screenshot_event.php", "methods": ["POST"], "auth": true },
     "v1/health": { "handler": "health.php", "methods": ["GET"], "auth": false },
     "v1/calls": { "handler": "calls.php", "methods": ["POST"], "auth": true },
     "v1/live-locations": { "handler": "live_location.php", "methods": ["POST"], "auth": true },
