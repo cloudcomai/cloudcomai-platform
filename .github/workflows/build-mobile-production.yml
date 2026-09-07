@@ -37,6 +37,8 @@ jobs:
       EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
       BUILD_PLATFORM: ${{ inputs.platform }}
       BUILD_CONFIRMATION: ${{ inputs.confirmation }}
+      GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_ARTIFACT_FOLDER_ID || '1Qs0iWqJbn-2D46S0ef6ddaMFQgHqmY1u' }}
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
 
     steps:
       - name: Checkout repository
@@ -209,6 +211,35 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Upload Android artifacts to Google Drive
+        if: inputs.platform == 'android' || inputs.platform == 'all'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+            exit 1
+          fi
+          if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+            echo "::error::Missing Google Drive artifact folder ID."
+            exit 1
+          fi
+
+          sudo apt-get update -y
+          sudo apt-get install -y rclone
+
+          export RCLONE_CONFIG_GDRIVE_TYPE=drive
+          export RCLONE_CONFIG_GDRIVE_SCOPE=drive
+          export RCLONE_CONFIG_GDRIVE_SERVICE_ACCOUNT_CREDENTIALS="$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
+          export RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID="$GOOGLE_DRIVE_ARTIFACT_FOLDER_ID"
+
+          DRIVE_PATH="production/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/android"
+          echo "Uploading Android production artifacts to Google Drive folder: $DRIVE_PATH"
+
+          rclone copy mobile-builds/android/ "gdrive:$DRIVE_PATH"             --create-empty-src-dirs             --checksum             --progress
+
+          rclone lsf "gdrive:$DRIVE_PATH"
       - name: Build iOS production binary on EAS
         if: inputs.platform == 'ios' || inputs.platform == 'all'
         working-directory: apps/mobile
@@ -231,6 +262,7 @@ jobs:
               echo "- Android App Bundle: CloudComAI-production.aab (Google Play)"
               echo "- Android Package: CloudComAI-production.apk (direct installation/testing)"
               echo "- GitHub artifact: CloudComAI-Android-Production (retained for 30 days)"
+              echo "- Google Drive: uploaded under production/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/android"
             fi
             if [ "$BUILD_PLATFORM" = "ios" ] || [ "$BUILD_PLATFORM" = "all" ]; then
               echo "- iOS production binary: available from the EAS build link"
