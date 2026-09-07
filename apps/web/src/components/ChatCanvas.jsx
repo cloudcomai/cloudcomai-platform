@@ -40,6 +40,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   const [deleting, setDeleting] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [chatMuted, setChatMuted] = useState(Boolean(selectedChat?.notifications_muted));
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
 
@@ -246,7 +247,9 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
         </div>
 
         {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { setReplyTo(null); setEditing(null); setComposer(''); }}><X size={16}/></button></div> : null}
+        {emojiOpen && <div className="emoji-picker-row"><button type="button" key="😀" onClick={() => setComposer(value => `${value}😀`)}>😀</button><button type="button" key="😂" onClick={() => setComposer(value => `${value}😂`)}>😂</button><button type="button" key="😍" onClick={() => setComposer(value => `${value}😍`)}>😍</button><button type="button" key="😊" onClick={() => setComposer(value => `${value}😊`)}>😊</button><button type="button" key="👍" onClick={() => setComposer(value => `${value}👍`)}>👍</button><button type="button" key="🙏" onClick={() => setComposer(value => `${value}🙏`)}>🙏</button><button type="button" key="❤️" onClick={() => setComposer(value => `${value}❤️`)}>❤️</button><button type="button" key="🎉" onClick={() => setComposer(value => `${value}🎉`)}>🎉</button><button type="button" key="😢" onClick={() => setComposer(value => `${value}😢`)}>😢</button><button type="button" key="😡" onClick={() => setComposer(value => `${value}😡`)}>😡</button><button type="button" key="🤔" onClick={() => setComposer(value => `${value}🤔`)}>🤔</button><button type="button" key="👏" onClick={() => setComposer(value => `${value}👏`)}>👏</button></div>}
         <div className="message-input-composer-bar">
+          <button type="button" className="emoji-toggle-btn" onClick={() => setEmojiOpen(value => !value)} aria-label="Choose emoji">☺</button>
           <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
           <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => setComposer(e.target.value)} onKeyDown={e => e.key === 'Enter' && !selectedChat?.blocked && onSendMessage()} disabled={!selectedChat || selectedChat.blocked} className="composer-text-input" />
           <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={!selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
