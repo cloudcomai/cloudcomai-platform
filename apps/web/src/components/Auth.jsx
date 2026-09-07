@@ -11,7 +11,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', mobile: '', qualification: '', user_id: '', password: '', dob: '', gender: 'Male' });
+  const [form, setForm] = useState({ name: '', email: '', mobile: '', user_id: '', password: '', dob: '', gender: 'Male' });
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState('');
   const [error, setError] = useState('');
@@ -49,8 +49,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
           user_id: form.user_id,
           password: form.password,
           dob: form.dob,
-          gender: form.gender,
-          qualification: form.qualification
+          gender: form.gender
         });
         response = result.data;
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
@@ -135,15 +134,13 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
             </div>
             <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-light)', marginBottom: '12px' }}>Profile image (optional, max 2 MB)</div>
             <input required placeholder="Full name" value={form.name} onChange={e => setForm({...form, name:e.target.value})}/>
-            <input required placeholder="CloudComAI User ID (required)" value={form.user_id} onChange={e => setForm({...form, user_id:e.target.value})}/>
-            <input placeholder="Email address (optional)" type="email" value={form.email} onChange={e => setForm({...form, email:e.target.value})}/>
-            <input placeholder="Qualification (optional)" value={form.qualification} onChange={e => setForm({...form, qualification:e.target.value})}/>
-            <input type="date" required aria-label="Date of birth (required for age)" value={form.dob} onChange={e => setForm({...form, dob:e.target.value})}/>
+            <input placeholder="CloudComAI User ID" value={form.user_id} onChange={e => setForm({...form, user_id:e.target.value})}/>
+            <input type="date" required value={form.dob} onChange={e => setForm({...form, dob:e.target.value})}/>
             <select value={form.gender} onChange={e => setForm({...form, gender:e.target.value})}><option value="Male">Male</option><option value="Female">Female</option></select>
-            <input placeholder="Mobile number (optional)" value={form.mobile} onChange={e => setForm({...form, mobile:e.target.value})}/>
+            <input required placeholder="Mobile number" value={form.mobile} onChange={e => setForm({...form, mobile:e.target.value})}/>
           </>}
 
-          {mode !== 'reset' && mode !== 'register' && <input required placeholder={mode === 'forgot' ? 'Registered email, mobile or User ID' : 'Email, mobile or User ID'} value={form.email} onChange={e => setForm({...form, email:e.target.value})}/>} 
+          {mode !== 'reset' && <input required placeholder={mode === 'forgot' ? 'Registered email, mobile or User ID' : 'Email, mobile or User ID'} value={form.email} onChange={e => setForm({...form, email:e.target.value})}/>} 
           {(mode === 'login' || mode === 'register') && <input required type="password" placeholder="Password" value={form.password} onChange={e => setForm({...form, password:e.target.value})}/>} 
           {mode === 'reset' && <>
             <input required type="password" autoComplete="new-password" minLength="8" placeholder="New password" aria-label="New password" value={form.password} onChange={e => setForm({...form, password:e.target.value})}/>
