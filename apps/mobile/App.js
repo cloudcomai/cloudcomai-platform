@@ -411,7 +411,9 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
           onContentSizeChange={() => { if (atBottomRef.current && !searchActive) listRef.current?.scrollToEnd?.({ animated: false }); }}
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
           renderItem={({ item }) => {
-            const mine = Number(item.sender_id) === Number(user.id);
+            const currentUserId = Number(user?.id || user?.user_id || user?.userId);
+            const senderId = Number(item.sender_id || item.sender?.id || item.user_id);
+            const mine = Number.isFinite(currentUserId) && currentUserId > 0 && senderId === currentUserId;
             return <View style={[styles.messageBubble, mine && styles.myMessage]}>
               {chat.isGroup && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <View style={styles.replyPreview}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
