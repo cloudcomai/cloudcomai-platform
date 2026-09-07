@@ -19,6 +19,7 @@ import PollModal from './components/PollModal';
 import InvitationPage from './components/InvitationPage';
 import PrivacyAccountPanel from './components/PrivacyAccountPanel';
 import { inviteUrlFromResponse } from './utils/shareLink';
+import { passwordResetLink, privatePasswordResetUrl } from './utils/passwordRecovery';
 import {
     clearWebSession,
     requestApi as api,
@@ -42,11 +43,11 @@ const inviteTokenFromLocation = () => {
 };
 
 const screenFromLocation = () => {
-    if (new URLSearchParams(window.location.search).get('reset_token')) return 'login';
+    if (passwordResetLink(window.location.href).present) return 'reset';
 
     const route = window.location.hash.replace(/^#/, '').toLowerCase();
     if (route.startsWith('invite=')) return 'invite';
-    if (route === 'login' || route === 'register' || route === 'app') return route;
+    if (['login', 'register', 'forgot', 'app'].includes(route)) return route;
     return 'home';
 };
 
@@ -54,12 +55,16 @@ const screenHashes = {
     home: '#top',
     login: '#login',
     register: '#register',
+    forgot: '#forgot',
+    reset: '#reset',
     app: '#app',
 };
 
 export default function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [screen, setScreen] = useState(screenFromLocation);
+    const [resetToken, setResetToken] = useState(() => passwordResetLink(window.location.href).token);
+    const [authMessage, setAuthMessage] = useState('');
     const [token, setToken] = useState('');
     const [user, setUser] = useState(null);
     const [authReady, setAuthReady] = useState(false);
@@ -90,6 +95,8 @@ export default function App() {
         const relativeUrl = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
         window.history[replace ? 'replaceState' : 'pushState']({}, '', relativeUrl);
         setScreen(nextScreen);
+        setResetToken('');
+        if (nextScreen !== 'login') setAuthMessage('');
         window.scrollTo({ top: 0, behavior: 'auto' });
     }, []);
 
@@ -98,7 +105,7 @@ export default function App() {
         const initializeAuth = async () => {
             const session = await loadWebSession();
             if (cancelled) return;
-            if (session) {
+            if (session && !passwordResetLink(window.location.href).present) {
                 setUser(session.user);
                 setToken(session.token);
             }
@@ -108,9 +115,16 @@ export default function App() {
             clearWebSession().catch(error => console.error('Unable to clear the expired session:', error));
             setToken('');
             setUser(null);
-            navigateTo('login', { replace: true });
+            if (!passwordResetLink(window.location.href).present) navigateTo('login', { replace: true });
         };
         const handleLocationChange = () => {
+            const recovery = passwordResetLink(window.location.href);
+            setResetToken(recovery.token);
+            if (recovery.present) {
+                setToken('');
+                setUser(null);
+                window.history.replaceState({}, '', privatePasswordResetUrl(window.location.href));
+            }
             const locationInviteToken = inviteTokenFromLocation();
             if (locationInviteToken) {
                 setPendingInviteToken(locationInviteToken);
@@ -121,6 +135,7 @@ export default function App() {
         window.addEventListener('cloudcomai:unauthorized', handleUnauthorized);
         window.addEventListener('hashchange', handleLocationChange);
         window.addEventListener('popstate', handleLocationChange);
+        window.history.replaceState({}, '', privatePasswordResetUrl(window.location.href));
         initializeAuth();
         return () => {
             cancelled = true;
@@ -476,13 +491,22 @@ export default function App() {
             />
         );
     }
-    if (screen === 'login' || screen === 'register' || !token) {
+    if (['login', 'register', 'forgot', 'reset'].includes(screen) || !token) {
         return (
             <Auth
                 key={screen}
                 onAuth={auth}
                 authApi={platformApi}
-                initialMode={screen === 'register' ? 'register' : 'login'}
+                initialMode={['register', 'forgot', 'reset'].includes(screen) ? screen : 'login'}
+                resetToken={resetToken}
+                initialMessage={authMessage}
+                onPasswordReset={async () => {
+                    await clearWebSession();
+                    setToken('');
+                    setUser(null);
+                    setAuthMessage('Password updated. Sign in with your new password.');
+                    navigateTo('login', { replace: true });
+                }}
                 onNavigateHome={pendingInviteToken ? leaveInvitation : () => navigateTo('home')}
                 onModeChange={nextMode => navigateTo(nextMode, { replace: true })}
             />

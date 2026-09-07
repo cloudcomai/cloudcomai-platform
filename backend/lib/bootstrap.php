@@ -100,9 +100,9 @@ function assert_chat_allows_messages(int $chatId, int $userId): void {
         fail('Messages are unavailable because this contact is blocked', 403);
     }
 }
-function token_for(int $userId): string {
+function token_for(int $userId, int $sessionVersion = 0): string {
     global $config;
-    $payload = $userId . '|' . time() . '|' . bin2hex(random_bytes(12));
+    $payload = $userId . '|' . time() . '|' . bin2hex(random_bytes(12)) . '|' . $sessionVersion;
     $sig = hash_hmac('sha256', $payload, $config['app']['token_secret']);
     return base64_encode($payload . '|' . $sig);
 }
@@ -129,16 +129,26 @@ function auth_user(): array {
     $decoded = base64_decode($m[1], true);
     if (!$decoded) fail('Invalid token', 401);
     $parts = explode('|', $decoded);
-    if (count($parts) !== 4) fail('Invalid token', 401);
-    [$uid,$issued,$nonce,$sig] = $parts;
-    $payload = "$uid|$issued|$nonce";
+    // Existing four-part tokens remain valid until that account resets its password.
+    if (count($parts) === 4) {
+        [$uid,$issued,$nonce,$sig] = $parts;
+        $sessionVersion = '0';
+    } elseif (count($parts) === 5) {
+        [$uid,$issued,$nonce,$sessionVersion,$sig] = $parts;
+    } else {
+        fail('Invalid token', 401);
+    }
+    $payload = implode('|', array_slice($parts, 0, -1));
     $expected = hash_hmac('sha256', $payload, $config['app']['token_secret']);
     if (!hash_equals($expected, $sig)) fail('Invalid token', 401);
     if ((int)$issued < time() - 60*60*24*30) fail('Token expired', 401);
-    $st = db()->prepare('SELECT id, user_id, name, email, mobile, gender, account_status FROM users WHERE id=?');
+    if (!ctype_digit($sessionVersion)) fail('Invalid token', 401);
+    $st = db()->prepare('SELECT u.id, u.user_id, u.name, u.email, u.mobile, u.gender, u.account_status, COALESCE(s.session_version,0) AS session_version FROM users u LEFT JOIN user_session_versions s ON s.user_id=u.id WHERE u.id=?');
     $st->execute([(int)$uid]);
     $user = $st->fetch();
     if (!$user || $user['account_status'] !== 'active') fail('Account unavailable', 401);
+    if ((int)$sessionVersion !== (int)$user['session_version']) fail('Password changed. Please sign in again.', 401);
+    unset($user['session_version']);
     return $user;
 }
 function chat_retention_seconds(string $chatType): int {

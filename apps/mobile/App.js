@@ -26,7 +26,7 @@ import MediaMessage from './src/components/MediaMessage';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
-import { API_BASE_URL, mediaUrl, platformApi, sessionManager } from './src/services/platform';
+import { API_BASE_URL, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration } from './src/services/platform';
 import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
 import MobileMenu from './src/components/MobileMenu';
 
@@ -49,6 +49,7 @@ function AuthScreen({ onAuthenticated }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const persistAuthenticatedSession = async data => {
     if (!data?.token || !data?.user) throw new Error('Invalid authentication response.');
@@ -99,9 +100,27 @@ function AuthScreen({ onAuthenticated }) {
     }
   };
 
+  const forgotPassword = async () => {
+    if (busy) return;
+    if (!identifier.trim()) { setError('Enter your registered email, mobile number or User ID.'); return; }
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      const { data } = await platformApi.forgotPassword(identifier.trim());
+      setSuccess(data?.message || 'If your account has an email address, reset instructions will be sent. Check your inbox and spam folder.');
+    } catch (recoveryError) {
+      setError(recoveryError.message || 'Unable to request a password reset. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const changeMode = nextMode => {
+    if (busy) return;
     setMode(nextMode);
     setError('');
+    setSuccess('');
     setPassword('');
     setConfirmPassword('');
   };
@@ -117,10 +136,11 @@ function AuthScreen({ onAuthenticated }) {
         >
           <View style={styles.loginCard}>
             <Image source={require('./assets/splash-logo.png')} style={styles.authLogo} resizeMode="contain" />
-            <Text style={styles.title}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</Text>
+            <Text style={styles.title}>{mode === 'login' ? 'Welcome back' : mode === 'forgot' ? 'Reset your password' : 'Create your account'}</Text>
             <Text style={styles.subtitle}>
               {mode === 'login'
                 ? 'Sign in once and CloudComAI will keep you signed in securely on this device.'
+                : mode === 'forgot' ? 'We’ll email a reset link to your registered address. Open it in your browser, choose a new password, then return here to sign in.'
                 : 'Create your CloudComAI account to start secure conversations.'}
             </Text>
 
@@ -133,6 +153,8 @@ function AuthScreen({ onAuthenticated }) {
                   <Text style={styles.rememberText}>Keep me signed in on this device</Text>
                 </View>
               </>
+            ) : mode === 'forgot' ? (
+              <TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} editable={!busy} placeholder="Registered email, mobile or User ID" placeholderTextColor="#7f8aa3" accessibilityLabel="Registered email, mobile or User ID" onSubmitEditing={forgotPassword} />
             ) : (
               <>
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor="#7f8aa3" />
@@ -153,13 +175,16 @@ function AuthScreen({ onAuthenticated }) {
             )}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={mode === 'login' ? login : register} disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{mode === 'login' ? 'Sign in' : 'Register'}</Text>}
+            {success ? <Text style={styles.success} accessibilityLiveRegion="polite">{success}</Text> : null}
+            <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={mode === 'login' ? login : mode === 'forgot' ? forgotPassword : register} disabled={busy}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{mode === 'login' ? 'Sign in' : mode === 'forgot' ? 'Send reset instructions' : 'Register'}</Text>}
             </Pressable>
+
+            {mode === 'login' && <Pressable style={styles.authSwitchRow} disabled={busy} onPress={() => changeMode('forgot')}><Text style={styles.authSwitchLink}>Forgot password?</Text></Pressable>}
 
             <View style={styles.authSwitchRow}>
               <Text style={styles.authSwitchText}>{mode === 'login' ? "Don't have an account?" : 'Already have an account?'}</Text>
-              <Pressable onPress={() => changeMode(mode === 'login' ? 'register' : 'login')}>
+              <Pressable disabled={busy} onPress={() => changeMode(mode === 'login' ? 'register' : 'login')}>
                 <Text style={styles.authSwitchLink}>{mode === 'login' ? 'Register' : 'Sign in'}</Text>
               </Pressable>
             </View>
@@ -521,6 +546,13 @@ function AppContent() {
   const [showPrivacySettings, setShowPrivacySettings] = useState(false);
   const [initialChatId, setInitialChatId] = useState(null);
 
+  useEffect(() => subscribeToSessionExpiration(() => {
+    setSession(null);
+    setShowNotificationSettings(false);
+    setShowPrivacySettings(false);
+    setInitialChatId(null);
+  }), []);
+
   useEffect(() => {
     let active = true;
     Promise.all([sessionManager.getSession(), getNotificationPreferences()]).then(([saved, preferences]) => { if (active) { setSession(saved); setNotificationPreferencesState(preferences); setReady(true); } });
@@ -572,6 +604,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
   searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },

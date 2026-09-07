@@ -3,11 +3,10 @@ import TermsModal from './TermsModal';
 import PrivacyPolicyModal from './PrivacyPolicyModal';
 import BrandLogo from './BrandLogo';
 import { Camera } from 'lucide-react';
+import { isPasswordResetToken } from '../utils/passwordRecovery';
 
-export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigateHome, onModeChange }) {
-  const initialResetToken = new URLSearchParams(window.location.search).get('reset_token') || '';
-  const [mode, setMode] = useState(initialResetToken ? 'reset' : initialMode);
-  const [resetToken, setResetToken] = useState(initialResetToken);
+export default function Auth({ onAuth, authApi, initialMode = 'login', resetToken = '', initialMessage = '', onPasswordReset, onNavigateHome, onModeChange }) {
+  const [mode, setMode] = useState(initialMode);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
@@ -16,7 +15,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigat
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState(initialMessage);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef(null);
 
@@ -32,6 +31,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigat
 
   const submit = async e => {
     e.preventDefault();
+    if (loading) return;
     if (mode === 'register' && !acceptedTerms) {
       setError('Please accept the Terms & Conditions and Privacy Policy.');
       return;
@@ -68,20 +68,22 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigat
         }
         await onAuth(nextUser, response.token);
       } else if (mode === 'forgot') {
-        response = (await authApi.forgotPassword(form.email)).data;
+        if (!form.email.trim()) throw new Error('Enter your registered email, mobile number or User ID.');
+        response = (await authApi.forgotPassword(form.email.trim())).data;
         setSuccess(response?.message || 'If the account exists, password reset instructions have been sent.');
       } else if (mode === 'reset') {
-        if (!resetToken) throw new Error('This password reset link is missing or invalid.');
-        if (form.password.length < 8) throw new Error('Password must be at least 8 characters.');
+        if (!isPasswordResetToken(resetToken)) throw new Error('This reset link is missing or invalid. Request a new link below.');
+        if ([...form.password].length < 8) throw new Error('Password must be at least 8 characters.');
+        if (new TextEncoder().encode(form.password).length > 72) throw new Error('Password is too long. Use at most 72 bytes (72 plain English characters).');
         if (form.password !== confirmPassword) throw new Error('Passwords do not match.');
         response = (await authApi.resetPassword(resetToken, form.password)).data;
-        window.history.replaceState({}, document.title, window.location.pathname);
-        setResetToken('');
         setConfirmPassword('');
         setForm(prev => ({ ...prev, password: '' }));
-        setMode('login');
-        onModeChange?.('login');
-        setSuccess(response?.message || 'Password has been reset successfully. You can now sign in.');
+        if (onPasswordReset) await onPasswordReset();
+        else {
+          setMode('login');
+          setSuccess('Password updated. Sign in with your new password.');
+        }
       } else {
         response = (await authApi.login(form.email, form.password)).data;
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
@@ -95,25 +97,31 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigat
   };
 
   const switchMode = nextMode => {
+    if (loading) return;
     setError('');
     setSuccess('');
     setAvatarFile(null);
     setAvatarPreview('');
     setConfirmPassword('');
+    setForm(prev => ({ ...prev, password: '' }));
     setMode(nextMode);
-    if (nextMode === 'login' || nextMode === 'register') onModeChange?.(nextMode);
+    onModeChange?.(nextMode);
   };
 
   return (
     <div className="auth-page">
       <div className="auth-card">
-        {onNavigateHome && <button type="button" className="auth-home-link" onClick={onNavigateHome}>← Back to home</button>}
+        {onNavigateHome && <button type="button" className="auth-home-link" disabled={loading} onClick={onNavigateHome}>← Back to home</button>}
         <div className="brand center auth-brand">
           <BrandLogo variant="dark" className="auth-brand-image" />
         </div>
         <h1>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your account' : mode === 'forgot' ? 'Reset your password' : 'Choose a new password'}</h1>
+        {mode === 'forgot' && <p>We’ll send a link to your account’s registered email address. Open it in your browser to choose a new password, then sign in on web or mobile.</p>}
+        {mode === 'reset' && <p>Reset links expire after 30 minutes. Choose a password with at least 8 characters.</p>}
+        {mode === 'reset' && !isPasswordResetToken(resetToken) && <div className="error" role="alert">This reset link is missing or invalid. Request a new link below.</div>}
 
         <form onSubmit={submit}>
+          <fieldset disabled={loading} style={{ border: 0, padding: 0, margin: 0, display: 'contents' }}>
           {mode === 'register' && <>
             <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 4px' }}>
               <button type="button" onClick={() => fileRef.current?.click()} style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer' }} aria-label="Choose profile image (optional)">
@@ -135,8 +143,8 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigat
           {mode !== 'reset' && <input required placeholder={mode === 'forgot' ? 'Registered email, mobile or User ID' : 'Email, mobile or User ID'} value={form.email} onChange={e => setForm({...form, email:e.target.value})}/>} 
           {(mode === 'login' || mode === 'register') && <input required type="password" placeholder="Password" value={form.password} onChange={e => setForm({...form, password:e.target.value})}/>} 
           {mode === 'reset' && <>
-            <input required type="password" minLength="8" placeholder="New password" value={form.password} onChange={e => setForm({...form, password:e.target.value})}/>
-            <input required type="password" minLength="8" placeholder="Confirm new password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}/>
+            <input required type="password" autoComplete="new-password" minLength="8" placeholder="New password" aria-label="New password" value={form.password} onChange={e => setForm({...form, password:e.target.value})}/>
+            <input required type="password" autoComplete="new-password" minLength="8" placeholder="Confirm new password" aria-label="Confirm new password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}/>
           </>}
 
           {mode === 'register' && <div className="terms-checkbox"><label>
@@ -144,14 +152,16 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', onNavigat
             <span>I agree to <button type="button" className="terms-link" onClick={() => setShowTerms(true)}>Terms & Conditions</button> and <button type="button" className="terms-link" onClick={() => setShowPrivacy(true)}>Privacy Policy</button></span>
           </label></div>}
 
-          {error && <div className="error">{error}</div>}
-          {success && <div className="success">{success}</div>}
-          <button type="submit" className="primary wide" disabled={loading}>{loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : mode === 'register' ? 'Register' : mode === 'forgot' ? 'Send Reset Instructions' : 'Update Password'}</button>
+          {error && <div className="error" role="alert">{error}</div>}
+          {success && <div className="success" role="status">{success}</div>}
+          <button type="submit" className="primary wide" disabled={loading || (mode === 'reset' && !isPasswordResetToken(resetToken))}>{loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : mode === 'register' ? 'Register' : mode === 'forgot' ? 'Send Reset Instructions' : 'Update Password'}</button>
+          </fieldset>
         </form>
 
         {mode === 'login' && <button type="button" className="link" onClick={() => switchMode('forgot')}>Forgot Password?</button>}
         {mode === 'forgot' && <button type="button" className="link" onClick={() => switchMode('login')}>Back to Sign In</button>}
         {mode === 'reset' && <button type="button" className="link" onClick={() => switchMode('login')}>Back to Sign In</button>}
+        {mode === 'reset' && <button type="button" className="link" onClick={() => switchMode('forgot')}>Request a new reset link</button>}
         {mode !== 'forgot' && mode !== 'reset' && <button type="button" className="link" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}>{mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}</button>}
 
         {showTerms && <TermsModal onClose={() => setShowTerms(false)}/>} 
