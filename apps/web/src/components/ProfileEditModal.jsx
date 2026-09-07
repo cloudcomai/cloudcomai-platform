@@ -5,6 +5,11 @@ import { Camera, X } from 'lucide-react';
 export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated }) {
   const fileRef = useRef(null);
   const [name, setName] = useState(user?.name || '');
+  const [dob, setDob] = useState(user?.dob || '');
+  const [gender, setGender] = useState(user?.gender || 'Male');
+  const [email, setEmail] = useState(user?.email || '');
+  const [mobile, setMobile] = useState(user?.mobile || '');
+  const [qualification, setQualification] = useState(user?.qualification || '');
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,7 +30,7 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
     try {
       const response = await apiBridge(ApiRoute.PROFILE, {
         method: 'PUT',
-        body: JSON.stringify({ name: name.trim() })
+        body: JSON.stringify({ name: name.trim(), dob, gender, email: email.trim(), mobile: mobile.trim(), qualification: qualification.trim() })
       });
       let nextUser = response.user;
       if (file) {
@@ -66,6 +71,17 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
 
         <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Display Name</label>
         <input required value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 20 }} />
+
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Date of birth / age (required)</label>
+        <input type="date" required value={dob} onChange={e => setDob(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 12 }} />
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Gender</label>
+        <select value={gender} onChange={e => setGender(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 12 }}><option value="Male">Male</option><option value="Female">Female</option></select>
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Email (optional)</label>
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 12 }} />
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Mobile (optional)</label>
+        <input value={mobile} onChange={e => setMobile(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 12 }} />
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Qualification (optional)</label>
+        <input value={qualification} onChange={e => setQualification(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 20 }} />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button type="button" className="filter-pill" onClick={close} disabled={loading}>Cancel</button>
