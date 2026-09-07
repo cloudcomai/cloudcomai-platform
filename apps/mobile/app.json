@@ -35,7 +35,6 @@
       ["expo-audio", { "microphonePermission": "Allow CloudComAI to record voice messages." }],
       ["expo-image-picker", { "cameraPermission": "Allow CloudComAI to record video messages.", "microphonePermission": "Allow CloudComAI to record sound for video messages.", "photosPermission": "Allow CloudComAI to choose videos to share." }],
       ["expo-location", { "locationWhenInUsePermission": "Allow CloudComAI to share your current location when you choose." }],
-      "expo-screen-capture",
       "expo-video"
     ],
     "extra": {

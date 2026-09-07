@@ -62,6 +62,7 @@ try {
         usleep(100000);
     }
     $settings = request('GET','v1/users/privacy',1)['data'];
+    request('POST','v1/notifications/device-token',2,['token'=>'ExponentPushToken[integration-test-only]','platform'=>'ANDROID']);
     check($settings['settings']['screenshot_alerts'] === true, 'Screenshot alerts default');
     request('PUT','v1/users/privacy',1,['hide_online_status'=>true]);
     request('PUT','v1/users/privacy',1,['hide_online_status'=>'invalid'],400);

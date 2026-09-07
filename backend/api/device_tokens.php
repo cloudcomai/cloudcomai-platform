@@ -7,7 +7,7 @@ if ($method === 'DELETE') {
     out(['ok' => true]);
 }
 if ($method !== 'POST') fail('Method not allowed', 405);
-$input = read_json();
+$input = input();
 $token = trim((string)($input['token'] ?? ''));
 $platform = strtoupper(trim((string)($input['platform'] ?? '')));
 if ($token === '' || strlen($token) > 512 || !in_array($platform, ['ANDROID', 'IOS'], true)) fail('A valid token and platform are required', 422);

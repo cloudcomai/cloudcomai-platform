@@ -15,11 +15,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
-      - uses: actions/upload-artifact@v4
-        with:
-          name: resolved-dependency-lockfile
-          path: pnpm-lock.yaml
-          retention-days: 1
+      - name: Show resolved dependency changes
+        run: git diff -- pnpm-lock.yaml
       - run: pnpm test
       - run: pnpm verify:api
       - run: pnpm build:web

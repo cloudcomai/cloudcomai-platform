@@ -33,6 +33,7 @@ export default function PrivacySettings({ onBack }) {
     const response = await platformApi.downloadAccountBackup();
     const file = new File(Paths.cache, `cloudcomai-account-${Date.now()}.json`);
     try {
+      file.create();
       file.write(JSON.stringify(response.data, null, 2));
       await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: 'Save account backup' });
     } finally { if (file.exists) file.delete(); }
