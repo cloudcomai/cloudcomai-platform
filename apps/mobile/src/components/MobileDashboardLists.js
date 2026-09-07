@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { platformApi } from '../services/platform';
+import { setApplicationBadge } from '../services/notifications';
 
 export function ContactsList({ onOpenChat }) {
   const [items, setItems] = useState([]);
@@ -39,6 +40,21 @@ export function ContactsList({ onOpenChat }) {
       if (data.chat) onOpenChat?.({ ...data.chat, id: Number(data.chat.id), isGroup: false });
     } catch (e) {
       setError(e.message || 'Unable to start private chat.');
+    }
+  };
+
+  const openNotification = async item => {
+    try {
+      if (!item.read_at) {
+        await platformApi.markNotificationsRead({ notification_ids: [Number(item.id)] });
+        setItems(current => current.map(entry => Number(entry.id) === Number(item.id) ? { ...entry, read_at: new Date().toISOString() } : entry));
+        const next = Math.max(0, unread - 1);
+        setUnread(next);
+        setApplicationBadge(next);
+      }
+      if (item.data?.chat_id) onOpenChat?.(Number(item.data.chat_id));
+    } catch (e) {
+      setError(e.message || 'Unable to open notification.');
     }
   };
 
@@ -87,7 +103,9 @@ export function NotificationsList({ onOpenChat }) {
     try {
       const { data } = await platformApi.listNotifications({ query: { limit: 100 } });
       setItems(data.notifications || []);
-      setUnread(Number(data.unread_count || 0));
+      const count = Number(data.unread_count || 0);
+      setUnread(count);
+      setApplicationBadge(count);
     } catch (e) {
       setError(e.message || 'Unable to load notifications.');
     } finally {
@@ -103,6 +121,7 @@ export function NotificationsList({ onOpenChat }) {
       await platformApi.markNotificationsRead({ all: true });
       setItems(current => current.map(item => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
       setUnread(0);
+      setApplicationBadge(0);
     } catch (e) {
       setError(e.message || 'Unable to mark notifications as read.');
     }
@@ -126,13 +145,13 @@ export function NotificationsList({ onOpenChat }) {
         renderItem={({ item }) => (
           <Pressable
             style={[styles.notificationRow, !item.read_at && styles.unreadRow]}
-            onPress={() => item.data?.chat_id && onOpenChat?.(Number(item.data.chat_id))}
+            onPress={() => openNotification(item)}
           >
             <View style={[styles.notificationDot, item.read_at && styles.notificationDotRead]} />
             <View style={styles.meta}>
               <Text style={styles.title}>{item.title || 'CloudComAI'}</Text>
               <Text style={styles.sub}>{item.body || item.category || 'Notification'}</Text>
-              <Text style={styles.timeText}>{formatTime(item.created_at)}</Text>
+              <Text style={styles.timeText}>{formatTime(item.created_at)} · {item.read_at ? 'Read' : 'New'}</Text>
             </View>
           </Pressable>
         )}
