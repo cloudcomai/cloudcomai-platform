@@ -65,9 +65,6 @@ export default function MobileMenu({
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profileDob, setProfileDob] = useState(user?.dob || '');
   const [profileGender, setProfileGender] = useState(user?.gender || 'Male');
-  const [profileEmail, setProfileEmail] = useState(user?.email || '');
-  const [profileMobile, setProfileMobile] = useState(user?.mobile || '');
-  const [profileQualification, setProfileQualification] = useState(user?.qualification || '');
   const [profileImageVersion, setProfileImageVersion] = useState(user?.image_version || Date.now());
   const [appLockEnabled, setAppLockEnabled] = useState(false);
   const [appLockPin, setAppLockPinValue] = useState('');
@@ -79,9 +76,6 @@ export default function MobileMenu({
       setProfileName(user?.name || '');
       setProfileDob(user?.dob || '');
       setProfileGender(user?.gender || 'Male');
-      setProfileEmail(user?.email || '');
-      setProfileMobile(user?.mobile || '');
-      setProfileQualification(user?.qualification || '');
       setProfileImageVersion(user?.image_version || Date.now());
       isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
     } else {
@@ -305,9 +299,6 @@ export default function MobileMenu({
         name: profileName.trim(),
         dob: profileDob.trim(),
         gender: profileGender,
-        email: profileEmail.trim(),
-        mobile: profileMobile.trim(),
-        qualification: profileQualification.trim(),
       });
       if (data.user) {
         onProfileUpdated?.(data.user);
@@ -494,13 +485,11 @@ export default function MobileMenu({
           <TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" />
           <Text style={styles.label}>CloudComAI User ID</Text>
           <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.user_id ? `@${user.user_id}` : 'Not set'}</Text></View>
-          <Text style={styles.label}>Email (optional)</Text>
-          <TextInput style={styles.input} value={profileEmail} onChangeText={setProfileEmail} autoCapitalize="none" keyboardType="email-address" placeholder="Email address" />
-          <Text style={styles.label}>Mobile (optional)</Text>
-          <TextInput style={styles.input} value={profileMobile} onChangeText={setProfileMobile} keyboardType="phone-pad" placeholder="Mobile number" />
-          <Text style={styles.label}>Qualification (optional)</Text>
-          <TextInput style={styles.input} value={profileQualification} onChangeText={setProfileQualification} placeholder="Qualification" />
-          <Text style={styles.label}>Date of birth / age (required)</Text>
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.email || 'Not set'}</Text></View>
+          <Text style={styles.label}>Mobile</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.mobile || 'Not set'}</Text></View>
+          <Text style={styles.label}>Date of birth</Text>
           <TextInput style={styles.input} value={profileDob} onChangeText={setProfileDob} placeholder="YYYY-MM-DD" autoCapitalize="none" />
           <Text style={styles.label}>Gender</Text>
           <View style={styles.chips}>
