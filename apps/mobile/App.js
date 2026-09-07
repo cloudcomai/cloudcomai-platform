@@ -47,6 +47,7 @@ function AuthScreen({ onAuthenticated }) {
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
+  const [qualification, setQualification] = useState('');
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Male');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -78,7 +79,8 @@ function AuthScreen({ onAuthenticated }) {
   const register = async () => {
     if (busy) return;
     if (!name.trim()) { setError('Full name is required.'); return; }
-    if (!email.trim() && !mobile.trim() && !userId.trim()) { setError('Email, mobile number or CloudComAI User ID is required.'); return; }
+    if (!userId.trim()) { setError('CloudComAI User ID is required.'); return; }
+    if (!/^[a-z0-9_]{3,30}$/i.test(userId.trim())) { setError('CloudComAI User ID must contain 3-30 letters, numbers or underscores.'); return; }
     if (!dob.trim()) { setError('Date of birth is required in YYYY-MM-DD format.'); return; }
     if (password.length < 8) { setError('Password must contain at least 8 characters.'); return; }
     if (password !== confirmPassword) { setError('Passwords do not match.'); return; }
@@ -91,6 +93,7 @@ function AuthScreen({ onAuthenticated }) {
         user_id: userId.trim().toLowerCase(),
         email: email.trim().toLowerCase(),
         mobile: mobile.trim(),
+        qualification: qualification.trim(),
         dob: dob.trim(),
         gender,
         password,
@@ -161,10 +164,11 @@ function AuthScreen({ onAuthenticated }) {
             ) : (
               <>
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={userId} onChangeText={setUserId} autoCapitalize="none" autoCorrect={false} placeholder="CloudComAI User ID" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="Email address" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" placeholder="Mobile number" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={dob} onChangeText={setDob} autoCapitalize="none" placeholder="Date of birth (YYYY-MM-DD)" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={userId} onChangeText={setUserId} autoCapitalize="none" autoCorrect={false} placeholder="CloudComAI User ID (required)" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="Email address (optional)" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" placeholder="Mobile number (optional)" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={qualification} onChangeText={setQualification} placeholder="Qualification (optional)" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={dob} onChangeText={setDob} autoCapitalize="none" placeholder="Date of birth (required, YYYY-MM-DD)" placeholderTextColor="#7f8aa3" />
                 <View style={styles.genderRow}>
                   {['Male', 'Female'].map(value => (
                     <Pressable key={value} style={[styles.genderButton, gender === value && styles.genderButtonActive]} onPress={() => setGender(value)}>
