@@ -601,7 +601,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
       </View>
       {searchOpen ? <View style={styles.mobileSearchWrap}><TextInput style={styles.mobileSearchInput} value={searchText} onChangeText={setSearchText} autoFocus placeholder="Search conversations" placeholderTextColor="#8a94a6" /></View> : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActions}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalStrip} contentContainerStyle={styles.quickActions}>
         <Pressable style={styles.quickAction} onPress={() => openMenu('private')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>＋</Text></View><Text style={styles.quickLabel}>New Chat</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => openMenu('group')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👪</Text></View><Text style={styles.quickLabel}>New Group</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👥</Text></View><Text style={styles.quickLabel}>Contacts</Text></Pressable>
@@ -609,7 +609,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
         <Pressable style={styles.quickAction} onPress={onSettings}><View style={styles.quickCircle}><Text style={styles.quickIcon}>⚙</Text></View><Text style={styles.quickLabel}>Settings</Text></Pressable>
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryTabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryStrip} contentContainerStyle={styles.categoryTabs}>
         {topTabs.map(([value,label]) => <Pressable key={value} style={[styles.categoryTab, section === value && styles.categoryTabActive]} onPress={() => { setSection(value); setSearchText(''); }}><Text style={[styles.categoryTabText, section === value && styles.categoryTabTextActive]}>{label}</Text></Pressable>)}
         <Pressable style={styles.categoryTab} onPress={() => openMenu('menu')}><Text style={styles.categoryTabText}>More</Text></Pressable>
       </ScrollView>
@@ -764,12 +764,14 @@ const styles = StyleSheet.create({
   mobileTopActions: { flexDirection: 'row', gap: 2 },
   mobileSearchWrap: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' },
   mobileSearchInput: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#f2f5fa', color: '#172033' },
-  quickActions: { paddingHorizontal: 12, paddingVertical: 12, gap: 14, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  horizontalStrip: { flexGrow: 0, flexShrink: 0, height: 112, backgroundColor: '#fff' },
+  quickActions: { height: 112, paddingHorizontal: 12, paddingVertical: 12, gap: 14, alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   quickAction: { width: 68, alignItems: 'center' },
   quickCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#dbe4ff', backgroundColor: '#f8faff' },
   quickIcon: { fontSize: 21, color: '#3157d5', fontWeight: '800' },
   quickLabel: { marginTop: 5, color: '#4b5563', fontSize: 11, fontWeight: '600', textAlign: 'center' },
-  categoryTabs: { minHeight: 54, paddingHorizontal: 10, alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  categoryStrip: { flexGrow: 0, flexShrink: 0, height: 54, backgroundColor: '#fff' },
+  categoryTabs: { height: 54, paddingHorizontal: 10, alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   categoryTab: { minHeight: 38, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   categoryTabActive: { backgroundColor: '#eef2ff' },
   categoryTabText: { color: '#596579', fontSize: 12, fontWeight: '700' },
