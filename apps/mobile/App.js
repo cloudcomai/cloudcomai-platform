@@ -215,6 +215,7 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [searchStatus, setSearchStatus] = useState('');
   const [replyTo, setReplyTo] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
   const [groupManagementOpen, setGroupManagementOpen] = useState(false);
   const [groupName, setGroupName] = useState(chat.name || 'Group');
   const searchActive = searchOpen && query.trim().length > 0;
@@ -412,17 +413,18 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
           renderItem={({ item }) => {
             const mine = Number(item.sender_id) === Number(user.id);
-            return <View style={[styles.messageBubble, mine && styles.myMessage]}>
+            const selected = Number(selectedMessage?.id) === Number(item.id);
+            return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, selected && styles.selectedMessage]}>
               {chat.isGroup && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <View style={styles.replyPreview}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
               <MediaMessage message={item} autoDownload={privacy.media_auto_download} />
               <Text style={styles.messageTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
-              <View style={styles.messageActions}>
-                <Pressable onPress={() => { setReplyTo(item); setEditing(null); setComposer(''); }}><Text style={styles.messageActionText}>Reply</Text></Pressable>
-                {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); }}><Text style={styles.messageActionText}>Edit</Text></Pressable> : null}
-                <Pressable onPress={() => deleteMessage(item)}><Text style={styles.messageActionText}>Delete</Text></Pressable>
-              </View>
-            </View>;
+              {selected ? <View style={styles.messageActions}>
+                <Pressable onPress={() => { setReplyTo(item); setEditing(null); setComposer(''); setSelectedMessage(null); }}><Text style={styles.messageActionText}>↩ Reply</Text></Pressable>
+                {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}><Text style={styles.messageActionText}>Edit</Text></Pressable> : null}
+                <Pressable onPress={() => { setSelectedMessage(null); deleteMessage(item); }}><Text style={[styles.messageActionText, styles.messageDeleteAction]}>🗑 Delete</Text></Pressable>
+              </View> : null}
+            </Pressable>;
           }}
         />
       )}
@@ -746,7 +748,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
-  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
+  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, messageDeleteAction: { color: '#b91c1c' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
