@@ -19,11 +19,19 @@ const secureStorage = {
 };
 
 export const sessionManager = createAuthSessionManager({ storage: secureStorage });
+const sessionExpirationListeners = new Set();
+export const subscribeToSessionExpiration = listener => {
+  sessionExpirationListeners.add(listener);
+  return () => sessionExpirationListeners.delete(listener);
+};
 
 export const apiClient = createApiClient({
   baseUrl: API_BASE_URL,
   tokenProvider: () => sessionManager.getToken(),
-  onUnauthorized: () => sessionManager.clearSession(),
+  onUnauthorized: async () => {
+    await sessionManager.clearSession();
+    for (const listener of sessionExpirationListeners) listener();
+  },
 });
 
 export const platformApi = createCloudComAiApi(apiClient);

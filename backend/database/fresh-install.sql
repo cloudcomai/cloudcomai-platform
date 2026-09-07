@@ -32,6 +32,11 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_users_updated_at (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS user_session_versions (
+    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    session_version BIGINT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS chats (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     type ENUM('private','group','public','community') NOT NULL,
@@ -352,7 +357,8 @@ VALUES
     ('003_chat_attachments.sql', UTC_TIMESTAMP()),
     ('004_google_contacts_sync.sql', UTC_TIMESTAMP()),
     ('005_chat_user_states.sql', UTC_TIMESTAMP()),
-    ('006_privacy_and_security.sql', UTC_TIMESTAMP())
+    ('006_privacy_and_security.sql', UTC_TIMESTAMP()),
+    ('007_password_recovery_sessions.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;

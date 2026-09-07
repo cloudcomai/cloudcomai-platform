@@ -70,6 +70,12 @@ directory. It must not be committed or placed in `public_html`.
 The FTP workflow always excludes `config/`, `storage/` and uploaded content.
 Production configuration and user files therefore remain server-managed.
 
+For password recovery, set app.web_url to the actual web URL from the layout
+table (including /app when applicable), and app.mail_from to a real sender mailbox
+accepted by GoDaddy's PHP mail service. These values live in config.php and are
+not changed by repository variables. See [password recovery](../docs/password-recovery.md)
+for the recovery flow and delivery verification.
+
 ## 4. Prepare the database
 
 Choose exactly one workflow mode:

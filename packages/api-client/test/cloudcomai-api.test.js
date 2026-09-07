@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CloudComAiApi } from '../src/index.js';
+import { CloudComAiApi, ApiClient } from '../src/index.js';
 
 const recorder = () => {
   const calls = [];
@@ -14,6 +14,31 @@ const recorder = () => {
   client.request = () => {};
   return { client, calls };
 };
+
+test('password recovery uses public POST routes without a saved session or URL credentials', async () => {
+  const requests = [];
+  const api = new CloudComAiApi(new ApiClient({
+    baseUrl: 'https://example.test/apiapp/api/',
+    tokenProvider: () => assert.fail('Recovery must not read the saved login session'),
+    onUnauthorized: () => assert.fail('A public recovery error must not clear another session'),
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      return new Response(JSON.stringify({ message: requests.length === 1 ? 'Check your email' : 'Link expired' }), {
+        status: requests.length === 1 ? 200 : 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  }));
+  await api.forgotPassword('alice@example.test');
+  await assert.rejects(api.resetPassword('private-reset-token', 'private-password'), /Link expired/);
+  assert.equal(requests[0].url, 'https://example.test/apiapp/api/v1/auth/forgot-password');
+  assert.equal(requests[1].url, 'https://example.test/apiapp/api/v1/auth/reset-password');
+  assert.deepEqual(JSON.parse(requests[1].options.body), { token: 'private-reset-token', password: 'private-password' });
+  for (const { options } of requests) {
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.has('Authorization'), false);
+  }
+});
 
 test('maps incremental message retrieval to the PHP contract', async () => {
   const { client, calls } = recorder();

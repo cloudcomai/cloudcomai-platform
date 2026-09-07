@@ -9,7 +9,9 @@ return [
     ],
     'app' => [
         'base_url' => 'https://www.cloudcomai.com/apiapp/api',
+        // Full web URL, including /app if installed there. Used by recovery emails.
         'web_url' => 'https://www.cloudcomai.com',
+        // A real sender mailbox accepted by this hosting account's PHP mail transport.
         'mail_from' => 'support@cloudcomai.com',
         'allowed_origins' => [
             'https://www.cloudcomai.com',
