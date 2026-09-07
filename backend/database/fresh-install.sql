@@ -129,9 +129,12 @@ CREATE TABLE IF NOT EXISTS chat_user_states (
     user_id BIGINT UNSIGNED NOT NULL,
     hidden TINYINT(1) NOT NULL DEFAULT 0,
     cleared_through_message_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    last_read_message_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    notifications_muted TINYINT(1) NOT NULL DEFAULT 0,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (chat_id, user_id),
-    INDEX idx_chat_user_states_user_hidden (user_id, hidden)
+    INDEX idx_chat_user_states_user_hidden (user_id, hidden),
+    INDEX idx_chat_user_states_user_muted (user_id, notifications_muted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_privacy_settings (
