@@ -14,8 +14,9 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { mediaUrl, platformApi } from '../services/platform';
+import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
+import { withAppLockExternalActivity } from '../utils/appLockActivity';
 
 const GROUP_TYPES = [
   'Family Group','Friend Group','Fan Group','Study Group','College Group','Class Group',
@@ -66,6 +67,7 @@ export default function MobileMenu({
   const [profileDob, setProfileDob] = useState(user?.dob || '');
   const [profileGender, setProfileGender] = useState(user?.gender || 'Male');
   const [profileImageVersion, setProfileImageVersion] = useState(user?.image_version || Date.now());
+  const [profileImageFailed, setProfileImageFailed] = useState(false);
   const [appLockEnabled, setAppLockEnabled] = useState(false);
   const [appLockPin, setAppLockPinValue] = useState('');
   const [appLockConfirm, setAppLockConfirm] = useState('');
@@ -77,6 +79,7 @@ export default function MobileMenu({
       setProfileDob(user?.dob || '');
       setProfileGender(user?.gender || 'Male');
       setProfileImageVersion(user?.image_version || Date.now());
+      setProfileImageFailed(false);
       isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
     } else {
       setScreen('menu');
@@ -254,34 +257,35 @@ export default function MobileMenu({
     }
   };
 
-  const chooseProfilePhoto = async () => {
+  const selectProfilePhoto = async useCamera => {
     if (busy) return;
     setError('');
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) { setError('Photo library permission is required to update your profile image.'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.72,
+      const result = await withAppLockExternalActivity(async () => {
+        if (useCamera) {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) throw new Error('Camera permission is required to take a profile photo.');
+        }
+        const options = {
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.72,
+          preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+        };
+        return useCamera
+          ? ImagePicker.launchCameraAsync(options)
+          : ImagePicker.launchImageLibraryAsync(options);
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
       if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
 
       setBusy(true);
-      const form = new FormData();
-      form.append('type', 'user');
-      form.append('id', String(user.id));
-      form.append('image', {
-        uri: asset.uri,
-        name: asset.fileName || `profile-${user.id}.jpg`,
-        type: asset.mimeType || 'image/jpeg',
-      });
-      const { data } = await platformApi.uploadMedia(form);
+      const { data } = await uploadMediaAsset(asset, { type: 'user', id: user.id });
       const nextUser = { ...user, image_url: data.image_url, image_version: data.updated_at };
       setProfileImageVersion(data.updated_at || Date.now());
+      setProfileImageFailed(false);
       onProfileUpdated?.(nextUser);
       Alert.alert('Photo updated', 'Your cropped profile photo was saved.');
     } catch (e) {
@@ -289,6 +293,15 @@ export default function MobileMenu({
     } finally {
       setBusy(false);
     }
+  };
+
+  const chooseProfilePhoto = () => {
+    if (busy) return;
+    Alert.alert('Change profile photo', 'Take a new photo or choose one from your phone.', [
+      { text: 'Camera', onPress: () => selectProfilePhoto(true) },
+      { text: 'Photo library', onPress: () => selectProfilePhoto(false) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const saveProfile = async () => {
@@ -477,7 +490,10 @@ export default function MobileMenu({
         <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.profilePhotoWrap}>
-            <Image source={{ uri: `${mediaUrl('user', user?.id)}&v=${profileImageVersion}` }} style={styles.profilePhoto} />
+            <View style={styles.profilePhotoFrame}>
+              {!profileImageFailed ? <Image source={{ uri: `${mediaUrl('user', user?.id)}&v=${profileImageVersion}` }} style={styles.profilePhoto} onError={() => setProfileImageFailed(true)} /> : null}
+              <Text style={styles.profilePhotoFallback}>{profileName[0]?.toUpperCase() || 'U'}</Text>
+            </View>
             <Pressable style={styles.photoButton} onPress={chooseProfilePhoto}><Text style={styles.photoButtonText}>Change & crop photo</Text></Pressable>
             <Text style={styles.help}>JPG, PNG or WebP · max 2 MB · square crop</Text>
           </View>
@@ -594,7 +610,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#3157d5' },
   busy: { position: 'absolute', right: 18, bottom: 18, width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', elevation: 5 },
   error: { margin: 16, marginTop: 0, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' },
-  profilePhotoWrap: { alignItems: 'center', gap: 8, marginBottom: 8 }, profilePhoto: { width: 104, height: 104, borderRadius: 52, backgroundColor: '#e5e7eb' }, photoButton: { minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#eef2ff' }, photoButtonText: { color: '#3157d5', fontWeight: '800' }, readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
+  profilePhotoWrap: { alignItems: 'center', gap: 8, marginBottom: 8 }, profilePhotoFrame: { width: 104, height: 104, borderRadius: 52, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e5e7eb' }, profilePhoto: { ...StyleSheet.absoluteFillObject, width: 104, height: 104, zIndex: 2 }, profilePhotoFallback: { color: '#3157d5', fontSize: 34, fontWeight: '900' }, photoButton: { minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#eef2ff' }, photoButtonText: { color: '#3157d5', fontWeight: '800' }, readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
   readOnlyText: { color: '#64748b' },
   dangerItem: { borderColor: '#fecaca' },
   dangerText: { color: '#b91c1c', fontWeight: '800' },

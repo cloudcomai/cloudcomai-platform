@@ -60,6 +60,16 @@ test('maps private-chat creation to target_user_id', async () => {
   });
 });
 
+test('maps another user profile to an authenticated id query', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.getUserProfile(17);
+  assert.deepEqual(calls[0], {
+    method: 'get',
+    args: ['v1/users/profile', { query: { id: 17 } }],
+  });
+});
+
 test('maps poll voting to the vote action', async () => {
   const { client, calls } = recorder();
   const api = new CloudComAiApi(client);

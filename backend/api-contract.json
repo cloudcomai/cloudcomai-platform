@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.3.0",
+  "contractVersion": "1.4.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
@@ -8,6 +8,7 @@
     "v1/auth/forgot-password": { "handler": "forgot_password.php", "methods": ["POST"], "auth": false },
     "v1/auth/reset-password": { "handler": "reset_password.php", "methods": ["POST"], "auth": false },
     "v1/users/me": { "handler": "profile.php", "methods": ["PUT"], "auth": true },
+    "v1/users/profile": { "handler": "user_profile.php", "methods": ["GET"], "auth": true },
     "v1/users": { "handler": "users_list.php", "methods": ["GET"], "auth": true },
     "v1/users/search": { "handler": "search_users.php", "methods": ["GET"], "auth": true },
     "v1/users/preferences": { "handler": "preferences.php", "methods": ["GET", "PUT"], "auth": true },

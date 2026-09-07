@@ -21,17 +21,20 @@ import {
 } from 'react-native';
 import { createPollingMessageTransport, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import * as ScreenCapture from 'expo-screen-capture';
 import MediaMessage from './src/components/MediaMessage';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
-import { API_BASE_URL, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration } from './src/services/platform';
+import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, uploadAttachmentAsset } from './src/services/platform';
 import { isAppLockEnabled, verifyAppLockPin } from './src/services/appLock';
+import { isAppLockResumeSuppressed, withAppLockExternalActivity } from './src/utils/appLockActivity';
 import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
 import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
 import GroupManagement from './src/components/GroupManagement';
+import UserProfileModal from './src/components/UserProfileModal';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -221,6 +224,7 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [groupName, setGroupName] = useState(chat.name || 'Group');
   const [muted, setMuted] = useState(Boolean(chat.notifications_muted));
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const searchActive = searchOpen && query.trim().length > 0;
 
   useEffect(() => {
@@ -344,23 +348,70 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
     }
   };
 
-  const pickAttachment = async () => {
-    if (uploading || chat.blocked) return;
-    let picked;
-    try { picked = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true }); }
-    catch (error) { setError(error.message || 'Unable to open file picker.'); return; }
-    if (picked.canceled || !picked.assets?.[0]) return;
-    const asset = picked.assets[0];
-    if (asset.size && asset.size > 25 * 1024 * 1024) { setError('Attachments must be 25 MB or smaller.'); return; }
+  const uploadAttachment = async asset => {
+    if (!asset || uploading || chat.blocked) return;
     setUploading(true); setError('');
     try {
-      const form = new FormData();
-      form.append('chat_id', String(chat.id));
-      form.append('file', { uri: asset.uri, name: asset.name || 'attachment', type: asset.mimeType || 'application/octet-stream' });
-      const { data } = await platformApi.uploadAttachment(form);
+      const { data } = await uploadAttachmentAsset(asset, {
+        chat_id: chat.id,
+        download_policy: 'APPROVAL_REQUIRED',
+      });
       if (data.message) setMessages(current => mergeMessageBatch(current, [data.message]).messages);
     } catch (uploadError) { setError(uploadError.message || 'Unable to upload attachment.'); }
     finally { setUploading(false); }
+  };
+
+  const pickImage = async useCamera => {
+    if (uploading || chat.blocked) return;
+    setError('');
+    try {
+      const picked = await withAppLockExternalActivity(async () => {
+        if (useCamera) {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) throw new Error('Camera permission is required to take a photo.');
+        }
+        const options = {
+          mediaTypes: ['images'],
+          quality: 0.82,
+          preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+        };
+        return useCamera
+          ? ImagePicker.launchCameraAsync(options)
+          : ImagePicker.launchImageLibraryAsync(options);
+      });
+      if (!picked.canceled && picked.assets?.[0]) await uploadAttachment(picked.assets[0]);
+    } catch (pickerError) {
+      setError(pickerError.message || 'Unable to select an image.');
+    }
+  };
+
+  const pickDocument = async () => {
+    if (uploading || chat.blocked) return;
+    setError('');
+    try {
+      const picked = await withAppLockExternalActivity(() => DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf', 'text/plain', 'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        ],
+        copyToCacheDirectory: true,
+      }));
+      if (!picked.canceled && picked.assets?.[0]) await uploadAttachment(picked.assets[0]);
+    } catch (pickerError) {
+      setError(pickerError.message || 'Unable to open the document picker.');
+    }
+  };
+
+  const openAttachmentPicker = () => {
+    if (uploading || chat.blocked) return;
+    Alert.alert('Add attachment', 'Choose where the attachment should come from.', [
+      { text: 'Camera', onPress: () => pickImage(true) },
+      { text: 'Photo library', onPress: () => pickImage(false) },
+      { text: 'Document', onPress: pickDocument },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const confirmDelete = () => {
@@ -398,7 +449,16 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
       >
       <View style={styles.header}>
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
+        <Pressable
+          style={styles.chatHeaderIdentity}
+          disabled={chat.isGroup || !chat.other_user_id}
+          onPress={() => setProfileOpen(true)}
+          accessibilityRole={chat.isGroup ? undefined : 'button'}
+          accessibilityLabel={chat.isGroup ? undefined : `View ${chat.name || 'user'} profile`}
+        >
+          <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
+          {!chat.isGroup && chat.other_user_id ? <Text style={styles.headerProfileHint}>View profile</Text> : null}
+        </Pressable>
         <View style={styles.chatHeaderActions}>
           <Pressable onPress={async () => { const next = !muted; try { await platformApi.updateChatNotificationState(chat.id, { muted: next }); setMuted(next); } catch (e) { setError(e.message || 'Unable to update mute setting.'); } }}><Text style={styles.headerActionText}>{muted ? '🔕' : '🔔'}</Text></Pressable>
           {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
@@ -439,7 +499,7 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
       {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiStrip} contentContainerStyle={styles.emojiStripContent}>
         <Pressable key="😀" onPress={() => setComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => setComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => setComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => setComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => setComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => setComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => setComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => setComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => setComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => setComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => setComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => setComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
       </ScrollView> : null}
-      <View style={styles.composer}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={pickAttachment} disabled={uploading || chat.blocked}><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
+      <View style={styles.composer}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
       {chat.isGroup ? <GroupManagement
         visible={groupManagementOpen}
@@ -449,6 +509,12 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
         onGroupUpdated={updated => setGroupName(updated.name || groupName)}
         onGroupDeleted={onDeleted}
       /> : null}
+      <UserProfileModal
+        visible={profileOpen}
+        userId={chat.other_user_id}
+        fallbackName={chat.name}
+        onClose={() => setProfileOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -594,7 +660,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
     : chats;
-  const navItems = [['all','Chats','💬'],['contacts','Contacts','👥'],['notifications','Alerts','🔔'],['groups','Groups','👪'],['more','More','•••']];
+  const navItems = [['all','Chats','💬'],['contacts','Contacts','👥'],['notifications','Alerts','🔔'],['groups','Groups','👪']];
   const topTabs = [['all','All Chats'],['private','Private'],['groups','Groups'],['contacts','Contacts']];
 
   return (
@@ -605,7 +671,6 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
         <View style={styles.mobileBrand}><Image source={require('./assets/app-icon.png')} style={styles.mobileBrandIcon} resizeMode="contain" /><Text style={styles.mobileBrandText}>CloudComAI</Text></View>
         <View style={styles.mobileTopActions}>
           <Pressable style={styles.topIconButton} onPress={() => { setSearchOpen(value => !value); setSearchText(''); }}><Text style={styles.topIconText}>⌕</Text></Pressable>
-          <Pressable style={styles.topIconButton} onPress={() => setSection('notifications')}><Text style={styles.topIconText}>🔔</Text></Pressable>
         </View>
       </View>
       {searchOpen ? <View style={styles.mobileSearchWrap}><TextInput style={styles.mobileSearchInput} value={searchText} onChangeText={setSearchText} autoFocus placeholder="Search conversations" placeholderTextColor="#8a94a6" /></View> : null}
@@ -651,7 +716,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
       <View style={styles.bottomNav}>
         {navItems.map(([value,label,icon]) => {
           const active = (value === 'all' && (section === 'all' || section === 'private')) || section === value;
-          return <Pressable key={value} style={styles.bottomNavItem} onPress={() => value === 'more' ? openMenu('menu') : setSection(value)}><Text style={[styles.bottomNavIcon, active && styles.bottomNavIconActive]}>{icon}</Text><Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>{label}</Text></Pressable>;
+          return <Pressable key={value} style={styles.bottomNavItem} onPress={() => setSection(value)}><Text style={[styles.bottomNavIcon, active && styles.bottomNavIconActive]}>{icon}</Text><Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>{label}</Text></Pressable>;
         })}
       </View>
 
@@ -753,7 +818,7 @@ function AppContent() {
         backgrounded = true;
         return;
       }
-      if (backgrounded && session && await isAppLockEnabled()) setAppLocked(true);
+      if (backgrounded && session && !isAppLockResumeSuppressed() && await isAppLockEnabled()) setAppLocked(true);
       backgrounded = false;
     });
     return () => subscription.remove();
@@ -820,7 +885,7 @@ export default function App() {
 const styles = StyleSheet.create({
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
   searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, messageDeleteAction: { color: '#b91c1c' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
-  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
+  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, chatHeaderIdentity: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 }, headerProfileHint: { marginTop: 2, color: '#dbe4ff', fontSize: 10, fontWeight: '600' }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },

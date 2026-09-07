@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { ApiRoute } from '@cloudcomai/api-client';
 import { parseSharedLocation } from '@cloudcomai/chat-core';
-import { API_BASE_URL, platformApi, sessionManager } from '../services/platform';
+import { downloadAttachmentPreview, platformApi } from '../services/platform';
+import { attachmentKind } from '../utils/media';
 
 export function AudioPreview({ source }) {
   const player = useAudioPlayer(source);
@@ -32,21 +32,34 @@ export default function MediaMessage({ message, autoDownload }) {
   const [pollBusy, setPollBusy] = useState(false);
   const [source, setSource] = useState(null);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const attachment = message.attachment;
   useEffect(() => { setPollOptions(message.poll?.options || []); }, [message.poll?.options]);
-  const mime = String(attachment?.mime_type || '');
-  const kind = message.type === 'voice' || mime.startsWith('audio/') ? 'audio' : mime.startsWith('video/') ? 'video' : mime.startsWith('image/') ? 'image' : '';
+  const kind = attachmentKind(message.type, attachment);
+  useEffect(() => {
+    setRequested(false);
+    setSource(null);
+    setError('');
+  }, [attachment?.id]);
   useEffect(() => {
     if (!kind || !attachment?.id || (!autoDownload && !requested)) return undefined;
     let active = true;
-    sessionManager.getToken().then(token => {
-      if (!active) return;
-      const url = new URL(ApiRoute.ATTACHMENT, `${API_BASE_URL}/`);
-      url.searchParams.set('id', String(attachment.id)); url.searchParams.set('preview', '1');
-      setSource({ uri: url.toString(), headers: { Authorization: `Bearer ${token}` } });
-    }).catch(() => { if (active) setError('Unable to authorize media.'); });
-    return () => { active = false; };
-  }, [attachment?.id, kind, requested, autoDownload]);
+    let previewFile = null;
+    setError('');
+    downloadAttachmentPreview(attachment).then(file => {
+      previewFile = file;
+      if (active) setSource(file.uri);
+      else if (file.exists) file.delete();
+    }).catch(loadError => {
+      if (active) setError(loadError.message || 'Preview unavailable.');
+    });
+    return () => {
+      active = false;
+      if (previewFile?.exists) {
+        try { previewFile.delete(); } catch {}
+      }
+    };
+  }, [attachment?.id, kind, requested, autoDownload, reloadKey]);
   if (message.type === 'poll') {
     const pollId = Number(message.poll_id || message.poll?.id || 0);
     const vote = async optionId => {
@@ -77,7 +90,7 @@ export default function MediaMessage({ message, autoDownload }) {
   }
   if (!attachment) return <Text style={styles.text}>{message.type === 'poll' ? `Poll: ${message.poll?.question || 'Poll'}` : message.body || ''}</Text>;
   return <View><Text style={styles.text}>{attachment.name}</Text><Text style={styles.meta}>{Math.ceil(Number(attachment.file_size || 0) / 1024)} KB · {attachment.download_policy === 'APPROVAL_REQUIRED' ? 'Download requires approval' : attachment.download_policy === 'VIEW_ONLY' ? 'View only' : 'Download allowed'}</Text>
-    {error ? <Text>{error}</Text> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'video' ? <VideoPreview source={source} /> : <Image source={source} style={styles.video} resizeMode="contain" onError={() => setError('Image unavailable.')} /> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.control}><Text style={styles.link}>{requested || autoDownload ? 'Loading…' : `Load ${kind}`}</Text></Pressable> : null}
+    {error ? <View><Text style={styles.error}>{error}</Text><Pressable onPress={() => { setSource(null); setError(''); setRequested(true); setReloadKey(value => value + 1); }} style={styles.control}><Text style={styles.link}>Try preview again</Text></Pressable></View> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'video' ? <VideoPreview source={source} /> : <Image source={{ uri: source }} style={styles.video} resizeMode="contain" onError={() => setError('Image preview could not be displayed.')} /> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.control}><Text style={styles.link}>{requested || autoDownload ? 'Loading…' : `Load ${kind}`}</Text></Pressable> : null}
   </View>;
 }
 
