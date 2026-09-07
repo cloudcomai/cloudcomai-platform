@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Modal,
   Pressable,
@@ -12,7 +13,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
-import { platformApi } from '../services/platform';
+import * as ImagePicker from 'expo-image-picker';
+import { mediaUrl, platformApi } from '../services/platform';
 import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
 
 const GROUP_TYPES = [
@@ -66,6 +68,7 @@ export default function MobileMenu({
   const [profileEmail, setProfileEmail] = useState(user?.email || '');
   const [profileMobile, setProfileMobile] = useState(user?.mobile || '');
   const [profileQualification, setProfileQualification] = useState(user?.qualification || '');
+  const [profileImageVersion, setProfileImageVersion] = useState(user?.image_version || Date.now());
   const [appLockEnabled, setAppLockEnabled] = useState(false);
   const [appLockPin, setAppLockPinValue] = useState('');
   const [appLockConfirm, setAppLockConfirm] = useState('');
@@ -79,6 +82,7 @@ export default function MobileMenu({
       setProfileEmail(user?.email || '');
       setProfileMobile(user?.mobile || '');
       setProfileQualification(user?.qualification || '');
+      setProfileImageVersion(user?.image_version || Date.now());
       isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
     } else {
       setScreen('menu');
@@ -251,6 +255,43 @@ export default function MobileMenu({
       await Linking.openURL(data.authorization_url);
     } catch (e) {
       setError(e.message || 'Unable to open Google connection.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseProfilePhoto = async () => {
+    if (busy) return;
+    setError('');
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) { setError('Photo library permission is required to update your profile image.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.72,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
+
+      setBusy(true);
+      const form = new FormData();
+      form.append('type', 'user');
+      form.append('id', String(user.id));
+      form.append('image', {
+        uri: asset.uri,
+        name: asset.fileName || `profile-${user.id}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+      });
+      const { data } = await platformApi.uploadMedia(form);
+      const nextUser = { ...user, image_url: data.image_url, image_version: data.updated_at };
+      setProfileImageVersion(data.updated_at || Date.now());
+      onProfileUpdated?.(nextUser);
+      Alert.alert('Photo updated', 'Your cropped profile photo was saved.');
+    } catch (e) {
+      setError(e.message || 'Unable to update profile photo.');
     } finally {
       setBusy(false);
     }
@@ -444,6 +485,11 @@ export default function MobileMenu({
       <>
         <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.profilePhotoWrap}>
+            <Image source={{ uri: `${mediaUrl('user', user?.id)}&v=${profileImageVersion}` }} style={styles.profilePhoto} />
+            <Pressable style={styles.photoButton} onPress={chooseProfilePhoto}><Text style={styles.photoButtonText}>Change & crop photo</Text></Pressable>
+            <Text style={styles.help}>JPG, PNG or WebP · max 2 MB · square crop</Text>
+          </View>
           <Text style={styles.label}>Full name</Text>
           <TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" />
           <Text style={styles.label}>CloudComAI User ID</Text>
@@ -559,7 +605,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#3157d5' },
   busy: { position: 'absolute', right: 18, bottom: 18, width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', elevation: 5 },
   error: { margin: 16, marginTop: 0, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' },
-  readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
+  profilePhotoWrap: { alignItems: 'center', gap: 8, marginBottom: 8 }, profilePhoto: { width: 104, height: 104, borderRadius: 52, backgroundColor: '#e5e7eb' }, photoButton: { minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#eef2ff' }, photoButtonText: { color: '#3157d5', fontWeight: '800' }, readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
   readOnlyText: { color: '#64748b' },
   dangerItem: { borderColor: '#fecaca' },
   dangerText: { color: '#b91c1c', fontWeight: '800' },
