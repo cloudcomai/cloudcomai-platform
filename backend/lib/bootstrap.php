@@ -45,17 +45,19 @@ function out(array $data, int $status = 200): never {
     exit;
 }
 function fail(string $message, int $status = 400): never { out(['message' => $message], $status); }
-function queue_user_notification(int $userId, string $category, string $title, string $body, array $data = []): int {
+function queue_user_notification(int $userId, string $category, string $title, string $body, array $data = [], bool $deliverPush = true): int {
     $pdo = db();
     $text = trim($body);
     $text = function_exists('mb_substr') ? mb_substr($text, 0, 500) : substr($text, 0, 500);
     $insert = $pdo->prepare('INSERT INTO notification_history (user_id, category, title, body, data_json, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())');
     $insert->execute([$userId, $category, $title, $text, json_encode($data, JSON_UNESCAPED_SLASHES)]);
     $notificationId = (int)$pdo->lastInsertId();
-    $devices = $pdo->prepare('SELECT id FROM notification_devices WHERE user_id=? AND revoked_at IS NULL');
-    $devices->execute([$userId]);
-    $queue = $pdo->prepare('INSERT IGNORE INTO notification_delivery_queue (notification_id, device_id) VALUES (?, ?)');
-    foreach ($devices->fetchAll(PDO::FETCH_COLUMN) as $deviceId) $queue->execute([$notificationId, (int)$deviceId]);
+    if ($deliverPush) {
+        $devices = $pdo->prepare('SELECT id FROM notification_devices WHERE user_id=? AND revoked_at IS NULL');
+        $devices->execute([$userId]);
+        $queue = $pdo->prepare('INSERT IGNORE INTO notification_delivery_queue (notification_id, device_id) VALUES (?, ?)');
+        foreach ($devices->fetchAll(PDO::FETCH_COLUMN) as $deviceId) $queue->execute([$notificationId, (int)$deviceId]);
+    }
     return $notificationId;
 }
 function create_chat_notifications(int $chatId, int $senderId, string $senderName, string $body, int $messageId): void {
@@ -63,11 +65,14 @@ function create_chat_notifications(int $chatId, int $senderId, string $senderNam
     $st->execute([$chatId, $senderId]);
     $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $recipientId) {
+        $mute = db()->prepare('SELECT notifications_muted FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
+        $mute->execute([$chatId, (int)$recipientId]);
+        $muted = (bool)$mute->fetchColumn();
         queue_user_notification((int)$recipientId, 'message', $senderName, $text, [
             'category' => 'message',
             'chat_id' => $chatId,
             'message_id' => $messageId,
-        ]);
+        ], !$muted);
     }
 }
 function user_privacy_settings(int $userId): array {
