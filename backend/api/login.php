@@ -7,4 +7,4 @@ $st=db()->prepare('SELECT u.*, COALESCE(s.session_version,0) AS session_version 
 $st->execute([strtolower($identifier),$mobileIdentifier,strtolower($identifier)]); $u=$st->fetch();
 if(!$u||!password_verify($password,$u['password_hash'])) fail('Invalid credentials',401);
 if($u['account_status']!=='active') fail('Account unavailable',403);
-out(['token'=>token_for((int)$u['id'], (int)$u['session_version']),'user'=>['id'=>(int)$u['id'],'name'=>$u['name'],'user_id'=>$u['user_id'],'email'=>$u['email'],'mobile'=>$u['mobile'],'gender'=>$u['gender']]]);
+out(['token'=>token_for((int)$u['id'], (int)$u['session_version']),'user'=>['id'=>(int)$u['id'],'name'=>$u['name'],'user_id'=>$u['user_id'],'email'=>$u['email'],'mobile'=>$u['mobile'],'gender'=>$u['gender'],'dob'=>$u['dob'],'qualification'=>$u['qualification'] ?? null]]);
