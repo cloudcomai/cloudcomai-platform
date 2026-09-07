@@ -20,6 +20,8 @@ env:
   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
   EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
   EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
+  GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_ARTIFACT_FOLDER_ID || '1Qs0iWqJbn-2D46S0ef6ddaMFQgHqmY1u' }}
+  GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
 
 jobs:
   android:
@@ -127,6 +129,28 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Upload Android preview artifact to Google Drive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+            exit 1
+          fi
+
+          sudo apt-get update -y
+          sudo apt-get install -y rclone
+
+          export RCLONE_CONFIG_GDRIVE_TYPE=drive
+          export RCLONE_CONFIG_GDRIVE_SCOPE=drive
+          export RCLONE_CONFIG_GDRIVE_SERVICE_ACCOUNT_CREDENTIALS="$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
+          export RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID="$GOOGLE_DRIVE_ARTIFACT_FOLDER_ID"
+
+          DRIVE_PATH="preview/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/android"
+          rclone copy mobile-builds/android/ "gdrive:$DRIVE_PATH" --checksum --progress
+          rclone lsf "gdrive:$DRIVE_PATH"
+
   ios:
     name: Build iOS IPA
     if: inputs.platform == 'ios' || inputs.platform == 'all'
@@ -228,3 +252,25 @@ jobs:
           path: mobile-builds/ios/
           retention-days: 30
           if-no-files-found: error
+
+      - name: Upload iOS preview artifact to Google Drive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+            exit 1
+          fi
+
+          sudo apt-get update -y
+          sudo apt-get install -y rclone
+
+          export RCLONE_CONFIG_GDRIVE_TYPE=drive
+          export RCLONE_CONFIG_GDRIVE_SCOPE=drive
+          export RCLONE_CONFIG_GDRIVE_SERVICE_ACCOUNT_CREDENTIALS="$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
+          export RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID="$GOOGLE_DRIVE_ARTIFACT_FOLDER_ID"
+
+          DRIVE_PATH="preview/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/ios"
+          rclone copy mobile-builds/ios/ "gdrive:$DRIVE_PATH" --checksum --progress
+          rclone lsf "gdrive:$DRIVE_PATH"
