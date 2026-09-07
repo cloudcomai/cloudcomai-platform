@@ -361,7 +361,9 @@ VALUES
     ('004_google_contacts_sync.sql', UTC_TIMESTAMP()),
     ('005_chat_user_states.sql', UTC_TIMESTAMP()),
     ('006_privacy_and_security.sql', UTC_TIMESTAMP()),
-    ('007_password_recovery_sessions.sql', UTC_TIMESTAMP())
+    ('007_password_recovery_sessions.sql', UTC_TIMESTAMP()),
+    ('008_chat_notification_states.sql', UTC_TIMESTAMP()),
+    ('009_utf8mb4_chat_content.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
