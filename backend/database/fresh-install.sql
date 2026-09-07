@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     dob DATE NOT NULL,
     gender ENUM('Male','Female') NOT NULL,
+    qualification VARCHAR(190) NULL,
     email_verified TINYINT(1) NOT NULL DEFAULT 0,
     mobile_verified TINYINT(1) NOT NULL DEFAULT 0,
     account_status ENUM('active','suspended','deleted') NOT NULL DEFAULT 'active',
@@ -361,7 +362,9 @@ VALUES
     ('004_google_contacts_sync.sql', UTC_TIMESTAMP()),
     ('005_chat_user_states.sql', UTC_TIMESTAMP()),
     ('006_privacy_and_security.sql', UTC_TIMESTAMP()),
-    ('007_password_recovery_sessions.sql', UTC_TIMESTAMP())
+    ('007_password_recovery_sessions.sql', UTC_TIMESTAMP()),
+    ('008_chat_notification_states.sql', UTC_TIMESTAMP()),
+    ('009_user_profile_details.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
