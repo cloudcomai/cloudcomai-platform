@@ -39,10 +39,13 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
+  const [chatMuted, setChatMuted] = useState(Boolean(selectedChat?.notifications_muted));
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
 
   useEffect(() => {
+    setChatMuted(Boolean(selectedChat?.notifications_muted));
+    if (selectedChat?.id) apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, mark_read: true }) }).catch(() => {});
     setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null); setSelectedMessageId(null);
     shouldAutoScrollRef.current = true;
   }, [selectedChat?.id]);
@@ -164,6 +167,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
             {selectedChat && <button className="action-utility-btn" style={{ color: '#ef4444' }} onClick={() => onDeleteChat(selectedChat)}><Trash2 size={18}/><span>Delete Chat</span></button>}
           </>}
 
+          {selectedChat && <button className="action-utility-btn" onClick={async () => { const next = !chatMuted; try { await apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, muted: next }) }); setChatMuted(next); } catch (error) { alert(error.message || 'Unable to update mute setting.'); } }}><span>{chatMuted ? '🔕 Unmute' : '🔔 Mute'}</span></button>}
           <div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
         </div>
       </header>
