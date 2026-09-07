@@ -38,11 +38,12 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   const [searchStatus, setSearchStatus] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState(null);
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
 
   useEffect(() => {
-    setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null);
+    setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null); setSelectedMessageId(null);
     shouldAutoScrollRef.current = true;
   }, [selectedChat?.id]);
 
@@ -192,7 +193,8 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
           const senderLabel = isGroup ? (isMine ? 'You' : (msg.sender_name || 'Member')) : null;
           const attachmentIsImage = isAttachment && String(msg.attachment.mime_type || '').startsWith('image/');
 
-          return <div key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'}`}>
+          const selected = Number(selectedMessageId) === Number(msg.id);
+          return <div key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'} ${selected ? 'message-selected' : ''}`} onClick={() => setSelectedMessageId(current => Number(current) === Number(msg.id) ? null : msg.id)}>
             {isPoll ? <div className="poll-bubble-card" style={pollCardStyle}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
@@ -227,7 +229,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
                 </div>
               </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : messageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
-              <div className="bubble-action-triggers"><button onClick={() => setReplyTo(msg)} title="Reply" aria-label="Reply"><Reply size={12} /></button>{isMine && msg.type === 'text' && <button onClick={() => { setEditing(msg); setComposer(messageContent); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /></button>}<button onClick={() => setDeleteTarget(msg)} title="Delete" aria-label="Delete message"><Trash2 size={12} /></button></div>
+              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => { setReplyTo(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button>{isMine && msg.type === 'text' && <button onClick={() => { setEditing(msg); setComposer(messageContent); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
             </div>}
           </div>;
         })}
