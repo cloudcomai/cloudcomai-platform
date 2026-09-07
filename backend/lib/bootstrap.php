@@ -61,6 +61,9 @@ function queue_user_notification(int $userId, string $category, string $title, s
     return $notificationId;
 }
 function create_chat_notifications(int $chatId, int $senderId, string $senderName, string $body, int $messageId): void {
+    $chat = db()->prepare('SELECT type FROM chats WHERE id=? LIMIT 1');
+    $chat->execute([$chatId]);
+    $category = $chat->fetchColumn() === 'group' ? 'group' : 'message';
     $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
     $st->execute([$chatId, $senderId]);
     $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
@@ -68,8 +71,8 @@ function create_chat_notifications(int $chatId, int $senderId, string $senderNam
         $mute = db()->prepare('SELECT notifications_muted FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
         $mute->execute([$chatId, (int)$recipientId]);
         $muted = (bool)$mute->fetchColumn();
-        queue_user_notification((int)$recipientId, 'message', $senderName, $text, [
-            'category' => 'message',
+        queue_user_notification((int)$recipientId, $category, $senderName, $text, [
+            'category' => $category,
             'chat_id' => $chatId,
             'message_id' => $messageId,
         ], !$muted);
