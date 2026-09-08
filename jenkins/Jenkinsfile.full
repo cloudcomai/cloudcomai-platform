@@ -1,0 +1,167 @@
+pipeline {
+    agent none
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch used by all downstream jobs')
+        choice(name: 'DEPLOY_MODE', choices: ['build-only', 'test-deploy', 'production-deploy', 'android-only', 'full'])
+        booleanParam(name: 'BUILD_ANDROID', defaultValue: true)
+        booleanParam(name: 'BUILD_IOS', defaultValue: false)
+        choice(name: 'ANDROID_BUILD_TYPE', choices: ['apk', 'aab'])
+        choice(name: 'DB_ACTION', choices: ['none', 'incremental'])
+        booleanParam(name: 'CONFIRM_PRODUCTION', defaultValue: false)
+    }
+
+    stages {
+        stage('Resolve Request') {
+            agent any
+            steps {
+                script {
+                    env.TARGET_ENVIRONMENT = params.DEPLOY_MODE == 'production-deploy' ? 'production' : 'test'
+                    env.DO_DEPLOY = ['test-deploy', 'production-deploy', 'full'].contains(params.DEPLOY_MODE).toString()
+
+                    if (params.DEPLOY_MODE == 'production-deploy' && !params.CONFIRM_PRODUCTION) {
+                        error('Production deployment requires CONFIRM_PRODUCTION=true')
+                    }
+                }
+            }
+        }
+
+        stage('Android Only') {
+            when { expression { params.DEPLOY_MODE == 'android-only' } }
+            steps {
+                build job: 'CloudComAI-Android-Build',
+                    parameters: [
+                        string(name: 'BRANCH', value: params.BRANCH),
+                        string(name: 'PROFILE', value: 'preview'),
+                        string(name: 'BUILD_TYPE', value: params.ANDROID_BUILD_TYPE)
+                    ],
+                    wait: true,
+                    propagate: true
+            }
+        }
+
+        stage('DB Validate') {
+            when { expression { params.DEPLOY_MODE != 'android-only' } }
+            steps {
+                build job: 'CloudComAI-DB-Validate',
+                    parameters: [string(name: 'BRANCH', value: params.BRANCH)],
+                    wait: true,
+                    propagate: true
+            }
+        }
+
+        stage('Backend Build') {
+            when { expression { params.DEPLOY_MODE != 'android-only' } }
+            steps {
+                script {
+                    def r = build job: 'CloudComAI-Backend-Build',
+                        parameters: [string(name: 'BRANCH', value: params.BRANCH)],
+                        wait: true,
+                        propagate: true
+                    env.BACKEND_BUILD_NUMBER = r.number.toString()
+                }
+            }
+        }
+
+        stage('Web Build') {
+            when { expression { params.DEPLOY_MODE != 'android-only' } }
+            steps {
+                script {
+                    def r = build job: 'CloudComAI-Web-Build',
+                        parameters: [string(name: 'BRANCH', value: params.BRANCH)],
+                        wait: true,
+                        propagate: true
+                    env.WEB_BUILD_NUMBER = r.number.toString()
+                }
+            }
+        }
+
+        stage('Mobile Builds') {
+            when { expression { params.DEPLOY_MODE != 'android-only' } }
+            parallel {
+                stage('Android') {
+                    when { expression { params.BUILD_ANDROID } }
+                    steps {
+                        build job: 'CloudComAI-Android-Build',
+                            parameters: [
+                                string(name: 'BRANCH', value: params.BRANCH),
+                                string(name: 'PROFILE', value: env.TARGET_ENVIRONMENT == 'production' ? 'production' : 'preview'),
+                                string(name: 'BUILD_TYPE', value: params.ANDROID_BUILD_TYPE)
+                            ],
+                            wait: true,
+                            propagate: true
+                    }
+                }
+
+                stage('iOS') {
+                    when { expression { params.BUILD_IOS } }
+                    steps {
+                        build job: 'CloudComAI-iOS-Build',
+                            parameters: [
+                                string(name: 'BRANCH', value: params.BRANCH),
+                                string(name: 'PROFILE', value: env.TARGET_ENVIRONMENT == 'production' ? 'production' : 'preview')
+                            ],
+                            wait: true,
+                            propagate: true
+                    }
+                }
+            }
+        }
+
+        stage('DB Migration') {
+            when {
+                expression {
+                    params.DEPLOY_MODE != 'android-only' &&
+                    env.DO_DEPLOY == 'true' &&
+                    params.DB_ACTION == 'incremental'
+                }
+            }
+            steps {
+                build job: 'CloudComAI-DB-Migrate',
+                    parameters: [
+                        string(name: 'BRANCH', value: params.BRANCH),
+                        string(name: 'ENVIRONMENT', value: env.TARGET_ENVIRONMENT),
+                        string(name: 'DB_ACTION', value: params.DB_ACTION),
+                        booleanParam(name: 'CONFIRM_PRODUCTION', value: params.CONFIRM_PRODUCTION)
+                    ],
+                    wait: true,
+                    propagate: true
+            }
+        }
+
+        stage('Backend Deploy') {
+            when { expression { params.DEPLOY_MODE != 'android-only' && env.DO_DEPLOY == 'true' } }
+            steps {
+                build job: 'CloudComAI-Backend-Deploy',
+                    parameters: [
+                        string(name: 'BUILD_NUMBER_TO_DEPLOY', value: env.BACKEND_BUILD_NUMBER),
+                        string(name: 'ENVIRONMENT', value: env.TARGET_ENVIRONMENT)
+                    ],
+                    wait: true,
+                    propagate: true
+            }
+        }
+
+        stage('Web Deploy') {
+            when { expression { params.DEPLOY_MODE != 'android-only' && env.DO_DEPLOY == 'true' } }
+            steps {
+                build job: 'CloudComAI-Web-Deploy',
+                    parameters: [
+                        string(name: 'BUILD_NUMBER_TO_DEPLOY', value: env.WEB_BUILD_NUMBER),
+                        string(name: 'ENVIRONMENT', value: env.TARGET_ENVIRONMENT)
+                    ],
+                    wait: true,
+                    propagate: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'CloudComAI Jenkins orchestration completed successfully.'
+        }
+        failure {
+            echo 'CloudComAI Jenkins orchestration failed. Review the failed downstream job.'
+        }
+    }
+}
