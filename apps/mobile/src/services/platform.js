@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { Directory, File, Paths, UploadType } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import { ApiError, ApiRoute, createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
 import { createAuthSessionManager } from '@cloudcomai/auth';
 import {
@@ -64,6 +64,24 @@ const parseUploadResult = async result => {
   return { data, status: result.status, headers: result.headers };
 };
 
+export function createMobileMultipartBody(asset, {
+  fieldName = 'file',
+  parameters = {},
+} = {}, FormDataCtor = globalThis.FormData) {
+  if (typeof FormDataCtor !== 'function') throw new ApiError('Multipart upload is unavailable on this device.');
+  const normalized = normalizeUploadAsset(asset, { fallbackName: 'attachment' });
+  const form = new FormDataCtor();
+  form.append(fieldName, {
+    uri: normalized.uri,
+    name: normalized.name,
+    type: normalized.mimeType,
+  });
+  for (const [key, value] of Object.entries(parameters)) {
+    if (value !== undefined && value !== null) form.append(key, String(value));
+  }
+  return form;
+}
+
 export async function uploadMobileFile(route, asset, {
   fieldName = 'file',
   parameters = {},
@@ -79,20 +97,21 @@ export async function uploadMobileFile(route, asset, {
   if (size > maxBytes) throw new ApiError(`The selected file must be ${Math.floor(maxBytes / 1024 / 1024)} MB or smaller.`);
 
   const token = await sessionManager.getToken();
-  const result = await file.upload(buildApiUrl(API_BASE_URL, route), {
-    httpMethod: 'POST',
-    uploadType: UploadType.MULTIPART,
+  const formData = createMobileMultipartBody(normalized, { fieldName, parameters: {
+    ...parameters,
+    original_filename: parameters.original_filename || normalized.name,
+  } });
+  const response = await fetch(buildApiUrl(API_BASE_URL, route), {
+    method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    fieldName,
-    mimeType: normalized.mimeType,
-    parameters: Object.fromEntries(
-      Object.entries(parameters)
-        .filter(([, value]) => value !== undefined && value !== null)
-        .map(([key, value]) => [key, String(value)]),
-    ),
-    sessionType: 'foreground',
+    body: formData,
   });
-  return parseUploadResult(result);
+  const body = await response.text();
+  return parseUploadResult({
+    status: response.status,
+    body,
+    headers: Object.fromEntries(response.headers.entries()),
+  });
 }
 
 export const uploadAttachmentAsset = (asset, parameters = {}) => uploadMobileFile(
