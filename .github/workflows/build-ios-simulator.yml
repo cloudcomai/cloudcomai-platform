@@ -20,7 +20,7 @@ jobs:
       EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
       ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${{ vars.ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD || 'false' }}
       GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_ARTIFACT_FOLDER_ID || '1Qs0iWqJbn-2D46S0ef6ddaMFQgHqmY1u' }}
-      RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
+      RCLONE_CONFIG_CONTENT: ${{ secrets.RCLONE_CONFIG }}
       CLOUDCOMAI_NATIVE_BUILD: preview
       ANDROID_VERSION_CODE: '1'
 
@@ -47,7 +47,7 @@ jobs:
           esac
 
           if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
-            if [ -z "${RCLONE_CONFIG:-}" ]; then
+            if [ -z "${RCLONE_CONFIG_CONTENT:-}" ]; then
               echo "::error::Missing GitHub secret RCLONE_CONFIG."
               exit 1
             fi
@@ -143,11 +143,13 @@ jobs:
           brew install rclone
 
           mkdir -p "$HOME/.config/rclone"
-          printf '%s' "$RCLONE_CONFIG" > "$HOME/.config/rclone/rclone.conf"
+          printf '%s' "$RCLONE_CONFIG_CONTENT" > "$HOME/.config/rclone/rclone.conf"
           chmod 600 "$HOME/.config/rclone/rclone.conf"
 
-          if ! rclone listremotes | grep -qx 'gdrive:'; then
-            echo "::error::RCLONE_CONFIG must define a Google Drive remote named gdrive."
+          RCLONE_CONFIG_FILE="$HOME/.config/rclone/rclone.conf"
+
+          if ! rclone --config "$RCLONE_CONFIG_FILE" listremotes | grep -qx 'gdrive:'; then
+            echo "::error::RCLONE_CONFIG secret must define a Google Drive remote named gdrive."
             exit 1
           fi
 
@@ -157,5 +159,5 @@ jobs:
             DRIVE_TARGET="gdrive,root_folder_id=${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID}:"
           fi
 
-          rclone copy mobile-builds/ios/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
-          rclone lsf "${DRIVE_TARGET}${DRIVE_PATH}"
+          rclone --config "$RCLONE_CONFIG_FILE" copy mobile-builds/ios/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
+          rclone --config "$RCLONE_CONFIG_FILE" lsf "${DRIVE_TARGET}${DRIVE_PATH}"

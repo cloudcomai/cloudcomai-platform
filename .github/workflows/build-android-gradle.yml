@@ -30,7 +30,7 @@ jobs:
       EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL || 'https://example.invalid/apiapp/api' }}
       ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${{ vars.ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD || 'false' }}
       GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_ARTIFACT_FOLDER_ID || '1Qs0iWqJbn-2D46S0ef6ddaMFQgHqmY1u' }}
-      RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
+      RCLONE_CONFIG_CONTENT: ${{ secrets.RCLONE_CONFIG }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -91,7 +91,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${RCLONE_CONFIG:-}" ]; then
+          if [ -z "${RCLONE_CONFIG_CONTENT:-}" ]; then
             echo "::error::Missing GitHub secret RCLONE_CONFIG."
             exit 1
           fi
@@ -105,11 +105,13 @@ jobs:
           sudo apt-get install -y rclone
 
           mkdir -p "$HOME/.config/rclone"
-          printf '%s' "$RCLONE_CONFIG" > "$HOME/.config/rclone/rclone.conf"
+          printf '%s' "$RCLONE_CONFIG_CONTENT" > "$HOME/.config/rclone/rclone.conf"
           chmod 600 "$HOME/.config/rclone/rclone.conf"
 
-          if ! rclone listremotes | grep -qx 'gdrive:'; then
-            echo "::error::RCLONE_CONFIG must define a Google Drive remote named gdrive."
+          RCLONE_CONFIG_FILE="$HOME/.config/rclone/rclone.conf"
+
+          if ! rclone --config "$RCLONE_CONFIG_FILE" listremotes | grep -qx 'gdrive:'; then
+            echo "::error::RCLONE_CONFIG secret must define a Google Drive remote named gdrive."
             exit 1
           fi
 
@@ -129,8 +131,8 @@ jobs:
           fi
 
           echo "Uploading Android build artifacts to Google Drive folder: ${DRIVE_PATH}"
-          rclone copy mobile-builds/android/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
-          rclone lsf "${DRIVE_TARGET}${DRIVE_PATH}"
+          rclone --config "$RCLONE_CONFIG_FILE" copy mobile-builds/android/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
+          rclone --config "$RCLONE_CONFIG_FILE" lsf "${DRIVE_TARGET}${DRIVE_PATH}"
 
       - name: Remove temporary signing files
         if: always()
