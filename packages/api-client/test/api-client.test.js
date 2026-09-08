@@ -38,6 +38,26 @@ test('serializes JSON request bodies', async () => {
   assert.equal(result.status, 201);
 });
 
+test('preserves 4-byte emoji in JSON message bodies', async () => {
+  let captured;
+  const emojiMessage = 'Hello 😀 👨‍👩‍👧‍👦 ❤️';
+  const client = new ApiClient({
+    baseUrl: 'https://example.test/api/',
+    fetchImpl: async (_url, options) => {
+      captured = options;
+      return new Response(JSON.stringify({ message: { body: emojiMessage } }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      });
+    },
+  });
+
+  const result = await client.post('v1/messages', { chat_id: 2, body: emojiMessage });
+  assert.equal(captured.headers.get('Content-Type'), 'application/json');
+  assert.deepEqual(JSON.parse(captured.body), { chat_id: 2, body: emojiMessage });
+  assert.equal(result.data.message.body, emojiMessage);
+});
+
 test('normalizes API errors', async () => {
   const client = new ApiClient({
     baseUrl: 'https://example.test/api/',
