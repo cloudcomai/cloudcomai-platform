@@ -4,6 +4,7 @@ import { parseSharedLocation } from '@cloudcomai/chat-core';
 import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy } from 'lucide-react';
 import { formatMessageTime } from '../utils/messageTime';
 import { copyText, shareOrCopyLink } from '../utils/shareLink';
+import { resolvePollOptions } from '../utils/pollOptions';
 import AttachmentControls from './AttachmentControls';
 import AttachmentActions from './AttachmentActions';
 import AttachmentPreview from './AttachmentPreview';
@@ -93,11 +94,11 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
     shouldAutoScrollRef.current = distanceFromBottom < 100;
   };
 
-  const handleCastVote = async (pollId, optionId) => {
+  const handleCastVote = async (pollId, optionId, sourceOptions) => {
     if (!apiBridge || !pollId || !optionId) return;
     try {
       const response = await apiBridge(ApiRoute.POLLS, { method: 'POST', query: { action: 'vote' }, body: JSON.stringify({ poll_id: Number(pollId), option_id: Number(optionId) }) });
-      if (response?.options) setPollVoteState(prev => ({ ...prev, [pollId]: response.options }));
+      if (response?.options) setPollVoteState(prev => ({ ...prev, [pollId]: { options: response.options, sourceOptions } }));
     } catch (err) { alert(err.message || 'Failed to submit vote.'); }
   };
 
@@ -193,7 +194,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
           const location = msg.type === 'location' ? parseSharedLocation(msg.body) : null;
           const messageContent = msg.body || msg.text || '';
           const poll = msg.poll;
-          const visibleOptions = pollVoteState[msg.poll_id] || poll?.options || [];
+          const visibleOptions = resolvePollOptions(poll?.options, pollVoteState[msg.poll_id || poll?.id]);
           const messageTime = formatMessageTime(msg.created_at || msg.timestamp || msg.time);
           const senderLabel = isGroup ? (isMine ? 'You' : (msg.sender_name || 'Member')) : null;
           const attachmentIsImage = isAttachment && String(msg.attachment.mime_type || '').startsWith('image/');
@@ -203,7 +204,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
             {isPoll ? <div className="poll-bubble-card" style={pollCardStyle}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
-              <div style={pollOptionsStyle}>{visibleOptions.map(option => <button key={option.id} type="button" onClick={() => handleCastVote(msg.poll_id || poll?.id, option.id)} style={pollOptionStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}><span>{option.text}</span><strong>{option.votes || 0}</strong></div>{option.selected && <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--primary-color)' }}>Your vote</div>}</button>)}</div>
+              <div style={pollOptionsStyle}>{visibleOptions.map(option => <button key={option.id} type="button" onClick={() => handleCastVote(msg.poll_id || poll?.id, option.id, poll?.options)} style={pollOptionStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}><span>{option.text}</span><strong>{option.votes || 0}</strong></div>{option.selected && <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--primary-color)' }}>Your vote</div>}</button>)}</div>
               <div className="bubble-meta-footer" style={pollFooterStyle}><span>Active Voting Room</span><span>{messageTime}</span></div>
               <button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
             </div> : <div className={`message-data-bubble ${isMine ? 'primary-accent' : 'neutral-fallback'}`}>

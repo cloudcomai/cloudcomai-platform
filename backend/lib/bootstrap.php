@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/user_validation.php';
 
 $configFile = __DIR__ . '/../config/config.php';
 if (!file_exists($configFile)) {
@@ -185,9 +186,5 @@ function normalize_mobile_identifier(string $mobile): string {
     if ($mobile === '') return '';
     $normalized = preg_replace('/[\s().-]+/', '', $mobile);
     return is_string($normalized) ? $normalized : $mobile;
-}
-function age_from_dob(string $dob): int {
-    try { return (new DateTime($dob))->diff(new DateTime('today'))->y; }
-    catch (Throwable $e) { return -1; }
 }
 function random_token(int $bytes=32): string { return rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '='); }

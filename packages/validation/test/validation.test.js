@@ -13,6 +13,14 @@ test('calculates adult status using the birthday boundary', () => {
   assert.equal(isAdult('2008-08-30', today), false);
 });
 
+test('rejects future dates, impossible calendar dates, and non-ISO input', () => {
+  const today = new Date('2026-09-08T00:00:00Z');
+  for (const dob of ['2050-01-01', '1990-02-30', '1900-02-29', '0000-01-01', '2000-13-01', '2000-1-01', 'January 1 1990', '', null]) {
+    assert.equal(isAdult(dob, today), false, String(dob));
+  }
+  assert.equal(isAdult('2000-02-29', today), true);
+});
+
 test('validates registration fields', () => {
   const result = validateRegistration(
     {

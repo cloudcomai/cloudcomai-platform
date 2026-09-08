@@ -5,6 +5,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  storage-access:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y apache2
+      - run: python3 backend/tests/storage_access_test.py
+
   web:
     runs-on: ubuntu-latest
     steps:
@@ -45,6 +52,8 @@ jobs:
       - run: find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
       - run: php backend/tests/api_router_test.php
       - run: php backend/tests/contact_matching_test.php
+      - run: php backend/tests/user_validation_test.php
+      - run: php backend/tests/utf8mb4_schema_test.php
       - run: php backend/tests/privacy_messaging_test.php
         env:
           CLOUDCOMAI_RUN_DB_TESTS: '1'
