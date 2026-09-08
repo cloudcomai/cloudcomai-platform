@@ -48,4 +48,15 @@ expect($wrongMethod['status'] === 405, 'Wrong method was not rejected');
 $missing = $router->resolve('GET', '/api/v1/does-not-exist');
 expect($missing['status'] === 404, 'Missing route was not rejected');
 
+$bootstrap = file_get_contents(__DIR__ . '/../lib/bootstrap.php');
+expect(is_string($bootstrap), 'Could not read backend bootstrap');
+expect(str_contains($bootstrap, 'charset=utf8mb4'), 'Runtime PDO connection must force utf8mb4');
+expect(str_contains($bootstrap, "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"), 'Runtime PDO connection must explicitly set utf8mb4');
+expect(str_contains($bootstrap, 'JSON_UNESCAPED_UNICODE'), 'JSON responses must preserve Unicode characters');
+
+$freshInstall = file_get_contents(__DIR__ . '/../database/fresh-install.sql');
+expect(is_string($freshInstall), 'Could not read fresh-install schema');
+expect(str_contains($freshInstall, 'SET NAMES utf8mb4;'), 'Fresh-install schema must initialize utf8mb4');
+expect(str_contains($freshInstall, 'messages (') && str_contains($freshInstall, 'DEFAULT CHARSET=utf8mb4'), 'Messages table must use utf8mb4');
+
 echo "API router tests passed\n";
