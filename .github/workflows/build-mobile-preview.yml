@@ -22,7 +22,7 @@ env:
   EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
   ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${{ vars.ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD || 'false' }}
   GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_ARTIFACT_FOLDER_ID || '1Qs0iWqJbn-2D46S0ef6ddaMFQgHqmY1u' }}
-  GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+  RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG }}
 
 jobs:
   android:
@@ -47,7 +47,7 @@ jobs:
           echo "ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}"
           if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
             echo "GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-<missing>}"
-            echo "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON configured: $([ -n "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ] && echo YES || echo NO)"
+            echo "RCLONE_CONFIG configured: $([ -n "${RCLONE_CONFIG:-}" ] && echo YES || echo NO)"
           else
             echo "Google Drive artifact upload: disabled"
           fi
@@ -65,8 +65,8 @@ jobs:
             exit 1
           fi
           if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
-            if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
-              echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+            if [ -z "${RCLONE_CONFIG:-}" ]; then
+              echo "::error::Missing GitHub secret RCLONE_CONFIG."
               exit 1
             fi
             if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
@@ -153,22 +153,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
-            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+          if [ -z "${RCLONE_CONFIG:-}" ]; then
+            echo "::error::Missing GitHub secret RCLONE_CONFIG."
             exit 1
           fi
 
           sudo apt-get update -y
           sudo apt-get install -y rclone
 
-          export RCLONE_CONFIG_GDRIVE_TYPE=drive
-          export RCLONE_CONFIG_GDRIVE_SCOPE=drive
-          export RCLONE_CONFIG_GDRIVE_SERVICE_ACCOUNT_CREDENTIALS="$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
-          export RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID="$GOOGLE_DRIVE_ARTIFACT_FOLDER_ID"
+          mkdir -p "$HOME/.config/rclone"
+          printf '%s' "$RCLONE_CONFIG" > "$HOME/.config/rclone/rclone.conf"
+          chmod 600 "$HOME/.config/rclone/rclone.conf"
+
+          if ! rclone listremotes | grep -qx 'gdrive:'; then
+            echo "::error::RCLONE_CONFIG must define a Google Drive remote named gdrive."
+            exit 1
+          fi
 
           DRIVE_PATH="preview/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/android"
-          rclone copy mobile-builds/android/ "gdrive:$DRIVE_PATH" --checksum --progress
-          rclone lsf "gdrive:$DRIVE_PATH"
+          DRIVE_TARGET="gdrive:"
+          if [ -n "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+            DRIVE_TARGET="gdrive,root_folder_id=${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID}:"
+          fi
+          rclone copy mobile-builds/android/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
+          rclone lsf "${DRIVE_TARGET}${DRIVE_PATH}"
 
   ios:
     name: Build iOS IPA
@@ -192,7 +200,7 @@ jobs:
           echo "ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}"
           if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
             echo "GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-<missing>}"
-            echo "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON configured: $([ -n "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ] && echo YES || echo NO)"
+            echo "RCLONE_CONFIG configured: $([ -n "${RCLONE_CONFIG:-}" ] && echo YES || echo NO)"
           else
             echo "Google Drive artifact upload: disabled"
           fi
@@ -210,8 +218,8 @@ jobs:
             exit 1
           fi
           if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
-            if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
-              echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+            if [ -z "${RCLONE_CONFIG:-}" ]; then
+              echo "::error::Missing GitHub secret RCLONE_CONFIG."
               exit 1
             fi
             if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
@@ -295,19 +303,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON:-}" ]; then
-            echo "::error::Missing GitHub secret GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON."
+          if [ -z "${RCLONE_CONFIG:-}" ]; then
+            echo "::error::Missing GitHub secret RCLONE_CONFIG."
             exit 1
           fi
 
           sudo apt-get update -y
           sudo apt-get install -y rclone
 
-          export RCLONE_CONFIG_GDRIVE_TYPE=drive
-          export RCLONE_CONFIG_GDRIVE_SCOPE=drive
-          export RCLONE_CONFIG_GDRIVE_SERVICE_ACCOUNT_CREDENTIALS="$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
-          export RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID="$GOOGLE_DRIVE_ARTIFACT_FOLDER_ID"
+          mkdir -p "$HOME/.config/rclone"
+          printf '%s' "$RCLONE_CONFIG" > "$HOME/.config/rclone/rclone.conf"
+          chmod 600 "$HOME/.config/rclone/rclone.conf"
+
+          if ! rclone listremotes | grep -qx 'gdrive:'; then
+            echo "::error::RCLONE_CONFIG must define a Google Drive remote named gdrive."
+            exit 1
+          fi
 
           DRIVE_PATH="preview/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/ios"
-          rclone copy mobile-builds/ios/ "gdrive:$DRIVE_PATH" --checksum --progress
-          rclone lsf "gdrive:$DRIVE_PATH"
+          DRIVE_TARGET="gdrive:"
+          if [ -n "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+            DRIVE_TARGET="gdrive,root_folder_id=${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID}:"
+          fi
+          rclone copy mobile-builds/ios/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
+          rclone lsf "${DRIVE_TARGET}${DRIVE_PATH}"
