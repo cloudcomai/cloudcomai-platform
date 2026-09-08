@@ -19,3 +19,11 @@ backend/storage/uploads/*
 .idea/
 .vscode/
 
+# Generated native projects and signing material
+apps/mobile/android/
+apps/mobile/ios/
+*.keystore
+*.jks
+credentials.json
+google-services.json
+mobile-builds/
