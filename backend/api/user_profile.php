@@ -50,13 +50,16 @@ foreach (glob($folder . '/' . $targetUserId . '.*') ?: [] as $candidate) {
     }
 }
 
+$visibility = user_privacy_settings($targetUserId);
+$self = $targetUserId === (int)$viewer['id'];
 out(['user' => [
     'id' => (int)$profile['id'],
     'name' => $profile['name'],
     'user_id' => $profile['user_id'],
-    'age' => age_from_dob((string)$profile['dob']),
-    'gender' => $profile['gender'],
-    'email' => $profile['email'] ?: null,
-    'mobile' => $profile['mobile'] ?: null,
+    'age' => ($self || $visibility['share_age']) ? age_from_dob((string)$profile['dob']) : null,
+    'gender' => ($self || $visibility['share_gender']) ? $profile['gender'] : null,
+    'email' => ($self || $visibility['share_email']) ? ($profile['email'] ?: null) : null,
+    'mobile' => ($self || $visibility['share_mobile']) ? ($profile['mobile'] ?: null) : null,
+    'hidden_fields' => $self ? [] : array_values(array_map(static fn($key) => substr($key,6),array_keys(array_filter($visibility,static fn($value,$key) => str_starts_with($key,'share_') && !$value,ARRAY_FILTER_USE_BOTH)))),
     'image_version' => $imageVersion,
 ]]);

@@ -76,6 +76,9 @@ if ($method === 'PUT') {
         'media_auto_download' => privacy_boolean($data, 'media_auto_download', $current['media_auto_download']),
         'screenshot_alerts' => privacy_boolean($data, 'screenshot_alerts', $current['screenshot_alerts']),
     ];
+    foreach (['share_email','share_mobile','share_age','share_gender'] as $key) $settings[$key] = privacy_boolean($data,$key,$current[$key]);
+    $pdo->beginTransaction();
+    $pdo->prepare('INSERT INTO profile_visibility(user_id,share_email,share_mobile,share_age,share_gender) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE share_email=VALUES(share_email),share_mobile=VALUES(share_mobile),share_age=VALUES(share_age),share_gender=VALUES(share_gender)')->execute([$user['id'],(int)$settings['share_email'],(int)$settings['share_mobile'],(int)$settings['share_age'],(int)$settings['share_gender']]);
     $st = $pdo->prepare(<<<'SQL'
         INSERT INTO user_privacy_settings(user_id,hide_online_status,media_auto_download,screenshot_alerts,updated_at)
         VALUES(?,?,?,?,UTC_TIMESTAMP())
@@ -91,6 +94,7 @@ if ($method === 'PUT') {
         $settings['media_auto_download'] ? 1 : 0,
         $settings['screenshot_alerts'] ? 1 : 0,
     ]);
+    $pdo->commit();
     out(['settings' => $settings]);
 }
 

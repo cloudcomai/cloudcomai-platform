@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/user_validation.php';
+require_once __DIR__ . '/notifications.php';
+require_once __DIR__ . '/sessions.php';
 
 $configFile = __DIR__ . '/../config/config.php';
 if (!file_exists($configFile)) {
@@ -53,7 +55,8 @@ function queue_user_notification(int $userId, string $category, string $title, s
     $insert = $pdo->prepare('INSERT INTO notification_history (user_id, category, title, body, data_json, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())');
     $insert->execute([$userId, $category, $title, $text, json_encode($data, JSON_UNESCAPED_SLASHES)]);
     $notificationId = (int)$pdo->lastInsertId();
-    if ($deliverPush) {
+    $preferences = notification_preferences($userId);
+    if ($deliverPush && $preferences['enabled'] && ($preferences[$category] ?? true) && (($data['chat_type'] ?? '') !== 'group' || $preferences['group'])) {
         $devices = $pdo->prepare('SELECT id FROM notification_devices WHERE user_id=? AND revoked_at IS NULL');
         $devices->execute([$userId]);
         $queue = $pdo->prepare('INSERT IGNORE INTO notification_delivery_queue (notification_id, device_id) VALUES (?, ?)');
@@ -64,7 +67,10 @@ function queue_user_notification(int $userId, string $category, string $title, s
 function create_chat_notifications(int $chatId, int $senderId, string $senderName, string $body, int $messageId): void {
     $chat = db()->prepare('SELECT type FROM chats WHERE id=? LIMIT 1');
     $chat->execute([$chatId]);
-    $category = $chat->fetchColumn() === 'group' ? 'group' : 'message';
+    $chatType = $chat->fetchColumn();
+    $kind = db()->prepare('SELECT type FROM messages WHERE id=?');
+    $kind->execute([$messageId]);
+    $category = in_array($kind->fetchColumn(), ['attachment','voice','video'], true) ? 'attachment' : ($chatType === 'group' ? 'group' : 'message');
     $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
     $st->execute([$chatId, $senderId]);
     $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
@@ -75,6 +81,7 @@ function create_chat_notifications(int $chatId, int $senderId, string $senderNam
         queue_user_notification((int)$recipientId, $category, $senderName, $text, [
             'category' => $category,
             'chat_id' => $chatId,
+            'chat_type' => $chatType,
             'message_id' => $messageId,
         ], !$muted);
     }
@@ -83,11 +90,13 @@ function user_privacy_settings(int $userId): array {
     $st = db()->prepare('SELECT hide_online_status,media_auto_download,screenshot_alerts FROM user_privacy_settings WHERE user_id=? LIMIT 1');
     $st->execute([$userId]);
     $row = $st->fetch() ?: [];
-    return [
+    $visibility = db()->prepare('SELECT share_email,share_mobile,share_age,share_gender FROM profile_visibility WHERE user_id=?');
+    $visibility->execute([$userId]);
+    return array_merge(array_map('boolval',array_merge(['share_email'=>0,'share_mobile'=>0,'share_age'=>1,'share_gender'=>1],$visibility->fetch() ?: [])), [
         'hide_online_status' => (bool)($row['hide_online_status'] ?? false),
         'media_auto_download' => (bool)($row['media_auto_download'] ?? false),
         'screenshot_alerts' => !array_key_exists('screenshot_alerts', $row) || (bool)$row['screenshot_alerts'],
-    ];
+    ]);
 }
 function users_block_state(int $viewerId, int $otherUserId): array {
     $st = db()->prepare('SELECT user_id,blocked_user_id FROM user_blocks WHERE (user_id=? AND blocked_user_id=?) OR (user_id=? AND blocked_user_id=?)');
@@ -113,7 +122,9 @@ function token_for(int $userId, int $sessionVersion = 0): string {
     global $config;
     $payload = $userId . '|' . time() . '|' . bin2hex(random_bytes(12)) . '|' . $sessionVersion;
     $sig = hash_hmac('sha256', $payload, $config['app']['token_secret']);
-    return base64_encode($payload . '|' . $sig);
+    $token = base64_encode($payload . '|' . $sig);
+    record_user_session($token,$userId,time());
+    return $token;
 }
 function assert_visible_message(int $messageId, int $userId): void {
     $st = db()->prepare('SELECT m.id FROM messages m INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id WHERE m.id=? AND m.id>COALESCE(cus.cleared_through_message_id,0) AND COALESCE(mus.hidden,0)=0 AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
@@ -150,6 +161,7 @@ function auth_user(): array {
     $payload = implode('|', array_slice($parts, 0, -1));
     $expected = hash_hmac('sha256', $payload, $config['app']['token_secret']);
     if (!hash_equals($expected, $sig)) fail('Invalid token', 401);
+    if (!ctype_digit($uid) || !ctype_digit($issued) || (int)$issued > time()+60) fail('Invalid token',401);
     if ((int)$issued < time() - 60*60*24*30) fail('Token expired', 401);
     if (!ctype_digit($sessionVersion)) fail('Invalid token', 401);
     $st = db()->prepare('SELECT u.id, u.user_id, u.name, u.email, u.mobile, u.gender, u.account_status, COALESCE(s.session_version,0) AS session_version FROM users u LEFT JOIN user_session_versions s ON s.user_id=u.id WHERE u.id=?');
@@ -157,6 +169,8 @@ function auth_user(): array {
     $user = $st->fetch();
     if (!$user || $user['account_status'] !== 'active') fail('Account unavailable', 401);
     if ((int)$sessionVersion !== (int)$user['session_version']) fail('Password changed. Please sign in again.', 401);
+    $session = record_user_session($m[1],(int)$user['id'],(int)$issued);
+    $GLOBALS['authenticated_session_id'] = $session['id'];
     unset($user['session_version']);
     return $user;
 }

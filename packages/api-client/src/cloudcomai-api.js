@@ -34,6 +34,14 @@ export class CloudComAiApi {
     );
   }
 
+  listSessions(options = {}) { return this.client.get(ApiRoute.SESSIONS, options); }
+  revokeSession(id, options = {}) { return this.client.delete(ApiRoute.SESSIONS, { ...options, query: { ...options.query, id } }); }
+  revokeOtherSessions(options = {}) { return this.client.post(ApiRoute.SESSIONS, { revoke_others: true }, options); }
+  listSavedMessages(options = {}) { return this.client.get(ApiRoute.SAVED_MESSAGES, options); }
+  saveMessage(messageId, options = {}) { return this.client.post(ApiRoute.SAVED_MESSAGES, { message_id: messageId }, options); }
+  unsaveMessage(messageId, options = {}) { return this.client.delete(ApiRoute.SAVED_MESSAGES, { ...options, query: { ...options.query, message_id: messageId } }); }
+  transferGroupOwnership(id, userId, options = {}) { return this.client.post(ApiRoute.GROUPS, { user_id: userId }, { ...options, query: { ...options.query, action: 'transfer', id } }); }
+
   updateProfile(input, options = {}) {
     return this.client.put(ApiRoute.PROFILE, input, options);
   }
@@ -257,6 +265,14 @@ export class CloudComAiApi {
 
   unregisterDeviceToken(options = {}) {
     return this.client.delete(ApiRoute.DEVICE_TOKEN, options);
+  }
+
+  getNotificationPreferences(options = {}) {
+    return this.client.get(ApiRoute.NOTIFICATION_PREFERENCES, options);
+  }
+
+  updateNotificationPreferences(input, options = {}) {
+    return this.client.put(ApiRoute.NOTIFICATION_PREFERENCES, input, options);
   }
 
   listNotifications(options = {}) {

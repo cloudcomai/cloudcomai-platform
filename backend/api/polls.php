@@ -69,11 +69,13 @@ $chatRow = $membership->fetch();
 if (!$chatRow) fail('Not a member', 403);
 assert_chat_allows_messages($chat, (int)$user['id']);
 
-$expiresAt = !empty($chatRow['retention_seconds']) ? gmdate('Y-m-d H:i:s', time() + (int)$chatRow['retention_seconds']) : null;
+require_once __DIR__ . '/../lib/poll_expiry.php';
+try { $expiresAt = poll_expiry($d['expires_at'] ?? null); }
+catch (InvalidArgumentException $error) { fail($error->getMessage(), 422); }
 
 try {
     $pdo->beginTransaction();
-    $pdo->prepare('INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,created_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP())')->execute([$chat,$user['id'],$question,!empty($d['multiple_choice'])?1:0,!empty($d['anonymous'])?1:0]);
+    $pdo->prepare('INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,closes_at,created_at) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP())')->execute([$chat,$user['id'],$question,!empty($d['multiple_choice'])?1:0,!empty($d['anonymous'])?1:0,$expiresAt]);
     $pollId = (int)$pdo->lastInsertId();
 
     $st = $pdo->prepare('INSERT INTO poll_options(poll_id,option_text,display_order) VALUES(?,?,?)');
@@ -105,7 +107,8 @@ $message = [
     'type' => 'poll',
     'body' => $messageBody,
     'poll_id' => $pollId,
-    'poll' => ['id'=>$pollId,'question'=>$question,'options'=>$createdOptions]
+    'poll' => ['id'=>$pollId,'question'=>$question,'options'=>$createdOptions,'expires_at'=>$expiresAt],
+    'expires_at' => $expiresAt
 ];
 
 out(['message'=>$message,'poll_id'=>$pollId],201);

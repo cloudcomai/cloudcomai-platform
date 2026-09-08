@@ -34,6 +34,29 @@ if ($method === 'GET') {
     out(['groups' => $st->fetchAll()]);
 }
 
+if ($method === 'POST' && $action === 'transfer') {
+    $chatId=(int)($_GET['id'] ?? 0);
+    $targetId=(int)(input()['user_id'] ?? 0);
+    if ($targetId<1 || $targetId===(int)$user['id']) fail('Choose another active group member',422);
+    $pdo->beginTransaction();
+    try {
+        $lock=$pdo->prepare('SELECT owner_id FROM chats WHERE id=? AND type="group" FOR UPDATE');
+        $lock->execute([$chatId]);
+        if ((int)$lock->fetchColumn()!==(int)$user['id']) { $pdo->rollBack(); fail('Only the current owner can transfer ownership',403); }
+        $members=$pdo->prepare('SELECT cm.user_id FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id AND u.account_status="active" WHERE cm.chat_id=? AND cm.user_id IN (?,?) AND cm.status="active" FOR UPDATE');
+        $members->execute([$chatId,$user['id'],$targetId]);
+        if (count($members->fetchAll())!==2) { $pdo->rollBack(); fail('Both owners must be active group members',422); }
+        $pdo->prepare('UPDATE chat_members SET role="admin" WHERE chat_id=? AND user_id=?')->execute([$chatId,$user['id']]);
+        $pdo->prepare('UPDATE chat_members SET role="owner" WHERE chat_id=? AND user_id=?')->execute([$chatId,$targetId]);
+        $pdo->prepare('UPDATE chats SET owner_id=?,updated_at=UTC_TIMESTAMP() WHERE id=?')->execute([$targetId,$chatId]);
+        $pdo->prepare('INSERT INTO group_role_events(chat_id,actor_id,previous_owner_id,new_owner_id) VALUES(?,?,?,?)')->execute([$chatId,$user['id'],$user['id'],$targetId]);
+        // Old owner-generated invitations cannot grant access after transfer.
+        $pdo->prepare('UPDATE group_invites SET active=0 WHERE chat_id=?')->execute([$chatId]);
+        $pdo->commit();
+        out(['group_id'=>$chatId,'owner_id'=>$targetId]);
+    } catch (Throwable $error) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $error; }
+}
+
 if ($method === 'POST' && $action === 'invite') {
     $chatId = (int)($_GET['id'] ?? 0);
     if ($chatId <= 0) fail('Group id is required');
@@ -89,7 +112,8 @@ if ($method === 'PUT') {
     if ($name === '' || !in_array($type, $types, true)) fail('Valid group name and category are required');
     $st = $pdo->prepare('UPDATE chats SET name=?, group_category=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND type="group"');
     $st->execute([$name, $type, $chatId]);
-    out(['group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'owner_id'=>(int)$user['id'],'isGroup'=>true]]);
+    $owner=$pdo->prepare('SELECT owner_id FROM chats WHERE id=?'); $owner->execute([$chatId]);
+    out(['group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'owner_id'=>(int)$owner->fetchColumn(),'isGroup'=>true]]);
 }
 
 if ($method === 'DELETE') {

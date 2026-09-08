@@ -19,7 +19,7 @@ import {
   ToastAndroid,
   View,
 } from 'react-native';
-import { createPollingMessageTransport, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
+import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as ScreenCapture from 'expo-screen-capture';
@@ -30,7 +30,7 @@ import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-nati
 import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, uploadAttachmentAsset } from './src/services/platform';
 import { isAppLockEnabled, verifyAppLockPin } from './src/services/appLock';
 import { isAppLockResumeSuppressed, withAppLockExternalActivity } from './src/utils/appLockActivity';
-import { getLastNotificationResponse, getNotificationPreferences, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
+import { getLastNotificationResponse, getNotificationPreferences, rememberDeviceToken, forgetDeviceToken, setApplicationBadge, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
 import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
 import GroupManagement from './src/components/GroupManagement';
@@ -226,6 +226,23 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const searchActive = searchOpen && query.trim().length > 0;
+
+  const readTracker = useRef(null);
+  useEffect(() => {
+    const tracker = createReadTracker({ send: through => platformApi.updateChatNotificationState(chat.id, { mark_read: true, last_read_message_id: through }), onRead: result => setApplicationBadge(result.data.unread_count) });
+    readTracker.current = tracker;
+    return () => tracker.dispose();
+  }, [chat.id]);
+  const markVisibleRead = () => {
+    if (AppState.currentState !== 'active' || searchActive || !atBottomRef.current) return;
+    readTracker.current?.mark(messages.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0));
+  };
+  useEffect(() => {
+    const frame = requestAnimationFrame(markVisibleRead);
+    const timer = setInterval(markVisibleRead, 15000);
+    const subscription = AppState.addEventListener('change', markVisibleRead);
+    return () => { cancelAnimationFrame(frame); clearInterval(timer); subscription.remove(); };
+  }, [messages, searchActive]);
 
   useEffect(() => {
     let active = true;
@@ -473,7 +490,7 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
           data={searchActive ? results : messages}
           keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.messageList}
-          onScroll={event => { const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent; atBottomRef.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 100; }}
+          onScroll={event => { const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent; atBottomRef.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 100; markVisibleRead(); }}
           scrollEventThrottle={100}
           onContentSizeChange={() => { if (atBottomRef.current && !searchActive) listRef.current?.scrollToEnd?.({ animated: false }); }}
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
@@ -520,6 +537,9 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
 }
 
 function NotificationSettings({ preferences, onBack, onChange, onPrivacy }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const update = async changes => { if (busy) return; setBusy(true); setError(''); try { await onChange(changes); } catch (e) { setError(e.message); } finally { setBusy(false); } };
   const items = [['enabled', 'Push notifications'], ['message', 'Messages'], ['group', 'Groups'], ['attachment', 'Attachments'], ['system', 'System']];
   return (
     <SafeAreaView style={styles.appPage} edges={['top', 'bottom', 'left', 'right']}>
@@ -527,19 +547,20 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy }) {
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Back</Text></Pressable>
         <Text style={styles.headerTitle}>Settings</Text><View style={{ width: 54 }} />
       </View>
-      <View style={styles.settingsCard}>
+      <ScrollView contentContainerStyle={styles.settingsCard}>
         <Pressable onPress={onPrivacy} style={styles.settingRow}><Text style={styles.settingLabel}>Privacy & Account</Text><Text>›</Text></Pressable>
-        <Text style={styles.settingsIntro}>Choose which notifications this device can receive.</Text>
+        <Text style={styles.settingsIntro}>Choose push notifications for your account on every device.</Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         {items.map(([key, label]) => <View key={key} style={styles.settingRow}>
           <Text style={styles.settingLabel}>{label}</Text>
-          <Switch value={Boolean(preferences[key])} onValueChange={value => onChange({ [key]: value })} />
+          <Switch disabled={busy} value={Boolean(preferences?.[key])} onValueChange={value => update({ [key]: value })} />
         </View>)}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUpdated }) {
+function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated }) {
   const [section, setSection] = useState('all');
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -552,13 +573,13 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
   const [searchText, setSearchText] = useState('');
   const lastBackPressRef = useRef(0);
 
-  const loadChats = useCallback(async (refresh = false) => {
+  const loadChats = useCallback(async (refresh = false, silent = false) => {
     if (section === 'contacts' || section === 'notifications') {
       setLoading(false);
       setRefreshing(false);
       return;
     }
-    refresh ? setRefreshing(true) : setLoading(true);
+    if (!silent) refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
       if (section === 'all') {
@@ -582,6 +603,10 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
       setRefreshing(false);
     }
   }, [section]);
+  useEffect(() => {
+    const timer = setInterval(() => { if (!selectedChat && AppState.currentState === 'active') loadChats(false, true); }, 15000);
+    return () => clearInterval(timer);
+  }, [loadChats, selectedChat]);
 
   useEffect(() => { loadChats(); }, [loadChats]);
 
@@ -589,7 +614,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
     if (!initialChatId) return;
     const openInitial = async () => {
       const local = chats.find(item => Number(item.id) === Number(initialChatId));
-      if (local) { setSelectedChat(local); return; }
+      if (local) { setSelectedChat(local); onInitialChatConsumed?.(); return; }
       try {
         const [{ data: privateData }, { data: groupData }] = await Promise.all([
           platformApi.listChats('private'),
@@ -599,7 +624,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
           ...normalizeChats(privateData.chats, false),
           ...normalizeChats(groupData.chats, true),
         ].find(item => Number(item.id) === Number(initialChatId));
-        if (target) setSelectedChat(target);
+        if (target) { setSelectedChat(target); onInitialChatConsumed?.(); }
       } catch {}
     };
     openInitial();
@@ -629,6 +654,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
   }, [selectedChat, section]);
 
   const logout = async () => {
+    await forgetDeviceToken(platformApi).catch(() => {});
     await sessionManager.clearSession();
     onLogout();
   };
@@ -655,7 +681,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onProfileUp
     }
   };
 
-  if (selectedChat) return <ChatDetail key={selectedChat.id} chat={selectedChat} user={session.user} onBack={() => setSelectedChat(null)} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail key={selectedChat.id} chat={selectedChat} user={session.user} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
@@ -835,13 +861,16 @@ function AppContent() {
   }, [showNotificationSettings, showPrivacySettings]);
 
   useEffect(() => {
-    if (session && notificationPreferences) {
-      requestNotificationPermission().then(device => {
-        if (device?.data) return platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() });
-        return platformApi.unregisterDeviceToken();
-      }).catch(() => null);
-    }
-  }, [session, notificationPreferences]);
+    if (!session) return;
+    let active = true;
+    platformApi.getNotificationPreferences().then(async ({ data }) => { if (active) { await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); } }).catch(() => {});
+    requestNotificationPermission().then(async device => {
+      if (!active) return;
+      if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); }
+      else await forgetDeviceToken(platformApi);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     const openResponse = response => {
@@ -860,12 +889,13 @@ function AppContent() {
   }} />;
   if (appLocked) return <AppLockScreen onUnlocked={() => setAppLocked(false)} />;
   if (showPrivacySettings) return <PrivacySettings onBack={() => setShowPrivacySettings(false)} />;
-  if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onChange={changes => setNotificationPreferencesState(current => { const next = { ...current, ...changes }; setNotificationPreferences(next); return next; })} />;
+  if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;
   return <ChatsScreen
     session={session}
     onLogout={() => setSession(null)}
     onSettings={() => setShowNotificationSettings(true)}
     initialChatId={initialChatId}
+    onInitialChatConsumed={() => setInitialChatId(null)}
     onProfileUpdated={async user => {
       const next = { ...session, user };
       await sessionManager.setSession(next);
@@ -885,7 +915,7 @@ export default function App() {
 const styles = StyleSheet.create({
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
   searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, messageDeleteAction: { color: '#b91c1c' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
-  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, chatHeaderIdentity: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 }, headerProfileHint: { marginTop: 2, color: '#dbe4ff', fontSize: 10, fontWeight: '600' }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { color: '#172033', fontSize: 15, fontWeight: '600' },
+  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, chatHeaderIdentity: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 }, headerProfileHint: { marginTop: 2, color: '#dbe4ff', fontSize: 10, fontWeight: '600' }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { flex: 1, flexShrink: 1, paddingRight: 8, color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
@@ -935,5 +965,5 @@ const styles = StyleSheet.create({
   bottomNavLabel: { marginTop: 3, color: '#4b5563', fontSize: 10, fontWeight: '600' },
   bottomNavLabelActive: { color: '#3157d5', fontWeight: '800' },
     appPage: { flex: 1, backgroundColor: '#f5f7fb' }, chatKeyboard: { flex: 1 }, header: { paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' }, headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', flexShrink: 1 }, headerUser: { marginTop: 2, color: '#dbe4ff', fontSize: 12 }, logout: { color: '#fff', fontWeight: '700' }, back: { color: '#fff', fontWeight: '700', width: 54 }, deleteChat: { color: '#fee2e2', fontWeight: '700', textAlign: 'right', minWidth: 54 }, tabs: { flexDirection: 'row', padding: 8, margin: 14, borderRadius: 12, backgroundColor: '#e5eaf4' }, tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 }, activeTab: { backgroundColor: '#fff' }, tabText: { color: '#69758b', fontWeight: '700' }, activeTabText: { color: '#3157d5' },
-  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 12 }, headerActionText: { fontSize: 18 }, loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, emojiStrip: { flexGrow: 0, maxHeight: 54, borderTopWidth: 1, borderTopColor: '#edf0f5', backgroundColor: '#fff' }, emojiStripContent: { paddingHorizontal: 8, alignItems: 'center', gap: 4 }, emojiButton: { width: 42, height: 48, alignItems: 'center', justifyContent: 'center' }, emojiText: { fontSize: 26 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, minHeight: 64, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, emojiToggle: { minHeight: 46, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#f3f4f6', flexShrink: 0 }, emojiToggleText: { fontSize: 24 }, attachButton: { minHeight: 46, width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4', flexShrink: 0 }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 46, minWidth: 64, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5', flexShrink: 0 }, sendText: { color: '#fff', fontWeight: '700' },
+  chatHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 }, headerActionText: { fontSize: 18 }, loader: { marginTop: 50 }, list: { paddingHorizontal: 14, paddingBottom: 24 }, emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' }, emptyText: { color: '#718096', textAlign: 'center', padding: 18 }, listError: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, chatRow: { minHeight: 76, marginBottom: 9, padding: 12, flexDirection: 'row', alignItems: 'center', borderRadius: 14, backgroundColor: '#fff' }, avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#dfe6ff', overflow: 'hidden' }, avatarImage: { ...StyleSheet.absoluteFillObject, width: 48, height: 48, zIndex: 2 }, avatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' }, chatMeta: { flex: 1, marginHorizontal: 12 }, chatName: { color: '#172033', fontWeight: '700', fontSize: 15 }, preview: { marginTop: 5, color: '#778196', fontSize: 12 }, unread: { minWidth: 24, height: 24, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' }, messageList: { flexGrow: 1, padding: 14, justifyContent: 'flex-end' }, messageBubble: { alignSelf: 'flex-start', maxWidth: '82%', marginBottom: 9, padding: 11, borderRadius: 14, backgroundColor: '#fff' }, myMessage: { alignSelf: 'flex-end', backgroundColor: '#dfe6ff' }, messageImage: { width: 220, height: 220, maxWidth: '100%', borderRadius: 10, marginBottom: 8, backgroundColor: '#e5eaf4' }, attachmentLabel: { color: '#3157d5', fontSize: 14, fontWeight: '600' }, messageText: { color: '#172033', fontSize: 15 }, messageTime: { alignSelf: 'flex-end', marginTop: 4, color: '#778196', fontSize: 10 }, emojiStrip: { flexGrow: 0, maxHeight: 54, borderTopWidth: 1, borderTopColor: '#edf0f5', backgroundColor: '#fff' }, emojiStripContent: { paddingHorizontal: 8, alignItems: 'center', gap: 4 }, emojiButton: { width: 42, height: 48, alignItems: 'center', justifyContent: 'center' }, emojiText: { fontSize: 26 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 10, minHeight: 64, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#fff' }, emojiToggle: { minHeight: 46, width: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#f3f4f6', flexShrink: 0 }, emojiToggleText: { fontSize: 24 }, attachButton: { minHeight: 46, width: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#e5eaf4', flexShrink: 0 }, attachText: { color: '#3157d5', fontSize: 22 }, composerInput: { flex: 1, minWidth: 0, maxHeight: 100, minHeight: 44, paddingHorizontal: 13, paddingVertical: 11, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033' }, sendButton: { minHeight: 46, minWidth: 56, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5', flexShrink: 0 }, sendText: { color: '#fff', fontWeight: '700' },
 });
