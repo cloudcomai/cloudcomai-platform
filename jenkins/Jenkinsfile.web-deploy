@@ -1,0 +1,57 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BUILD_NUMBER_TO_DEPLOY', description: 'CloudComAI-Web-Build build number')
+        choice(name: 'ENVIRONMENT', choices: ['test', 'production'])
+    }
+
+    stages {
+        stage('Get Artifact') {
+            steps {
+                copyArtifacts(
+                    projectName: 'CloudComAI-Web-Build',
+                    selector: specific(params.BUILD_NUMBER_TO_DEPLOY)
+                )
+            }
+        }
+
+        stage('Backup Current Web') {
+            steps {
+                echo "Back up the current web deployment before deploying to ${params.ENVIRONMENT}."
+            }
+        }
+
+        stage('Deploy Web') {
+            steps {
+                script {
+                    def credentialId = params.ENVIRONMENT == 'production'
+                        ? 'cloudcomai-prod-ftp'
+                        : 'cloudcomai-test-ftp'
+                    withCredentials([usernamePassword(
+                        credentialsId: credentialId,
+                        usernameVariable: 'FTP_USER',
+                        passwordVariable: 'FTP_PASSWORD'
+                    )]) {
+                        echo 'Deploy the archived web artifact using the existing CloudComAI hosting/FTP deployment mechanism.'
+                    }
+                }
+            }
+        }
+
+        stage('Web Health Check') {
+            steps {
+                script {
+                    def url = params.ENVIRONMENT == 'production'
+                        ? 'https://cloudcomai.com/app/'
+                        : 'https://cloudcomai.freedev.app/app/'
+                    if (isUnix()) {
+                        sh "curl --fail --show-error --silent --output /dev/null '${url}'"
+                    } else {
+                        bat "curl --fail --show-error --silent --output NUL \"${url}\""
+                    }
+                }
+            }
+        }
+    }
+}
