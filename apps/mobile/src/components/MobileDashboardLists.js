@@ -68,7 +68,7 @@ export function ContactsList({ onOpenChat }) {
         keyExtractor={item => String(item.registered_user_id || item.id)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
         contentContainerStyle={items.length ? styles.list : styles.empty}
-        ListEmptyComponent={<Text style={styles.emptyText}>No registered CloudComAI contacts found. Sync Google Contacts from More.</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>No registered CloudComAI contacts found. Sync Google Contacts from the menu or Settings.</Text>}
         renderItem={({ item }) => {
           const title = item.display_name || item.registered_name || item.email || item.phone || 'CloudComAI contact';
           return (

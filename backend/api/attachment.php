@@ -20,9 +20,28 @@ $cleared->execute([(int)$a['chat_id'], $user['id']]);
 $clearedThrough = (int)($cleared->fetchColumn() ?: 0);
 if ((int)$a['message_id'] <= $clearedThrough) fail('Attachment not found', 404);
 
-$isImage = str_starts_with((string)$a['mime_type'], 'image/');
-$isAudio = str_starts_with((string)$a['mime_type'], 'audio/');
-$isVideo = str_starts_with((string)$a['mime_type'], 'video/');
+$root = dirname(__DIR__);
+$path = $root . '/' . ltrim($a['storage_path'], '/');
+if (!is_file($path)) fail('Attachment file not found', 404);
+
+$storedMime = strtolower(trim((string)$a['mime_type']));
+$detectedMime = strtolower((string)((new finfo(FILEINFO_MIME_TYPE))->file($path) ?: ''));
+$extension = strtolower((string)pathinfo((string)$a['original_filename'], PATHINFO_EXTENSION));
+$mimeByExtension = [
+    'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+    'webp' => 'image/webp', 'gif' => 'image/gif',
+    'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'aac' => 'audio/aac',
+    'wav' => 'audio/wav', 'ogg' => 'audio/ogg',
+    'mp4' => 'video/mp4', 'mov' => 'video/quicktime', 'webm' => 'video/webm', '3gp' => 'video/3gpp',
+];
+$mime = $detectedMime !== '' && $detectedMime !== 'application/octet-stream'
+    ? $detectedMime
+    : ($storedMime !== '' && $storedMime !== 'application/octet-stream'
+        ? $storedMime
+        : ($mimeByExtension[$extension] ?? 'application/octet-stream'));
+$isImage = str_starts_with($mime, 'image/');
+$isAudio = str_starts_with($mime, 'audio/');
+$isVideo = str_starts_with($mime, 'video/');
 if ($preview) {
     if (!$isImage && !$isAudio && !$isVideo) fail('Preview is not available for this file type', 400);
     // Inline media may be viewed by chat members, while the original download
@@ -38,11 +57,7 @@ if ($preview) {
 }
 if (!$authorizedPreview) fail($a['download_policy'] === 'VIEW_ONLY' ? 'Download is disabled for this attachment' : 'Download requires sender approval', 403);
 
-$root = dirname(__DIR__);
-$path = $root . '/' . ltrim($a['storage_path'], '/');
-if (!is_file($path)) fail('Attachment file not found', 404);
-
-header('Content-Type: ' . $a['mime_type']);
+header('Content-Type: ' . $mime);
 header('Cache-Control: private, no-store');
 header('Content-Disposition: ' . ($preview ? 'inline' : 'attachment') . '; filename="' . addcslashes(basename($a['original_filename']), '"\\') . '"');
 header('X-Content-Type-Options: nosniff');

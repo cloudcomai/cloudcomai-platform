@@ -4,7 +4,8 @@ import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, use
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { File } from 'expo-file-system';
-import { platformApi } from '../services/platform';
+import { platformApi, uploadAttachmentAsset } from '../services/platform';
+import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { AudioPreview, VideoPreview } from './MediaMessage';
 
 export default function MediaComposer({ chat, onMessage }) {
@@ -56,9 +57,11 @@ export default function MediaComposer({ chat, onMessage }) {
     if (disabled) return;
     setBusy('video');
     try {
-      if (camera && !(await ImagePicker.requestCameraPermissionsAsync()).granted) throw new Error('Allow camera access to record video.');
-      const options = { mediaTypes: ['videos'], videoMaxDuration: 60, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium };
-      const result = camera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+      const result = await withAppLockExternalActivity(async () => {
+        if (camera && !(await ImagePicker.requestCameraPermissionsAsync()).granted) throw new Error('Allow camera access to record video.');
+        const options = { mediaTypes: ['videos'], videoMaxDuration: 60, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium };
+        return camera ? ImagePicker.launchCameraAsync(options) : ImagePicker.launchImageLibraryAsync(options);
+      });
       if (!active.current || result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
       if (asset.fileSize > 25 * 1024 * 1024) throw new Error('Videos must be 25 MB or smaller.');
@@ -71,12 +74,11 @@ export default function MediaComposer({ chat, onMessage }) {
     if (!draft || busy) return;
     setBusy('upload');
     try {
-      const file = new File(draft.uri);
-      if (file.size <= 0 || file.size > 25 * 1024 * 1024) throw new Error('Media must be between 1 byte and 25 MB.');
-      const form = new FormData();
-      form.append('chat_id', String(chat.id)); form.append('message_type', draft.type); form.append('download_policy', 'APPROVAL_REQUIRED');
-      form.append('file', { uri: draft.uri, name: draft.name, type: draft.mimeType });
-      const { data } = await platformApi.uploadAttachment(form);
+      const { data } = await uploadAttachmentAsset(draft, {
+        chat_id: chat.id,
+        message_type: draft.type,
+        download_policy: 'APPROVAL_REQUIRED',
+      });
       if (active.current) { onMessage(data.message); setDraft(null); removeRecording(); }
     } catch (error) { if (active.current) Alert.alert('Unable to send media', error.message); }
     finally { if (active.current) setBusy(''); }

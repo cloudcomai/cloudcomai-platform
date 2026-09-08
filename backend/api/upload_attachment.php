@@ -23,6 +23,10 @@ $file = $_FILES['file'];
 if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) fail('File upload failed');
 $maxBytes = 25 * 1024 * 1024;
 if ((int)$file['size'] <= 0 || (int)$file['size'] > $maxBytes) fail('File must be between 1 byte and 25 MB');
+$originalFilename = trim((string)($_POST['original_filename'] ?? $file['name'] ?? 'attachment'));
+$originalFilename = basename(str_replace('\\', '/', $originalFilename));
+$originalFilename = preg_replace('/[\x00-\x1F\x7F]/u', '', $originalFilename) ?: 'attachment';
+$originalFilename = preg_replace('/^(.{0,255}).*$/us', '$1', $originalFilename) ?: 'attachment';
 
 $allowed = [
  'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif',
@@ -72,7 +76,7 @@ try {
  $st->execute([$chat,$user['id'],$messageType,$body !== '' ? $body : null,$reply ?: null,$expires,$createdAt]);
  $messageId = (int)$pdo->lastInsertId();
  $st = $pdo->prepare('INSERT INTO message_attachments(message_id,original_filename,stored_filename,storage_path,mime_type,file_size,download_policy,created_at) VALUES(?,?,?,?,?,?,?,?)');
- $st->execute([$messageId, basename((string)$file['name']), $stored, 'storage/attachments/' . $stored, $mime, (int)$file['size'], $policy, $createdAt]);
+ $st->execute([$messageId, $originalFilename, $stored, 'storage/attachments/' . $stored, $mime, (int)$file['size'], $policy, $createdAt]);
  $attachmentId = (int)$pdo->lastInsertId();
  $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
  create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], $messageType === 'voice' ? 'Voice message' : ($messageType === 'video' ? 'Video message' : ($body !== '' ? $body : 'Sent you an attachment')), $messageId);
@@ -86,5 +90,5 @@ try {
 out(['message' => [
  'id' => $messageId, 'chat_id' => $chat, 'sender_id' => (int)$user['id'], 'sender_name' => $user['name'],
  'type' => $messageType, 'body' => $body, 'reply_to_message_id' => $reply ?: null, 'created_at' => $createdAt,
- 'attachment' => ['id' => $attachmentId, 'name' => basename((string)$file['name']), 'mime_type' => $mime, 'file_size' => (int)$file['size'], 'download_policy' => $policy]
+ 'attachment' => ['id' => $attachmentId, 'name' => $originalFilename, 'mime_type' => $mime, 'file_size' => (int)$file['size'], 'download_policy' => $policy]
 ]], 201);

@@ -4,6 +4,7 @@ export const ApiRoute = Object.freeze({
   FORGOT_PASSWORD: 'v1/auth/forgot-password',
   RESET_PASSWORD: 'v1/auth/reset-password',
   PROFILE: 'v1/users/me',
+  USER_PROFILE: 'v1/users/profile',
   USERS: 'v1/users',
   SEARCH_USERS: 'v1/users/search',
   PREFERENCES: 'v1/users/preferences',

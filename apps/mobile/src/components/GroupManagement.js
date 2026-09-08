@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { mediaUrl, platformApi } from '../services/platform';
+import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
+import { withAppLockExternalActivity } from '../utils/appLockActivity';
 
 export default function GroupManagement({ visible, group, user, onClose, onGroupUpdated, onGroupDeleted }) {
   const [members, setMembers] = useState([]);
@@ -53,37 +54,46 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
     } finally { setBusy(false); }
   };
 
-  const chooseGroupPhoto = async () => {
+  const selectGroupPhoto = async useCamera => {
     if (busy) return;
     setError('');
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) { setError('Photo library permission is required to update the group image.'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.72,
+      const result = await withAppLockExternalActivity(async () => {
+        if (useCamera) {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) throw new Error('Camera permission is required to take a group photo.');
+        }
+        const options = {
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.72,
+          preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+        };
+        return useCamera
+          ? ImagePicker.launchCameraAsync(options)
+          : ImagePicker.launchImageLibraryAsync(options);
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
       if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
       setBusy(true);
-      const form = new FormData();
-      form.append('type', 'group');
-      form.append('id', String(group.id));
-      form.append('image', {
-        uri: asset.uri,
-        name: asset.fileName || `group-${group.id}.jpg`,
-        type: asset.mimeType || 'image/jpeg',
-      });
-      const { data } = await platformApi.uploadMedia(form);
+      const { data } = await uploadMediaAsset(asset, { type: 'group', id: group.id });
       setImageVersion(data.updated_at || Date.now());
       onGroupUpdated?.({ ...group, image_url: data.image_url, image_version: data.updated_at });
       Alert.alert('Group photo updated', 'The cropped group photo was saved.');
     } catch (e) {
       setError(e.message || 'Unable to update group photo.');
     } finally { setBusy(false); }
+  };
+
+  const chooseGroupPhoto = () => {
+    if (busy) return;
+    Alert.alert('Change group photo', 'Take a new photo or choose one from your phone.', [
+      { text: 'Camera', onPress: () => selectGroupPhoto(true) },
+      { text: 'Photo library', onPress: () => selectGroupPhoto(false) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const save = async () => {

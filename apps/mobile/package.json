@@ -2,13 +2,15 @@
   "name": "@cloudcomai/mobile",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "CloudComAI React Native and Expo mobile application foundation",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "build": "expo export --platform all --output-dir dist"
+    "build": "expo export --platform all --output-dir dist",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@cloudcomai/api-client": "workspace:*",

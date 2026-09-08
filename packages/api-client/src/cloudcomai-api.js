@@ -38,6 +38,13 @@ export class CloudComAiApi {
     return this.client.put(ApiRoute.PROFILE, input, options);
   }
 
+  getUserProfile(userId, options = {}) {
+    return this.client.get(ApiRoute.USER_PROFILE, {
+      ...options,
+      query: { ...options.query, id: userId },
+    });
+  }
+
   listUsers(options = {}) {
     return this.client.get(ApiRoute.USERS, options);
   }

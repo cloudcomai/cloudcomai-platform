@@ -70,6 +70,12 @@ try {
     $alice = array_values(array_filter($users, fn($u)=>(int)$u['id']===1))[0];
     check(!$alice['online'] && !isset($alice['updated_at']), 'Hidden presence leaked');
 
+    $profile = request('GET','v1/users/profile?id=1',2)['data']['user'];
+    check($profile['name']==='Alice' && $profile['age']>=18 && $profile['gender']==='Female','Shared contact profile fields missing');
+    check($profile['email']==='alice@example.test' && $profile['mobile']===null,'Optional contact fields invalid');
+    check(!array_key_exists('dob',$profile),'Profile exposed date of birth instead of derived age');
+    request('GET','v1/users/profile?id=1',3,null,403);
+
     $message = request('POST','v1/messages',1,['chat_id'=>1,'body'=>'searchable hello'],201)['data']['message'];
     $id = (int)$message['id'];
     request('GET','v1/messages?chat_id=1',3,null,403);
@@ -92,11 +98,25 @@ try {
     request('POST','v1/messages/edit',1,['message_id'=>$location['id'],'body'=>'corrupt location'],409);
 
     request('POST','v1/users/privacy',2,['user_id'=>1],201);
+    request('GET','v1/users/profile?id=1',2,null,403);
     request('POST','v1/messages',1,['chat_id'=>1,'body'=>'blocked'],403);
     request('POST','v1/messages',2,['chat_id'=>1,'body'=>'also blocked'],403);
     request('POST','v1/messages',1,['chat_id'=>1,'type'=>'location','latitude'=>0,'longitude'=>0],403);
     request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Blocked?','options'=>['Yes','No']],403);
     request('DELETE','v1/users/privacy?user_id=1',2);
+
+    $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
+    check(is_string($png),'Unable to prepare image upload fixture');
+    $imageBoundary = 'CloudComAIImageUploadTest';
+    $imageMultipart = '';
+    foreach (['chat_id'=>'1','original_filename'=>'camera-photo.png','download_policy'=>'APPROVAL_REQUIRED'] as $key=>$value) $imageMultipart .= "--$imageBoundary\r\nContent-Disposition: form-data; name=\"$key\"\r\n\r\n$value\r\n";
+    $imageMultipart .= "--$imageBoundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"upload.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n$png\r\n--$imageBoundary--\r\n";
+    $imageMessage = request('POST','v1/attachments/upload',1,$imageMultipart,201,['Content-Type: multipart/form-data; boundary='.$imageBoundary])['data']['message'];
+    check($imageMessage['attachment']['name']==='camera-photo.png','Native upload filename was not preserved');
+    $imageAttachmentId = (int)$imageMessage['attachment']['id'];
+    $admin->exec("UPDATE message_attachments SET mime_type='application/octet-stream' WHERE id=$imageAttachmentId");
+    check(request('GET',"v1/attachments?id=$imageAttachmentId&preview=1",2)['raw']===$png,'Image preview MIME recovery failed');
+    request('DELETE','v1/messages?id='.$imageMessage['id'].'&scope=everyone',1);
 
     request('PUT','v1/users/privacy',2,['screenshot_alerts'=>false]);
     check(request('POST','v1/security/screenshot',1,['chat_id'=>1],201)['data']['notified_users']===0,'Screenshot opt-out ignored');
@@ -123,7 +143,7 @@ try {
     request('DELETE','v1/messages?id='.$voice['id'].'&scope=everyone',1);
     request('GET',"v1/attachments?id=$attachmentId&preview=1",1,null,404);
     check(count(glob($root.'/storage/attachments/*'))===0,'Deleted media bytes remain on disk');
-    echo "Privacy, search, deletion, location, screenshot, media access, backup, and migration integration tests passed\n";
+    echo "Profiles, privacy, search, deletion, location, screenshot, media access, backup, and migration integration tests passed\n";
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");
     if (is_file($root.'/server.log')) fwrite(STDERR, file_get_contents($root.'/server.log'));
