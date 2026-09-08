@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require __DIR__ . '/lib/bootstrap.php';
 $pdo=db();
 $pdo->exec('UPDATE messages SET deleted_for_everyone=1, body=NULL WHERE expires_at IS NOT NULL AND expires_at<=UTC_TIMESTAMP() AND deleted_for_everyone=0');

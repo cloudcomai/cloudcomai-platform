@@ -14,27 +14,30 @@ if ($action === 'vote') {
     $optionId = (int)($d['option_id'] ?? 0);
     if ($pollId <= 0 || $optionId <= 0) fail('Poll and option are required');
 
-    $membership = $pdo->prepare('SELECT p.chat_id FROM polls p INNER JOIN chat_members cm ON cm.chat_id=p.chat_id WHERE p.id=? AND cm.user_id=? AND cm.status="active" LIMIT 1');
-    $membership->execute([$pollId, $user['id']]);
-    $poll = $membership->fetch();
-    if (!$poll) fail('Poll not found or access denied', 403);
-    assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
-
-    $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
-    $option->execute([$optionId, $pollId]);
-    if (!$option->fetch()) fail('Invalid poll option');
-
-    $existing = $pdo->prepare('SELECT option_id FROM poll_votes WHERE poll_id=? AND user_id=? ORDER BY created_at ASC LIMIT 1');
-    $existing->execute([$pollId, $user['id']]);
-    $previousVote = $existing->fetch();
-
     try {
         $pdo->beginTransaction();
-        if ($previousVote) {
-            $pdo->prepare('UPDATE poll_votes SET option_id=?, created_at=UTC_TIMESTAMP() WHERE poll_id=? AND user_id=?')->execute([$optionId, $pollId, $user['id']]);
-        } else {
-            $pdo->prepare('INSERT INTO poll_votes(poll_id,option_id,user_id,created_at) VALUES(?,?,?,UTC_TIMESTAMP())')->execute([$pollId, $optionId, $user['id']]);
-        }
+        // Serialize votes before reading or replacing a user's choice. Concurrent
+        // first votes must not create multiple rows for this single-choice API.
+        $membership = $pdo->prepare('SELECT p.chat_id,p.closed_at,p.closes_at FROM polls p INNER JOIN chat_members cm ON cm.chat_id=p.chat_id WHERE p.id=? AND cm.user_id=? AND cm.status="active" LIMIT 1 FOR UPDATE');
+        $membership->execute([$pollId, $user['id']]);
+        $poll = $membership->fetch();
+        if (!$poll) fail('Poll not found or access denied', 403);
+        if ($poll['closed_at'] || ($poll['closes_at'] && $poll['closes_at'] <= gmdate('Y-m-d H:i:s'))) fail('This poll is closed', 409);
+        assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
+
+        $messageQuery = $pdo->prepare('SELECT id FROM messages WHERE chat_id=? AND type="poll" AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(body) THEN body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=? LIMIT 1');
+        $messageQuery->execute([$poll['chat_id'], $pollId]);
+        $messageId = (int)$messageQuery->fetchColumn();
+        assert_visible_message($messageId, (int)$user['id']);
+
+        $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
+        $option->execute([$optionId, $pollId]);
+        if (!$option->fetch()) fail('Invalid poll option');
+
+        $pdo->prepare('DELETE FROM poll_votes WHERE poll_id=? AND user_id=?')->execute([$pollId, $user['id']]);
+        $pdo->prepare('INSERT INTO poll_votes(poll_id,option_id,user_id,created_at) VALUES(?,?,?,UTC_TIMESTAMP())')->execute([$pollId, $optionId, $user['id']]);
+        // Existing clients synchronize already-loaded messages by edited_at.
+        $pdo->prepare('UPDATE messages SET edited_at=UTC_TIMESTAMP() WHERE id=?')->execute([$messageId]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();

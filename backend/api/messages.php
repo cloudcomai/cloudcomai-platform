@@ -151,11 +151,20 @@ if ($method === 'POST') {
     }
     $expires = $membership['retention_seconds'] ? gmdate('Y-m-d H:i:s', time() + (int)$membership['retention_seconds']) : null;
     $createdAt = gmdate('Y-m-d H:i:s');
-    $st = db()->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
-    $st->execute([$chatId,$user['id'],$type,$body,$reply ?: null,$expires,$createdAt]);
-    $messageId = (int)db()->lastInsertId();
-    db()->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chatId, $user['id']]);
-    create_chat_notifications($chatId, (int)$user['id'], (string)$user['name'], $type === 'location' ? 'Shared a location' : $body, $messageId);
+    $pdo = db();
+    try {
+        $pdo->beginTransaction();
+        $st = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
+        $st->execute([$chatId,$user['id'],$type,$body,$reply ?: null,$expires,$createdAt]);
+        $messageId = (int)$pdo->lastInsertId();
+        $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chatId, $user['id']]);
+        create_chat_notifications($chatId, (int)$user['id'], (string)$user['name'], $type === 'location' ? 'Shared a location' : $body, $messageId);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Message creation failed: ' . $error->getMessage());
+        fail('Unable to send message', 500);
+    }
 
     $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
     $created->execute([$messageId]);

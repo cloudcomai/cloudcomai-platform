@@ -1,4 +1,9 @@
 Options -Indexes
+RewriteEngine On
+# Attachment bytes must only be served by the authenticated API. Keep this rule
+# here because deployments deliberately preserve/exclude the storage directory.
+RewriteRule ^(?:storage|config|database|sql|lib|tests|cron)(?:/|$) - [F,NC]
+RewriteRule ^(?:cron_cleanup\.php|error_log|cron_debug\.log)$ - [F,NC]
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"

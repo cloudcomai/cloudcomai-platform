@@ -18,8 +18,9 @@ export const isStrongPassword = (value) => {
 };
 
 export const isAdult = (dateOfBirth, referenceDate = new Date()) => {
+  if (typeof dateOfBirth !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return false;
   const dob = new Date(`${dateOfBirth}T00:00:00Z`);
-  if (Number.isNaN(dob.getTime())) return false;
+  if (Number.isNaN(dob.getTime()) || dob.getUTCFullYear() < 1 || dob.toISOString().slice(0, 10) !== dateOfBirth) return false;
   let age = referenceDate.getUTCFullYear() - dob.getUTCFullYear();
   const beforeBirthday =
     referenceDate.getUTCMonth() < dob.getUTCMonth() ||
