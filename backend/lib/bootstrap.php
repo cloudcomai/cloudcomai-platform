@@ -26,11 +26,12 @@ function db(): PDO {
     static $pdo;
     if (!$pdo) {
         $d = $config['db'];
-        $dsn = "mysql:host={$d['host']};dbname={$d['name']};charset={$d['charset']}";
+        $dsn = "mysql:host={$d['host']};dbname={$d['name']};charset=utf8mb4";
         $pdo = new PDO($dsn, $d['user'], $d['pass'], [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci',
         ]);
     }
     return $pdo;
@@ -42,7 +43,7 @@ function input(): array {
 }
 function out(array $data, int $status = 200): never {
     http_response_code($status);
-    echo json_encode($data, JSON_UNESCAPED_SLASHES);
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
 function fail(string $message, int $status = 400): never { out(['message' => $message], $status); }
@@ -51,7 +52,7 @@ function queue_user_notification(int $userId, string $category, string $title, s
     $text = trim($body);
     $text = function_exists('mb_substr') ? mb_substr($text, 0, 500) : substr($text, 0, 500);
     $insert = $pdo->prepare('INSERT INTO notification_history (user_id, category, title, body, data_json, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())');
-    $insert->execute([$userId, $category, $title, $text, json_encode($data, JSON_UNESCAPED_SLASHES)]);
+    $insert->execute([$userId, $category, $title, $text, json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
     $notificationId = (int)$pdo->lastInsertId();
     if ($deliverPush) {
         $devices = $pdo->prepare('SELECT id FROM notification_devices WHERE user_id=? AND revoked_at IS NULL');
