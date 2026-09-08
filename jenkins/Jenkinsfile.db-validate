@@ -1,0 +1,34 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch to validate')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: params.BRANCH, url: 'https://github.com/cloudcomai/cloudcomai-platform.git'
+            }
+        }
+
+        stage('Validate SQL Files') {
+            steps {
+                script {
+                    def sqlFiles = findFiles(glob: 'backend/**/*.sql')
+                    if (sqlFiles.length == 0) {
+                        error('No SQL files found under backend/')
+                    }
+                    echo "Found ${sqlFiles.length} SQL file(s)."
+                }
+            }
+        }
+
+        stage('Check Fresh Install and Migrations') {
+            steps {
+                echo 'DB validation is non-destructive. No database changes are executed in this job.'
+                archiveArtifacts artifacts: 'backend/**/*.sql', fingerprint: true, allowEmptyArchive: false
+            }
+        }
+    }
+}

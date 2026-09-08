@@ -1,0 +1,56 @@
+pipeline {
+    agent { label 'macos' }
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main')
+        choice(name: 'PROFILE', choices: ['preview', 'production'])
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: params.BRANCH, url: 'https://github.com/cloudcomai/cloudcomai-platform.git'
+            }
+        }
+
+        stage('Install') {
+            steps {
+                sh 'corepack enable && pnpm install --frozen-lockfile'
+            }
+        }
+
+        stage('Validate Environment') {
+            steps {
+                script {
+                    if (!env.EXPO_PUBLIC_API_BASE_URL?.trim()) {
+                        error('EXPO_PUBLIC_API_BASE_URL is required')
+                    }
+                }
+            }
+        }
+
+        stage('Prebuild iOS') {
+            steps {
+                dir('apps/mobile') {
+                    sh 'npx expo prebuild --platform ios --non-interactive'
+                }
+            }
+        }
+
+        stage('Install Pods') {
+            steps {
+                dir('apps/mobile/ios') {
+                    sh 'pod install'
+                }
+            }
+        }
+
+        stage('Build iOS') {
+            steps {
+                echo 'Local signed iOS builds require a macOS Jenkins agent, Xcode and configured Apple signing.'
+                echo 'Configure the workspace/scheme and signing values for the generated CloudComAI iOS project before enabling production IPA export.'
+                sh 'xcodebuild -workspace *.xcworkspace -list'
+            }
+        }
+    }
+}

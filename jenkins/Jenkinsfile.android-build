@@ -1,0 +1,75 @@
+pipeline {
+    agent { label 'android' }
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main')
+        choice(name: 'PROFILE', choices: ['preview', 'production'])
+        choice(name: 'BUILD_TYPE', choices: ['apk', 'aab'])
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: params.BRANCH, url: 'https://github.com/cloudcomai/cloudcomai-platform.git'
+            }
+        }
+
+        stage('Install') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'corepack enable && pnpm install --frozen-lockfile'
+                    } else {
+                        bat 'corepack enable && pnpm install --frozen-lockfile'
+                    }
+                }
+            }
+        }
+
+        stage('Validate Environment') {
+            steps {
+                script {
+                    if (!env.EXPO_PUBLIC_API_BASE_URL?.trim()) {
+                        error('EXPO_PUBLIC_API_BASE_URL is required')
+                    }
+                }
+            }
+        }
+
+        stage('Prebuild Android') {
+            steps {
+                dir('apps/mobile') {
+                    script {
+                        if (isUnix()) {
+                            sh 'npx expo prebuild --platform android --non-interactive'
+                        } else {
+                            bat 'npx expo prebuild --platform android --non-interactive'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Android') {
+            steps {
+                dir('apps/mobile/android') {
+                    script {
+                        if (params.BUILD_TYPE == 'apk') {
+                            if (isUnix()) { sh './gradlew assembleRelease' } else { bat 'gradlew.bat assembleRelease' }
+                        } else {
+                            if (isUnix()) { sh './gradlew bundleRelease' } else { bat 'gradlew.bat bundleRelease' }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'apps/mobile/android/app/build/outputs/**/*.apk,apps/mobile/android/app/build/outputs/**/*.aab',
+                    fingerprint: true,
+                    allowEmptyArchive: false
+            }
+        }
+    }
+}

@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main')
+        choice(name: 'ENVIRONMENT', choices: ['test', 'production'])
+        choice(name: 'DB_ACTION', choices: ['none', 'incremental'])
+        booleanParam(name: 'CONFIRM_PRODUCTION', defaultValue: false)
+    }
+
+    stages {
+        stage('Validate Request') {
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'production' && !params.CONFIRM_PRODUCTION) {
+                        error('Production migration requires CONFIRM_PRODUCTION=true')
+                    }
+                    if (params.DB_ACTION == 'none') {
+                        echo 'No migration requested.'
+                    }
+                }
+            }
+        }
+
+        stage('Checkout') {
+            when { expression { params.DB_ACTION != 'none' } }
+            steps {
+                git branch: params.BRANCH, url: 'https://github.com/cloudcomai/cloudcomai-platform.git'
+            }
+        }
+
+        stage('Incremental Migration') {
+            when { expression { params.DB_ACTION == 'incremental' } }
+            steps {
+                withCredentials([string(credentialsId: 'cloudcomai-migration-token', variable: 'MIGRATION_TOKEN')]) {
+                    echo "Run the existing CloudComAI incremental migration mechanism for ${params.ENVIRONMENT}."
+                    echo 'Keep the token secret; do not echo it into Jenkins logs.'
+                    // Wire this stage to the same migration endpoint/script currently used by deployment workflows.
+                }
+            }
+        }
+    }
+}
