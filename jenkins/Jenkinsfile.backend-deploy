@@ -1,0 +1,57 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BUILD_NUMBER_TO_DEPLOY', description: 'CloudComAI-Backend-Build build number')
+        choice(name: 'ENVIRONMENT', choices: ['test', 'production'])
+    }
+
+    stages {
+        stage('Get Artifact') {
+            steps {
+                copyArtifacts(
+                    projectName: 'CloudComAI-Backend-Build',
+                    selector: specific(params.BUILD_NUMBER_TO_DEPLOY)
+                )
+            }
+        }
+
+        stage('Backup Current Backend') {
+            steps {
+                echo "Back up the current backend before deploying to ${params.ENVIRONMENT}."
+            }
+        }
+
+        stage('Deploy Backend') {
+            steps {
+                script {
+                    def credentialId = params.ENVIRONMENT == 'production'
+                        ? 'cloudcomai-prod-ftp'
+                        : 'cloudcomai-test-ftp'
+                    withCredentials([usernamePassword(
+                        credentialsId: credentialId,
+                        usernameVariable: 'FTP_USER',
+                        passwordVariable: 'FTP_PASSWORD'
+                    )]) {
+                        echo 'Deploy the archived backend artifact using the existing CloudComAI hosting/FTP deployment mechanism.'
+                    }
+                }
+            }
+        }
+
+        stage('Backend Health Check') {
+            steps {
+                script {
+                    def healthUrl = params.ENVIRONMENT == 'production'
+                        ? 'https://cloudcomai.com/apiapp/api/health'
+                        : 'https://cloudcomai.freedev.app/apiapp/api/health'
+                    if (isUnix()) {
+                        sh "curl --fail --show-error --silent '${healthUrl}'"
+                    } else {
+                        bat "curl --fail --show-error --silent \"${healthUrl}\""
+                    }
+                }
+            }
+        }
+    }
+}
