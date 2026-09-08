@@ -64,11 +64,14 @@ const parseUploadResult = async result => {
   return { data, status: result.status, headers: result.headers };
 };
 
-export function createMobileMultipartBody(asset, parameters = {}, FormDataCtor = globalThis.FormData) {
+export function createMobileMultipartBody(asset, {
+  fieldName = 'file',
+  parameters = {},
+} = {}, FormDataCtor = globalThis.FormData) {
   if (typeof FormDataCtor !== 'function') throw new ApiError('Multipart upload is unavailable on this device.');
   const normalized = normalizeUploadAsset(asset, { fallbackName: 'attachment' });
   const form = new FormDataCtor();
-  form.append('file', {
+  form.append(fieldName, {
     uri: normalized.uri,
     name: normalized.name,
     type: normalized.mimeType,
@@ -94,10 +97,10 @@ export async function uploadMobileFile(route, asset, {
   if (size > maxBytes) throw new ApiError(`The selected file must be ${Math.floor(maxBytes / 1024 / 1024)} MB or smaller.`);
 
   const token = await sessionManager.getToken();
-  const formData = createMobileMultipartBody(normalized, {
+  const formData = createMobileMultipartBody(normalized, { fieldName, parameters: {
     ...parameters,
     original_filename: parameters.original_filename || normalized.name,
-  });
+  } });
   const response = await fetch(buildApiUrl(API_BASE_URL, route), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
