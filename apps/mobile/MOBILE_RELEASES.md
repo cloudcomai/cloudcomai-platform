@@ -4,7 +4,7 @@ CloudComAI uses EAS Build for native binaries and EAS Update for compatible
 JavaScript and asset changes. Mobile release workflows are independent of the
 GoDaddy and InfinityFree web/backend deployments.
 
-For builds that do not use EAS cloud quota, use the [Gradle/GitHub Actions guide](../../docs/android-without-eas.md).
+For Android builds that do not use EAS cloud quota, use the [Gradle/GitHub Actions guide](../../docs/android-without-eas.md). For a free iOS Simulator preview build, use the [iOS Simulator/GitHub Actions guide](../../docs/ios-simulator-without-eas.md).
 
 ## One-time configuration
 
