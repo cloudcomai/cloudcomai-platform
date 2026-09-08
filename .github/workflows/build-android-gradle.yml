@@ -12,19 +12,12 @@ on:
         description: Required for release; use a number higher than the last published Android build
         type: string
         default: '1'
-  pull_request:
-    paths:
-      - '.github/workflows/build-android-gradle.yml'
-      - 'apps/mobile/**'
-      - 'packages/**'
-      - 'pnpm-lock.yaml'
-
 permissions:
   contents: read
 
 concurrency:
   group: android-gradle-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   android:
