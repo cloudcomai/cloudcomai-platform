@@ -1,0 +1,95 @@
+name: Build Android without EAS
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Preview installs separately; release uses your existing signing key
+        type: choice
+        default: preview
+        options: [preview, release]
+      version_code:
+        description: Required for release; use a number higher than the last published Android build
+        type: string
+        default: '1'
+  pull_request:
+    paths:
+      - '.github/workflows/build-android-gradle.yml'
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-gradle-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'release' && 'production' || 'preview' }}
+    env:
+      BUILD_VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.variant || 'preview' }}
+      ANDROID_VERSION_CODE: ${{ inputs.version_code || '1' }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL || 'https://example.invalid/apiapp/api' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare release signing and Firebase configuration
+        if: env.BUILD_VARIANT == 'release'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != 'refs/heads/main' ]; then
+            echo '::error::Release builds must run from main.'
+            exit 1
+          fi
+          if [ "$EXPO_PUBLIC_API_BASE_URL" = 'https://example.invalid/apiapp/api' ]; then
+            echo '::error::Configure EXPO_PUBLIC_API_BASE_URL for release builds.'
+            exit 1
+          fi
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo '::error::Configure ANDROID_KEYSTORE_BASE64 and ANDROID_GOOGLE_SERVICES_JSON for release builds.'
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/cloudcomai-release.jks"
+          printf '%s' "$GOOGLE_SERVICES_JSON" > "$RUNNER_TEMP/google-services.json"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/cloudcomai-release.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_GOOGLE_SERVICES_FILE=$RUNNER_TEMP/google-services.json" >> "$GITHUB_ENV"
+      - name: Compile Android using Gradle
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'release' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'release' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.variant == 'release' && secrets.ANDROID_KEY_PASSWORD || '' }}
+        run: node apps/mobile/scripts/build-android.mjs "$BUILD_VARIANT"
+      - name: Save APK and optional AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudComAI-Android-${{ env.BUILD_VARIANT }}-${{ github.run_number }}
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/*.apk
+            apps/mobile/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary signing files
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/cloudcomai-release.jks" "$RUNNER_TEMP/google-services.json"
