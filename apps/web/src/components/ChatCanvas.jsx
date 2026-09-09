@@ -26,7 +26,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead }) {
+export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply }) {
   const historyRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
@@ -94,7 +94,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
       await onDeleteMessage(deleteTarget, scope);
       setSearchResults(current => current.filter(item => Number(item.id) !== Number(deleteTarget.id)));
       if (Number(replyTo?.id) === Number(deleteTarget.id)) setReplyTo(null);
-      if (Number(editing?.id) === Number(deleteTarget.id)) { setEditing(null); setComposer(''); }
+      if (Number(editing?.id) === Number(deleteTarget.id)) { onCancelContext(); }
       setDeleteTarget(null);
     } catch (error) { alert(error.message || 'Unable to delete message.'); }
     finally { setDeleting(false); }
@@ -228,7 +228,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
               <div style={pollOptionsStyle}>{visibleOptions.map(option => <button key={option.id} type="button" disabled={Boolean(poll?.expires_at && parseMessageTimestamp(poll.expires_at) <= new Date())} onClick={() => handleCastVote(msg.poll_id || poll?.id, option.id, poll?.options)} style={pollOptionStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}><span>{option.text}</span><strong>{option.votes || 0}</strong></div>{option.selected && <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--primary-color)' }}>Your vote</div>}</button>)}</div>
               <div className="bubble-meta-footer" style={pollFooterStyle}><span>{poll?.expires_at ? `Expires ${parseMessageTimestamp(poll.expires_at).toLocaleString()}` : 'Poll'}</span><span>{messageTime}</span></div>
-              <button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
+              <button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
             </div> : <div className={`message-data-bubble ${isMine ? 'primary-accent' : 'neutral-fallback'}`}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               {msg.reply_to_message_id && msg.reply_to_text && <div style={replyPreviewStyle}>
@@ -257,25 +257,30 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
                 </div>
               </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : messageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
-              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => { setReplyTo(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button>{isMine && msg.type === 'text' && <button onClick={() => { setEditing(msg); setComposer(messageContent); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
+              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button onClick={() => { onBeginReply(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button>{isMine && msg.type === 'text' && Number(msg.edit_count || 0) === 0 && <button onClick={() => { onBeginEdit(msg); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
             </div>}
           </div>;
         })}
       </div>
 
+      {localMessageError && <p role="alert" className="privacy-error">{localMessageError}</p>}
+      {pendingMessages.length > 0 && <div className="pending-message-list" aria-label="Pending messages">{pendingMessages.map(item => <div key={item.id} className="pending-message">
+        <p>{item.payload.body}</p><small>{item.status === 'sending' ? 'Sending…' : item.status === 'failed' ? item.error : 'Queued · sends when connected'}</small>
+        {item.status !== 'sending' && <div><button onClick={() => onRetryPending(item.id).catch(e => alert(e.message))}>Retry</button><button onClick={() => onDiscardPending(item.id).catch(e => alert(e.message))}>Discard</button></div>}
+      </div>)}</div>}
       <div className="canvas-bottom-action-tray">
         <div className="shortcut-action-grid">
           {/* Status, Stories, and Live Location shortcuts are temporarily hidden until their functionality is completed. */}
           <button className="shortcut-action-card yellow-theme" onClick={() => setModal('poll')}><div className="shortcut-icon-circle"><BarChart3 size={18}/></div><div className="shortcut-meta"><h5>Polls</h5><p>Create polls</p></div></button>
         </div>
 
-        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { setReplyTo(null); setEditing(null); setComposer(''); }}><X size={16}/></button></div> : null}
-        {emojiOpen && <div className="emoji-picker-row"><button type="button" key="😀" onClick={() => setComposer(value => `${value}😀`)}>😀</button><button type="button" key="😂" onClick={() => setComposer(value => `${value}😂`)}>😂</button><button type="button" key="😍" onClick={() => setComposer(value => `${value}😍`)}>😍</button><button type="button" key="😊" onClick={() => setComposer(value => `${value}😊`)}>😊</button><button type="button" key="👍" onClick={() => setComposer(value => `${value}👍`)}>👍</button><button type="button" key="🙏" onClick={() => setComposer(value => `${value}🙏`)}>🙏</button><button type="button" key="❤️" onClick={() => setComposer(value => `${value}❤️`)}>❤️</button><button type="button" key="🎉" onClick={() => setComposer(value => `${value}🎉`)}>🎉</button><button type="button" key="😢" onClick={() => setComposer(value => `${value}😢`)}>😢</button><button type="button" key="😡" onClick={() => setComposer(value => `${value}😡`)}>😡</button><button type="button" key="🤔" onClick={() => setComposer(value => `${value}🤔`)}>🤔</button><button type="button" key="👏" onClick={() => setComposer(value => `${value}👏`)}>👏</button></div>}
+        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { onCancelContext(); }}><X size={16}/></button></div> : null}
+        {emojiOpen && <div className="emoji-picker-row"><button type="button" key="😀" onClick={() => onComposerChange(value => `${value}😀`)}>😀</button><button type="button" key="😂" onClick={() => onComposerChange(value => `${value}😂`)}>😂</button><button type="button" key="😍" onClick={() => onComposerChange(value => `${value}😍`)}>😍</button><button type="button" key="😊" onClick={() => onComposerChange(value => `${value}😊`)}>😊</button><button type="button" key="👍" onClick={() => onComposerChange(value => `${value}👍`)}>👍</button><button type="button" key="🙏" onClick={() => onComposerChange(value => `${value}🙏`)}>🙏</button><button type="button" key="❤️" onClick={() => onComposerChange(value => `${value}❤️`)}>❤️</button><button type="button" key="🎉" onClick={() => onComposerChange(value => `${value}🎉`)}>🎉</button><button type="button" key="😢" onClick={() => onComposerChange(value => `${value}😢`)}>😢</button><button type="button" key="😡" onClick={() => onComposerChange(value => `${value}😡`)}>😡</button><button type="button" key="🤔" onClick={() => onComposerChange(value => `${value}🤔`)}>🤔</button><button type="button" key="👏" onClick={() => onComposerChange(value => `${value}👏`)}>👏</button></div>}
         <div className="message-input-composer-bar">
           <button type="button" className="emoji-toggle-btn" onClick={() => setEmojiOpen(value => !value)} aria-label="Choose emoji">☺</button>
           <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
-          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => setComposer(e.target.value)} onKeyDown={e => e.key === 'Enter' && !selectedChat?.blocked && onSendMessage()} disabled={!selectedChat || selectedChat.blocked} className="composer-text-input" />
-          <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={!selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
+          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => onComposerChange(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && onSendMessage()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" />
+          <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={sending || !selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
       {deleteTarget && <div className="modal-overlay"><div className="modal-content-card message-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete message"><h3>Delete message?</h3><p>Delete for me removes it from your account. Only the sender can delete it for everyone.</p><button disabled={deleting} onClick={() => deleteMessage('self')}>Delete for me</button>{Number(deleteTarget.sender_id) === Number(user?.id) && <button className="danger" disabled={deleting} onClick={() => deleteMessage('everyone')}>Delete for everyone</button>}<button disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button></div></div>}

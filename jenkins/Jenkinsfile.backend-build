@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: params.BRANCH, url: 'https://github.com/cloudcomai/cloudcomai-platform.git'
+            }
+        }
+
+        stage('PHP Syntax Check') {
+            steps {
+                script {
+                    def phpFiles = findFiles(glob: 'backend/**/*.php')
+                    if (phpFiles.length == 0) {
+                        error('No PHP files found under backend/')
+                    }
+                    phpFiles.each { f ->
+                        if (isUnix()) {
+                            sh "php -l '${f.path}'"
+                        } else {
+                            bat "php -l \"${f.path}\""
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Backend Tests') {
+            steps {
+                echo 'Run repository backend tests when available.'
+            }
+        }
+
+        stage('Package') {
+            steps {
+                script {
+                    env.GIT_SHORT_SHA = isUnix()
+                        ? sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                        : bat(script: '@git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.ARTIFACT_NAME = "backend-build-${env.BUILD_NUMBER}-${env.GIT_SHORT_SHA}.zip"
+                    if (isUnix()) {
+                        sh "cd backend && zip -r ../${env.ARTIFACT_NAME} ."
+                    } else {
+                        powershell "Compress-Archive -Path backend\\* -DestinationPath ${env.ARTIFACT_NAME} -Force"
+                    }
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'backend-build-*.zip', fingerprint: true
+            }
+        }
+    }
+}

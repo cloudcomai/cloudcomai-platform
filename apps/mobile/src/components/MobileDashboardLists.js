@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  InteractionManager,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { platformApi } from '../services/platform';
 import { setApplicationBadge } from '../services/notifications';
+import { getNotificationChatId } from '../utils/notificationNavigation';
 
 export function ContactsList({ onOpenChat }) {
   const [items, setItems] = useState([]);
@@ -80,6 +82,7 @@ export function NotificationsList({ onOpenChat }) {
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [openingId, setOpeningId] = useState(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async (refresh = false) => {
@@ -107,12 +110,6 @@ export function NotificationsList({ onOpenChat }) {
     setUnread(Number(data.unread_count || 0));
     setApplicationBadge(data.unread_count);
   };
-  const openNotification = async item => {
-    try {
-      if (!item.read_at) await setRead(item);
-      if (item.data?.chat_id) onOpenChat?.(Number(item.data.chat_id));
-    } catch (e) { setError(e.message || 'Unable to open notification.'); }
-  };
 
   const markAllRead = async () => {
     try {
@@ -122,6 +119,31 @@ export function NotificationsList({ onOpenChat }) {
       setApplicationBadge(data.unread_count);
     } catch (e) {
       setError(e.message || 'Unable to mark notifications as read.');
+    }
+  };
+
+  const openNotification = async item => {
+    const chatId = getNotificationChatId(item);
+    if (openingId !== null) return;
+    setError('');
+    setOpeningId(Number(item.id));
+    try {
+      if (!item.read_at) {
+        await setRead(item);
+      }
+      if (!chatId) {
+        setError('This notification does not contain a conversation to open.');
+        return;
+      }
+      // Wait until the native list press interaction has completed before replacing
+      // the dashboard with ChatDetail. This avoids navigating during a FlatList
+      // touch transition, which can leave Android with a blank native surface.
+      await new Promise(resolve => InteractionManager.runAfterInteractions(resolve));
+      await onOpenChat?.(chatId);
+    } catch (e) {
+      setError(e.message || 'Unable to open notification chat.');
+    } finally {
+      setOpeningId(null);
     }
   };
 
@@ -140,21 +162,29 @@ export function NotificationsList({ onOpenChat }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
         contentContainerStyle={items.length ? styles.list : styles.empty}
         ListEmptyComponent={<Text style={styles.emptyText}>No notifications yet.</Text>}
-        renderItem={({ item }) => (
-          <Pressable
-            style={[styles.notificationRow, !item.read_at && styles.unreadRow]}
-            onPress={() => openNotification(item)}
-            onLongPress={() => setRead(item, Boolean(item.read_at)).catch(e => setError(e.message))}
-            accessibilityHint="Tap to open. Long press to toggle read or unread."
-          >
-            <View style={[styles.notificationDot, item.read_at && styles.notificationDotRead]} />
-            <View style={styles.meta}>
-              <Text style={styles.title}>{item.title || 'CloudComAI'}</Text>
-              <Text style={styles.sub}>{item.body || item.category || 'Notification'}</Text>
-              <Text style={styles.timeText}>{formatTime(item.created_at)} · {item.read_at ? 'Read' : 'New'}</Text>
-            </View>
-          </Pressable>
-        )}
+        renderItem={({ item }) => {
+          const opening = Number(item.id) === openingId;
+          return (
+            <Pressable
+              style={[styles.notificationRow, !item.read_at && styles.unreadRow]}
+              onPress={() => openNotification(item)}
+              onLongPress={() => setRead(item, Boolean(item.read_at)).catch(e => setError(e.message))}
+              accessibilityHint="Tap to open. Long press to toggle read or unread."
+              disabled={openingId !== null}
+              accessibilityRole="button"
+              accessibilityLabel={item.title || 'Notification'}
+              accessibilityState={{ busy: opening }}
+            >
+              <View style={[styles.notificationDot, item.read_at && styles.notificationDotRead]} />
+              <View style={styles.meta}>
+                <Text style={styles.title}>{item.title || 'CloudComAI'}</Text>
+                <Text style={styles.sub}>{item.body || item.category || 'Notification'}</Text>
+                <Text style={styles.timeText}>{formatTime(item.created_at)} · {item.read_at ? 'Read' : 'New'}</Text>
+              </View>
+              {opening ? <ActivityIndicator size="small" color="#3157d5" /> : null}
+            </Pressable>
+          );
+        }}
       />
     </>
   );

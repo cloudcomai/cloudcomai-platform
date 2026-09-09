@@ -28,12 +28,14 @@
 6. Upload to a PHP 8.3 host.
 7. Confirm `api/health.php` returns `{"status":"ok"...}`.
 
+See [chat lifecycle and account controls](../docs/chat-lifecycle-and-account-controls.md) for poll expiry, device sessions, and daily cleanup installation.
+
 ## Existing website upgrades
 
 The consolidated fresh-install file must not be imported into an existing CloudComAI database. Existing installations continue to use the versioned migration process.
 
 ## Security limitations
-This is a beta foundation, not a final audited production messenger. Before public launch add verified OTP/email delivery, stronger session storage and revocation, robust rate limiting, file scanning, audited E2EE, push notification workers, WebRTC signaling transport, STUN/TURN, privacy/legal review, and full automated tests.
+This is a beta foundation, not a final audited production messenger. Before public launch add verified OTP/email delivery, robust rate limiting, file scanning, audited E2EE, push receipt monitoring, WebRTC signaling transport, STUN/TURN, privacy/legal review, and full automated tests.
 
 ## GoDaddy
 See `GODADDY_BACKEND_DEPLOYMENT.md`.

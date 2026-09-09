@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Appearance,
   Alert,
   AppState,
   BackHandler,
@@ -26,15 +27,19 @@ import * as ScreenCapture from 'expo-screen-capture';
 import MediaMessage from './src/components/MediaMessage';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
+import AccountTools from './src/components/AccountTools';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, uploadAttachmentAsset } from './src/services/platform';
 import { isAppLockEnabled, verifyAppLockPin } from './src/services/appLock';
 import { isAppLockResumeSuppressed, withAppLockExternalActivity } from './src/utils/appLockActivity';
 import { getLastNotificationResponse, getNotificationPreferences, rememberDeviceToken, forgetDeviceToken, setApplicationBadge, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
+import { useMessagingStore } from './src/hooks/useMessagingStore';
 import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
 import GroupManagement from './src/components/GroupManagement';
 import UserProfileModal from './src/components/UserProfileModal';
+import ChatThemeSettings from './src/components/ChatThemeSettings';
+import { getChatThemeSettings, resolveChatTheme } from './src/services/chatTheme';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -201,11 +206,12 @@ function AuthScreen({ onAuthenticated }) {
   );
 }
 
-function ChatDetail({ chat, user, onBack, onDeleted }) {
+function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const sendInProgress = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -222,11 +228,27 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [groupManagementOpen, setGroupManagementOpen] = useState(false);
   const [groupName, setGroupName] = useState(chat.name || 'Group');
+  const [groupOwnerId, setGroupOwnerId] = useState(chat.owner_id);
   const [muted, setMuted] = useState(Boolean(chat.notifications_muted));
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const searchActive = searchOpen && query.trim().length > 0;
+  const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
+  const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
+  const theme = { ...baseTheme, colors: { ...baseTheme.colors, accent: customAccent, outgoing: themeSettings?.accentColor || baseTheme.colors.outgoing } };
 
+  useEffect(() => { setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); }, [messaging, chat.id]);
+  useEffect(() => { if (Number(deliveredMessage?.chat_id) === Number(chat.id)) setMessages(current => mergeMessageBatch(current, [deliveredMessage]).messages); }, [deliveredMessage, chat.id]);
+  const messagingRef = useRef(messaging); messagingRef.current = messaging;
+  const changeComposer = value => {
+    const next = typeof value === 'function' ? value(composer) : value;
+    setComposer(next);
+    if (!editing && messaging) messaging.saveDraft(chat.id, next).catch(e => setError(e.message));
+  };
+  const toggleSaved = async item => {
+    try { if (item.saved) await platformApi.unsaveMessage(item.id); else await platformApi.saveMessage(item.id); setMessages(current => current.map(message => Number(message.id) === Number(item.id) ? { ...message, saved: !item.saved } : message)); }
+    catch (e) { setError(e.message); }
+  };
   const readTracker = useRef(null);
   useEffect(() => {
     const tracker = createReadTracker({ send: through => platformApi.updateChatNotificationState(chat.id, { mark_read: true, last_read_message_id: through }), onRead: result => setApplicationBadge(result.data.unread_count) });
@@ -295,6 +317,7 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
         return data;
       },
       onMessages: incoming => {
+        messagingRef.current?.acknowledge(incoming.messages || []).catch(e => setError(e.message));
         setLoading(false);
         for (const item of incoming.screenshot_alerts || []) {
           if (!shownAlerts.has(item.id)) { shownAlerts.add(item.id); Alert.alert('Screenshot alert', item.body); }
@@ -340,8 +363,8 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
 
   const sendMessage = async () => {
     const body = composer.trim();
-    if (!body || sending || chat.blocked) return;
-    setSending(true);
+    if (!body || sendInProgress.current || chat.blocked) return;
+    sendInProgress.current = true; setSending(true);
     setError('');
     try {
       if (editing) {
@@ -349,19 +372,16 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
         setMessages(current => current.map(item => Number(item.id) === Number(editing.id) ? { ...item, body, edit_count: 1, edited: true } : item));
         setEditing(null);
       } else {
-        const { data } = await platformApi.sendMessage({
-          chat_id: chat.id,
-          body,
-          reply_to_message_id: replyTo?.id || null,
-        });
-        if (data.message) setMessages(current => mergeMessageBatch(current, [data.message]).messages);
+        if (!messaging) throw new Error('Local messages are still loading. Please try again.');
+        await messaging.enqueue({ chat_id: chat.id, body, reply_to_message_id: replyTo?.id || null });
+        messaging.flush().catch(e => setError(e.message));
         setReplyTo(null);
       }
-      setComposer('');
+      setComposer(editing ? (messaging?.snapshot().drafts[String(chat.id)] || '') : '');
     } catch (sendError) {
       setError(sendError.message || (editing ? 'Unable to edit message.' : 'Unable to send message.'));
     } finally {
-      setSending(false);
+      sendInProgress.current = false; setSending(false);
     }
   };
 
@@ -458,13 +478,14 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   };
 
   return (
-    <SafeAreaView style={styles.appPage} edges={['top', 'bottom', 'left', 'right']}>
+    <SafeAreaView style={[styles.appPage, { backgroundColor: theme.colors.background }]} edges={['top', 'bottom', 'left', 'right']}>
+      {themeSettings?.wallpaperUri ? <Image pointerEvents="none" source={{ uri: themeSettings.wallpaperUri }} style={[StyleSheet.absoluteFillObject, { opacity: Math.max(0.2, Math.min(1, 1 - Number(themeSettings.wallpaperOpacity ?? 0.35))) }]} /> : null}
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.colors.header }]}>
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
         <Pressable
           style={styles.chatHeaderIdentity}
@@ -497,13 +518,14 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
           renderItem={({ item }) => {
             const mine = Number(item.sender_id) === Number(user.id);
             const selected = Number(selectedMessage?.id) === Number(item.id);
-            return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, selected && styles.selectedMessage]}>
+            return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage]}>
               {chat.isGroup && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
-              {item.reply_to_text ? <View style={styles.replyPreview}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
+              {item.reply_to_text ? <View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
               <MediaMessage message={item} autoDownload={privacy.media_auto_download} />
-              <Text style={styles.messageTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
+              <Text style={[styles.messageTime, { color: theme.colors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
               {selected ? <View style={styles.messageActions}>
-                <Pressable onPress={() => { setReplyTo(item); setEditing(null); setComposer(''); setSelectedMessage(null); }}><Text style={styles.messageActionText}>↩ Reply</Text></Pressable>
+                <Pressable onPress={() => toggleSaved(item)}><Text style={styles.messageActionText}>{item.saved ? 'Unsave' : 'Save'}</Text></Pressable>
+                <Pressable onPress={() => { setReplyTo(item); if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setEditing(null); setSelectedMessage(null); }}><Text style={styles.messageActionText}>↩ Reply</Text></Pressable>
                 {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}><Text style={styles.messageActionText}>Edit</Text></Pressable> : null}
                 <Pressable onPress={() => { setSelectedMessage(null); deleteMessage(item); }}><Text style={[styles.messageActionText, styles.messageDeleteAction]}>🗑 Delete</Text></Pressable>
               </View> : null}
@@ -511,19 +533,23 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
           }}
         />
       )}
-      {(replyTo || editing) ? <View style={styles.contextBar}><View style={styles.contextBarText}><Text style={styles.contextBarLabel}>{editing ? 'Editing message' : 'Replying to'}</Text><Text numberOfLines={1} style={styles.contextBarValue}>{(editing || replyTo)?.body || (editing || replyTo)?.text || 'Message'}</Text></View><Pressable onPress={() => { setReplyTo(null); setEditing(null); setComposer(''); }}><Text style={styles.contextBarClose}>×</Text></Pressable></View> : null}
-      <MediaComposer chat={chat} onMessage={onMediaMessage} />
-      {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiStrip} contentContainerStyle={styles.emojiStripContent}>
-        <Pressable key="😀" onPress={() => setComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => setComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => setComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => setComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => setComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => setComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => setComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => setComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => setComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => setComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => setComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => setComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
+      {(replyTo || editing) ? <View style={[styles.contextBar, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><View style={styles.contextBarText}><Text style={styles.contextBarLabel}>{editing ? 'Editing message' : 'Replying to'}</Text><Text numberOfLines={1} style={styles.contextBarValue}>{(editing || replyTo)?.body || (editing || replyTo)?.text || 'Message'}</Text></View><Pressable onPress={() => { if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setReplyTo(null); setEditing(null); }}><Text style={styles.contextBarClose}>×</Text></Pressable></View> : null}
+      {localMessageError ? <Text style={styles.listError}>{localMessageError}</Text> : null}
+      {localMessages?.outbox?.some(item => item.payload.chat_id === Number(chat.id)) ? <ScrollView style={{ maxHeight: 130, flexGrow: 0 }} accessibilityLabel="Pending messages">
+        {localMessages.outbox.filter(item => item.payload.chat_id === Number(chat.id)).map(item => <View key={item.id} style={{ padding: 8, backgroundColor: '#eef2ff' }}><Text numberOfLines={2}>{item.payload.body}</Text><Text style={styles.preview}>{item.status === 'sending' ? 'Sending…' : item.status === 'failed' ? item.error : 'Queued · sends when connected'}</Text>{item.status !== 'sending' && <View style={styles.messageActions}><Pressable onPress={() => messaging.retry(item.id).then(() => messaging.flush()).catch(e => setError(e.message))}><Text style={styles.messageActionText}>Retry</Text></Pressable><Pressable onPress={() => messaging.remove(item.id).catch(e => setError(e.message))}><Text style={styles.messageActionText}>Discard</Text></Pressable></View>}</View>)}
       </ScrollView> : null}
-      <View style={styles.composer}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={styles.composerInput} value={composer} onChangeText={setComposer} editable={!chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
+      <MediaComposer chat={chat} onMessage={onMediaMessage} />
+      {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.emojiStrip, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]} contentContainerStyle={styles.emojiStripContent}>
+        <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
+      </ScrollView> : null}
+      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={[styles.composerInput, { color: theme.colors.text, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={changeComposer} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
       {chat.isGroup ? <GroupManagement
         visible={groupManagementOpen}
-        group={{ ...chat, name: groupName }}
+        group={{ ...chat, name: groupName, owner_id: groupOwnerId }}
         user={user}
         onClose={() => setGroupManagementOpen(false)}
-        onGroupUpdated={updated => setGroupName(updated.name || groupName)}
+        onGroupUpdated={updated => { setGroupName(updated.name || groupName); if (updated.owner_id) setGroupOwnerId(updated.owner_id); }}
         onGroupDeleted={onDeleted}
       /> : null}
       <UserProfileModal
@@ -536,7 +562,7 @@ function ChatDetail({ chat, user, onBack, onDeleted }) {
   );
 }
 
-function NotificationSettings({ preferences, onBack, onChange, onPrivacy }) {
+function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppearance, onAccountTool }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const update = async changes => { if (busy) return; setBusy(true); setError(''); try { await onChange(changes); } catch (e) { setError(e.message); } finally { setBusy(false); } };
@@ -548,6 +574,8 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy }) {
         <Text style={styles.headerTitle}>Settings</Text><View style={{ width: 54 }} />
       </View>
       <ScrollView contentContainerStyle={styles.settingsCard}>
+        <Pressable onPress={onAppearance} style={styles.settingRow}><Text style={styles.settingLabel}>Appearance & Chat Theme</Text><Text>›</Text></Pressable>
+        {[['saved_messages', 'Saved messages'], ['sessions', 'Devices & sessions']].map(([id, label]) => <Pressable key={id} onPress={() => onAccountTool(id)} style={styles.settingRow}><Text style={styles.settingLabel}>{label}</Text><Text>›</Text></Pressable>)}
         <Pressable onPress={onPrivacy} style={styles.settingRow}><Text style={styles.settingLabel}>Privacy & Account</Text><Text>›</Text></Pressable>
         <Text style={styles.settingsIntro}>Choose push notifications for your account on every device.</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -560,7 +588,7 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy }) {
   );
 }
 
-function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated }) {
+function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const [section, setSection] = useState('all');
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -653,11 +681,6 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     return () => subscription.remove();
   }, [selectedChat, section]);
 
-  const logout = async () => {
-    await forgetDeviceToken(platformApi).catch(() => {});
-    await sessionManager.clearSession();
-    onLogout();
-  };
   const openMenu = initialScreen => {
     setMenuInitialScreen(initialScreen || 'menu');
     setMenuVisible(true);
@@ -681,7 +704,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail key={selectedChat.id} chat={selectedChat} user={session.user} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
@@ -729,7 +752,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
                 const title = item.name || 'Conversation';
                 return <Pressable onPress={() => setSelectedChat(item)} style={styles.mobileChatRow}>
                   <View style={styles.mobileAvatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId) }} style={styles.mobileAvatarImage} /><View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View></View>
-                  <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={styles.mobileChatName}>{title}</Text><Text numberOfLines={1} style={styles.mobilePreview}>{item.preview || (item.isGroup ? 'Group conversation' : 'No messages yet')}</Text></View>
+                  <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={styles.mobileChatName}>{title}</Text><Text numberOfLines={1} style={styles.mobilePreview}>{localMessages?.drafts?.[String(item.id)] ? `Draft: ${localMessages.drafts[String(item.id)]}` : item.preview || (item.isGroup ? 'Group conversation' : 'No messages yet')}</Text></View>
                   <View style={styles.mobileChatRight}><Text style={styles.mobileTime}>{compactTime(item.last_message_at || item.created_at)}</Text>{Number(item.unread || 0) > 0 ? <View style={styles.mobileUnread}><Text style={styles.mobileUnreadText}>{Number(item.unread) > 99 ? '99+' : item.unread}</Text></View> : null}</View>
                 </Pressable>;
               }}
@@ -752,7 +775,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
         user={session.user}
         onClose={() => setMenuVisible(false)}
         onOpenNotificationSettings={onSettings}
-        onLogout={logout}
+        onLogout={onLogout}
         onProfileUpdated={onProfileUpdated}
         onChatCreated={chat => { setMenuVisible(false); setSection('private'); setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id) || item.isGroup)]); setSelectedChat(chat); }}
         onGroupCreated={group => { setMenuVisible(false); setSection('groups'); setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id) || !item.isGroup)]); setSelectedChat(group); }}
@@ -814,23 +837,32 @@ function AppContent() {
   const [notificationPreferences, setNotificationPreferencesState] = useState(null);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showPrivacySettings, setShowPrivacySettings] = useState(false);
+  const [showChatThemeSettings, setShowChatThemeSettings] = useState(false);
+  const [accountTool, setAccountTool] = useState(null);
+  const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'system', accentColor: null, wallpaperUri: null, wallpaperOpacity: 0.35, textScale: 1 });
   const [initialChatId, setInitialChatId] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
+  const [deliveredMessage, setDeliveredMessage] = useState(null);
+  const { store: messaging, state: localMessages, error: localMessageError } = useMessagingStore(session?.user?.id, setDeliveredMessage);
+
 
   useEffect(() => subscribeToSessionExpiration(() => {
     setSession(null);
     setShowNotificationSettings(false);
     setShowPrivacySettings(false);
+    setShowChatThemeSettings(false);
+    setAccountTool(null); setDeliveredMessage(null);
     setInitialChatId(null);
   }), []);
 
   useEffect(() => {
     let active = true;
-    Promise.all([sessionManager.getSession(), getNotificationPreferences(), isAppLockEnabled()]).then(([saved, preferences, lockEnabled]) => {
+    Promise.all([sessionManager.getSession(), getNotificationPreferences(), isAppLockEnabled(), getChatThemeSettings()]).then(([saved, preferences, lockEnabled, themeSettings]) => {
       if (active) {
         setSession(saved);
         setNotificationPreferencesState(preferences);
         setAppLocked(Boolean(saved && lockEnabled));
+        setChatThemeSettings(themeSettings);
         setReady(true);
       }
     });
@@ -851,14 +883,16 @@ function AppContent() {
   }, [session]);
 
   useEffect(() => {
-    if (Platform.OS !== 'android' || (!showNotificationSettings && !showPrivacySettings)) return undefined;
+    if (Platform.OS !== 'android' || (!showNotificationSettings && !showPrivacySettings && !showChatThemeSettings && !accountTool)) return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (showPrivacySettings) setShowPrivacySettings(false);
+      if (accountTool) setAccountTool(null);
+      else if (showChatThemeSettings) setShowChatThemeSettings(false);
+      else if (showPrivacySettings) setShowPrivacySettings(false);
       else setShowNotificationSettings(false);
       return true;
     });
     return () => subscription.remove();
-  }, [showNotificationSettings, showPrivacySettings]);
+  }, [showNotificationSettings, showPrivacySettings, showChatThemeSettings, accountTool]);
 
   useEffect(() => {
     if (!session) return;
@@ -870,17 +904,32 @@ function AppContent() {
       else await forgetDeviceToken(platformApi);
     }).catch(() => {});
     return () => { active = false; };
-  }, [session?.user?.id]);
+  }, [session?.token]);
 
   useEffect(() => {
     const openResponse = response => {
       const chatId = response?.notification?.request?.content?.data?.chat_id;
-      if (chatId) { setInitialChatId(Number(chatId)); setShowNotificationSettings(false); setShowPrivacySettings(false); }
+      if (Number.isSafeInteger(Number(chatId)) && Number(chatId) > 0) { setInitialChatId(Number(chatId)); setAccountTool(null); setShowChatThemeSettings(false); setShowNotificationSettings(false); setShowPrivacySettings(false); }
     };
     getLastNotificationResponse().then(openResponse).catch(() => null);
     const subscription = subscribeToNotificationResponses(openResponse);
     return () => subscription.remove();
   }, []);
+
+  const logout = async () => {
+    messaging?.stop();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    try { await platformApi.revokeSession(undefined, { signal: controller.signal }); } catch {}
+    finally { clearTimeout(timer); }
+    await setApplicationBadge(0);
+    await sessionManager.clearSession();
+    setSession(null); setAccountTool(null); setShowNotificationSettings(false); setShowPrivacySettings(false); setInitialChatId(null); setDeliveredMessage(null);
+  };
+  const acceptRotatedSession = async data => {
+    const next = { token: data.token, user: { ...session.user, ...data.user } };
+    await sessionManager.setSession(next); setSession(next);
+  };
 
   if (!ready) return <SafeAreaView style={styles.splash} edges={['top', 'bottom', 'left', 'right']}><Image source={require('./assets/splash-logo.png')} style={styles.splashLogo} resizeMode="contain" /><ActivityIndicator color="#3157d5" /><Text style={styles.splashText}>Loading CloudComAI…</Text></SafeAreaView>;
   if (!session) return <AuthScreen onAuthenticated={async nextSession => {
@@ -888,13 +937,17 @@ function AppContent() {
     setAppLocked(await isAppLockEnabled());
   }} />;
   if (appLocked) return <AppLockScreen onUnlocked={() => setAppLocked(false)} />;
+  if (accountTool) return <AccountTools key={accountTool} mode={accountTool} onBack={() => setAccountTool(null)} onLogout={logout} onSessionRotated={acceptRotatedSession} onOpenChat={id => { setInitialChatId(id); setAccountTool(null); setShowNotificationSettings(false); }} />;
+  if (showChatThemeSettings) return <ChatThemeSettings value={chatThemeSettings} onChange={setChatThemeSettings} onBack={() => setShowChatThemeSettings(false)} />;
   if (showPrivacySettings) return <PrivacySettings onBack={() => setShowPrivacySettings(false)} />;
-  if (showNotificationSettings) return <NotificationSettings preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;
+  if (showNotificationSettings) return <NotificationSettings onAccountTool={setAccountTool} preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onAppearance={() => setShowChatThemeSettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;
   return <ChatsScreen
+    messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage}
     session={session}
-    onLogout={() => setSession(null)}
+    onLogout={logout}
     onSettings={() => setShowNotificationSettings(true)}
     initialChatId={initialChatId}
+    themeSettings={chatThemeSettings}
     onInitialChatConsumed={() => setInitialChatId(null)}
     onProfileUpdated={async user => {
       const next = { ...session, user };
@@ -914,7 +967,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
-  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14, marginTop: 8 }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, messageDeleteAction: { color: '#b91c1c' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
+  searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', columnGap: 14, rowGap: 2, marginTop: 8 }, messageActionText: { paddingVertical: 10, color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, messageDeleteAction: { color: '#b91c1c' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, chatHeaderIdentity: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 }, headerProfileHint: { marginTop: 2, color: '#dbe4ff', fontSize: 10, fontWeight: '600' }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { flex: 1, flexShrink: 1, paddingRight: 8, color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },

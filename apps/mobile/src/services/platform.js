@@ -44,7 +44,7 @@ export const apiClient = createApiClient({
 
 export const platformApi = createCloudComAiApi(apiClient);
 
-const parseUploadResult = async result => {
+const parseUploadResult = async (result, requestToken) => {
   let data = null;
   try {
     data = result.body ? JSON.parse(result.body) : null;
@@ -54,7 +54,7 @@ const parseUploadResult = async result => {
     }
   }
 
-  if (result.status === 401) await expireSession();
+  if (result.status === 401 && requestToken === await sessionManager.getToken()) await expireSession();
   if (result.status < 200 || result.status >= 300) {
     throw new ApiError(
       data?.error || data?.message || `Upload failed with status ${result.status}`,
@@ -111,7 +111,7 @@ export async function uploadMobileFile(route, asset, {
     status: response.status,
     body,
     headers: Object.fromEntries(response.headers.entries()),
-  });
+  }, token);
 }
 
 export const uploadAttachmentAsset = (asset, parameters = {}) => uploadMobileFile(

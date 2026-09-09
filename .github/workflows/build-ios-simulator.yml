@@ -1,0 +1,163 @@
+name: Build iOS Simulator without EAS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    name: Build iOS Simulator Preview
+    runs-on: macos-latest
+    timeout-minutes: 60
+    environment: preview
+    env:
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
+      ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD: ${{ vars.ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD || 'false' }}
+      GOOGLE_DRIVE_ARTIFACT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_ARTIFACT_FOLDER_ID || '1Qs0iWqJbn-2D46S0ef6ddaMFQgHqmY1u' }}
+      RCLONE_CONFIG_CONTENT: ${{ secrets.RCLONE_CONFIG }}
+      CLOUDCOMAI_NATIVE_BUILD: preview
+      ANDROID_VERSION_CODE: '1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate preview configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${EXPO_PUBLIC_API_BASE_URL:-}" ]; then
+            echo "::error::Missing GitHub Actions variable EXPO_PUBLIC_API_BASE_URL."
+            exit 1
+          fi
+
+          case "$EXPO_PUBLIC_API_BASE_URL" in
+            https://*/apiapp/api) ;;
+            *)
+              echo "::error::EXPO_PUBLIC_API_BASE_URL must use HTTPS and end with /apiapp/api."
+              exit 1
+              ;;
+          esac
+
+          if [ "${ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD:-false}" = "true" ]; then
+            if [ -z "${RCLONE_CONFIG_CONTENT:-}" ]; then
+              echo "::error::Missing GitHub secret RCLONE_CONFIG."
+              exit 1
+            fi
+            if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+              echo "::error::Missing Google Drive artifact folder ID."
+              exit 1
+            fi
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate iOS native project
+        working-directory: apps/mobile
+        run: pnpm exec expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods dependencies
+        working-directory: apps/mobile/ios
+        run: pod install
+
+      - name: Build iOS Simulator app
+        working-directory: apps/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          WORKSPACE="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' | head -n 1)"
+          if [ -z "$WORKSPACE" ]; then
+            echo "::error::Unable to find generated Xcode workspace."
+            exit 1
+          fi
+
+          SCHEME="$(xcodebuild -workspace "$WORKSPACE" -list -json | python3 -c 'import json,sys; data=json.load(sys.stdin); schemes=data.get("workspace",{}).get("schemes",[]); print(schemes[0] if schemes else "")')"
+          if [ -z "$SCHEME" ]; then
+            echo "::error::Unable to determine Xcode scheme."
+            exit 1
+          fi
+
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme: $SCHEME"
+
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$PWD/ios-derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package iOS Simulator app
+        working-directory: apps/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_PATH="$(find ios-derived-data/Build/Products/Release-iphonesimulator -maxdepth 1 -type d -name '*.app' | head -n 1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Unable to find built iOS Simulator .app bundle."
+            exit 1
+          fi
+
+          mkdir -p ../../mobile-builds/ios
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" ../../mobile-builds/ios/CloudComAI-iOS-Simulator-preview.zip
+          ls -lh ../../mobile-builds/ios
+
+      - name: Store iOS Simulator build
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudComAI-iOS-Simulator-Preview-${{ github.run_number }}
+          path: mobile-builds/ios/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload iOS Simulator build to Google Drive
+        if: vars.ENABLE_GOOGLE_DRIVE_ARTIFACT_UPLOAD == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          brew install rclone
+
+          mkdir -p "$HOME/.config/rclone"
+          printf '%s' "$RCLONE_CONFIG_CONTENT" > "$HOME/.config/rclone/rclone.conf"
+          chmod 600 "$HOME/.config/rclone/rclone.conf"
+
+          RCLONE_CONFIG_FILE="$HOME/.config/rclone/rclone.conf"
+
+          if ! rclone --config "$RCLONE_CONFIG_FILE" listremotes | grep -qx 'gdrive:'; then
+            echo "::error::RCLONE_CONFIG secret must define a Google Drive remote named gdrive."
+            exit 1
+          fi
+
+          DRIVE_PATH="preview/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/ios"
+          DRIVE_TARGET="gdrive:"
+          if [ -n "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
+            DRIVE_TARGET="gdrive,root_folder_id=${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID}:"
+          fi
+
+          rclone --config "$RCLONE_CONFIG_FILE" copy mobile-builds/ios/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
+          rclone --config "$RCLONE_CONFIG_FILE" lsf "${DRIVE_TARGET}${DRIVE_PATH}"

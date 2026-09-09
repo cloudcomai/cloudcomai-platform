@@ -25,6 +25,7 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
   const [error, setError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
 
   useEffect(() => {
     if (!visible || !userId) return undefined;
@@ -32,6 +33,7 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
     setLoading(true);
     setError('');
     setImageFailed(false);
+    setImagePreviewVisible(false);
     platformApi.getUserProfile(userId)
       .then(({ data }) => { if (active) setProfile(data.user || null); })
       .catch(loadError => { if (active) setError(loadError.message || 'Unable to load this profile.'); })
@@ -44,6 +46,7 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
       setProfile(null);
       setError('');
       setImageFailed(false);
+      setImagePreviewVisible(false);
     }
   }, [visible]);
 
@@ -51,6 +54,7 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
   const imageSource = profile?.id
     ? `${mediaUrl('user', profile.id)}&v=${profile.image_version || ''}`
     : '';
+  const canPreviewImage = Boolean(imageSource && !imageFailed);
 
   return (
     <Modal visible={Boolean(visible)} animationType="slide" onRequestClose={onClose}>
@@ -73,27 +77,59 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
         ) : profile ? (
           <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.profileCard}>
-              <View style={styles.avatar}>
+              <Pressable
+                style={({ pressed }) => [styles.avatar, pressed && canPreviewImage && styles.avatarPressed]}
+                onPress={() => { if (canPreviewImage) setImagePreviewVisible(true); }}
+                disabled={!canPreviewImage}
+                accessibilityRole={canPreviewImage ? 'button' : undefined}
+                accessibilityLabel={canPreviewImage ? `View ${name}'s profile picture` : undefined}
+              >
                 {!imageFailed && imageSource ? (
                   <Image source={{ uri: imageSource }} style={styles.avatarImage} onError={() => setImageFailed(true)} />
                 ) : null}
                 <Text style={styles.avatarFallback}>{name[0]?.toUpperCase() || 'U'}</Text>
-              </View>
+              </Pressable>
               <Text style={styles.name}>{name}</Text>
               {profile.user_id ? <Text style={styles.userId}>@{profile.user_id}</Text> : null}
             </View>
 
             <View style={styles.detailsCard}>
-              <DetailRow label="Age" value={String(profile.age)} />
-              <DetailRow label="Gender" value={profile.gender} />
+              <DetailRow label="Age" value={profile.hidden_fields?.includes('age') ? 'Private' : profile.age == null ? 'Not set' : String(profile.age)} />
+              <DetailRow label="Gender" value={profile.hidden_fields?.includes('gender') ? 'Private' : profile.gender || 'Not set'} />
               {profile.email ? <DetailRow label="Email" value={profile.email} /> : null}
               {profile.mobile ? <DetailRow label="Contact" value={profile.mobile} /> : null}
               {!profile.email && !profile.mobile ? (
-                <Text style={styles.optionalNote}>This user has not added optional email or contact details.</Text>
+                <Text style={styles.optionalNote}>Email and contact details are not shared.</Text>
               ) : null}
             </View>
           </ScrollView>
         ) : null}
+
+        <Modal
+          visible={imagePreviewVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setImagePreviewVisible(false)}
+        >
+          <View style={styles.previewBackdrop}>
+            <Pressable
+              style={styles.previewCloseArea}
+              onPress={() => setImagePreviewVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close profile picture preview"
+            >
+              <Text style={styles.previewClose}>×</Text>
+            </Pressable>
+            {canPreviewImage ? (
+              <Image
+                source={{ uri: imageSource }}
+                style={styles.previewImage}
+                resizeMode="contain"
+                accessibilityLabel={`${name}'s profile picture`}
+              />
+            ) : null}
+          </View>
+        </Modal>
       </SafeAreaView>
     </Modal>
   );
@@ -109,6 +145,7 @@ const styles = StyleSheet.create({
   content: { padding: 18, gap: 14 },
   profileCard: { alignItems: 'center', padding: 24, borderRadius: 18, backgroundColor: '#fff' },
   avatar: { width: 112, height: 112, borderRadius: 56, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e5eaff' },
+  avatarPressed: { opacity: 0.8 },
   avatarImage: { ...StyleSheet.absoluteFillObject, width: 112, height: 112, zIndex: 2 },
   avatarFallback: { color: '#3157d5', fontSize: 38, fontWeight: '900' },
   name: { marginTop: 14, color: '#172033', fontSize: 23, fontWeight: '900', textAlign: 'center' },
@@ -122,4 +159,8 @@ const styles = StyleSheet.create({
   error: { color: '#b91c1c', textAlign: 'center' },
   retryButton: { marginTop: 14, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: '#eef2ff' },
   retryText: { color: '#3157d5', fontWeight: '800' },
+  previewBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.92)', padding: 18 },
+  previewImage: { width: '100%', height: '82%' },
+  previewCloseArea: { position: 'absolute', top: 22, right: 18, zIndex: 2, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  previewClose: { color: '#fff', fontSize: 38, lineHeight: 42, fontWeight: '300' },
 });

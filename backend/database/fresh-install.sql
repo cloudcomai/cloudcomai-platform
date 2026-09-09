@@ -445,7 +445,7 @@ VALUES
     ('008_chat_notification_states.sql', UTC_TIMESTAMP()),
     ('009_utf8mb4_chat_content.sql', UTC_TIMESTAMP()),
     ('010_ensure_emoji_utf8mb4.sql', UTC_TIMESTAMP()),
-    ('011_chat_lifecycle_controls.sql', UTC_TIMESTAMP())
+    ('012_chat_lifecycle_controls.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;

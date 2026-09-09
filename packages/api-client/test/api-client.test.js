@@ -96,3 +96,23 @@ test('binds the default global fetch implementation', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('a late 401 from a revoked token preserves the newly rotated session', async () => {
+  let token = 'old-token';
+  let unauthorizedCalls = 0;
+  const client = new ApiClient({
+    baseUrl: 'https://example.test/api/',
+    tokenProvider: () => token,
+    onUnauthorized: () => { unauthorizedCalls++; },
+    fetchImpl: async (_url, options) => {
+      assert.equal(options.headers.get('Authorization'), 'Bearer old-token');
+      token = 'new-token';
+      return new Response(JSON.stringify({ error: 'Session revoked' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+  await assert.rejects(() => client.get('v1/chats'), error => error.status === 401);
+  assert.equal(unauthorizedCalls, 0);
+  assert.equal(token, 'new-token');
+});

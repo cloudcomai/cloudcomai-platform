@@ -1,0 +1,73 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: params.BRANCH, url: 'https://github.com/cloudcomai/cloudcomai-platform.git'
+            }
+        }
+
+        stage('Install') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'corepack enable && pnpm install --frozen-lockfile'
+                    } else {
+                        bat 'corepack enable && pnpm install --frozen-lockfile'
+                    }
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'pnpm --filter @cloudcomai/web test'
+                    } else {
+                        bat 'pnpm --filter @cloudcomai/web test'
+                    }
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh 'pnpm build:web'
+                    } else {
+                        bat 'pnpm build:web'
+                    }
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                script {
+                    env.GIT_SHORT_SHA = isUnix()
+                        ? sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                        : bat(script: '@git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.ARTIFACT_NAME = "web-build-${env.BUILD_NUMBER}-${env.GIT_SHORT_SHA}.zip"
+                    if (isUnix()) {
+                        sh "cd apps/web/dist && zip -r ../../../${env.ARTIFACT_NAME} ."
+                    } else {
+                        powershell "Compress-Archive -Path apps\\web\\dist\\* -DestinationPath ${env.ARTIFACT_NAME} -Force"
+                    }
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'web-build-*.zip', fingerprint: true
+            }
+        }
+    }
+}

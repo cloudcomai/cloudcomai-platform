@@ -147,6 +147,11 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
         </section>
 
         <section className="privacy-section">
+          <h4>Profile visibility</h4>
+          {[['share_email', 'Show email address'], ['share_mobile', 'Show phone number'], ['share_age', 'Show age'], ['share_gender', 'Show gender']].map(([key, label]) => <ToggleRow key={key} label={label} description="Visible to other signed-in users when enabled." checked={settings[key]} disabled={Boolean(saving)} onChange={value => updateSetting(key, value)} />)}
+        </section>
+
+        <section className="privacy-section">
           <h4><UserX size={17} /> Blocked contacts</h4>
           <form className="privacy-contact-search" onSubmit={searchContacts}>
             <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name, email, or user ID" aria-label="Search contacts to block" />

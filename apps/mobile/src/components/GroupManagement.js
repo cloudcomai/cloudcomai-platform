@@ -24,6 +24,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const ownsGroup = members.some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner');
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
   const load = useCallback(async () => {
@@ -152,6 +153,22 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
     ]);
   };
 
+  const transferOwnership = member => {
+    if (busy) return;
+    Alert.alert('Transfer ownership?', `Make ${member.name || 'this member'} the group owner? You will become an admin and existing invite links will stop working.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Transfer', onPress: async () => {
+        setBusy(true); setError('');
+        try {
+          const { data } = await platformApi.transferGroupOwnership(group.id, Number(member.user_id));
+          onGroupUpdated?.({ ...group, owner_id: data.owner_id });
+          await load();
+        } catch (e) { setError(e.message); }
+        finally { setBusy(false); }
+      } },
+    ]);
+  };
+
   const deleteGroup = () => {
     Alert.alert('Delete group?', 'This removes the group for all active members.', [
       { text: 'Cancel', style: 'cancel' },
@@ -192,9 +209,9 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={styles.card}>
             <Text style={styles.heading}>Members · {members.length}</Text>
-            {members.map(member => <View key={`${member.user_id}-${member.role}`} style={styles.row}><View style={styles.meta}><Text style={styles.name}>{member.name || member.username || 'Member'}</Text><Text style={styles.note}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><Pressable onPress={() => remove(member)}><Text style={member.role === 'owner' && Number(member.user_id) !== Number(user?.id) ? styles.disabledText : styles.danger}>Remove</Text></Pressable></View>)}
+            {members.map(member => <View key={`${member.user_id}-${member.role}`} style={styles.row}><View style={styles.meta}><Text style={styles.name}>{member.name || member.username || 'Member'}</Text><Text style={styles.note}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={styles.link}>Make owner</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={styles.note}>Owner</Text>}</View></View>)}
           </View>
-          {Number(group.owner_id) === Number(user?.id) ? <Pressable style={styles.deleteButton} onPress={deleteGroup}><Text style={styles.deleteText}>Delete group</Text></Pressable> : null}
+          {ownsGroup ? <Pressable style={styles.deleteButton} onPress={deleteGroup}><Text style={styles.deleteText}>Delete group</Text></Pressable> : null}
         </ScrollView>
         {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
       </SafeAreaView>
@@ -217,7 +234,8 @@ const styles = StyleSheet.create({
   linkButton: { alignSelf: 'flex-start', paddingVertical: 10 },
   link: { color: '#3157d5', fontWeight: '800' },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
-  meta: { flex: 1 },
+  meta: { flex: 1, paddingRight: 10 },
+  memberActions: { gap: 14, paddingVertical: 12 },
   name: { color: '#172033', fontWeight: '700' },
   danger: { color: '#b91c1c', fontWeight: '700' },
   disabledText: { color: '#94a3b8', fontWeight: '700' },

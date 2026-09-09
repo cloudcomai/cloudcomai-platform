@@ -12,8 +12,10 @@ import GroupCreationModal from './components/GroupCreationModal';
 import GroupEditModal from './components/GroupEditModal';
 import ProfileEditModal from './components/ProfileEditModal';
 import SettingsPanel from './components/SettingsPanel';
+import AccountToolsPanel from './components/AccountToolsPanel';
 import GoogleContactsPanel from './components/GoogleContactsPanel';
 import InterestsScreen from './components/InterestsScreen';
+import { useMessagingStore } from './hooks/useMessagingStore';
 import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
 import InvitationPage from './components/InvitationPage';
@@ -72,6 +74,8 @@ export default function App() {
     const [selectedChat, setSelectedChat] = useState(null);
     const [messages, setMessages] = useState([]);
     const [composer, setComposer] = useState('');
+    const [sending, setSending] = useState(false);
+    const sendInProgress = useRef(false);
     const [replyTo, setReplyTo] = useState(null);
     const [editing, setEditing] = useState(null);
     const [modal, setModal] = useState(null);
@@ -84,6 +88,21 @@ export default function App() {
     const [privacySettings, setPrivacySettings] = useState(defaultPrivacySettings);
     const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
     const latestMessageIdRef = useRef(0);
+    const activeChatRef = useRef(selectedChat); activeChatRef.current = selectedChat;
+    const { store: messaging, state: localMessages, error: localMessageError, setError: setLocalMessageError } = useMessagingStore(user?.id, message => {
+        if (Number(activeChatRef.current?.id) === Number(message.chat_id)) setMessages(current => mergeMessageBatch(current, [message]).messages);
+    });
+    const messagingRef = useRef(messaging); messagingRef.current = messaging;
+    useEffect(() => {
+        setComposer(messaging?.snapshot().drafts[String(selectedChat?.id)] || '');
+        setReplyTo(null); setEditing(null);
+    }, [messaging, selectedChat?.id]);
+    const updateComposer = value => {
+        const next = typeof value === 'function' ? value(composer) : value;
+        setComposer(next);
+        if (!editing && messaging && selectedChat?.id) messaging.saveDraft(selectedChat.id, next).catch(e => setLocalMessageError(e.message));
+    };
+
 
     const navigateTo = useCallback((nextScreen, { replace = false, inviteToken = '' } = {}) => {
         const nextUrl = new URL(window.location.href);
@@ -192,9 +211,15 @@ export default function App() {
     };
 
     const logout = async () => {
+        messaging?.stop();
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        try { await platformApi.revokeSession(undefined, { signal: controller.signal }); } catch {}
+        finally { clearTimeout(timer); }
         await clearWebSession();
         setToken('');
         setUser(null);
+        setModal(null);
         setSelectedChat(null);
         setChats([]);
         setMessages([]);
@@ -303,6 +328,7 @@ export default function App() {
                 return data;
             },
             onMessages: incoming => {
+                messagingRef.current?.acknowledge(incoming.messages || []).catch(e => setLocalMessageError(e.message));
                 for (const item of incoming.screenshot_alerts || []) {
                     if (!shownScreenshotAlerts.has(item.id)) { shownScreenshotAlerts.add(item.id); window.alert(`Screenshot alert: ${item.body}`); }
                 }
@@ -319,26 +345,22 @@ export default function App() {
     }, [selectedChat?.id, selectedChat?.isContact, token, screen]);
 
     const handleSendMessage = async () => {
-        if (!composer.trim() || !selectedChat) return;
-        const payload = { chat_id: selectedChat.id, body: composer, reply_to_message_id: replyTo ? replyTo.id : null };
+        if (!composer.trim() || !selectedChat || selectedChat.blocked || sendInProgress.current) return;
+        sendInProgress.current = true; setSending(true);
+        const chatId = selectedChat.id;
         try {
-            const targetEndpoint = editing ? ApiRoute.EDIT_MESSAGE : ApiRoute.MESSAGES;
-            if (editing) payload.editing_id = editing.id;
-            const result = await api(targetEndpoint, { method: 'POST', body: JSON.stringify(payload) });
             if (editing) {
-                setMessages(prev => prev.map(m => m.id === editing.id ? { ...m, body: composer, edited: true } : m));
-                setEditing(null);
-            } else if (result.message) {
-                setMessages(prev => {
-                    const messageId = Number(result.message.id || 0);
-                    if (prev.some(message => Number(message.id) === messageId)) return prev;
-                    return [...prev, result.message];
-                });
+                await platformApi.editMessage(editing.id, composer);
+                setMessages(prev => prev.map(m => Number(m.id) === Number(editing.id) ? { ...m, body: composer, edit_count: 1, edited: true } : m));
+                if (Number(activeChatRef.current?.id) === Number(chatId)) { setEditing(null); setComposer(messaging?.snapshot().drafts[String(chatId)] || ''); }
+            } else {
+                if (!messaging) throw new Error('Local messages are still loading. Please try again.');
+                await messaging.enqueue({ chat_id: selectedChat.id, body: composer, reply_to_message_id: replyTo?.id || null });
+                if (Number(activeChatRef.current?.id) === Number(chatId)) { setComposer(''); setReplyTo(null); }
+                messaging.flush().catch(e => setLocalMessageError(e.message));
             }
-            setComposer('');
-            setReplyTo(null);
-            refreshConversationList();
         } catch (err) { alert(err.message); }
+        finally { sendInProgress.current = false; setSending(false); }
     };
 
     const handleAttachmentUploaded = useCallback(message => {
@@ -454,6 +476,21 @@ export default function App() {
         });
     };
 
+    const openExistingChat = async id => {
+        const results = await Promise.all(['private', 'group'].map(type => platformApi.listChats(type)));
+        const chat = results.flatMap(result => result.data.chats || []).find(item => Number(item.id) === Number(id));
+        if (!chat) throw new Error('This conversation is no longer available.');
+        setSelectedChat({ ...chat, id: Number(id), isGroup: chat.type === 'group' });
+    };
+    const acceptRotatedSession = async data => {
+        await saveWebSession({ token: data.token, user: { ...user, ...data.user } });
+        setToken(data.token); setUser(current => ({ ...current, ...data.user }));
+    };
+    const cancelComposerContext = () => {
+        if (editing) setComposer(messaging?.snapshot().drafts[String(selectedChat?.id)] || '');
+        setReplyTo(null); setEditing(null);
+    };
+
     const handleGroupUpdated = nextGroup => {
         setChats(prev => prev.map(chat => chat.id === Number(nextGroup.id) ? { ...chat, ...nextGroup } : chat));
         setSelectedChat(prev => prev && prev.id === Number(nextGroup.id) ? { ...prev, ...nextGroup } : prev);
@@ -520,16 +557,17 @@ export default function App() {
 
             <ChatDirectory searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
-            <ChatCanvas onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread_count: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
+            <ChatCanvas sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
 
             {modal && (
                 <div className="modal-backdrop">
-                    {modal === 'add_member' || modal === 'manage_members' ? <GroupMembershipModal type={modal} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} />
+                    {modal === 'add_member' || modal === 'manage_members' ? <GroupMembershipModal type={modal} user={user} onGroupUpdated={handleGroupUpdated} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} />
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
                     : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} apiBridge={api} />
-                    : modal === 'notifications' ? <NotificationPanel onOpenChat={async id => { const results = await Promise.all(['private', 'group'].map(type => platformApi.listChats(type))); const chat = results.flatMap(result => result.data.chats || []).find(item => Number(item.id) === id); if (!chat) throw new Error('This conversation is no longer available.'); setSelectedChat({ ...chat, id, isGroup: chat.type === 'group' }); }} apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
+                    : modal === 'notifications' ? <NotificationPanel onOpenChat={openExistingChat} apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
+                    : modal === 'saved_messages' || modal === 'sessions' ? <AccountToolsPanel key={modal} mode={modal} close={() => setModal(null)} onOpenChat={openExistingChat} onSessionRotated={acceptRotatedSession} onLogout={logout} onUnsave={id => setMessages(current => current.map(item => Number(item.id) === Number(id) ? { ...item, saved: false } : item))} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'privacy_account' ? <PrivacyAccountPanel privacyApi={platformApi} close={() => setModal(null)} onSettingsChanged={handlePrivacySettingsChanged} />
                     : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onPollCreated={pollMessageObject => setMessages(prev => {

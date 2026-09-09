@@ -1,6 +1,6 @@
 <?php
 // Included by privacy_messaging_test.php, using its isolated database/server.
-$migration=file_get_contents(__DIR__.'/../database/migrations/011_chat_lifecycle_controls.sql');
+$migration=file_get_contents(__DIR__.'/../database/migrations/012_chat_lifecycle_controls.sql');
 preg_match_all('/CREATE TABLE IF NOT EXISTS ([a-z_]+)/',$migration,$tableMatches);
 $structures=[];
 foreach ($tableMatches[1] as $table) {
