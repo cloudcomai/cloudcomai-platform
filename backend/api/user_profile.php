@@ -45,9 +45,27 @@ $imageVersion = null;
 $folder = dirname(__DIR__) . '/uploads/users';
 foreach (glob($folder . '/' . $targetUserId . '.*') ?: [] as $candidate) {
     if (is_file($candidate)) {
-        $imageVersion = filemtime($candidate) ?: null;
+        $imageVersion = (string)(filemtime($candidate) ?: 0) . '-' . (string)filesize($candidate);
         break;
     }
+}
+
+$online = false;
+if ($targetUserId === (int)$viewer['id']) {
+    $online = true;
+} else {
+    $onlineQuery = db()->prepare('
+        SELECT CASE WHEN u.updated_at IS NOT NULL
+          AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
+          AND COALESCE(ups.hide_online_status,0)=0
+        THEN 1 ELSE 0 END
+        FROM users u
+        LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
+        WHERE u.id=?
+        LIMIT 1
+    ');
+    $onlineQuery->execute([$targetUserId]);
+    $online = (bool)$onlineQuery->fetchColumn();
 }
 
 out(['user' => [
@@ -59,4 +77,5 @@ out(['user' => [
     'email' => $profile['email'] ?: null,
     'mobile' => $profile['mobile'] ?: null,
     'image_version' => $imageVersion,
+    'online' => $online,
 ]]);
