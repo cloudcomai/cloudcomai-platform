@@ -229,7 +229,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, themeSettings }) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const searchActive = searchOpen && query.trim().length > 0;
-  const theme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
+  const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
+  const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
+  const theme = { ...baseTheme, colors: { ...baseTheme.colors, accent: customAccent, outgoing: themeSettings?.accentColor || baseTheme.colors.outgoing } };
 
   useEffect(() => {
     let active = true;
@@ -446,6 +448,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, themeSettings }) {
 
   return (
     <SafeAreaView style={[styles.appPage, { backgroundColor: theme.colors.background }]} edges={['top', 'bottom', 'left', 'right']}>
+      {themeSettings?.wallpaperUri ? <Image pointerEvents="none" source={{ uri: themeSettings.wallpaperUri }} style={[StyleSheet.absoluteFillObject, { opacity: Math.max(0.2, Math.min(1, 1 - Number(themeSettings.wallpaperOpacity ?? 0.35))) }]} /> : null}
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
