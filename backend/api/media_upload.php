@@ -64,12 +64,14 @@ if (!move_uploaded_file($file['tmp_name'], $destination)) fail('Unable to save u
 
 $baseUrl = rtrim((string)($config['app']['base_url'] ?? ''), '/');
 $imageUrl = $baseUrl . '/media.php?type=' . urlencode($type) . '&id=' . $id;
+$imageVersion = sprintf('%.6f', microtime(true));
 
 out([
     'type' => $type,
     'id' => $id,
     'image_url' => $imageUrl,
+    'image_version' => $imageVersion,
     'width' => (int)$imageInfo[0],
     'height' => (int)$imageInfo[1],
-    'updated_at' => filemtime($destination) ?: time()
+    'updated_at' => $imageVersion
 ]);
