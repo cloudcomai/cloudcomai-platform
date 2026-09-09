@@ -2,6 +2,8 @@ from pathlib import Path
 
 p = Path('apps/mobile/App.js')
 s = p.read_text()
+if 'ChatThemeSettings' in s and 'themeSettings={chatThemeSettings}' in s:
+    raise SystemExit(0)
 
 def replace(old, new, count=1):
     global s
