@@ -62,3 +62,4 @@ jobs:
         env:
           CLOUDCOMAI_RUN_DB_TESTS: '1'
           CLOUDCOMAI_TEST_DB_PASSWORD: cloudcomai_test
+      - run: php backend/tests/public_chat_rooms_test.php
