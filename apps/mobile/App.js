@@ -845,7 +845,7 @@ function AppContent() {
       return true;
     });
     return () => subscription.remove();
-  }, [showNotificationSettings, showPrivacySettings]);
+  }, [showNotificationSettings, showPrivacySettings, showChatThemeSettings]);
 
   useEffect(() => {
     if (session && notificationPreferences) {
