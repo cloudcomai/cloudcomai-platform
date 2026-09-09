@@ -58,6 +58,9 @@ if ($method === 'GET') {
             $chat['isGroup'] = $chat['type'] === 'group';
             $chat['unread'] = (int)($chat['unread'] ?? 0);
             $chat['notifications_muted'] = (bool)($chat['notifications_muted'] ?? false);
+            $chat['image_version'] = null;
+            $imageFolder = dirname(__DIR__) . '/uploads/' . ($chat['type'] === 'group' ? 'groups' : 'users');
+            $imageId = (int)$chat['id'];
 
             if ($chat['type'] === 'private') {
                 $other = $pdo->prepare('
@@ -93,6 +96,18 @@ if ($method === 'GET') {
                     $chat['blocked_by_me'] = (bool)$participant['blocked_by_me'];
                     $chat['blocked_me'] = (bool)$participant['blocked_me'];
                     $chat['blocked'] = $chat['blocked_by_me'] || $chat['blocked_me'];
+                    $imageId = (int)$participant['id'];
+                    $imageFolder = dirname(__DIR__) . '/uploads/users';
+                }
+            } elseif ($chat['type'] !== 'group') {
+                $imageId = (int)$chat['id'];
+                $imageFolder = dirname(__DIR__) . '/uploads/' . $chat['type'];
+            }
+
+            foreach (glob($imageFolder . '/' . $imageId . '.*') ?: [] as $candidate) {
+                if (is_file($candidate)) {
+                    $chat['image_version'] = (string)(filemtime($candidate) ?: 0) . '-' . (string)filesize($candidate);
+                    break;
                 }
             }
         }
@@ -160,7 +175,8 @@ if ($method === 'POST') {
             'other_user_name' => $targetUser['name'],
             'other_user_id_text' => $targetUser['user_id'],
             'online' => (bool)$targetUser['online'],
-            'other_user_online' => (bool)$targetUser['online']
+            'other_user_online' => (bool)$targetUser['online'],
+            'image_version' => null,
         ]], $chat ? 200 : 201);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
