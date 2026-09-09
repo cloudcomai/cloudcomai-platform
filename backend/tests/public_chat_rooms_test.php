@@ -13,7 +13,7 @@ assert(is_string($handler) && str_contains($handler, "c.type='public'"));
 assert(str_contains($handler, "c.group_category='india-city'"));
 assert(str_contains($handler, 'LIMIT 50'));
 assert(str_contains($handler, 'INSERT INTO chat_members'));
-assert(str_contains($handler, "roomQuery = $pdo->prepare"));
+assert(str_contains($handler, '$roomQuery = $pdo->prepare'));
 
 $fresh = file_get_contents(__DIR__ . '/../database/fresh-install.sql');
 assert(is_string($fresh));
