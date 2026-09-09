@@ -5,6 +5,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { parseSharedLocation } from '@cloudcomai/chat-core';
 import { downloadAttachmentPreview, platformApi } from '../services/platform';
 import { attachmentKind } from '../utils/media';
+import { retryVideoPlayback, startVideoPlayback } from '../utils/videoPlayback';
 
 export function AudioPreview({ source }) {
   const player = useAudioPlayer(source);
@@ -24,7 +25,7 @@ export function VideoPreview({ source }) {
     const subscription = player.addListener('statusChange', event => {
       if (event.status === 'error' && active) setError('Video could not be played. Tap retry to try again.');
     });
-    player.play();
+    startVideoPlayback(player);
     return () => {
       active = false;
       subscription.remove();
@@ -32,12 +33,7 @@ export function VideoPreview({ source }) {
   }, [player]);
   const retry = () => {
     setError('');
-    try {
-      player.replace(source);
-      player.play();
-    } catch {
-      setError('Video could not be played. Tap retry to try again.');
-    }
+    if (!retryVideoPlayback(player, source)) setError('Video could not be played. Tap retry to try again.');
   };
   return error ? <Pressable style={styles.control} onPress={retry} accessibilityRole="button"><Text style={styles.error}>{error}</Text><Text style={styles.link}>Retry video</Text></Pressable> : <VideoView player={player} style={styles.video} contentFit="contain" nativeControls fullscreenOptions={{ enable: true }} />;
 }
