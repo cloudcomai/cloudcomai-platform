@@ -9,7 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y apache2
+      - name: Install Apache test dependency
+        run: |
+          # GitHub-hosted runners may include Google's Chrome APT source. It is
+          # unrelated to this job and can transiently publish mismatched index
+          # metadata, causing apt-get update to fail before our tests start.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends apache2
       - run: python3 backend/tests/storage_access_test.py
 
   web:
@@ -55,6 +62,9 @@ jobs:
       - run: php backend/tests/user_validation_test.php
       - run: php backend/tests/poll_expiry_test.php
       - run: php backend/tests/utf8mb4_schema_test.php
+      - run: php backend/tests/profile_media_presence_test.php
+      - run: php backend/tests/notification_push_test.php
+      - run: php backend/tests/public_chat_rooms_test.php
       - run: php backend/tests/privacy_messaging_test.php
         env:
           CLOUDCOMAI_RUN_DB_TESTS: '1'

@@ -13,6 +13,7 @@ import {
 import { platformApi } from '../services/platform';
 import { setApplicationBadge } from '../services/notifications';
 import { getNotificationChatId } from '../utils/notificationNavigation';
+import { loadMobileContacts } from '../utils/contacts';
 
 export function ContactsList({ onOpenChat }) {
   const [items, setItems] = useState([]);
@@ -24,8 +25,8 @@ export function ContactsList({ onOpenChat }) {
     refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      const { data } = await platformApi.listContacts(1, 500);
-      setItems(data.contacts || []);
+      const contacts = await loadMobileContacts(platformApi, 1, 500);
+      setItems(contacts);
     } catch (e) {
       setError(e.message || 'Unable to load People & Contacts.');
     } finally {
@@ -55,7 +56,7 @@ export function ContactsList({ onOpenChat }) {
         keyExtractor={item => String(item.registered_user_id || item.id)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
         contentContainerStyle={items.length ? styles.list : styles.empty}
-        ListEmptyComponent={<Text style={styles.emptyText}>No registered CloudComAI contacts found. Sync Google Contacts from the menu or Settings.</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>No registered CloudComAI contacts found. Connect and sync Google Contacts from the menu or Settings.</Text>}
         renderItem={({ item }) => {
           const title = item.display_name || item.registered_name || item.email || item.phone || 'CloudComAI contact';
           return (

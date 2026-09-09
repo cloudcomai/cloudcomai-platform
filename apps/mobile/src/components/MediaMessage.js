@@ -5,6 +5,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { parseSharedLocation, parseMessageTimestamp } from '@cloudcomai/chat-core';
 import { downloadAttachmentPreview, platformApi } from '../services/platform';
 import { attachmentKind } from '../utils/media';
+import { retryVideoPlayback, startVideoPlayback } from '../utils/videoPlayback';
 
 export function AudioPreview({ source }) {
   const player = useAudioPlayer(source);
@@ -22,10 +23,20 @@ export function VideoPreview({ source }) {
   const player = useVideoPlayer(source);
   const [error, setError] = useState('');
   useEffect(() => {
-    const subscription = player.addListener('statusChange', event => { if (event.status === 'error') setError('Video unavailable or unsupported on this device.'); });
-    return () => subscription.remove();
+    let active = true;
+    const subscription = player.addListener('statusChange', event => {
+      if (event.status === 'error' && active) setError('Video could not be played. Tap retry to try again.');
+    });
+    startVideoPlayback(player);
+    return () => { active = false; subscription.remove(); };
   }, [player]);
-  return error ? <Text>{error}</Text> : <VideoView player={player} style={[styles.video, { width: mediaWidth, height: mediaWidth * 0.75 }]} nativeControls fullscreenOptions={{ enable: true }} />;
+  const retry = () => {
+    setError('');
+    if (!retryVideoPlayback(player, source)) setError('Video could not be played. Tap retry to try again.');
+  };
+  return error
+    ? <Pressable style={styles.control} onPress={retry} accessibilityRole="button"><Text style={styles.error}>{error}</Text><Text style={styles.link}>Retry video</Text></Pressable>
+    : <VideoView player={player} style={[styles.video, { width: mediaWidth, height: mediaWidth * 0.75 }]} contentFit="contain" nativeControls fullscreenOptions={{ enable: true }} />;
 }
 
 export default function MediaMessage({ message, autoDownload }) {

@@ -19,6 +19,15 @@ if (!in_array($gender, ['Male','Female'], true)) fail('Gender must be Male or Fe
 $st = db()->prepare('UPDATE users SET name=?, dob=?, gender=?, updated_at=UTC_TIMESTAMP() WHERE id=?');
 $st->execute([$name, $dob, $gender, $user['id']]);
 
+$imageVersion = null;
+$folder = dirname(__DIR__) . '/uploads/users';
+foreach (glob($folder . '/' . (int)$user['id'] . '.*') ?: [] as $candidate) {
+    if (is_file($candidate)) {
+        $imageVersion = (string)(filemtime($candidate) ?: 0) . '-' . (string)filesize($candidate);
+        break;
+    }
+}
+
 out(['user'=>[
     'id'=>(int)$user['id'],
     'name'=>$name,
@@ -26,5 +35,6 @@ out(['user'=>[
     'email'=>$user['email'],
     'mobile'=>$user['mobile'],
     'gender'=>$gender,
-    'dob'=>$dob
+    'dob'=>$dob,
+    'image_version'=>$imageVersion
 ]]);

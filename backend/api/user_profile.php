@@ -45,13 +45,28 @@ $imageVersion = null;
 $folder = dirname(__DIR__) . '/uploads/users';
 foreach (glob($folder . '/' . $targetUserId . '.*') ?: [] as $candidate) {
     if (is_file($candidate)) {
-        $imageVersion = filemtime($candidate) ?: null;
+        $imageVersion = (string)(filemtime($candidate) ?: 0) . '-' . (string)filesize($candidate);
         break;
     }
 }
 
 $visibility = user_privacy_settings($targetUserId);
 $self = $targetUserId === (int)$viewer['id'];
+$online = $self;
+if (!$self) {
+    $onlineQuery = db()->prepare('
+        SELECT CASE WHEN u.updated_at IS NOT NULL
+          AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
+          AND COALESCE(ups.hide_online_status,0)=0
+        THEN 1 ELSE 0 END
+        FROM users u
+        LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
+        WHERE u.id=?
+        LIMIT 1
+    ');
+    $onlineQuery->execute([$targetUserId]);
+    $online = (bool)$onlineQuery->fetchColumn();
+}
 out(['user' => [
     'id' => (int)$profile['id'],
     'name' => $profile['name'],
@@ -62,4 +77,5 @@ out(['user' => [
     'mobile' => ($self || $visibility['share_mobile']) ? ($profile['mobile'] ?: null) : null,
     'hidden_fields' => $self ? [] : array_values(array_map(static fn($key) => substr($key,6),array_keys(array_filter($visibility,static fn($value,$key) => str_starts_with($key,'share_') && !$value,ARRAY_FILTER_USE_BOTH)))),
     'image_version' => $imageVersion,
+    'online' => $online,
 ]]);
