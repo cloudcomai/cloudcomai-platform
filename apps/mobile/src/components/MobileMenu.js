@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
+import { buildProfileImageCacheKey } from '../utils/profileImage';
 
 const GROUP_TYPES = [
   'Family Group','Friend Group','Fan Group','Study Group','College Group','Class Group',
@@ -78,7 +79,7 @@ export default function MobileMenu({
       setProfileName(user?.name || '');
       setProfileDob(user?.dob || '');
       setProfileGender(user?.gender || 'Male');
-      setProfileImageVersion(user?.image_version || Date.now());
+      setProfileImageVersion(buildProfileImageCacheKey(user?.image_version));
       setProfileImageFailed(false);
       isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
     } else {
@@ -284,7 +285,7 @@ export default function MobileMenu({
       setBusy(true);
       const { data } = await uploadMediaAsset(asset, { type: 'user', id: user.id });
       const nextUser = { ...user, image_url: data.image_url, image_version: data.updated_at };
-      setProfileImageVersion(data.updated_at || Date.now());
+      setProfileImageVersion(buildProfileImageCacheKey(data.updated_at, Date.now()));
       setProfileImageFailed(false);
       onProfileUpdated?.(nextUser);
       Alert.alert('Photo updated', 'Your cropped profile photo was saved.');
