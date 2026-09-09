@@ -1,0 +1,99 @@
+name: Apply mobile screenshot protection
+
+on:
+  push:
+    branches:
+      - fix/mobile-screenshot-protection
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch mobile chat screen
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('apps/mobile/App.js')
+          text = path.read_text()
+          old = '''  useEffect(() => {
+    // Android 13 and older require broad gallery access for detection; do not request it solely for this feature.
+    if (Platform.OS !== 'ios' && !(Platform.OS === 'android' && Number(Platform.Version) >= 34)) return undefined;
+    let lastCapture = 0;
+    const subscription = ScreenCapture.addScreenshotListener(async () => {
+      if (AppState.currentState !== 'active' || chat.blocked || Date.now() - lastCapture < 10000) return;
+      lastCapture = Date.now();
+      try {
+        const { data } = await platformApi.reportScreenshot(chat.id);
+        Alert.alert('Screenshot detected', data.notified_users ? 'Chat participants with screenshot alerts enabled have been notified.' : 'Screenshot detected in this conversation.');
+      } catch { Alert.alert('Screenshot detected', 'Unable to notify participants.'); }
+    });
+    return () => subscription.remove();
+  }, [chat.id, chat.blocked]);'''
+          new = '''  useEffect(() => {
+    // Protect the conversation before the user can capture it. The native module blocks
+    // screenshots/screen recordings while this chat is mounted; the listener remains
+    // enabled where the platform exposes screenshot events so participants are notified.
+    const protectionKey = `chat-${chat.id}`;
+    let lastCapture = 0;
+    let subscription;
+
+    ScreenCapture.preventScreenCaptureAsync(protectionKey).catch(() => {});
+
+    if (Platform.OS === 'ios' || (Platform.OS === 'android' && Number(Platform.Version) >= 34)) {
+      subscription = ScreenCapture.addScreenshotListener(async () => {
+        if (AppState.currentState !== 'active' || chat.blocked || Date.now() - lastCapture < 10000) return;
+        lastCapture = Date.now();
+        try {
+          const { data } = await platformApi.reportScreenshot(chat.id);
+          Alert.alert('Screenshot blocked', data.notified_users ? 'Screenshots are blocked in this chat. Chat participants have been notified.' : 'Screenshots are blocked in this chat.');
+        } catch { Alert.alert('Screenshot blocked', 'Screenshots are blocked in this chat, but participants could not be notified.'); }
+      });
+    }
+
+    return () => {
+      subscription?.remove();
+      ScreenCapture.allowScreenCaptureAsync(protectionKey).catch(() => {});
+    };
+  }, [chat.id, chat.blocked]);'''
+          if old not in text:
+              raise SystemExit('Expected screenshot listener block was not found; refusing to modify the file.')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Add regression test
+        shell: bash
+        run: |
+          cat > apps/mobile/test/screenshot-protection.test.js <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+
+          test('chat screen enables native screenshot protection and releases it on unmount', async () => {
+            const source = await readFile(new URL('../App.js', import.meta.url), 'utf8');
+            assert.match(source, /ScreenCapture\.preventScreenCaptureAsync\(protectionKey\)/);
+            assert.match(source, /ScreenCapture\.allowScreenCaptureAsync\(protectionKey\)/);
+            assert.match(source, /ScreenCapture\.addScreenshotListener\(async \(\) =>/);
+            assert.match(source, /platformApi\.reportScreenshot\(chat\.id\)/);
+            assert.match(source, /Screenshot blocked/);
+          });
+          EOF
+      - name: Validate mobile tests
+        run: node --test apps/mobile/test/*.test.js
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/mobile/App.js apps/mobile/test/screenshot-protection.test.js
+          git diff --cached --check
+          git commit -m 'fix(mobile): block chat screenshots and notify participants'
+          git push origin HEAD
+          git rm .github/workflows/apply-screenshot-protection.yml
+          git commit -m 'chore: remove one-time screenshot patch workflow'
+          git push origin HEAD
