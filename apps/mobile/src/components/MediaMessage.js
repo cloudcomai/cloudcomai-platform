@@ -20,10 +20,26 @@ export function VideoPreview({ source }) {
   const player = useVideoPlayer(source);
   const [error, setError] = useState('');
   useEffect(() => {
-    const subscription = player.addListener('statusChange', event => { if (event.status === 'error') setError('Video unavailable or unsupported on this device.'); });
-    return () => subscription.remove();
+    let active = true;
+    const subscription = player.addListener('statusChange', event => {
+      if (event.status === 'error' && active) setError('Video could not be played. Tap retry to try again.');
+    });
+    player.play();
+    return () => {
+      active = false;
+      subscription.remove();
+    };
   }, [player]);
-  return error ? <Text>{error}</Text> : <VideoView player={player} style={styles.video} nativeControls fullscreenOptions={{ enable: true }} />;
+  const retry = () => {
+    setError('');
+    try {
+      player.replace(source);
+      player.play();
+    } catch {
+      setError('Video could not be played. Tap retry to try again.');
+    }
+  };
+  return error ? <Pressable style={styles.control} onPress={retry} accessibilityRole="button"><Text style={styles.error}>{error}</Text><Text style={styles.link}>Retry video</Text></Pressable> : <VideoView player={player} style={styles.video} contentFit="contain" nativeControls fullscreenOptions={{ enable: true }} />;
 }
 
 export default function MediaMessage({ message, autoDownload }) {
