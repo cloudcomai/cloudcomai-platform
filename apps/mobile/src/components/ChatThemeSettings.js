@@ -8,6 +8,7 @@ const PREVIEW_MESSAGES = [
   { mine: false, text: 'Hello! How are you?' },
   { mine: true, text: 'I am doing great 😊' },
 ];
+const ACCENTS = ['#3157d5', '#1675ad', '#347a4b', '#e96b58', '#7047b8', '#5b46d6', '#242424'];
 
 export default function ChatThemeSettings({ value, onChange, onBack }) {
   const [settings, setSettings] = useState(value || { id: 'system', wallpaperOpacity: 0.35, textScale: 1 });
@@ -59,7 +60,7 @@ export default function ChatThemeSettings({ value, onChange, onBack }) {
                   {PREVIEW_MESSAGES.map((message, index) => <View key={index} style={[styles.previewBubble, { alignSelf: message.mine ? 'flex-end' : 'flex-start', backgroundColor: message.mine ? c.outgoing : c.incoming }]}><Text style={{ color: message.mine ? '#fff' : c.text, fontSize: 8 }}>{message.text}</Text></View>)}
                 </View>
                 <Text style={styles.cardLabel}>{theme.label}</Text>
-                {selected ? <Text style={[styles.selected, { color: c.accent }]}>✓ Selected</Text> : null}
+                {selected ? <Text style={[styles.selected, { color: settings.accentColor || c.accent }]}>✓ Selected</Text> : null}
               </Pressable>
             );
           })}
@@ -67,7 +68,7 @@ export default function ChatThemeSettings({ value, onChange, onBack }) {
         {settings.id === 'wallpaper' && settings.wallpaperUri ? <View style={styles.wallpaperSection}>
           <Text style={styles.sectionTitle}>Current wallpaper</Text>
           <Image source={{ uri: settings.wallpaperUri }} style={styles.wallpaper} />
-          <Text style={styles.sectionHelp}>Brightness/overlay: {Math.round((1 - Number(settings.wallpaperOpacity ?? 0.35)) * 100)}%</Text>
+          <Text style={styles.sectionHelp}>Wallpaper overlay: {Math.round(Number(settings.wallpaperOpacity ?? 0.35) * 100)}%</Text>
           <View style={styles.adjustRow}>
             <Pressable style={styles.adjustButton} onPress={() => save({ ...settings, wallpaperOpacity: Math.max(0.1, Number(settings.wallpaperOpacity ?? 0.35) - 0.1) })}><Text style={styles.adjustText}>Brighter</Text></Pressable>
             <Pressable style={styles.adjustButton} onPress={() => save({ ...settings, wallpaperOpacity: Math.min(0.8, Number(settings.wallpaperOpacity ?? 0.35) + 0.1) })}><Text style={styles.adjustText}>Darker</Text></Pressable>
@@ -76,6 +77,8 @@ export default function ChatThemeSettings({ value, onChange, onBack }) {
         </View> : null}
         <View style={styles.options}>
           <Text style={styles.sectionTitle}>Additional settings</Text>
+          <Text style={styles.sectionHelp}>Accent color changes outgoing bubbles and key chat controls.</Text>
+          <View style={styles.accentRow}>{ACCENTS.map(accent => <Pressable key={accent} accessibilityLabel={`Use accent ${accent}`} onPress={() => save({ ...settings, accentColor: accent })} style={[styles.accentButton, { backgroundColor: accent }, settings.accentColor === accent && styles.accentSelected]} />)}</View>
           <View style={styles.optionRow}><Text style={styles.optionLabel}>Text size</Text><View style={styles.adjustRow}><Pressable style={styles.smallButton} onPress={() => save({ ...settings, textScale: Math.max(0.9, Number(settings.textScale || 1) - 0.1) })}><Text>−</Text></Pressable><Text style={styles.scale}>{Math.round(Number(settings.textScale || 1) * 100)}%</Text><Pressable style={styles.smallButton} onPress={() => save({ ...settings, textScale: Math.min(1.2, Number(settings.textScale || 1) + 0.1) })}><Text>＋</Text></Pressable></View></View>
           <Pressable style={styles.resetButton} onPress={reset}><Text style={styles.resetText}>Reset to Default</Text></Pressable>
         </View>
@@ -108,6 +111,9 @@ const styles = StyleSheet.create({
   adjustButton: { minHeight: 38, paddingHorizontal: 12, borderRadius: 9, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center' },
   adjustText: { color: '#3157d5', fontWeight: '700', fontSize: 12 },
   options: { marginTop: 18, padding: 14, borderRadius: 14, backgroundColor: '#fff' },
+  accentRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 10 },
+  accentButton: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: '#fff' },
+  accentSelected: { borderColor: '#172033', transform: [{ scale: 1.12 }] },
   optionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   optionLabel: { color: '#172033', fontWeight: '700' },
   smallButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#eef2ff' },
