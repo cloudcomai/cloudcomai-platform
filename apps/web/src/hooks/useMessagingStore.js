@@ -20,7 +20,7 @@ export function useMessagingStore(userId, onDelivered) {
       send: async (input, options) => {
         const session = await sessionManager.getSession();
         if (Number(session?.user?.id) !== Number(userId)) throw Object.assign(new Error('Sign in to send queued messages.'), { status: 401 });
-        return platformApi.sendMessage(input, options);
+        return platformApi.sendMessage(input, { ...options, headers: { Authorization: `Bearer ${session.token}` } });
       },
       onDelivered: message => delivered.current?.(message),
     });

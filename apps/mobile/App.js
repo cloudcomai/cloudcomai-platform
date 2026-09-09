@@ -256,7 +256,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     return () => tracker.dispose();
   }, [chat.id]);
   const markVisibleRead = () => {
-    if (AppState.currentState !== 'active' || searchActive || !atBottomRef.current) return;
+    if (AppState.currentState !== 'active' || groupManagementOpen || profileOpen || searchActive || !atBottomRef.current) return;
     readTracker.current?.mark(messages.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0));
   };
   useEffect(() => {
@@ -264,7 +264,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     const timer = setInterval(markVisibleRead, 15000);
     const subscription = AppState.addEventListener('change', markVisibleRead);
     return () => { cancelAnimationFrame(frame); clearInterval(timer); subscription.remove(); };
-  }, [messages, searchActive]);
+  }, [messages, searchActive, groupManagementOpen, profileOpen]);
 
   useEffect(() => {
     let active = true;
@@ -897,12 +897,20 @@ function AppContent() {
   useEffect(() => {
     if (!session) return;
     let active = true;
-    platformApi.getNotificationPreferences().then(async ({ data }) => { if (active) { await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); } }).catch(() => {});
-    requestNotificationPermission().then(async device => {
-      if (!active) return;
-      if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); }
+    const syncNotifications = async () => {
+      try {
+        const { data } = await platformApi.getNotificationPreferences();
+        if (!active) return;
+        await setNotificationPreferences(data.preferences);
+        if (!active) return;
+        setNotificationPreferencesState(data.preferences);
+      } catch { if (!active) return; }
+      const device = await requestNotificationPermission();
+      if (!active || await sessionManager.getToken() !== session.token) return;
+      if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }, { headers: { Authorization: `Bearer ${session.token}` } }); }
       else await forgetDeviceToken(platformApi);
-    }).catch(() => {});
+    };
+    syncNotifications().catch(() => {});
     return () => { active = false; };
   }, [session?.token]);
 

@@ -26,7 +26,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply }) {
+export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, active = true }) {
   const historyRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
@@ -63,7 +63,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
     return () => tracker.dispose();
   }, [selectedChat?.id, apiBridge]);
   const markVisibleRead = () => {
-    if (!selectedChat?.id || document.visibilityState === 'hidden' || searchActive || !shouldAutoScrollRef.current) return;
+    if (!active || deleteTarget || !selectedChat?.id || document.visibilityState === 'hidden' || searchActive || !shouldAutoScrollRef.current) return;
     readTracker.current?.mark(messages.filter(item => Number(item.chat_id) === Number(selectedChat.id)).reduce((max, item) => Math.max(max, Number(item.id) || 0), 0));
   };
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
     const timer = setInterval(markVisibleRead, 15000);
     document.addEventListener('visibilitychange', markVisibleRead);
     return () => { cancelAnimationFrame(frame); clearInterval(timer); document.removeEventListener('visibilitychange', markVisibleRead); };
-  }, [selectedChat?.id, messages, searchActive]);
+  }, [selectedChat?.id, messages, searchActive, active, deleteTarget]);
 
   useEffect(() => {
     if (!searchActive || !selectedChat) return undefined;

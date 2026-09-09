@@ -116,3 +116,18 @@ test('a late 401 from a revoked token preserves the newly rotated session', asyn
   assert.equal(unauthorizedCalls, 0);
   assert.equal(token, 'new-token');
 });
+
+test('an account-scoped send retains its captured bearer token during an account switch', async () => {
+  let unauthorized = false;
+  const client = new ApiClient({
+    baseUrl: 'https://example.test/api/',
+    tokenProvider: () => 'account-B',
+    onUnauthorized: () => { unauthorized = true; },
+    fetchImpl: async (_url, options) => {
+      assert.equal(options.headers.get('Authorization'), 'Bearer account-A');
+      return new Response('{"error":"Account A signed out"}', { status: 401, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  await assert.rejects(() => client.post('v1/messages', { body: 'Account A draft' }, { headers: { Authorization: 'Bearer account-A' } }), error => error.status === 401);
+  assert.equal(unauthorized, false);
+});

@@ -69,7 +69,7 @@ export class ApiClient {
       requestBody = JSON.stringify(body);
     }
 
-    if (auth && this.tokenProvider) {
+    if (auth && this.tokenProvider && !requestHeaders.has('Authorization')) {
       const token = await this.tokenProvider();
       if (token) requestHeaders.set('Authorization', `Bearer ${token}`);
     }
