@@ -36,6 +36,7 @@ import { getLastNotificationResponse, getNotificationPreferences, rememberDevice
 import { useMessagingStore } from './src/hooks/useMessagingStore';
 import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
+import PublicChatsList from './src/components/PublicChatsList';
 import GroupManagement from './src/components/GroupManagement';
 import UserProfileModal from './src/components/UserProfileModal';
 import ChatThemeSettings from './src/components/ChatThemeSettings';
@@ -602,7 +603,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
   const lastBackPressRef = useRef(0);
 
   const loadChats = useCallback(async (refresh = false, silent = false) => {
-    if (section === 'contacts' || section === 'notifications') {
+    if (section === 'contacts' || section === 'notifications' || section === 'public') {
       setLoading(false);
       setRefreshing(false);
       return;
@@ -644,13 +645,15 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
       const local = chats.find(item => Number(item.id) === Number(initialChatId));
       if (local) { setSelectedChat(local); onInitialChatConsumed?.(); return; }
       try {
-        const [{ data: privateData }, { data: groupData }] = await Promise.all([
+        const [{ data: privateData }, { data: groupData }, { data: publicData }] = await Promise.all([
           platformApi.listChats('private'),
           platformApi.listChats('group'),
+          platformApi.listChats('public'),
         ]);
         const target = [
           ...normalizeChats(privateData.chats, false),
           ...normalizeChats(groupData.chats, true),
+          ...(publicData.chats || []).map(chat => ({ ...chat, id: Number(chat.id), isPublic: true, isGroup: false })),
         ].find(item => Number(item.id) === Number(initialChatId));
         if (target) { setSelectedChat(target); onInitialChatConsumed?.(); }
       } catch {}
@@ -687,16 +690,18 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
   };
   const openChatFromNotification = async chatId => {
     try {
-      const [{ data: privateData }, { data: groupData }] = await Promise.all([
+      const [{ data: privateData }, { data: groupData }, { data: publicData }] = await Promise.all([
         platformApi.listChats('private'),
         platformApi.listChats('group'),
+        platformApi.listChats('public'),
       ]);
       const target = [
         ...normalizeChats(privateData.chats, false),
         ...normalizeChats(groupData.chats, true),
+        ...(publicData.chats || []).map(chat => ({ ...chat, id: Number(chat.id), isPublic: true, isGroup: false })),
       ].find(item => Number(item.id) === Number(chatId));
       if (target) {
-        setSection(target.isGroup ? 'groups' : 'private');
+        setSection(target.isPublic ? 'public' : target.isGroup ? 'groups' : 'private');
         setSelectedChat(target);
       }
     } catch (e) {
@@ -709,8 +714,8 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
     : chats;
-  const navItems = [['all','Chats','💬'],['contacts','Contacts','👥'],['notifications','Alerts','🔔'],['groups','Groups','👪']];
-  const topTabs = [['all','All Chats'],['private','Private'],['groups','Groups'],['contacts','Contacts']];
+  const navItems = [['all','Chats','💬'],['public','Public','🌐'],['contacts','Contacts','👥'],['notifications','Alerts','🔔'],['groups','Groups','👪']];
+  const topTabs = [['all','All Chats'],['private','Private'],['groups','Groups'],['public','Public Chats'],['contacts','Contacts']];
 
   return (
     <SafeAreaView style={styles.mobileHome} edges={['top', 'bottom', 'left', 'right']}>
@@ -739,6 +744,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
       <View style={styles.mobileContent}>
         {section === 'contacts' ? <ContactsList onOpenChat={chat => { setSection('private'); setSelectedChat(chat); }} />
           : section === 'notifications' ? <NotificationsList onOpenChat={openChatFromNotification} />
+          : section === 'public' ? <PublicChatsList onOpenChat={chat => { setSection('public'); setSelectedChat(chat); }} />
           : <>
             {error ? <Text style={styles.listError}>{error}</Text> : null}
             {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : <FlatList
@@ -751,7 +757,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
                 const imageId = item.isGroup ? item.id : (item.other_user_id || item.id);
                 const title = item.name || 'Conversation';
                 return <Pressable onPress={() => setSelectedChat(item)} style={styles.mobileChatRow}>
-                  <View style={styles.mobileAvatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId) }} style={styles.mobileAvatarImage} /><View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View></View>
+                  <View style={styles.mobileAvatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId, item.image_version) }} style={styles.mobileAvatarImage} /><View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View></View>
                   <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={styles.mobileChatName}>{title}</Text><Text numberOfLines={1} style={styles.mobilePreview}>{localMessages?.drafts?.[String(item.id)] ? `Draft: ${localMessages.drafts[String(item.id)]}` : item.preview || (item.isGroup ? 'Group conversation' : 'No messages yet')}</Text></View>
                   <View style={styles.mobileChatRight}><Text style={styles.mobileTime}>{compactTime(item.last_message_at || item.created_at)}</Text>{Number(item.unread || 0) > 0 ? <View style={styles.mobileUnread}><Text style={styles.mobileUnreadText}>{Number(item.unread) > 99 ? '99+' : item.unread}</Text></View> : null}</View>
                 </Pressable>;
@@ -760,7 +766,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
           </>}
       </View>
 
-      {section !== 'notifications' && section !== 'contacts' ? <Pressable style={styles.floatingChatButton} onPress={() => openMenu(section === 'groups' ? 'group' : 'private')}><Text style={styles.floatingChatIcon}>💬</Text></Pressable> : null}
+      {section !== 'notifications' && section !== 'contacts' && section !== 'public' ? <Pressable style={styles.floatingChatButton} onPress={() => openMenu(section === 'groups' ? 'group' : 'private')}><Text style={styles.floatingChatIcon}>💬</Text></Pressable> : null}
 
       <View style={styles.bottomNav}>
         {navItems.map(([value,label,icon]) => {
