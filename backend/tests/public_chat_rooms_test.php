@@ -13,13 +13,14 @@ assert(is_string($handler) && str_contains($handler, 'c.type="public"'));
 assert(str_contains($handler, 'c.group_category="india-city"'));
 assert(str_contains($handler, 'INSERT INTO chat_members'));
 
-$schema = file_get_contents(__DIR__ . '/../sql/schema.sql');
-assert(is_string($schema));
-assert(substr_count($schema, "'public', v.name, 'india-city'") === 1);
-assert(substr_count($schema, "SELECT 'Ahmedabad'") === 1);
-assert(substr_count($schema, "SELECT 'Warangal'") === 1);
+$fresh = file_get_contents(__DIR__ . '/../database/fresh-install.sql');
+assert(is_string($fresh));
+assert(substr_count($fresh, "'public', v.name, 'india-city'") === 1);
+assert(substr_count($fresh, "SELECT 'Ahmedabad'") === 1);
+assert(substr_count($fresh, "SELECT 'Warangal'") === 1);
+assert(substr_count($fresh, "SELECT '") === 50, 'Fresh-install schema must contain exactly 50 city/town rows');
 
-$migration = file_get_contents(__DIR__ . '/../sql/migrations/002_india_public_chat_rooms.sql');
+$migration = file_get_contents(__DIR__ . '/../database/migrations/011_public_city_chat_rooms.sql');
 assert(is_string($migration));
 assert(str_contains($migration, "WHERE NOT EXISTS"));
 assert(substr_count($migration, "SELECT '") === 50, 'Migration must contain exactly 50 city/town rows');
