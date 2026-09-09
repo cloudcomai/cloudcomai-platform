@@ -22,6 +22,6 @@ assert(substr_count($schema, "SELECT 'Warangal'") === 1);
 $migration = file_get_contents(__DIR__ . '/../sql/migrations/002_india_public_chat_rooms.sql');
 assert(is_string($migration));
 assert(str_contains($migration, "WHERE NOT EXISTS"));
-assert(substr_count($migration, "SELECT '") === 51, 'Migration must contain exactly 50 city/town rows plus the first SELECT expression');
+assert(substr_count($migration, "SELECT '") === 50, 'Migration must contain exactly 50 city/town rows');
 
 echo "public_chat_rooms_test.php passed\n";
