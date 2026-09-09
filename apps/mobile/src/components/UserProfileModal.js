@@ -73,17 +73,13 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
         ) : profile ? (
           <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.profileCard}>
-              {!imageFailed && imageSource ? (
-                <ProfileImagePreview
-                  source={imageSource}
-                  fallback={null}
-                  label={`${name}'s profile photo`}
-                  size={112}
-                  imageStyle={styles.avatarImage}
-                />
-              ) : (
-                <View style={styles.avatarFallbackWrap}><Text style={styles.avatarFallback}>{name[0]?.toUpperCase() || 'U'}</Text></View>
-              )}
+              <ProfileImagePreview
+                source={imageFailed ? '' : imageSource}
+                fallback={name[0]?.toUpperCase() || 'U'}
+                label={`${name}'s profile photo`}
+                size={112}
+                imageStyle={styles.avatarImage}
+              />
               <Text style={styles.name}>{name}</Text>
               {profile.online ? <Text style={styles.online}>● Online</Text> : <Text style={styles.offline}>Offline</Text>}
               {profile.user_id ? <Text style={styles.userId}>@{profile.user_id}</Text> : null}
