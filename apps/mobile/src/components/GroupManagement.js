@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -81,7 +80,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
       setBusy(true);
       const { data } = await uploadMediaAsset(asset, { type: 'group', id: group.id });
-      const nextVersion = Date.now();
+      const nextVersion = data.image_version || Date.now();
       setImageVersion(nextVersion);
       onGroupUpdated?.({ ...group, image_url: data.image_url, image_version: nextVersion });
       Alert.alert('Group photo updated', 'The cropped group photo was saved.');
