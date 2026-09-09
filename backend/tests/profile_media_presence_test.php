@@ -14,6 +14,7 @@ $profile = file_get_contents(__DIR__ . '/../api/profile.php');
 $heartbeat = file_get_contents(__DIR__ . '/../api/heartbeat.php');
 $chats = file_get_contents(__DIR__ . '/../api/chats.php');
 $groups = file_get_contents(__DIR__ . '/../api/groups.php');
+$mobilePlatform = file_get_contents(__DIR__ . '/../../apps/mobile/src/services/platform.js');
 
 expect_contract(str_contains($media, 'Cache-Control: private, no-store, no-cache'), 'Profile media must not be served with a reusable stale cache policy');
 expect_contract(str_contains($media, 'Pragma: no-cache'), 'Profile media must include a no-cache compatibility header');
@@ -25,5 +26,8 @@ expect_contract(str_contains($heartbeat, 'UPDATE users SET updated_at=UTC_TIMEST
 expect_contract(str_contains($chats, "'other_user_online'] = (bool)$participant['online']"), 'Chat responses must expose other-user presence');
 expect_contract(str_contains($chats, "'image_version'] ="), 'Chat responses must expose avatar versions');
 expect_contract(str_contains($groups, "'image_version'] ="), 'Group responses must expose avatar versions');
+expect_contract(str_contains($mobilePlatform, 'sendPresenceHeartbeat();'), 'Mobile session restoration/sign-in must start presence heartbeats');
+expect_contract(str_contains($mobilePlatform, 'setInterval(sendPresenceHeartbeat, 30000)'), 'Mobile presence heartbeat must refresh every 30 seconds');
+expect_contract(str_contains($mobilePlatform, 'stopPresenceHeartbeat();'), 'Mobile logout/session expiry must stop presence heartbeats');
 
 echo "Profile media and presence contract tests passed\n";
