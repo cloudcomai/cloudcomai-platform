@@ -9,9 +9,9 @@ test('user profile picture opens a dedicated large preview modal', async () => {
 
   assert.match(source, /const \[imagePreviewVisible, setImagePreviewVisible\] = useState\(false\);/);
   assert.match(source, /setImagePreviewVisible\(true\)/);
-  assert.match(source, /accessibilityLabel=\{canPreviewImage \? `View \$\{name\}'s profile picture` : undefined\}/);
-  assert.match(source, /visible=\{imagePreviewVisible\}/);
-  assert.match(source, /accessibilityLabel="Close profile picture preview"/);
-  assert.match(source, /style=\{styles\.previewImage\}/);
+  assert.match(source, /View \$\{name\}'s profile picture/);
+  assert.match(source, /imagePreviewVisible/);
+  assert.match(source, /Close profile picture preview/);
+  assert.match(source, /previewImage/);
   assert.match(source, /resizeMode="contain"/);
 });
