@@ -1,5 +1,7 @@
 name: Apply mobile screenshot protection
 
+# One-time migration of the existing ChatDetail screenshot listener.
+
 on:
   push:
     branches:
