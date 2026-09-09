@@ -19,6 +19,14 @@ on:
         options:
           - initial
           - release
+      migration_mode:
+        description: AUTO runs versioned migrations over HTTPS. ALREADY_APPLIED skips the migration call only after you have applied all pending migrations manually.
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - already_applied
       database_ready:
         description: Select YES only after fresh-install.sql is imported for INITIAL, or after a current DB backup exists for RELEASE.
         required: true
@@ -56,6 +64,7 @@ jobs:
       - name: Show deployment plan
         run: |
           echo "Deployment mode: ${{ inputs.deployment_mode }}"
+          echo "Migration mode: ${{ inputs.migration_mode }}"
           if [ "${{ inputs.deployment_mode }}" = "initial" ]; then
             echo "INITIAL: assumes backend/database/fresh-install.sql has already been imported."
             echo "INITIAL: skips production backup and versioned migrations."
@@ -72,6 +81,7 @@ jobs:
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
           DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
           DATABASE_READY: ${{ inputs.database_ready }}
+          MIGRATION_MODE: ${{ inputs.migration_mode }}
         run: |
           set -euo pipefail
           invalid=0
@@ -88,8 +98,8 @@ jobs:
             invalid=1
           fi
 
-          if [ "${DEPLOYMENT_MODE}" = "release" ] && [ -z "${MIGRATION_TOKEN}" ]; then
-            echo "::error::GODADDY_MIGRATION_TOKEN is required for RELEASE deployments."
+          if [ "${DEPLOYMENT_MODE}" = "release" ] && [ "${MIGRATION_MODE}" = "auto" ] && [ -z "${MIGRATION_TOKEN}" ]; then
+            echo "::error::GODADDY_MIGRATION_TOKEN is required when migration_mode=auto."
             invalid=1
           fi
 
@@ -238,6 +248,11 @@ jobs:
         shell: bash
         env:
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
+          FTP_SERVER: ${{ secrets.GODADDY_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.GODADDY_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          GODADDY_API_DIR: ${{ env.GODADDY_API_DIR }}
+          BACKUP_DIR: .deploy/production-backup
         run: |
           set -euo pipefail
           deployment_url="${PRODUCTION_API_URL%/api}/deploy-migrations"
@@ -249,20 +264,38 @@ jobs:
             --write-out '%{http_code}' \
             -H "Authorization: Bearer ${MIGRATION_TOKEN}" \
             -H "Accept: application/json" \
-            "${deployment_url}/backup/deploy-backup.php")"
+            "${deployment_url}/backup/deploy-backup.php" || true)"
 
           echo "Backup HTTP status: ${http_code}"
-          cat "${response_file}"
+          cat "${response_file}" || true
           echo
 
-          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
-             ! jq -e '.success == true and (.backup | length > 0)' "${response_file}" >/dev/null; then
-            echo "::error::Production filesystem backup failed. Deployment stopped."
+          if [ "${http_code}" -ge 200 ] 2>/dev/null && [ "${http_code}" -lt 300 ] 2>/dev/null &&
+             jq -e '.success == true and (.backup | length > 0)' "${response_file}" >/dev/null 2>&1; then
+            backup_name="$(jq -r '.backup' "${response_file}")"
+            echo "backup_name=${backup_name}" >> "${GITHUB_OUTPUT}"
+            echo "backup_method=http" >> "${GITHUB_OUTPUT}"
+            echo "Server-side compressed backup created successfully."
+          elif [ "${http_code}" = "403" ] && grep -qi 'Imunify360\|bot-protection\|automation should be whitelisted' "${response_file}"; then
+            echo "::warning::Imunify360 blocked the GitHub runner. Falling back to FTP filesystem backup."
+            python3 scripts/godaddy_ftp_backup.py backup
+            tar -czf .deploy/cloudcomai-production-backup.tar.gz -C .deploy production-backup
+            test -s .deploy/cloudcomai-production-backup.tar.gz
+            echo "backup_name=ftp-local" >> "${GITHUB_OUTPUT}"
+            echo "backup_method=ftp" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::error::Production filesystem backup failed for a reason other than the known Imunify360 automation block."
             exit 1
           fi
 
-          backup_name="$(jq -r '.backup' "${response_file}")"
-          echo "backup_name=${backup_name}" >> "${GITHUB_OUTPUT}"
+      - name: Preserve FTP fallback backup artifact
+        if: inputs.deployment_mode == 'release' && steps.backup.outputs.backup_method == 'ftp'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudcomai-production-backup-${{ github.run_id }}
+          path: .deploy/cloudcomai-production-backup.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload migration package
         if: inputs.deployment_mode == 'release'
@@ -280,7 +313,7 @@ jobs:
             backup/**
 
       - name: Run versioned production database migrations
-        if: inputs.deployment_mode == 'release'
+        if: inputs.deployment_mode == 'release' && inputs.migration_mode == 'auto'
         shell: bash
         env:
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
@@ -300,11 +333,23 @@ jobs:
           cat "${response_file}"
           echo
 
+          if [ "${http_code}" = "403" ] && grep -qi 'Imunify360\|bot-protection\|automation should be whitelisted' "${response_file}"; then
+            echo "::error::Imunify360 blocked the automated database migration. No application files were deployed."
+            echo "::error::Apply pending migrations manually, then rerun with migration_mode=already_applied."
+            exit 1
+          fi
+
           if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
              ! jq -e '.success == true' "${response_file}" >/dev/null; then
             echo "::error::Production database migration failed."
             exit 1
           fi
+
+      - name: Confirm manually applied migrations
+        if: inputs.deployment_mode == 'release' && inputs.migration_mode == 'already_applied'
+        run: |
+          echo "::warning::Automated migration is skipped because migration_mode=already_applied."
+          echo "Proceeding only because database_ready=YES was explicitly confirmed."
 
       - name: Deploy PHP backend
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -372,11 +417,23 @@ jobs:
         env:
           MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
           BACKUP_NAME: ${{ steps.backup.outputs.backup_name }}
+          BACKUP_METHOD: ${{ steps.backup.outputs.backup_method }}
+          FTP_SERVER: ${{ secrets.GODADDY_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.GODADDY_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          GODADDY_API_DIR: ${{ env.GODADDY_API_DIR }}
+          BACKUP_DIR: .deploy/production-backup
         run: |
           set -euo pipefail
+
+          if [ "${BACKUP_METHOD}" = "ftp" ]; then
+            python3 scripts/godaddy_ftp_backup.py restore
+            echo "::warning::Previous backend files were restored over FTP. Production config, storage, and deploy-migrations were preserved."
+            exit 0
+          fi
+
           deployment_url="${PRODUCTION_API_URL%/api}/deploy-migrations"
           response_file="$(mktemp)"
-
           http_code="$(curl --silent --show-error \
             --output "${response_file}" \
             --write-out '%{http_code}' \
@@ -384,16 +441,16 @@ jobs:
             -H "Authorization: Bearer ${MIGRATION_TOKEN}" \
             -H "Accept: application/json" \
             --data-urlencode "backup=${BACKUP_NAME}" \
-            "${deployment_url}/backup/restore-backup.php")"
+            "${deployment_url}/backup/restore-backup.php" || true)"
 
           echo "Rollback HTTP status: ${http_code}"
-          cat "${response_file}"
+          cat "${response_file}" || true
           echo
 
           if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
-             ! jq -e '.success == true' "${response_file}" >/dev/null; then
-            echo "::error::Automatic backend rollback failed. Manual recovery is required."
+             ! jq -e '.success == true' "${response_file}" >/dev/null 2>&1; then
+            echo "::error::Automatic server-side rollback failed. Manual recovery may be required."
             exit 1
           fi
 
-          echo "::warning::Previous backend files were restored. Review the database and web files manually."
+          echo "::warning::Previous backend files were restored from the server-side compressed backup."
