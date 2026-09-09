@@ -219,50 +219,31 @@ jobs:
           cp backend/scripts/migration-bootstrap.php .deploy/migrations/lib/bootstrap.php
           cp backend/database/migrations/*.sql .deploy/migrations/database/migrations/
 
-      - name: Upload protected recovery tools
-        if: inputs.deployment_mode == 'release'
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.GODADDY_FTP_SERVER }}
-          username: ${{ secrets.GODADDY_FTP_USERNAME }}
-          password: ${{ secrets.GODADDY_FTP_PASSWORD }}
-          protocol: ftp
-          port: 21
-          local-dir: ./.deploy/recovery/
-          server-dir: ${{ env.GODADDY_API_DIR }}deploy-migrations/backup/
-          state-name: .cloudcomai-godaddy-recovery-state.json
-
-      - name: Create verified production filesystem backup
+      - name: Create verified production filesystem backup over FTP
         id: backup
         if: inputs.deployment_mode == 'release'
         shell: bash
         env:
-          MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
+          FTP_SERVER: ${{ secrets.GODADDY_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.GODADDY_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          GODADDY_API_DIR: ${{ env.GODADDY_API_DIR }}
+          BACKUP_DIR: .deploy/production-backup
         run: |
           set -euo pipefail
-          deployment_url="${PRODUCTION_API_URL%/api}/deploy-migrations"
-          response_file="$(mktemp)"
+          python3 scripts/godaddy_ftp_backup.py backup
+          tar -czf .deploy/cloudcomai-production-backup.tar.gz -C .deploy production-backup
+          test -s .deploy/cloudcomai-production-backup.tar.gz
+          echo "backup_name=ftp-local" >> "${GITHUB_OUTPUT}"
 
-          http_code="$(curl --silent --show-error \
-            --retry 2 \
-            --output "${response_file}" \
-            --write-out '%{http_code}' \
-            -H "Authorization: Bearer ${MIGRATION_TOKEN}" \
-            -H "Accept: application/json" \
-            "${deployment_url}/backup/deploy-backup.php")"
-
-          echo "Backup HTTP status: ${http_code}"
-          cat "${response_file}"
-          echo
-
-          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
-             ! jq -e '.success == true and (.backup | length > 0)' "${response_file}" >/dev/null; then
-            echo "::error::Production filesystem backup failed. Deployment stopped."
-            exit 1
-          fi
-
-          backup_name="$(jq -r '.backup' "${response_file}")"
-          echo "backup_name=${backup_name}" >> "${GITHUB_OUTPUT}"
+      - name: Preserve production backup artifact
+        if: inputs.deployment_mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudcomai-production-backup-${{ github.run_id }}
+          path: .deploy/cloudcomai-production-backup.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload migration package
         if: inputs.deployment_mode == 'release'
@@ -370,30 +351,12 @@ jobs:
         if: ${{ failure() && inputs.deployment_mode == 'release' && steps.backup.outputs.backup_name != '' }}
         shell: bash
         env:
-          MIGRATION_TOKEN: ${{ secrets.GODADDY_MIGRATION_TOKEN }}
-          BACKUP_NAME: ${{ steps.backup.outputs.backup_name }}
+          FTP_SERVER: ${{ secrets.GODADDY_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.GODADDY_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.GODADDY_FTP_PASSWORD }}
+          GODADDY_API_DIR: ${{ env.GODADDY_API_DIR }}
+          BACKUP_DIR: .deploy/production-backup
         run: |
           set -euo pipefail
-          deployment_url="${PRODUCTION_API_URL%/api}/deploy-migrations"
-          response_file="$(mktemp)"
-
-          http_code="$(curl --silent --show-error \
-            --output "${response_file}" \
-            --write-out '%{http_code}' \
-            -X POST \
-            -H "Authorization: Bearer ${MIGRATION_TOKEN}" \
-            -H "Accept: application/json" \
-            --data-urlencode "backup=${BACKUP_NAME}" \
-            "${deployment_url}/backup/restore-backup.php")"
-
-          echo "Rollback HTTP status: ${http_code}"
-          cat "${response_file}"
-          echo
-
-          if [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ] ||
-             ! jq -e '.success == true' "${response_file}" >/dev/null; then
-            echo "::error::Automatic backend rollback failed. Manual recovery is required."
-            exit 1
-          fi
-
-          echo "::warning::Previous backend files were restored. Review the database and web files manually."
+          python3 scripts/godaddy_ftp_backup.py restore
+          echo "::warning::Previous backend files were restored over FTP. Production config, storage, and deploy-migrations were preserved."
