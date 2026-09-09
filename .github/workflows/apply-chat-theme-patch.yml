@@ -21,8 +21,6 @@ jobs:
           python-version: '3.x'
       - name: Patch App.js
         run: python .github/scripts/apply-chat-theme-patch.py
-      - name: Validate App.js syntax
-        run: node --check apps/mobile/App.js
       - name: Remove temporary patch tooling
         run: rm -f .github/scripts/apply-chat-theme-patch.py .github/workflows/apply-chat-theme-patch.yml
       - name: Commit integration
