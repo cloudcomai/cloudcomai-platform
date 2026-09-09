@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { mediaUrl, platformApi } from '../services/platform';
+import ProfileImagePreview from './ProfileImagePreview';
 
 const DetailRow = ({ label, value }) => (
   <View style={styles.detailRow}>
@@ -49,7 +50,7 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
 
   const name = profile?.name || fallbackName || 'CloudComAI user';
   const imageSource = profile?.id
-    ? `${mediaUrl('user', profile.id)}&v=${profile.image_version || ''}`
+    ? mediaUrl('user', profile.id, profile.image_version)
     : '';
 
   return (
@@ -73,13 +74,20 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
         ) : profile ? (
           <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.profileCard}>
-              <View style={styles.avatar}>
-                {!imageFailed && imageSource ? (
-                  <Image source={{ uri: imageSource }} style={styles.avatarImage} onError={() => setImageFailed(true)} />
-                ) : null}
-                <Text style={styles.avatarFallback}>{name[0]?.toUpperCase() || 'U'}</Text>
-              </View>
+              {!imageFailed && imageSource ? (
+                <ProfileImagePreview
+                  source={imageSource}
+                  fallback={null}
+                  label={`${name}'s profile photo`}
+                  size={112}
+                  onPreviewChange={() => {}}
+                  imageStyle={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatarFallbackWrap}><Text style={styles.avatarFallback}>{name[0]?.toUpperCase() || 'U'}</Text></View>
+              )}
               <Text style={styles.name}>{name}</Text>
+              {profile.online ? <Text style={styles.online}>● Online</Text> : <Text style={styles.offline}>Offline</Text>}
               {profile.user_id ? <Text style={styles.userId}>@{profile.user_id}</Text> : null}
             </View>
 
@@ -108,10 +116,12 @@ const styles = StyleSheet.create({
   loader: { marginTop: 60 },
   content: { padding: 18, gap: 14 },
   profileCard: { alignItems: 'center', padding: 24, borderRadius: 18, backgroundColor: '#fff' },
-  avatar: { width: 112, height: 112, borderRadius: 56, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e5eaff' },
-  avatarImage: { ...StyleSheet.absoluteFillObject, width: 112, height: 112, zIndex: 2 },
+  avatarImage: { width: 112, height: 112 },
+  avatarFallbackWrap: { width: 112, height: 112, borderRadius: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e5eaff' },
   avatarFallback: { color: '#3157d5', fontSize: 38, fontWeight: '900' },
   name: { marginTop: 14, color: '#172033', fontSize: 23, fontWeight: '900', textAlign: 'center' },
+  online: { marginTop: 5, color: '#16a34a', fontSize: 13, fontWeight: '800' },
+  offline: { marginTop: 5, color: '#94a3b8', fontSize: 13, fontWeight: '700' },
   userId: { marginTop: 4, color: '#64748b', fontSize: 13 },
   detailsCard: { paddingHorizontal: 18, borderRadius: 18, backgroundColor: '#fff' },
   detailRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
