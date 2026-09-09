@@ -31,7 +31,21 @@ if ($method === 'GET') {
         ORDER BY COALESCE(MAX(m.created_at),c.created_at) DESC
     ');
     $st->execute([$user['id']]);
-    out(['groups' => $st->fetchAll()]);
+    $groups = $st->fetchAll();
+    $folder = dirname(__DIR__) . '/uploads/groups';
+    foreach ($groups as &$group) {
+        $group['id'] = (int)$group['id'];
+        $group['owner_id'] = $group['owner_id'] !== null ? (int)$group['owner_id'] : null;
+        $group['image_version'] = null;
+        foreach (glob($folder . '/' . $group['id'] . '.*') ?: [] as $candidate) {
+            if (is_file($candidate)) {
+                $group['image_version'] = (string)(filemtime($candidate) ?: 0) . '-' . (string)filesize($candidate);
+                break;
+            }
+        }
+    }
+    unset($group);
+    out(['groups' => $groups]);
 }
 
 if ($method === 'POST' && $action === 'invite') {
@@ -70,7 +84,7 @@ if ($method === 'POST') {
         $pdo->prepare('INSERT INTO group_invites(chat_id,token_hash,created_by,active,created_at) VALUES(?,SHA2(?,256),?,1,UTC_TIMESTAMP())')->execute([$chatId,$raw,$user['id']]);
         $pdo->commit();
         out(array_merge([
-            'group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'owner_id'=>(int)$user['id'],'retention_seconds'=>$retention,'isGroup'=>true]
+            'group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'owner_id'=>(int)$user['id'],'retention_seconds'=>$retention,'isGroup'=>true,'image_version'=>null]
         ], group_invite_payload($raw)),201);
     } catch(Throwable $e){ $pdo->rollBack(); error_log('groups.php POST error: '.$e->getMessage()); fail('Group creation failed',500); }
 }
@@ -104,7 +118,7 @@ if ($method === 'DELETE') {
         $pdo->prepare('UPDATE group_invites SET active=0 WHERE chat_id=?')->execute([$chatId]);
         $pdo->commit();
         out(['message'=>'Group deleted','group_id'=>$chatId]);
-    } catch(Throwable $e){ $pdo->rollBack(); error_log('groups.php DELETE error: '.$e->getMessage()); fail('Group deletion failed',500); }
+    } catch(Throwable $e){ $pdo->rollBack(); error_log('groups.php DELETE error: '.$e->getMessage()); $pdo->rollBack(); fail('Group deletion failed',500); }
 }
 
 fail('Method not allowed',405);
