@@ -24,23 +24,68 @@ const secureStorage = {
   removeItem: key => SecureStore.deleteItemAsync(key),
 };
 
-export const sessionManager = createAuthSessionManager({ storage: secureStorage });
+const authSessionManager = createAuthSessionManager({ storage: secureStorage });
 const sessionExpirationListeners = new Set();
+let presenceTimer = null;
+let presenceInFlight = false;
+
+const expireSession = async () => {
+  stopPresenceHeartbeat();
+  await authSessionManager.clearSession();
+  for (const listener of sessionExpirationListeners) listener();
+};
+
 export const subscribeToSessionExpiration = listener => {
   sessionExpirationListeners.add(listener);
   return () => sessionExpirationListeners.delete(listener);
 };
 
-const expireSession = async () => {
-  await sessionManager.clearSession();
-  for (const listener of sessionExpirationListeners) listener();
-};
-
 export const apiClient = createApiClient({
   baseUrl: API_BASE_URL,
-  tokenProvider: () => sessionManager.getToken(),
+  tokenProvider: () => authSessionManager.getToken(),
   onUnauthorized: expireSession,
 });
+
+const sendPresenceHeartbeat = async () => {
+  if (presenceInFlight || !(await authSessionManager.getToken())) return;
+  presenceInFlight = true;
+  try {
+    await apiClient.post(ApiRoute.HEARTBEAT, {}, { auth: true });
+  } catch {
+    // Presence is best-effort and must never interrupt messaging.
+  } finally {
+    presenceInFlight = false;
+  }
+};
+
+const startPresenceHeartbeat = () => {
+  stopPresenceHeartbeat();
+  sendPresenceHeartbeat();
+  presenceTimer = setInterval(sendPresenceHeartbeat, 30000);
+};
+
+function stopPresenceHeartbeat() {
+  if (presenceTimer) clearInterval(presenceTimer);
+  presenceTimer = null;
+}
+
+export const sessionManager = {
+  getToken: () => authSessionManager.getToken(),
+  getSession: async () => {
+    const session = await authSessionManager.getSession();
+    if (session?.token) startPresenceHeartbeat();
+    return session;
+  },
+  setSession: async session => {
+    const result = await authSessionManager.setSession(session);
+    if (session?.token) startPresenceHeartbeat();
+    return result;
+  },
+  clearSession: async () => {
+    stopPresenceHeartbeat();
+    return authSessionManager.clearSession();
+  },
+};
 
 export const platformApi = createCloudComAiApi(apiClient);
 
@@ -164,6 +209,9 @@ export async function downloadAttachmentPreview(attachment) {
   }
 }
 
-export const mediaUrl = (type, id) => {
-  return buildApiUrl(API_BASE_URL, ApiRoute.MEDIA || 'v1/media', { type, id });
+export const mediaUrl = (type, id, version = '') => {
+  const base = buildApiUrl(API_BASE_URL, ApiRoute.MEDIA || 'v1/media', { type, id });
+  return version === '' || version === null || version === undefined
+    ? base
+    : `${base}&v=${encodeURIComponent(String(version))}`;
 };
