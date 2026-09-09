@@ -9,9 +9,11 @@ assert(in_array('GET', $contract['routes']['v1/public-chats']['methods'], true))
 assert(in_array('POST', $contract['routes']['v1/public-chats']['methods'], true));
 
 $handler = file_get_contents(__DIR__ . '/../api/public_chats.php');
-assert(is_string($handler) && str_contains($handler, 'c.type="public"'));
-assert(str_contains($handler, 'c.group_category="india-city"'));
+assert(is_string($handler) && str_contains($handler, "c.type='public'"));
+assert(str_contains($handler, "c.group_category='india-city'"));
+assert(str_contains($handler, 'LIMIT 50'));
 assert(str_contains($handler, 'INSERT INTO chat_members'));
+assert(str_contains($handler, "roomQuery = $pdo->prepare"));
 
 $fresh = file_get_contents(__DIR__ . '/../database/fresh-install.sql');
 assert(is_string($fresh));
