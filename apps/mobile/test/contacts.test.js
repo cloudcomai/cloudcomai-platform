@@ -42,5 +42,4 @@ statusUnavailable.getGoogleStatus = async () => {
 assert.deepEqual(await loadMobileContacts(statusUnavailable), registered);
 assert.deepEqual(statusUnavailable.calls, ['status', ['list', 1, 500]]);
 
-echo = console.log;
-echo('Mobile contacts loading tests passed');
+console.log('Mobile contacts loading tests passed');
