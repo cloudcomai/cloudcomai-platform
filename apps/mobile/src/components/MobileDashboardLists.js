@@ -44,6 +44,21 @@ export function ContactsList({ onOpenChat }) {
     }
   };
 
+  const openNotification = async item => {
+    try {
+      if (!item.read_at) {
+        await platformApi.markNotificationsRead({ notification_ids: [Number(item.id)] });
+        setItems(current => current.map(entry => Number(entry.id) === Number(item.id) ? { ...entry, read_at: new Date().toISOString() } : entry));
+        const next = Math.max(0, unread - 1);
+        setUnread(next);
+        setApplicationBadge(next);
+      }
+      if (item.data?.chat_id) onOpenChat?.(Number(item.data.chat_id));
+    } catch (e) {
+      setError(e.message || 'Unable to open notification.');
+    }
+  };
+
   if (loading) return <ActivityIndicator style={styles.loader} color="#3157d5" />;
 
   return (
@@ -131,7 +146,7 @@ export function NotificationsList({ onOpenChat }) {
         renderItem={({ item }) => (
           <Pressable
             style={[styles.notificationRow, !item.read_at && styles.unreadRow]}
-            onPress={() => onOpenChat?.(item.data?.chat_id ? Number(item.data.chat_id) : null)}
+            onPress={() => openNotification(item)}
           >
             <View style={[styles.notificationDot, item.read_at && styles.notificationDotRead]} />
             <View style={styles.meta}>
