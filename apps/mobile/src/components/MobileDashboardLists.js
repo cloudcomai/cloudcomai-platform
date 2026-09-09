@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { platformApi } from '../services/platform';
 import { setApplicationBadge } from '../services/notifications';
+import { loadMobileContacts } from '../utils/contacts';
 
 export function ContactsList({ onOpenChat }) {
   const [items, setItems] = useState([]);
@@ -22,8 +23,8 @@ export function ContactsList({ onOpenChat }) {
     refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      const { data } = await platformApi.listContacts(1, 500);
-      setItems(data.contacts || []);
+      const contacts = await loadMobileContacts(platformApi, 1, 500);
+      setItems(contacts);
     } catch (e) {
       setError(e.message || 'Unable to load People & Contacts.');
     } finally {
@@ -43,21 +44,6 @@ export function ContactsList({ onOpenChat }) {
     }
   };
 
-  const openNotification = async item => {
-    try {
-      if (!item.read_at) {
-        await platformApi.markNotificationsRead({ notification_ids: [Number(item.id)] });
-        setItems(current => current.map(entry => Number(entry.id) === Number(item.id) ? { ...entry, read_at: new Date().toISOString() } : entry));
-        const next = Math.max(0, unread - 1);
-        setUnread(next);
-        setApplicationBadge(next);
-      }
-      if (item.data?.chat_id) onOpenChat?.(Number(item.data.chat_id));
-    } catch (e) {
-      setError(e.message || 'Unable to open notification.');
-    }
-  };
-
   if (loading) return <ActivityIndicator style={styles.loader} color="#3157d5" />;
 
   return (
@@ -68,7 +54,7 @@ export function ContactsList({ onOpenChat }) {
         keyExtractor={item => String(item.registered_user_id || item.id)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
         contentContainerStyle={items.length ? styles.list : styles.empty}
-        ListEmptyComponent={<Text style={styles.emptyText}>No registered CloudComAI contacts found. Sync Google Contacts from the menu or Settings.</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>No registered CloudComAI contacts found. Connect and sync Google Contacts from the menu or Settings.</Text>}
         renderItem={({ item }) => {
           const title = item.display_name || item.registered_name || item.email || item.phone || 'CloudComAI contact';
           return (
@@ -145,7 +131,7 @@ export function NotificationsList({ onOpenChat }) {
         renderItem={({ item }) => (
           <Pressable
             style={[styles.notificationRow, !item.read_at && styles.unreadRow]}
-            onPress={() => openNotification(item)}
+            onPress={() => onOpenChat?.(item.data?.chat_id ? Number(item.data.chat_id) : null)}
           >
             <View style={[styles.notificationDot, item.read_at && styles.notificationDotRead]} />
             <View style={styles.meta}>
