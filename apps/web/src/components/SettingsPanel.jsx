@@ -79,6 +79,8 @@ export default function SettingsPanel({ user, setModal, onLogout, close, setScre
             <ChevronRight size={16} />
           </button>
 
+          {[['saved_messages', 'Saved messages', 'Find messages you saved'], ['sessions', 'Devices & sessions', 'Review and sign out active devices']].map(([id, title, description]) => <button key={id} type="button" onClick={() => setModal(id)} style={rowStyle}><span style={iconWrapStyle}><Shield size={17} /></span><span style={textWrapStyle}><strong>{title}</strong><small>{description}</small></span><ChevronRight size={16} /></button>)}
+
           <button type="button" onClick={onLogout} style={{ ...rowStyle, color: '#ef4444' }}>
             <span style={{ ...iconWrapStyle, color: '#ef4444' }}><LogOut size={17} /></span>
             <span style={textWrapStyle}><strong>Sign Out</strong><small>Sign out from this account</small></span>

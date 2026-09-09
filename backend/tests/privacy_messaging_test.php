@@ -72,7 +72,10 @@ try {
 
     $profile = request('GET','v1/users/profile?id=1',2)['data']['user'];
     check($profile['name']==='Alice' && $profile['age']>=18 && $profile['gender']==='Female','Shared contact profile fields missing');
-    check($profile['email']==='alice@example.test' && $profile['mobile']===null,'Optional contact fields invalid');
+    check($profile['email']===null && $profile['mobile']===null,'Contact details must be private by default');
+    request('PUT','v1/users/privacy',1,['share_email'=>true,'share_age'=>false]);
+    $shared=request('GET','v1/users/profile?id=1',2)['data']['user'];
+    check($shared['email']==='alice@example.test' && $shared['age']===null,'Profile visibility choices ignored');
     check(!array_key_exists('dob',$profile),'Profile exposed date of birth instead of derived age');
     request('GET','v1/users/profile?id=1',3,null,403);
 
@@ -218,6 +221,7 @@ try {
     $admin->exec('RENAME TABLE unavailable_delivery_queue TO notification_delivery_queue');
     request('POST','v1/messages',1,['chat_id'=>1,'body'=>'successful retry fixture'],201);
     check((int)$admin->query('SELECT COUNT(*) FROM messages')->fetchColumn()===$messageCount+1,'Retry did not create exactly one message');
+    require __DIR__ . '/lifecycle_cases.php';
     echo "Profiles, group authorization, DOB, privacy, search, deletion, media, poll synchronization, transactional sends, backup, and migration integration tests passed\n";
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . "\n");

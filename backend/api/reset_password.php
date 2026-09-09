@@ -48,6 +48,7 @@ try {
         ->execute([$reset['user_id']]);
     $pdo->prepare('UPDATE notification_devices SET revoked_at=UTC_TIMESTAMP() WHERE user_id=? AND revoked_at IS NULL')
         ->execute([$reset['user_id']]);
+    $pdo->prepare('UPDATE user_sessions SET revoked_at=UTC_TIMESTAMP() WHERE user_id=? AND revoked_at IS NULL')->execute([$reset['user_id']]);
     $pdo->commit();
     out(['message' => 'Password has been reset successfully']);
 } catch (Throwable $e) {

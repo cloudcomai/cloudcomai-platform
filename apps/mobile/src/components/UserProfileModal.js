@@ -94,12 +94,12 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
             </View>
 
             <View style={styles.detailsCard}>
-              <DetailRow label="Age" value={String(profile.age)} />
-              <DetailRow label="Gender" value={profile.gender} />
+              <DetailRow label="Age" value={profile.hidden_fields?.includes('age') ? 'Private' : profile.age == null ? 'Not set' : String(profile.age)} />
+              <DetailRow label="Gender" value={profile.hidden_fields?.includes('gender') ? 'Private' : profile.gender || 'Not set'} />
               {profile.email ? <DetailRow label="Email" value={profile.email} /> : null}
               {profile.mobile ? <DetailRow label="Contact" value={profile.mobile} /> : null}
               {!profile.email && !profile.mobile ? (
-                <Text style={styles.optionalNote}>This user has not added optional email or contact details.</Text>
+                <Text style={styles.optionalNote}>Email and contact details are not shared.</Text>
               ) : null}
             </View>
           </ScrollView>

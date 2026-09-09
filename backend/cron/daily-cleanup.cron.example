@@ -1,0 +1,4 @@
+# Install on the backend host with `crontab -e` or Hosting > Cron Jobs.
+# Set the host's cron timezone to UTC. Replace paths for your account.
+# Run daily at 02:15 UTC; keep the log outside the public web directory.
+15 2 * * * /usr/local/bin/php /home/ACCOUNT/public_html/apiapp/cron_cleanup.php >> /home/ACCOUNT/logs/cloudcomai-cleanup.log 2>&1

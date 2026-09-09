@@ -2,7 +2,11 @@
 declare(strict_types=1);
 require __DIR__ . '/../lib/bootstrap.php';
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
-$rows = db()->query("SELECT q.id,q.device_id,d.token,h.user_id,h.title,h.body,h.data_json,(SELECT COUNT(*) FROM notification_history unread WHERE unread.user_id=h.user_id AND unread.read_at IS NULL) AS unread_count FROM notification_delivery_queue q JOIN notification_devices d ON d.id=q.device_id JOIN notification_history h ON h.id=q.notification_id WHERE q.status='PENDING' AND q.available_at<=UTC_TIMESTAMP() AND d.revoked_at IS NULL ORDER BY q.id ASC LIMIT 100")->fetchAll();
+$lockName = substr((string)db()->query('SELECT DATABASE()')->fetchColumn(),0,40) . ':push';
+$lock=db()->prepare('SELECT GET_LOCK(?,0)'); $lock->execute([$lockName]);
+if (!(int)$lock->fetchColumn()) exit("Another notification worker is running\n");
+register_shutdown_function(static function() use ($lockName): void { db()->prepare('SELECT RELEASE_LOCK(?)')->execute([$lockName]); });
+$rows = pending_notification_deliveries();
 if (!$rows) exit("No pending notifications\n");
 $payload = array_map(static fn(array $row): array => ['to'=>$row['token'],'title'=>$row['title'],'body'=>$row['body'],'sound'=>'default','badge'=>(int)$row['unread_count'],'channelId'=>'messages','data'=>json_decode((string)$row['data_json'], true) ?: new stdClass()], $rows);
 $ch = curl_init('https://exp.host/--/api/v2/push/send');

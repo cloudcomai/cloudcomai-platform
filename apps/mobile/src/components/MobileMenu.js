@@ -1,3 +1,4 @@
+import { pollDateExpiry } from '@cloudcomai/chat-core';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -5,6 +6,8 @@ import {
   Image,
   Linking,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -59,6 +62,7 @@ export default function MobileMenu({
 
   const [pollChats, setPollChats] = useState([]);
   const [pollChatId, setPollChatId] = useState(null);
+  const [pollExpiry, setPollExpiry] = useState('');
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptionA, setPollOptionA] = useState('');
   const [pollOptionB, setPollOptionB] = useState('');
@@ -204,6 +208,7 @@ export default function MobileMenu({
       await platformApi.createPoll({
         chat_id: pollChatId,
         question: pollQuestion.trim(),
+        expires_at: pollDateExpiry(pollExpiry),
         options: [pollOptionA.trim(), pollOptionB.trim()],
       });
       Alert.alert('Poll created', 'The poll was posted to the selected conversation.');
@@ -365,7 +370,7 @@ export default function MobileMenu({
     if (screen === 'private') return (
       <>
         <ScreenHeader title="Start private chat" onBack={() => go('menu')} onClose={onClose} />
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <TextInput style={styles.input} value={userQuery} onChangeText={setUserQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={searchUsers} />
           <Pressable style={styles.primary} onPress={searchUsers}><Text style={styles.primaryText}>Search</Text></Pressable>
           <ScrollView style={styles.results}>
@@ -376,14 +381,14 @@ export default function MobileMenu({
               </Pressable>
             ))}
           </ScrollView>
-        </View>
+        </ScrollView>
       </>
     );
 
     if (screen === 'group') return (
       <>
         <ScreenHeader title="Create group" onBack={() => go('menu')} onClose={onClose} />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <TextInput style={styles.input} value={groupName} onChangeText={setGroupName} placeholder="Group name" />
           <Text style={styles.label}>Group category</Text>
           <View style={styles.chips}>
@@ -401,18 +406,18 @@ export default function MobileMenu({
     if (screen === 'preferences') return (
       <>
         <ScreenHeader title="Preferences" onBack={() => go('menu')} onClose={onClose} />
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.help}>Enter interests separated by commas.</Text>
           <TextInput style={[styles.input, styles.multiline]} value={preferencesText} onChangeText={setPreferencesText} multiline placeholder="Technology, Private Chats, Family Group" />
           <Pressable style={styles.primary} onPress={savePreferences}><Text style={styles.primaryText}>Save preferences</Text></Pressable>
-        </View>
+        </ScrollView>
       </>
     );
 
     if (screen === 'poll') return (
       <>
         <ScreenHeader title="Create poll" onBack={() => go('menu')} onClose={onClose} />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Conversation</Text>
           <View style={styles.chips}>
             {pollChats.map(chat => (
@@ -424,7 +429,10 @@ export default function MobileMenu({
           <TextInput style={styles.input} value={pollQuestion} onChangeText={setPollQuestion} placeholder="Poll question" />
           <TextInput style={styles.input} value={pollOptionA} onChangeText={setPollOptionA} placeholder="Option 1" />
           <TextInput style={styles.input} value={pollOptionB} onChangeText={setPollOptionB} placeholder="Option 2" />
-          <Pressable style={styles.primary} onPress={createPoll}><Text style={styles.primaryText}>Create poll</Text></Pressable>
+          <Text style={styles.label}>Expiry date (optional, YYYY-MM-DD)</Text>
+          <TextInput style={styles.input} value={pollExpiry} onChangeText={setPollExpiry} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" accessibilityLabel="Poll expiry date" />
+          <Text style={styles.menuSub}>Leave blank for 30 days. A chosen date expires at the end of your local day.</Text>
+          <Pressable disabled={busy} style={styles.primary} onPress={createPoll}><Text style={styles.primaryText}>Create poll</Text></Pressable>
         </ScrollView>
       </>
     );
@@ -432,7 +440,7 @@ export default function MobileMenu({
     if (screen === 'contacts') return (
       <>
         <ScreenHeader title="Sync contacts" onBack={() => go('menu')} onClose={onClose} />
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {googleStatus?.connected ? (
             <>
               <Text style={styles.resultTitle}>Google connected</Text>
@@ -447,14 +455,14 @@ export default function MobileMenu({
               <Pressable style={styles.primary} onPress={connectGoogle}><Text style={styles.primaryText}>Connect Google Contacts</Text></Pressable>
             </>
           )}
-        </View>
+        </ScrollView>
       </>
     );
 
     if (screen === 'app_lock') return (
       <>
         <ScreenHeader title="App Lock" onBack={() => go('settings')} onClose={onClose} />
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.resultTitle}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text>
           <Text style={styles.help}>
             {appLockEnabled
@@ -482,14 +490,14 @@ export default function MobileMenu({
             />
             <Pressable style={styles.primary} onPress={saveAppLock}><Text style={styles.primaryText}>Enable App Lock</Text></Pressable>
           </> : <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={turnOffAppLock}><Text style={styles.dangerText}>Disable App Lock</Text></Pressable>}
-        </View>
+        </ScrollView>
       </>
     );
 
     if (screen === 'profile') return (
       <>
         <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.profilePhotoWrap}>
             <View style={styles.profilePhotoFrame}>
               {!profileImageFailed ? <Image source={{ uri: `${mediaUrl('user', user?.id)}&v=${profileImageVersion}` }} style={styles.profilePhoto} onError={() => setProfileImageFailed(true)} /> : null}
@@ -524,7 +532,7 @@ export default function MobileMenu({
     if (screen === 'settings') return (
       <>
         <ScreenHeader title="Settings" onBack={() => go('menu')} onClose={onClose} />
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Pressable style={styles.menuItem} onPress={() => go('profile')}>
             <Text style={styles.menuTitle}>Profile</Text>
             <Text style={styles.menuSub}>Name, date of birth and account information</Text>
@@ -544,14 +552,14 @@ export default function MobileMenu({
           <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={() => { onClose(); onLogout?.(); }}>
             <Text style={styles.dangerText}>Sign out</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </>
     );
 
     return (
       <>
         <ScreenHeader title="CloudComAI Menu" onClose={onClose} />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {[
             ['Profile', 'View and edit your CloudComAI profile', () => go('profile')],
             ['Start private chat', 'Search users and begin a direct conversation', () => go('private')],
@@ -575,7 +583,7 @@ export default function MobileMenu({
     <Modal visible={visible} animationType="slide" onRequestClose={screen === 'menu' ? onClose : () => go('menu')}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}>
-          {body()}
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>{body()}</KeyboardAvoidingView>
           {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </SafeAreaView>

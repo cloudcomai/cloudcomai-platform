@@ -154,3 +154,6 @@ export const createPollingMessageTransport = ({
     },
   };
 };
+
+export { createReadTracker, pollDateExpiry } from './read-tracker.js';
+export { createMessagingStore } from './messaging-store.js';

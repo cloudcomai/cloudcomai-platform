@@ -5,48 +5,7 @@ require __DIR__ . '/../lib/bootstrap.php';
 $user = auth_user();
 $method = $_SERVER['REQUEST_METHOD'];
 
-function hydrate_message_attachments(array &$messages): void {
-    if (!$messages) return;
-    $ids = array_values(array_filter(array_map(fn($message) => (int)($message['id'] ?? 0), $messages)));
-    if (!$ids) return;
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $st = db()->prepare("SELECT id,message_id,original_filename,mime_type,file_size,download_policy FROM message_attachments WHERE message_id IN ($placeholders) ORDER BY id ASC");
-    $st->execute($ids);
-    $attachments = [];
-    foreach ($st->fetchAll() as $attachment) {
-        $attachments[(int)$attachment['message_id']][] = [
-            'id' => (int)$attachment['id'],
-            'name' => $attachment['original_filename'],
-            'mime_type' => $attachment['mime_type'],
-            'file_size' => (int)$attachment['file_size'],
-            'download_policy' => $attachment['download_policy'],
-        ];
-    }
-    foreach ($messages as &$message) {
-        $messageAttachments = $attachments[(int)$message['id']] ?? [];
-        $message['attachments'] = $messageAttachments;
-        $message['attachment'] = $messageAttachments[0] ?? null;
-    }
-    unset($message);
-}
-
-function hydrate_message_polls(array &$messages, int $userId): void {
-    $pollQuery = db()->prepare('SELECT p.id,p.question,po.id AS option_id,po.option_text,po.display_order,COUNT(pv.user_id) AS votes,MAX(CASE WHEN pv.user_id=? THEN 1 ELSE 0 END) AS selected FROM polls p INNER JOIN poll_options po ON po.poll_id=p.id LEFT JOIN poll_votes pv ON pv.option_id=po.id AND pv.poll_id=p.id WHERE p.id=? GROUP BY p.id,p.question,po.id,po.option_text,po.display_order ORDER BY po.display_order ASC,po.id ASC');
-    foreach ($messages as &$message) {
-        if ($message['type'] !== 'poll') continue;
-        $meta = json_decode((string)$message['body'], true);
-        $pollId = (int)($meta['poll_id'] ?? 0);
-        if ($pollId <= 0) continue;
-        $pollQuery->execute([$userId, $pollId]);
-        $rows = $pollQuery->fetchAll();
-        if (!$rows) continue;
-        $options = [];
-        foreach ($rows as $row) $options[] = ['id'=>(int)$row['option_id'],'text'=>$row['option_text'],'votes'=>(int)$row['votes'],'selected'=>(bool)$row['selected']];
-        $message['poll_id'] = $pollId;
-        $message['poll'] = ['id'=>$pollId,'question'=>$rows[0]['question'],'options'=>$options];
-    }
-    unset($message);
-}
+require_once __DIR__ . '/../lib/message_payload.php';
 
 if ($method === 'GET') {
     $chatId = (int)($_GET['chat_id'] ?? 0);
@@ -68,7 +27,7 @@ if ($method === 'GET') {
     $after = max($after, $clearedThrough);
 
     $sql = <<<'SQL'
-        SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,
+        SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,
                u.name AS sender_name,
                CASE WHEN COALESCE(rus.hidden,0)=0 THEN r.body ELSE NULL END AS reply_to_text,
                CASE WHEN COALESCE(rus.hidden,0)=0 THEN ru.name ELSE NULL END AS reply_to_sender_name
@@ -106,7 +65,11 @@ if ($method === 'GET') {
         $removed = db()->prepare('SELECT m.id FROM messages m LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.chat_id=? AND m.id>=? AND m.id<=? AND (m.deleted_for_everyone=1 OR COALESCE(mus.hidden,0)=1 OR m.id<=? OR m.expires_at<=UTC_TIMESTAMP())');
         $removed->execute([$user['id'],$chatId,$syncFrom,$requestedAfter,$clearedThrough]);
         $removedIds = array_map('intval', $removed->fetchAll(PDO::FETCH_COLUMN));
+        $purged = db()->prepare('SELECT message_id FROM message_deletions WHERE chat_id=? AND message_id>=? AND message_id<=?');
+        $purged->execute([$chatId,$syncFrom,$requestedAfter]);
+        $removedIds = array_values(array_unique(array_merge($removedIds, array_map('intval', $purged->fetchAll(PDO::FETCH_COLUMN)))));
     }
+    hydrate_message_state($messages,(int)$user['id']);
     hydrate_message_attachments($messages);
     hydrate_message_polls($messages, (int)$user['id']);
     $screenshotAlerts = [];
@@ -124,6 +87,9 @@ if ($method === 'POST') {
     $type = (string)($data['type'] ?? 'text');
     $body = trim((string)($data['body'] ?? ''));
     $reply = (int)($data['reply_to_message_id'] ?? 0);
+    $clientId = $data['client_message_id'] ?? ($_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? null);
+    if ($clientId !== null && (!is_string($clientId) || !preg_match('/^[a-zA-Z0-9_-]{8,96}$/D',$clientId))) fail('Invalid client message id',422);
+    if (strlen($body)>60000) fail('Message is too long',422);
     if (!in_array($type, ['text', 'location'], true)) fail('Unsupported message type');
     if ($body === '' && $type === 'text') fail('Message is empty');
 
@@ -154,9 +120,26 @@ if ($method === 'POST') {
     $pdo = db();
     try {
         $pdo->beginTransaction();
+        if ($clientId !== null) {
+            $fingerprint=hash('sha256',json_encode([$chatId,$type,$body,$reply]));
+            $pdo->prepare('INSERT INTO message_send_requests(user_id,client_id,request_hash) VALUES(?,?,?) ON DUPLICATE KEY UPDATE client_id=VALUES(client_id)')->execute([$user['id'],$clientId,$fingerprint]);
+            $request=$pdo->prepare('SELECT request_hash,message_id FROM message_send_requests WHERE user_id=? AND client_id=? FOR UPDATE');
+            $request->execute([$user['id'],$clientId]); $existing=$request->fetch();
+            if (!hash_equals($existing['request_hash'],$fingerprint)) { $pdo->rollBack(); fail('This retry key belongs to a different message',409); }
+            if ($existing['message_id']) {
+                $found=$pdo->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.created_at,m.expires_at,m.reply_to_message_id,u.name AS sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id WHERE m.id=? AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
+                $found->execute([$existing['message_id']]); $replayed=$found->fetch();
+                if (!$replayed) { $pdo->rollBack(); fail('This message was already sent and is no longer available',409); }
+                assert_visible_message((int)$replayed['id'],(int)$user['id']);
+                $pdo->commit();
+                $replayed['client_message_id']=$clientId; $replayed['attachments']=[];
+                out(['message'=>$replayed,'replayed'=>true],201);
+            }
+        }
         $st = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
         $st->execute([$chatId,$user['id'],$type,$body,$reply ?: null,$expires,$createdAt]);
         $messageId = (int)$pdo->lastInsertId();
+        if ($clientId !== null) $pdo->prepare('UPDATE message_send_requests SET message_id=? WHERE user_id=? AND client_id=?')->execute([$messageId,$user['id'],$clientId]);
         $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chatId, $user['id']]);
         create_chat_notifications($chatId, (int)$user['id'], (string)$user['name'], $type === 'location' ? 'Shared a location' : $body, $messageId);
         $pdo->commit();
@@ -166,11 +149,11 @@ if ($method === 'POST') {
         fail('Unable to send message', 500);
     }
 
-    $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
+    $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
     $created->execute([$messageId]);
     $message = $created->fetch();
     out(['message' => [
-        'id'=>(int)$message['id'],'chat_id'=>(int)$message['chat_id'],'sender_id'=>(int)$message['sender_id'],'sender_name'=>$message['sender_name'],
+        'client_message_id'=>$clientId,'id'=>(int)$message['id'],'chat_id'=>(int)$message['chat_id'],'sender_id'=>(int)$message['sender_id'],'sender_name'=>$message['sender_name'],
         'type'=>$message['type'],'body'=>$message['body'],'reply_to_message_id'=>$message['reply_to_message_id'] !== null ? (int)$message['reply_to_message_id'] : null,
         'reply_to_text'=>$message['reply_to_text'],'reply_to_sender_name'=>$message['reply_to_sender_name'],'created_at'=>$message['created_at'],'attachments'=>[],
     ]], 201);
@@ -190,6 +173,7 @@ if ($method === 'DELETE') {
     if ($scope === 'self') {
         $st = db()->prepare('INSERT INTO message_user_states(message_id,user_id,hidden) VALUES(?,?,1) ON DUPLICATE KEY UPDATE hidden=1');
         $st->execute([$messageId, $user['id']]);
+        db()->prepare('DELETE FROM saved_messages WHERE user_id=? AND message_id=?')->execute([$user['id'],$messageId]);
         db()->prepare('DELETE q FROM notification_delivery_queue q INNER JOIN notification_history n ON n.id=q.notification_id WHERE n.user_id=? AND CAST(JSON_UNQUOTE(JSON_EXTRACT(n.data_json,"$.message_id")) AS UNSIGNED)=?')->execute([$user['id'],$messageId]);
         db()->prepare('DELETE FROM notification_history WHERE user_id=? AND CAST(JSON_UNQUOTE(JSON_EXTRACT(data_json,"$.message_id")) AS UNSIGNED)=?')->execute([$user['id'],$messageId]);
         out(['message' => 'Message deleted for you', 'message_id' => $messageId, 'scope' => 'self']);
@@ -210,6 +194,7 @@ if ($method === 'DELETE') {
         $pdo->beginTransaction();
         $pdo->prepare('DELETE FROM attachment_download_requests WHERE attachment_id IN (SELECT id FROM message_attachments WHERE message_id=?)')->execute([$messageId]);
         $pdo->prepare('DELETE FROM message_attachments WHERE message_id=?')->execute([$messageId]);
+        $pdo->prepare('DELETE FROM saved_messages WHERE message_id=?')->execute([$messageId]);
         $pdo->prepare('DELETE FROM message_user_states WHERE message_id=?')->execute([$messageId]);
         if ($pollId > 0) {
             $pdo->prepare('DELETE FROM poll_votes WHERE poll_id=?')->execute([$pollId]);

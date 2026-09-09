@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { UserPlus, UserMinus, Search, X } from 'lucide-react';
 
-export default function GroupMembershipModal({ type, selectedChat, apiBridge, close, onActionComplete }) {
+export default function GroupMembershipModal({ type, selectedChat, apiBridge, close, onActionComplete, user, onGroupUpdated }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [currentMembers, setCurrentMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [error, setError] = useState('');
+  const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === Number(user?.id) && member.role === 'owner');
 
   useEffect(() => {
     if ((type === 'manage_members' || type === 'add_member') && selectedChat) {
       apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } })
         .then(data => { if (data.members) setCurrentMembers(data.members); })
-        .catch(err => console.error("Error loading group members:", err));
+        .catch(err => setError(err.message || "Unable to load group members."));
     }
   }, [type, selectedChat, apiBridge]);
 
@@ -54,6 +56,18 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     }
   };
 
+  const transferOwnership = async member => {
+    if (loading || !window.confirm(`Make ${member.name || 'this member'} the group owner? You will become an admin and existing invite links will stop working.`)) return;
+    setLoading(true); setError('');
+    try {
+      const data = await apiBridge(ApiRoute.GROUPS, { method: 'POST', query: { action: 'transfer', id: selectedChat.id }, body: { user_id: Number(member.user_id || member.id) } });
+      onGroupUpdated?.({ ...selectedChat, owner_id: data.owner_id });
+      const result = await apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } });
+      setCurrentMembers(result.members || []);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
   if (!selectedChat) return null;
 
   return (
@@ -68,6 +82,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
           </button>
         </div>
 
+        {error && <p className="privacy-error" role="alert">{error}</p>}
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
           Group Target: <strong>{selectedChat.name}</strong>
         </p>
@@ -134,6 +149,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                         <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>{m.name}</h5>
                         <span style={{ fontSize: '10px', color: 'var(--text-light)', textTransform: 'uppercase' }}>Role: {m.role || 'member'}</span>
                       </div>
+                      <div className="account-tool-actions">
+                      {ownsGroup && !isOwner && <button disabled={loading} onClick={() => transferOwnership(m)}>Make owner</button>}
                       {isOwner ? (
                         <span style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: '600' }}>Owner</span>
                       ) : (
@@ -141,6 +158,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                           <UserMinus size={14} /> Remove
                         </button>
                       )}
+                      </div>
                     </div>
                   );
                 })

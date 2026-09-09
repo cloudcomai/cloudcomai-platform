@@ -42,13 +42,19 @@ export async function requestNotificationPermission() {
   return Notifications.getExpoPushTokenAsync({ projectId: appConfig.expo.extra.eas.projectId });
 }
 
-export const subscribeToNotifications = async onNotification => {
+export const subscribeToNotifications = async onNotification => Notifications.addNotificationReceivedListener(async event => {
   const preferences = await getNotificationPreferences();
-  return Notifications.addNotificationReceivedListener(event => {
-    const category = event?.request?.content?.data?.category || 'system';
-    if (preferences.enabled && preferences[category] !== false) onNotification(event);
-  });
-};
+  const category = event?.request?.content?.data?.category || 'system';
+  if (preferences.enabled && preferences[category] !== false) onNotification(event);
+});
+
+export const rememberDeviceToken = token => SecureStore.setItemAsync('cloudcomai.push.token', token);
+export async function forgetDeviceToken(api) {
+  const token = await SecureStore.getItemAsync('cloudcomai.push.token');
+  if (token) await api.unregisterDeviceToken({ body: { token } });
+  await SecureStore.deleteItemAsync('cloudcomai.push.token');
+  await setApplicationBadge(0);
+}
 
 export const subscribeToNotificationResponses = onResponse =>
   Notifications.addNotificationResponseReceivedListener(onResponse);

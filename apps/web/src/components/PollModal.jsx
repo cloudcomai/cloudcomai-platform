@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { pollDateExpiry } from '@cloudcomai/chat-core';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { X, Plus, Trash2 } from 'lucide-react';
 
 export default function PollModal({ selectedChat, apiBridge, close, onPollCreated }) {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
+  const [expiry, setExpiry] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleAddOptionField = () => {
@@ -46,6 +48,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
       const payload = {
         chat_id: Number(selectedChat.id),
         question: cleanQuestion,
+        expires_at: pollDateExpiry(expiry),
         options: cleanOptions
       };
 
@@ -67,12 +70,16 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
 
   return (
     <div className="modal-backdrop">
-      <form onSubmit={handleSubmitPoll} className="modal-content-card" style={{ textAlign: 'left', width: '460px' }}>
+      <form onSubmit={handleSubmitPoll} className="modal-content-card" style={{ textAlign: 'left', width: '460px', maxWidth: 'calc(100vw - 32px)', maxHeight: '90dvh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700' }}>📊 Create Real-Time Poll</h3>
           <button type="button" onClick={close} style={{ background: 'none', border: 'none', color: 'var(--text-light)' }}><X size={20}/></button>
         </div>
 
+        <label style={{ display: 'block', marginBottom: 14 }}>Expiry date (optional)
+          <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)} style={{ width: '100%' }} />
+          <small>Leave blank for 30 days. A chosen date expires at the end of that day in your time zone.</small>
+        </label>
         <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Question / Topic</label>
         <input
           required
@@ -90,7 +97,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
               placeholder={`Option ${index + 1}`}
               value={opt}
               onChange={e => handleOptionChange(index, e.target.value)}
-              style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-main)', fontSize: '14px' }}
+              style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-main)', fontSize: '14px' }}
             />
             {options.length > 2 && (
               <button type="button" onClick={() => handleRemoveOptionField(index)} style={{ color: '#ef4444', padding: '4px' }}><Trash2 size={16}/></button>

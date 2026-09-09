@@ -1,9 +1,12 @@
 <?php
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require __DIR__ . '/lib/bootstrap.php';
-$pdo=db();
-$pdo->exec('UPDATE messages SET deleted_for_everyone=1, body=NULL WHERE expires_at IS NOT NULL AND expires_at<=UTC_TIMESTAMP() AND deleted_for_everyone=0');
-$pdo->exec('UPDATE live_locations SET active=0 WHERE expires_at<=UTC_TIMESTAMP() AND active=1');
-$pdo->exec('UPDATE stories SET deleted_at=UTC_TIMESTAMP() WHERE expires_at<=UTC_TIMESTAMP() AND deleted_at IS NULL');
-$pdo->exec('UPDATE calls SET status="missed",updated_at=UTC_TIMESTAMP() WHERE status="ringing" AND expires_at<=UTC_TIMESTAMP()');
-echo "Cleanup completed at ".gmdate('c').PHP_EOL;
+require __DIR__ . '/lib/retention.php';
+try {
+    $result = cleanup_expired_content(db(), __DIR__);
+    echo json_encode(['completed_at'=>gmdate('c')] + $result, JSON_UNESCAPED_SLASHES) . PHP_EOL;
+    exit($result['file_failures'] ? 1 : 0);
+} catch (Throwable $error) {
+    fwrite(STDERR, 'Cleanup failed: ' . $error->getMessage() . PHP_EOL);
+    exit(1);
+}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
-import { parseSharedLocation } from '@cloudcomai/chat-core';
+import { parseSharedLocation, createReadTracker, parseMessageTimestamp } from '@cloudcomai/chat-core';
 import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy } from 'lucide-react';
 import { formatMessageTime } from '../utils/messageTime';
 import { copyText, shareOrCopyLink } from '../utils/shareLink';
@@ -10,7 +10,7 @@ import AttachmentActions from './AttachmentActions';
 import AttachmentPreview from './AttachmentPreview';
 import MediaMessageControls from './MediaMessageControls';
 
-const pollCardStyle = { background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', minWidth: '280px', maxWidth: '70%', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginBottom: '4px' };
+const pollCardStyle = { background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', minWidth: 0, width: 'min(360px, 100%)', maxWidth: '100%', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginBottom: '4px' };
 const pollHeaderStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' };
 const pollTitleStyle = { fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', margin: 0 };
 const pollOptionsStyle = { display: 'flex', flexDirection: 'column', gap: '8px' };
@@ -19,14 +19,14 @@ const pollFooterStyle = { marginTop: '10px', display: 'flex', justifyContent: 's
 const senderNameStyle = { fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '5px', paddingLeft: '3px' };
 const replyPreviewStyle = { borderLeft: '3px solid var(--primary-color)', background: 'var(--bg-directory)', borderRadius: '7px', padding: '7px 9px', marginBottom: '8px', fontSize: '11px', lineHeight: '1.35', color: 'var(--text-muted)', maxWidth: '100%' };
 const replySenderStyle = { fontWeight: '700', color: 'var(--text-main)', marginBottom: '2px' };
-const attachmentMessageStyle = { display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '220px', maxWidth: '360px' };
+const attachmentMessageStyle = { display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, width: 'min(300px, 100%)', maxWidth: '100%' };
 const attachmentActionRowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minHeight: '28px' };
 const attachmentMetaStyle = { display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 };
 const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false }) {
+export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, active = true }) {
   const historyRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
@@ -47,10 +47,31 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
 
   useEffect(() => {
     setChatMuted(Boolean(selectedChat?.notifications_muted));
-    if (selectedChat?.id) apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, mark_read: true }) }).catch(() => {});
     setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null); setSelectedMessageId(null);
     shouldAutoScrollRef.current = true;
   }, [selectedChat?.id]);
+
+  const readTracker = useRef(null);
+  const onReadRef = useRef(onRead);
+  onReadRef.current = onRead;
+  useEffect(() => {
+    const tracker = createReadTracker({
+      send: through => apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, mark_read: true, last_read_message_id: through }) }),
+      onRead: result => onReadRef.current?.(result),
+    });
+    readTracker.current = tracker;
+    return () => tracker.dispose();
+  }, [selectedChat?.id, apiBridge]);
+  const markVisibleRead = () => {
+    if (!active || deleteTarget || !selectedChat?.id || document.visibilityState === 'hidden' || searchActive || !shouldAutoScrollRef.current) return;
+    readTracker.current?.mark(messages.filter(item => Number(item.chat_id) === Number(selectedChat.id)).reduce((max, item) => Math.max(max, Number(item.id) || 0), 0));
+  };
+  useEffect(() => {
+    const frame = requestAnimationFrame(markVisibleRead);
+    const timer = setInterval(markVisibleRead, 15000);
+    document.addEventListener('visibilitychange', markVisibleRead);
+    return () => { cancelAnimationFrame(frame); clearInterval(timer); document.removeEventListener('visibilitychange', markVisibleRead); };
+  }, [selectedChat?.id, messages, searchActive, active, deleteTarget]);
 
   useEffect(() => {
     if (!searchActive || !selectedChat) return undefined;
@@ -73,7 +94,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
       await onDeleteMessage(deleteTarget, scope);
       setSearchResults(current => current.filter(item => Number(item.id) !== Number(deleteTarget.id)));
       if (Number(replyTo?.id) === Number(deleteTarget.id)) setReplyTo(null);
-      if (Number(editing?.id) === Number(deleteTarget.id)) { setEditing(null); setComposer(''); }
+      if (Number(editing?.id) === Number(deleteTarget.id)) { onCancelContext(); }
       setDeleteTarget(null);
     } catch (error) { alert(error.message || 'Unable to delete message.'); }
     finally { setDeleting(false); }
@@ -92,6 +113,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
     if (!viewport) return;
     const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
     shouldAutoScrollRef.current = distanceFromBottom < 100;
+    markVisibleRead();
   };
 
   const handleCastVote = async (pollId, optionId, sourceOptions) => {
@@ -204,9 +226,9 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
             {isPoll ? <div className="poll-bubble-card" style={pollCardStyle}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
-              <div style={pollOptionsStyle}>{visibleOptions.map(option => <button key={option.id} type="button" onClick={() => handleCastVote(msg.poll_id || poll?.id, option.id, poll?.options)} style={pollOptionStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}><span>{option.text}</span><strong>{option.votes || 0}</strong></div>{option.selected && <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--primary-color)' }}>Your vote</div>}</button>)}</div>
-              <div className="bubble-meta-footer" style={pollFooterStyle}><span>Active Voting Room</span><span>{messageTime}</span></div>
-              <button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
+              <div style={pollOptionsStyle}>{visibleOptions.map(option => <button key={option.id} type="button" disabled={Boolean(poll?.expires_at && parseMessageTimestamp(poll.expires_at) <= new Date())} onClick={() => handleCastVote(msg.poll_id || poll?.id, option.id, poll?.options)} style={pollOptionStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}><span>{option.text}</span><strong>{option.votes || 0}</strong></div>{option.selected && <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--primary-color)' }}>Your vote</div>}</button>)}</div>
+              <div className="bubble-meta-footer" style={pollFooterStyle}><span>{poll?.expires_at ? `Expires ${parseMessageTimestamp(poll.expires_at).toLocaleString()}` : 'Poll'}</span><span>{messageTime}</span></div>
+              <button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
             </div> : <div className={`message-data-bubble ${isMine ? 'primary-accent' : 'neutral-fallback'}`}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               {msg.reply_to_message_id && msg.reply_to_text && <div style={replyPreviewStyle}>
@@ -235,25 +257,30 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
                 </div>
               </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : messageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
-              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => { setReplyTo(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button>{isMine && msg.type === 'text' && <button onClick={() => { setEditing(msg); setComposer(messageContent); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
+              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button onClick={() => { onBeginReply(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button>{isMine && msg.type === 'text' && Number(msg.edit_count || 0) === 0 && <button onClick={() => { onBeginEdit(msg); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
             </div>}
           </div>;
         })}
       </div>
 
+      {localMessageError && <p role="alert" className="privacy-error">{localMessageError}</p>}
+      {pendingMessages.length > 0 && <div className="pending-message-list" aria-label="Pending messages">{pendingMessages.map(item => <div key={item.id} className="pending-message">
+        <p>{item.payload.body}</p><small>{item.status === 'sending' ? 'Sending…' : item.status === 'failed' ? item.error : 'Queued · sends when connected'}</small>
+        {item.status !== 'sending' && <div><button onClick={() => onRetryPending(item.id).catch(e => alert(e.message))}>Retry</button><button onClick={() => onDiscardPending(item.id).catch(e => alert(e.message))}>Discard</button></div>}
+      </div>)}</div>}
       <div className="canvas-bottom-action-tray">
         <div className="shortcut-action-grid">
           {/* Status, Stories, and Live Location shortcuts are temporarily hidden until their functionality is completed. */}
           <button className="shortcut-action-card yellow-theme" onClick={() => setModal('poll')}><div className="shortcut-icon-circle"><BarChart3 size={18}/></div><div className="shortcut-meta"><h5>Polls</h5><p>Create polls</p></div></button>
         </div>
 
-        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { setReplyTo(null); setEditing(null); setComposer(''); }}><X size={16}/></button></div> : null}
-        {emojiOpen && <div className="emoji-picker-row"><button type="button" key="😀" onClick={() => setComposer(value => `${value}😀`)}>😀</button><button type="button" key="😂" onClick={() => setComposer(value => `${value}😂`)}>😂</button><button type="button" key="😍" onClick={() => setComposer(value => `${value}😍`)}>😍</button><button type="button" key="😊" onClick={() => setComposer(value => `${value}😊`)}>😊</button><button type="button" key="👍" onClick={() => setComposer(value => `${value}👍`)}>👍</button><button type="button" key="🙏" onClick={() => setComposer(value => `${value}🙏`)}>🙏</button><button type="button" key="❤️" onClick={() => setComposer(value => `${value}❤️`)}>❤️</button><button type="button" key="🎉" onClick={() => setComposer(value => `${value}🎉`)}>🎉</button><button type="button" key="😢" onClick={() => setComposer(value => `${value}😢`)}>😢</button><button type="button" key="😡" onClick={() => setComposer(value => `${value}😡`)}>😡</button><button type="button" key="🤔" onClick={() => setComposer(value => `${value}🤔`)}>🤔</button><button type="button" key="👏" onClick={() => setComposer(value => `${value}👏`)}>👏</button></div>}
+        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { onCancelContext(); }}><X size={16}/></button></div> : null}
+        {emojiOpen && <div className="emoji-picker-row"><button type="button" key="😀" onClick={() => onComposerChange(value => `${value}😀`)}>😀</button><button type="button" key="😂" onClick={() => onComposerChange(value => `${value}😂`)}>😂</button><button type="button" key="😍" onClick={() => onComposerChange(value => `${value}😍`)}>😍</button><button type="button" key="😊" onClick={() => onComposerChange(value => `${value}😊`)}>😊</button><button type="button" key="👍" onClick={() => onComposerChange(value => `${value}👍`)}>👍</button><button type="button" key="🙏" onClick={() => onComposerChange(value => `${value}🙏`)}>🙏</button><button type="button" key="❤️" onClick={() => onComposerChange(value => `${value}❤️`)}>❤️</button><button type="button" key="🎉" onClick={() => onComposerChange(value => `${value}🎉`)}>🎉</button><button type="button" key="😢" onClick={() => onComposerChange(value => `${value}😢`)}>😢</button><button type="button" key="😡" onClick={() => onComposerChange(value => `${value}😡`)}>😡</button><button type="button" key="🤔" onClick={() => onComposerChange(value => `${value}🤔`)}>🤔</button><button type="button" key="👏" onClick={() => onComposerChange(value => `${value}👏`)}>👏</button></div>}
         <div className="message-input-composer-bar">
           <button type="button" className="emoji-toggle-btn" onClick={() => setEmojiOpen(value => !value)} aria-label="Choose emoji">☺</button>
           <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
-          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => setComposer(e.target.value)} onKeyDown={e => e.key === 'Enter' && !selectedChat?.blocked && onSendMessage()} disabled={!selectedChat || selectedChat.blocked} className="composer-text-input" />
-          <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={!selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
+          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => onComposerChange(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && onSendMessage()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" />
+          <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={sending || !selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
       {deleteTarget && <div className="modal-overlay"><div className="modal-content-card message-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete message"><h3>Delete message?</h3><p>Delete for me removes it from your account. Only the sender can delete it for everyone.</p><button disabled={deleting} onClick={() => deleteMessage('self')}>Delete for me</button>{Number(deleteTarget.sender_id) === Number(user?.id) && <button className="danger" disabled={deleting} onClick={() => deleteMessage('everyone')}>Delete for everyone</button>}<button disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button></div></div>}

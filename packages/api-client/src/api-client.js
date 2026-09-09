@@ -69,7 +69,7 @@ export class ApiClient {
       requestBody = JSON.stringify(body);
     }
 
-    if (auth && this.tokenProvider) {
+    if (auth && this.tokenProvider && !requestHeaders.has('Authorization')) {
       const token = await this.tokenProvider();
       if (token) requestHeaders.set('Authorization', `Bearer ${token}`);
     }
@@ -115,7 +115,12 @@ export class ApiClient {
     const payload = await parseResponse(response, response.ok ? responseType : 'auto');
     if (!response.ok) {
       if (response.status === 401 && auth && this.onUnauthorized) {
-        await this.onUnauthorized();
+        // An in-flight request can finish after sign-in or session rotation.
+        // Only expire the credentials that actually received this rejection.
+        const currentToken = this.tokenProvider ? await this.tokenProvider() : null;
+        if (!this.tokenProvider || requestHeaders.get('Authorization') === (currentToken ? `Bearer ${currentToken}` : null)) {
+          await this.onUnauthorized();
+        }
       }
       throw new ApiError(resolveErrorMessage(payload, response), {
         status: response.status,

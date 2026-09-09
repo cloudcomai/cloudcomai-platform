@@ -104,12 +104,19 @@ export function NotificationsList({ onOpenChat }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const setRead = async (item, read = true) => {
+    const { data } = await platformApi.markNotificationsRead({ notification_ids: [Number(item.id)], read });
+    setItems(current => current.map(entry => Number(entry.id) === Number(item.id) ? { ...entry, read_at: read ? new Date().toISOString() : null } : entry));
+    setUnread(Number(data.unread_count || 0));
+    setApplicationBadge(data.unread_count);
+  };
+
   const markAllRead = async () => {
     try {
-      await platformApi.markNotificationsRead({ all: true });
+      const { data } = await platformApi.markNotificationsRead({ all: true });
       setItems(current => current.map(item => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
-      setUnread(0);
-      setApplicationBadge(0);
+      setUnread(Number(data.unread_count || 0));
+      setApplicationBadge(data.unread_count);
     } catch (e) {
       setError(e.message || 'Unable to mark notifications as read.');
     }
@@ -122,10 +129,7 @@ export function NotificationsList({ onOpenChat }) {
     setOpeningId(Number(item.id));
     try {
       if (!item.read_at) {
-        await platformApi.markNotificationsRead({ notification_ids: [Number(item.id)] });
-        setItems(current => current.map(entry => Number(entry.id) === Number(item.id) ? { ...entry, read_at: new Date().toISOString() } : entry));
-        setUnread(current => Math.max(0, current - 1));
-        setApplicationBadge(Math.max(0, unread - 1));
+        await setRead(item);
       }
       if (!chatId) {
         setError('This notification does not contain a conversation to open.');
@@ -164,6 +168,8 @@ export function NotificationsList({ onOpenChat }) {
             <Pressable
               style={[styles.notificationRow, !item.read_at && styles.unreadRow]}
               onPress={() => openNotification(item)}
+              onLongPress={() => setRead(item, Boolean(item.read_at)).catch(e => setError(e.message))}
+              accessibilityHint="Tap to open. Long press to toggle read or unread."
               disabled={openingId !== null}
               accessibilityRole="button"
               accessibilityLabel={item.title || 'Notification'}
@@ -194,7 +200,7 @@ function formatTime(value) {
 
 const styles = StyleSheet.create({
   loader: { marginTop: 50 },
-  list: { paddingHorizontal: 12, paddingBottom: 110 },
+  list: { paddingHorizontal: 12, paddingBottom: 24 },
   empty: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyText: { color: '#718096', textAlign: 'center', lineHeight: 20 },
   error: { margin: 12, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' },
@@ -206,7 +212,7 @@ const styles = StyleSheet.create({
   title: { color: '#172033', fontWeight: '800', fontSize: 15 },
   sub: { marginTop: 4, color: '#6b7280', fontSize: 12 },
   onlineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22c55e' },
-  notificationHeader: { minHeight: 48, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  notificationHeader: { minHeight: 48, flexWrap: 'wrap', gap: 8, paddingVertical: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   notificationTitle: { color: '#172033', fontWeight: '800' },
   link: { color: '#3157d5', fontWeight: '700', fontSize: 12 },
   notificationRow: { minHeight: 78, flexDirection: 'row', alignItems: 'flex-start', padding: 14, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },

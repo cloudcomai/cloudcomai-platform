@@ -53,6 +53,7 @@ jobs:
       - run: php backend/tests/api_router_test.php
       - run: php backend/tests/contact_matching_test.php
       - run: php backend/tests/user_validation_test.php
+      - run: php backend/tests/poll_expiry_test.php
       - run: php backend/tests/utf8mb4_schema_test.php
       - run: php backend/tests/privacy_messaging_test.php
         env:
