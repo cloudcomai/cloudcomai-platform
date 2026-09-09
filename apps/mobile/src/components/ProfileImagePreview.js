@@ -1,29 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-export default function ProfileImagePreview({ source, fallback, label = 'Profile photo', size = 96, imageStyle, onPreviewChange }) {
+export default function ProfileImagePreview({ source, fallback, label = 'Profile photo', size = 96, imageStyle }) {
   const [visible, setVisible] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [source]);
+
   const open = () => {
-    if (!source) return;
+    if (!source || imageFailed) return;
     setVisible(true);
-    onPreviewChange?.(true);
   };
-  const close = () => {
-    setVisible(false);
-    onPreviewChange?.(false);
-  };
+  const close = () => setVisible(false);
 
   return (
     <>
       <Pressable
-        disabled={!source}
+        disabled={!source || imageFailed}
         onPress={open}
-        accessibilityRole={source ? 'button' : undefined}
-        accessibilityLabel={source ? `Preview ${label}` : label}
+        accessibilityRole={source && !imageFailed ? 'button' : undefined}
+        accessibilityLabel={source && !imageFailed ? `Preview ${label}` : label}
         style={[styles.thumbnail, { width: size, height: size, borderRadius: size / 2 }]}
       >
-        {source ? <Image source={{ uri: source }} style={[StyleSheet.absoluteFillObject, { width: size, height: size, borderRadius: size / 2 }, imageStyle]} /> : null}
-        {fallback ? <Text style={styles.fallback}>{fallback}</Text> : null}
+        {source && !imageFailed ? (
+          <Image
+            source={{ uri: source }}
+            onError={() => setImageFailed(true)}
+            style={[StyleSheet.absoluteFillObject, { width: size, height: size, borderRadius: size / 2 }, imageStyle]}
+          />
+        ) : null}
+        {fallback && imageFailed ? <Text style={styles.fallback}>{fallback}</Text> : null}
       </Pressable>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
         <View style={styles.overlay}>
