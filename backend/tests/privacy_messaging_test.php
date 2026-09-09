@@ -43,6 +43,11 @@ try {
     $admin->exec("CREATE DATABASE `$database` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $admin->exec("USE `$database`");
     $admin->exec(file_get_contents(__DIR__ . '/../database/fresh-install.sql'));
+    // Public-room seed data intentionally occupies chat AUTO_INCREMENT IDs in fresh installs.
+    // This suite uses fixed chat IDs for privacy/messaging fixtures, so remove only the
+    // seeded public rooms before creating those isolated fixtures.
+    $admin->exec("DELETE FROM chats WHERE type='public' AND group_category='india-city'");
+    $admin->exec("ALTER TABLE chats AUTO_INCREMENT=1");
     // Incremental migration is idempotent and agrees with the fresh-install schema.
     $admin->exec('DROP TABLE user_blocks, user_privacy_settings');
     $migration = file_get_contents(__DIR__ . '/../database/migrations/006_privacy_and_security.sql');
