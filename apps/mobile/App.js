@@ -453,7 +453,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   };
 
   const confirmDelete = () => {
-    if (chat.isGroup || deleting) return;
+    if (chat.isGroup || chat.isPublic || deleting) return;
     Alert.alert(
       'Delete chat?',
       `Your full history with ${chat.name || 'this user'} will be removed from your account. The other user keeps their copy. New messages will start a fresh history.`,
@@ -490,17 +490,17 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
         <Pressable
           style={styles.chatHeaderIdentity}
-          disabled={chat.isGroup || !chat.other_user_id}
+          disabled={chat.isGroup || chat.isPublic || !chat.other_user_id}
           onPress={() => setProfileOpen(true)}
-          accessibilityRole={chat.isGroup ? undefined : 'button'}
-          accessibilityLabel={chat.isGroup ? undefined : `View ${chat.name || 'user'} profile`}
+          accessibilityRole={chat.isGroup || chat.isPublic ? undefined : 'button'}
+          accessibilityLabel={chat.isGroup || chat.isPublic ? undefined : `View ${chat.name || 'user'} profile`}
         >
           <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
-          {!chat.isGroup && chat.other_user_id ? <Text style={styles.headerProfileHint}>View profile</Text> : null}
+          {!chat.isGroup && !chat.isPublic && chat.other_user_id ? <Text style={styles.headerProfileHint}>View profile</Text> : null}
         </Pressable>
         <View style={styles.chatHeaderActions}>
           <Pressable onPress={async () => { const next = !muted; try { await platformApi.updateChatNotificationState(chat.id, { muted: next }); setMuted(next); } catch (e) { setError(e.message || 'Unable to update mute setting.'); } }}><Text style={styles.headerActionText}>{muted ? '🔕' : '🔔'}</Text></Pressable>
-          {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
+          {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : chat.isPublic ? <View style={{ width: 54 }} /> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
         </View>
       </View>
       <View style={styles.searchRow}><Pressable onPress={() => { setSearchOpen(value => !value); setQuery(''); }}><Text style={styles.searchLink}>{searchOpen ? 'Close search' : 'Search messages'}</Text></Pressable>{chat.blocked && <Text style={styles.error}>Contact blocked</Text>}</View>
@@ -520,7 +520,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             const mine = Number(item.sender_id) === Number(user.id);
             const selected = Number(selectedMessage?.id) === Number(item.id);
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage]}>
-              {chat.isGroup && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
+              {(chat.isGroup || chat.isPublic) && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
               <MediaMessage message={item} autoDownload={privacy.media_auto_download} />
               <Text style={[styles.messageTime, { color: theme.colors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
