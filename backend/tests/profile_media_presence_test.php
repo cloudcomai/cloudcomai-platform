@@ -18,12 +18,12 @@ $mobilePlatform = file_get_contents(__DIR__ . '/../../apps/mobile/src/services/p
 
 expect_contract(str_contains($media, 'Cache-Control: private, no-store, no-cache'), 'Profile media must not be served with a reusable stale cache policy');
 expect_contract(str_contains($media, 'Pragma: no-cache'), 'Profile media must include a no-cache compatibility header');
-expect_contract(str_contains($mediaUpload, "'image_version' => $imageVersion"), 'Media upload must return a unique image version');
-expect_contract(str_contains($profile, "'image_version'=>$imageVersion"), 'Profile updates must preserve the current image version');
-expect_contract(str_contains($userProfile, "'image_version' => $imageVersion"), 'User profile responses must expose the current image version');
-expect_contract(str_contains($userProfile, "'online' => $online"), 'User profile responses must expose presence state');
+expect_contract(str_contains($mediaUpload, "'image_version' => \$imageVersion"), 'Media upload must return a unique image version');
+expect_contract(str_contains($profile, "'image_version'=>\$imageVersion"), 'Profile updates must preserve the current image version');
+expect_contract(str_contains($userProfile, "'image_version' => \$imageVersion"), 'User profile responses must expose the current image version');
+expect_contract(str_contains($userProfile, "'online' => \$online"), 'User profile responses must expose presence state');
 expect_contract(str_contains($heartbeat, 'UPDATE users SET updated_at=UTC_TIMESTAMP()'), 'Heartbeat must refresh presence timestamp');
-expect_contract(str_contains($chats, "'other_user_online'] = (bool)$participant['online']"), 'Chat responses must expose other-user presence');
+expect_contract(str_contains($chats, "'other_user_online'] = (bool)\$participant['online']"), 'Chat responses must expose other-user presence');
 expect_contract(str_contains($chats, "'image_version'] ="), 'Chat responses must expose avatar versions');
 expect_contract(str_contains($groups, "'image_version'] ="), 'Group responses must expose avatar versions');
 expect_contract(str_contains($mobilePlatform, 'sendPresenceHeartbeat();'), 'Mobile session restoration/sign-in must start presence heartbeats');
