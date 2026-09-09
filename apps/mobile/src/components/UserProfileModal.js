@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -80,7 +79,6 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
                   fallback={null}
                   label={`${name}'s profile photo`}
                   size={112}
-                  onPreviewChange={() => {}}
                   imageStyle={styles.avatarImage}
                 />
               ) : (
