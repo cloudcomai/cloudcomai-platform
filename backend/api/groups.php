@@ -118,7 +118,7 @@ if ($method === 'DELETE') {
         $pdo->prepare('UPDATE group_invites SET active=0 WHERE chat_id=?')->execute([$chatId]);
         $pdo->commit();
         out(['message'=>'Group deleted','group_id'=>$chatId]);
-    } catch(Throwable $e){ $pdo->rollBack(); error_log('groups.php DELETE error: '.$e->getMessage()); $pdo->rollBack(); fail('Group deletion failed',500); }
+    } catch(Throwable $e){ $pdo->rollBack(); error_log('groups.php DELETE error: '.$e->getMessage()); fail('Group deletion failed',500); }
 }
 
 fail('Method not allowed',405);
