@@ -18,7 +18,7 @@ if ($targetUserId !== (int)$viewer['id']) {
         FROM chat_members viewer_membership
         INNER JOIN chats shared_chat
             ON shared_chat.id=viewer_membership.chat_id
-           AND shared_chat.type="private"
+           AND shared_chat.type IN ("private","public")
         INNER JOIN chat_members target_membership
             ON target_membership.chat_id=viewer_membership.chat_id
            AND target_membership.user_id=?
@@ -67,6 +67,25 @@ if (!$self) {
     $onlineQuery->execute([$targetUserId]);
     $online = (bool)$onlineQuery->fetchColumn();
 }
+
+$relationship = ['status' => $self ? 'self' : 'none'];
+if (!$self) {
+    $relationshipStmt = db()->prepare('
+        SELECT status, requester_id, recipient_id
+        FROM friend_requests
+        WHERE (requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?)
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $relationshipStmt->execute([(int)$viewer['id'], $targetUserId, $targetUserId, (int)$viewer['id']]);
+    if ($request = $relationshipStmt->fetch()) {
+        $relationship = [
+            'status' => (string)$request['status'],
+            'direction' => (int)$request['requester_id'] === (int)$viewer['id'] ? 'outgoing' : 'incoming',
+        ];
+    }
+}
+
 out(['user' => [
     'id' => (int)$profile['id'],
     'name' => $profile['name'],
@@ -78,4 +97,5 @@ out(['user' => [
     'hidden_fields' => $self ? [] : array_values(array_map(static fn($key) => substr($key,6),array_keys(array_filter($visibility,static fn($value,$key) => str_starts_with($key,'share_') && !$value,ARRAY_FILTER_USE_BOTH)))),
     'image_version' => $imageVersion,
     'online' => $online,
+    'relationship' => $relationship,
 ]]);
