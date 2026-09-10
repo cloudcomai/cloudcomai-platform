@@ -21,7 +21,7 @@ expect_media(str_contains($upload, "fail('Unable to send media', 500)"), 'Media 
 
 $routerCatchPos = strpos($index, "error_log('API router failure:");
 $handlerCatchPos = strpos($index, "error_log('API handler failure [");
-$requirePos = strpos($index, "require $result['handler'];");
+$requirePos = strpos($index, 'require $result[\'handler\'];');
 expect_media($routerCatchPos !== false, 'Router failure logging missing');
 expect_media($requirePos !== false && $handlerCatchPos !== false && $requirePos < $handlerCatchPos, 'Handler execution must have its own failure handling');
 expect_media(str_contains($index, "'API request failed'"), 'Handler exceptions must not be reported as router unavailable');
