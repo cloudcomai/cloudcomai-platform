@@ -1,7 +1,8 @@
-import { Platform } from 'react-native';
+import { Platform, Vibration } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import appConfig from '../../app.json';
+import { shouldNotifyWithFeedback } from './notificationFeedback';
 
 const PREFERENCE_KEY = 'cloudcomai.notification.preferences';
 export const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({ enabled: true, message: true, group: true, attachment: true, system: true });
@@ -31,7 +32,11 @@ export async function requestNotificationPermission() {
   if (!preferences.enabled) return null;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('messages', {
-      name: 'Messages', importance: Notifications.AndroidImportance.HIGH, sound: 'default', enableVibrate: true,
+      name: 'Messages',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      enableVibrate: true,
+      vibrationPattern: [0, 250, 150, 250],
     });
   }
   const current = await Notifications.getPermissionsAsync();
@@ -44,8 +49,10 @@ export async function requestNotificationPermission() {
 
 export const subscribeToNotifications = async onNotification => Notifications.addNotificationReceivedListener(async event => {
   const preferences = await getNotificationPreferences();
-  const category = event?.request?.content?.data?.category || 'system';
-  if (preferences.enabled && preferences[category] !== false) onNotification(event);
+  if (preferences.enabled && preferences[event?.request?.content?.data?.category || 'system'] !== false) {
+    if (shouldNotifyWithFeedback(event, preferences)) Vibration.vibrate([0, 250, 150, 250]);
+    onNotification(event);
+  }
 });
 
 export const rememberDeviceToken = token => SecureStore.setItemAsync('cloudcomai.push.token', token);
