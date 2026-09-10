@@ -20,6 +20,7 @@ $notifyPos = strpos($upload, 'create_chat_notifications(');
 expect_media($commitPos !== false && $notifyPos !== false && $commitPos < $notifyPos, 'Media must commit before notification creation');
 expect_media(str_contains($upload, "error_log('Media notification creation failed"), 'Notification failures must be logged without failing stored media');
 expect_media(str_contains($upload, "fail('Unable to send media', 500)"), 'Media persistence failures must return a media-specific error');
+expect_media(str_contains($upload, '$st->execute([$chat,$user[\'id\'],$messageType,$body,$reply ?: null,$expires,$createdAt]);'), 'Media messages must store an empty body string rather than NULL for legacy NOT NULL schemas');
 
 $routerCatchPos = strpos($index, "error_log('API router failure:");
 $handlerCatchPos = strpos($index, "error_log('API handler failure [");
