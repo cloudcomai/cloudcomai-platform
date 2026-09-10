@@ -69,11 +69,13 @@ if (!move_uploaded_file($file['tmp_name'], $path)) fail('Unable to store attachm
 
 $expires = $row['retention_seconds'] ? gmdate('Y-m-d H:i:s', time() + (int)$row['retention_seconds']) : null;
 $createdAt = gmdate('Y-m-d H:i:s');
+$defaultBody = $messageType === 'voice' ? 'Voice message' : ($messageType === 'video' ? 'Video message' : 'Attachment');
+$messageBody = $body !== '' ? $body : $defaultBody;
 $pdo = db();
 try {
  $pdo->beginTransaction();
  $st = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
- $st->execute([$chat,$user['id'],$messageType,$body !== '' ? $body : null,$reply ?: null,$expires,$createdAt]);
+ $st->execute([$chat,$user['id'],$messageType,$messageBody,$reply ?: null,$expires,$createdAt]);
  $messageId = (int)$pdo->lastInsertId();
  $st = $pdo->prepare('INSERT INTO message_attachments(message_id,original_filename,stored_filename,storage_path,mime_type,file_size,download_policy,created_at) VALUES(?,?,?,?,?,?,?,?)');
  $st->execute([$messageId, $originalFilename, $stored, 'storage/attachments/' . $stored, $mime, (int)$file['size'], $policy, $createdAt]);
@@ -96,6 +98,6 @@ try {
 
 out(['message' => [
  'id' => $messageId, 'chat_id' => $chat, 'sender_id' => (int)$user['id'], 'sender_name' => $user['name'],
- 'type' => $messageType, 'body' => $body, 'reply_to_message_id' => $reply ?: null, 'created_at' => $createdAt,
+ 'type' => $messageType, 'body' => $messageBody, 'reply_to_message_id' => $reply ?: null, 'created_at' => $createdAt,
  'attachment' => ['id' => $attachmentId, 'name' => $originalFilename, 'mime_type' => $mime, 'file_size' => (int)$file['size'], 'download_policy' => $policy]
 ]], 201);
