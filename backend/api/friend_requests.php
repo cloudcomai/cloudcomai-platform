@@ -1,0 +1,130 @@
+<?php
+declare(strict_types=1);
+
+require __DIR__ . '/../lib/bootstrap.php';
+
+$viewer = auth_user();
+$viewerId = (int)$viewer['id'];
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    $targetId = (int)($_GET['user_id'] ?? $_GET['id'] ?? 0);
+    if ($targetId > 0) {
+        if ($targetId === $viewerId) out(['relationship' => ['status' => 'self']]);
+        $state = relationship_for_users($viewerId, $targetId);
+        out(['relationship' => $state]);
+    }
+
+    $incoming = db()->prepare('
+        SELECT fr.id,fr.requester_id AS user_id,fr.created_at,u.name,u.user_id AS username
+        FROM friend_requests fr
+        INNER JOIN users u ON u.id=fr.requester_id AND u.account_status="active"
+        WHERE fr.recipient_id=? AND fr.status="pending"
+        ORDER BY fr.id DESC
+    ');
+    $incoming->execute([$viewerId]);
+    $outgoing = db()->prepare('
+        SELECT fr.id,fr.recipient_id AS user_id,fr.created_at,u.name,u.user_id AS username
+        FROM friend_requests fr
+        INNER JOIN users u ON u.id=fr.recipient_id AND u.account_status="active"
+        WHERE fr.requester_id=? AND fr.status="pending"
+        ORDER BY fr.id DESC
+    ');
+    $outgoing->execute([$viewerId]);
+    out(['incoming' => $incoming->fetchAll(), 'outgoing' => $outgoing->fetchAll()]);
+}
+
+if ($method !== 'POST') fail('Method not allowed', 405);
+
+$input = json_input();
+$action = strtolower(trim((string)($input['action'] ?? '')));
+$targetId = (int)($input['user_id'] ?? $input['target_user_id'] ?? 0);
+if ($targetId <= 0) fail('User id is required');
+if ($targetId === $viewerId) fail('You cannot send a friend request to yourself', 400);
+
+$userStmt = db()->prepare('SELECT id FROM users WHERE id=? AND account_status="active" LIMIT 1');
+$userStmt->execute([$targetId]);
+if (!$userStmt->fetchColumn()) fail('User not found', 404);
+
+$blockState = users_block_state($viewerId, $targetId);
+if ($blockState['blocked']) fail('This user is blocked', 403);
+
+if ($action === 'send') {
+    $state = relationship_for_users($viewerId, $targetId);
+    if ($state['status'] === 'accepted') fail('You are already friends', 409);
+    if ($state['status'] === 'pending') fail($state['direction'] === 'incoming' ? 'This user has already sent you a friend request' : 'Friend request already sent', 409);
+
+    $insert = db()->prepare('INSERT INTO friend_requests (requester_id,recipient_id,status) VALUES (?,?,"pending")');
+    $insert->execute([$viewerId, $targetId]);
+    out(['request' => [
+        'id' => (int)db()->lastInsertId(),
+        'status' => 'pending',
+        'direction' => 'outgoing',
+        'user_id' => $targetId,
+    ]], 201);
+}
+
+$requestId = (int)($input['request_id'] ?? 0);
+if ($requestId <= 0) fail('Request id is required');
+
+$requestStmt = db()->prepare('SELECT id,requester_id,recipient_id,status FROM friend_requests WHERE id=? LIMIT 1');
+$requestStmt->execute([$requestId]);
+$request = $requestStmt->fetch();
+if (!$request) fail('Friend request not found', 404);
+
+if ($action === 'accept' || $action === 'decline' || $action === 'block') {
+    if ((int)$request['recipient_id'] !== $viewerId) fail('Only the recipient can respond to this friend request', 403);
+    if ($request['status'] !== 'pending') fail('This friend request is no longer pending', 409);
+
+    if ($action === 'accept') {
+        $update = db()->prepare('UPDATE friend_requests SET status="accepted",responded_at=UTC_TIMESTAMP() WHERE id=? AND recipient_id=? AND status="pending"');
+        $update->execute([$requestId, $viewerId]);
+        out(['relationship' => ['status' => 'accepted', 'direction' => 'incoming', 'request_id' => $requestId]]);
+    }
+
+    if ($action === 'decline') {
+        $update = db()->prepare('UPDATE friend_requests SET status="declined",responded_at=UTC_TIMESTAMP() WHERE id=? AND recipient_id=? AND status="pending"');
+        $update->execute([$requestId, $viewerId]);
+        out(['relationship' => ['status' => 'declined', 'direction' => 'incoming', 'request_id' => $requestId]]);
+    }
+
+    db()->beginTransaction();
+    try {
+        $block = db()->prepare('INSERT IGNORE INTO user_blocks (user_id,blocked_user_id) VALUES (?,?)');
+        $block->execute([$viewerId, (int)$request['requester_id']]);
+        $update = db()->prepare('UPDATE friend_requests SET status="blocked",responded_at=UTC_TIMESTAMP() WHERE id=? AND recipient_id=? AND status="pending"');
+        $update->execute([$requestId, $viewerId]);
+        db()->commit();
+    } catch (Throwable $error) {
+        if (db()->inTransaction()) db()->rollBack();
+        throw $error;
+    }
+    out(['relationship' => ['status' => 'blocked', 'direction' => 'incoming', 'request_id' => $requestId]]);
+}
+
+if ($action === 'cancel') {
+    if ((int)$request['requester_id'] !== $viewerId) fail('Only the requester can cancel this friend request', 403);
+    if ($request['status'] !== 'pending') fail('This friend request is no longer pending', 409);
+    db()->prepare('UPDATE friend_requests SET status="cancelled",responded_at=UTC_TIMESTAMP() WHERE id=? AND requester_id=? AND status="pending"')->execute([$requestId, $viewerId]);
+    out(['relationship' => ['status' => 'cancelled', 'direction' => 'outgoing', 'request_id' => $requestId]]);
+}
+
+fail('Unsupported friend request action', 400);
+
+function relationship_for_users(int $viewerId, int $targetId): array {
+    $stmt = db()->prepare('
+        SELECT id,status,requester_id,recipient_id
+        FROM friend_requests
+        WHERE (requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?)
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $stmt->execute([$viewerId,$targetId,$targetId,$viewerId]);
+    $row = $stmt->fetch();
+    if (!$row) return ['status' => 'none'];
+    return [
+        'status' => (string)$row['status'],
+        'direction' => (int)$row['requester_id'] === $viewerId ? 'outgoing' : 'incoming',
+        'request_id' => (int)$row['id'],
+    ];
+}
