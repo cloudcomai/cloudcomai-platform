@@ -7,7 +7,6 @@ function notification_preferences(int $userId): array {
     return array_map('boolval', array_merge(['enabled'=>1,'message'=>1,'group'=>1,'attachment'=>1,'system'=>1], $st->fetch() ?: []));
 }
 
-// Use the same visibility rules for the inbox, badge and push delivery.
 function notification_visibility_sql(): string {
     return <<<'SQL'
         (
@@ -40,24 +39,30 @@ function cancel_read_notification_deliveries(int $userId): void {
 }
 
 function pending_notification_deliveries(int $limit = 100): array {
-    $limit = max(1,min(100,$limit));
-    $joins = <<<'SQL'
+    $limit=max(1,min(100,$limit));
+    $joins=<<<'SQL'
         INNER JOIN notification_devices d ON d.id=q.device_id
         INNER JOIN notification_history h ON h.id=q.notification_id
         LEFT JOIN user_notification_preferences np ON np.user_id=h.user_id
     SQL;
-    $eligible = "d.revoked_at IS NULL AND d.user_id=h.user_id AND h.read_at IS NULL AND COALESCE(np.enabled,1)=1
+    $eligible="d.revoked_at IS NULL AND d.user_id=h.user_id AND h.read_at IS NULL AND COALESCE(np.enabled,1)=1
         AND CASE h.category WHEN 'message' THEN COALESCE(np.message,1) WHEN 'group' THEN COALESCE(np.`group`,1) WHEN 'attachment' THEN COALESCE(np.attachment,1) ELSE COALESCE(np.`system`,1) END=1
         AND (COALESCE(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.chat_type')),'')<>'group' OR COALESCE(np.`group`,1)=1)
-        AND NOT EXISTS (SELECT 1 FROM chat_user_states muted WHERE muted.user_id=h.user_id AND muted.chat_id=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.chat_id')) AS UNSIGNED) AND muted.notifications_muted=1)
-        AND " . notification_visibility_sql();
+        AND NOT EXISTS (
+            SELECT 1 FROM chat_user_states muted
+            WHERE muted.user_id=h.user_id
+              AND muted.chat_id=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.chat_id')) AS UNSIGNED)
+              AND muted.notifications_muted=1
+              AND (muted.notifications_muted_until IS NULL OR muted.notifications_muted_until>UTC_TIMESTAMP())
+        )
+        AND ".notification_visibility_sql();
     db()->exec("UPDATE notification_delivery_queue q $joins SET q.status='FAILED',q.last_error='No longer eligible for delivery' WHERE q.status='PENDING' AND NOT ($eligible)");
-    $rows = db()->query("SELECT q.id,q.device_id,d.token,h.user_id,h.title,h.body,h.data_json FROM notification_delivery_queue q $joins WHERE q.status='PENDING' AND q.available_at<=UTC_TIMESTAMP() AND ($eligible) ORDER BY q.id LIMIT $limit")->fetchAll();
-    $counts = [];
+    $rows=db()->query("SELECT q.id,q.device_id,d.token,h.user_id,h.title,h.body,h.data_json FROM notification_delivery_queue q $joins WHERE q.status='PENDING' AND q.available_at<=UTC_TIMESTAMP() AND ($eligible) ORDER BY q.id LIMIT $limit")->fetchAll();
+    $counts=[];
     foreach ($rows as &$row) {
-        $uid = (int)$row['user_id'];
-        if (!isset($counts[$uid])) $counts[$uid] = notification_unread_count($uid);
-        $row['unread_count'] = $counts[$uid];
+        $uid=(int)$row['user_id'];
+        if (!isset($counts[$uid])) $counts[$uid]=notification_unread_count($uid);
+        $row['unread_count']=$counts[$uid];
     }
     unset($row);
     return $rows;
