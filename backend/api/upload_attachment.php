@@ -79,12 +79,19 @@ try {
  $st->execute([$messageId, $originalFilename, $stored, 'storage/attachments/' . $stored, $mime, (int)$file['size'], $policy, $createdAt]);
  $attachmentId = (int)$pdo->lastInsertId();
  $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
- create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], $messageType === 'voice' ? 'Voice message' : ($messageType === 'video' ? 'Video message' : ($body !== '' ? $body : 'Sent you an attachment')), $messageId);
  $pdo->commit();
 } catch (Throwable $e) {
  if ($pdo->inTransaction()) $pdo->rollBack();
  @unlink($path);
- throw $e;
+ error_log('Media message creation failed: ' . $e->getMessage());
+ fail('Unable to send media', 500);
+}
+
+try {
+ create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], $messageType === 'voice' ? 'Voice message' : ($messageType === 'video' ? 'Video message' : ($body !== '' ? $body : 'Sent you an attachment')), $messageId);
+} catch (Throwable $e) {
+ // A notification problem must not roll back an already stored voice/video/attachment message.
+ error_log('Media notification creation failed for message ' . $messageId . ': ' . $e->getMessage());
 }
 
 out(['message' => [
