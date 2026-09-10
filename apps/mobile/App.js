@@ -37,6 +37,7 @@ import { useMessagingStore } from './src/hooks/useMessagingStore';
 import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
 import PublicChatsList from './src/components/PublicChatsList';
+import Hubs from './src/components/Hubs';
 import GroupManagement from './src/components/GroupManagement';
 import UserProfileModal from './src/components/UserProfileModal';
 import ChatThemeSettings from './src/components/ChatThemeSettings';
@@ -591,6 +592,7 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppe
 
 function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const [section, setSection] = useState('all');
+  const [showHubs, setShowHubs] = useState(false);
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -709,6 +711,8 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     }
   };
 
+  if (showHubs) return <Hubs user={session.user} onClose={() => setShowHubs(false)} />;
+
   if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
@@ -732,7 +736,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalStrip} contentContainerStyle={styles.quickActions}>
         <Pressable style={styles.quickAction} onPress={() => openMenu('private')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>＋</Text></View><Text style={styles.quickLabel}>New Chat</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => openMenu('group')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👪</Text></View><Text style={styles.quickLabel}>New Group</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👥</Text></View><Text style={styles.quickLabel}>Contacts</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => setShowHubs(true)}><View style={styles.quickCircle}><Text style={styles.quickIcon}>◉</Text></View><Text style={styles.quickLabel}>Hubs</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => openMenu('menu')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>▥</Text></View><Text style={styles.quickLabel}>Polls</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={onSettings}><View style={styles.quickCircle}><Text style={styles.quickIcon}>⚙</Text></View><Text style={styles.quickLabel}>Settings</Text></Pressable>
       </ScrollView>
