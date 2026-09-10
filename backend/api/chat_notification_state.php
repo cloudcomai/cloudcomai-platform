@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../lib/bootstrap.php';
+require __DIR__ . '/../lib/chat_mute.php';
 $user = auth_user();
 $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -11,15 +12,12 @@ $member->execute([$chatId, $user['id']]);
 if (!$member->fetchColumn()) fail('Chat not found',404);
 if ($method === 'POST') {
     if (array_key_exists('mute_for', $data)) {
-        $choice = (string)$data['mute_for'];
-        $durations = ['10_hours' => 10 * 3600, '1_week' => 7 * 86400, '2_weeks' => 14 * 86400, 'always' => null, 'off' => 0];
-        if (!array_key_exists($choice, $durations)) fail('Choose 10 hours, 1 week, 2 weeks, Always, or Unmute',422);
-        $muted = $choice === 'off' ? 0 : 1;
-        $until = $choice === 'always' ? null : ($choice === 'off' ? null : gmdate('Y-m-d H:i:s', time() + $durations[$choice]));
-        $pdo->prepare('INSERT INTO chat_user_states(chat_id,user_id,notifications_muted,notifications_muted_until,updated_at) VALUES(?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE notifications_muted=VALUES(notifications_muted),notifications_muted_until=VALUES(notifications_muted_until),updated_at=UTC_TIMESTAMP()')->execute([$chatId,$user['id'],$muted,$until]);
+        try { $muted = chat_mute_enabled((string)$data['mute_for']); $until = chat_mute_until((string)$data['mute_for']); }
+        catch (InvalidArgumentException $error) { fail($error->getMessage(),422); }
+        $pdo->prepare('INSERT INTO chat_user_states(chat_id,user_id,notifications_muted,notifications_muted_until,updated_at) VALUES(?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE notifications_muted=VALUES(notifications_muted),notifications_muted_until=VALUES(notifications_muted_until),updated_at=UTC_TIMESTAMP()')->execute([$chatId,$user['id'],(int)$muted,$until]);
     } elseif (array_key_exists('muted',$data)) {
         if (!is_bool($data['muted'])) fail('muted must be true or false',422);
-        $pdo->prepare('INSERT INTO chat_user_states(chat_id,user_id,notifications_muted,notifications_muted_until,updated_at) VALUES(?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE notifications_muted=VALUES(notifications_muted),notifications_muted_until=VALUES(notifications_muted_until),updated_at=UTC_TIMESTAMP()')->execute([$chatId,$user['id'],(int)$data['muted'],$data['muted'] ? null : null]);
+        $pdo->prepare('INSERT INTO chat_user_states(chat_id,user_id,notifications_muted,notifications_muted_until,updated_at) VALUES(?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE notifications_muted=VALUES(notifications_muted),notifications_muted_until=VALUES(notifications_muted_until),updated_at=UTC_TIMESTAMP()')->execute([$chatId,$user['id'],(int)$data['muted'],null]);
     } elseif (($data['mark_read'] ?? false) === true) {
         $through = $data['last_read_message_id'] ?? PHP_INT_MAX;
         if (filter_var($through,FILTER_VALIDATE_INT) === false || $through<0) fail('Invalid read watermark',422);
