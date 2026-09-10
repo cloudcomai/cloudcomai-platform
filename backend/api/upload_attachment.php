@@ -73,7 +73,8 @@ $pdo = db();
 try {
  $pdo->beginTransaction();
  $st = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
- $st->execute([$chat,$user['id'],$messageType,$body !== '' ? $body : null,$reply ?: null,$expires,$createdAt]);
+ // Keep body non-null for compatibility with legacy production schemas where messages.body is NOT NULL.
+ $st->execute([$chat,$user['id'],$messageType,$body,$reply ?: null,$expires,$createdAt]);
  $messageId = (int)$pdo->lastInsertId();
  $st = $pdo->prepare('INSERT INTO message_attachments(message_id,original_filename,stored_filename,storage_path,mime_type,file_size,download_policy,created_at) VALUES(?,?,?,?,?,?,?,?)');
  $st->execute([$messageId, $originalFilename, $stored, 'storage/attachments/' . $stored, $mime, (int)$file['size'], $policy, $createdAt]);
