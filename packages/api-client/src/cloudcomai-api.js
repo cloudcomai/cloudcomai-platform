@@ -53,6 +53,25 @@ export class CloudComAiApi {
     });
   }
 
+  getFriendRelationship(userId, options = {}) {
+    return this.client.get(ApiRoute.FRIEND_REQUESTS, {
+      ...options,
+      query: { ...options.query, user_id: userId },
+    });
+  }
+
+  listFriendRequests(options = {}) {
+    return this.client.get(ApiRoute.FRIEND_REQUESTS, options);
+  }
+
+  sendFriendRequest(userId, options = {}) {
+    return this.client.post(ApiRoute.FRIEND_REQUESTS, { action: 'send', user_id: userId }, options);
+  }
+
+  respondToFriendRequest(requestId, action, options = {}) {
+    return this.client.post(ApiRoute.FRIEND_REQUESTS, { action, request_id: requestId }, options);
+  }
+
   listUsers(options = {}) {
     return this.client.get(ApiRoute.USERS, options);
   }

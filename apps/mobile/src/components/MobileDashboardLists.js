@@ -17,16 +17,22 @@ import { loadMobileContacts } from '../utils/contacts';
 
 export function ContactsList({ onOpenChat }) {
   const [items, setItems] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionId, setActionId] = useState(null);
   const [error, setError] = useState('');
 
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      const contacts = await loadMobileContacts(platformApi, 1, 500);
+      const [contacts, friendRequests] = await Promise.all([
+        loadMobileContacts(platformApi, 1, 500),
+        platformApi.listFriendRequests(),
+      ]);
       setItems(contacts);
+      setRequests(friendRequests.data?.incoming || []);
     } catch (e) {
       setError(e.message || 'Unable to load People & Contacts.');
     } finally {
@@ -36,6 +42,20 @@ export function ContactsList({ onOpenChat }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const respond = async (request, action) => {
+    if (!request?.id || actionId !== null) return;
+    setActionId(Number(request.id));
+    setError('');
+    try {
+      await platformApi.respondToFriendRequest(Number(request.id), action);
+      setRequests(current => current.filter(item => Number(item.id) !== Number(request.id)));
+    } catch (e) {
+      setError(e.message || 'Unable to update friend request.');
+    } finally {
+      setActionId(null);
+    }
+  };
 
   const openContact = async contact => {
     try {
@@ -51,6 +71,32 @@ export function ContactsList({ onOpenChat }) {
   return (
     <>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {requests.length ? (
+        <View style={styles.requestsCard}>
+          <View style={styles.requestsHeader}>
+            <Text style={styles.requestsTitle}>Friend requests</Text>
+            <Text style={styles.requestsCount}>{requests.length}</Text>
+          </View>
+          {requests.map(request => {
+            const busy = Number(request.id) === actionId;
+            const title = request.name || request.username || 'CloudComAI user';
+            return (
+              <View key={request.id} style={styles.requestRow}>
+                <View style={styles.avatar}><Text style={styles.avatarText}>{title[0]?.toUpperCase() || 'U'}</Text></View>
+                <View style={styles.meta}>
+                  <Text style={styles.title}>{title}</Text>
+                  <Text style={styles.sub}>{request.username ? `@${request.username}` : 'Wants to add you as a friend/contact'}</Text>
+                </View>
+                <View style={styles.requestActions}>
+                  <Pressable disabled={actionId !== null} onPress={() => respond(request, 'accept')} style={styles.acceptButton}><Text style={styles.acceptText}>{busy ? '…' : 'Accept'}</Text></Pressable>
+                  <Pressable disabled={actionId !== null} onPress={() => respond(request, 'decline')} style={styles.declineButton}><Text style={styles.declineText}>Decline</Text></Pressable>
+                  <Pressable disabled={actionId !== null} onPress={() => respond(request, 'block')} style={styles.blockButton}><Text style={styles.blockText}>Block</Text></Pressable>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
       <FlatList
         data={items}
         keyExtractor={item => String(item.registered_user_id || item.id)}
@@ -213,6 +259,18 @@ const styles = StyleSheet.create({
   title: { color: '#172033', fontWeight: '800', fontSize: 15 },
   sub: { marginTop: 4, color: '#6b7280', fontSize: 12 },
   onlineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22c55e' },
+  requestsCard: { margin: 12, padding: 12, borderRadius: 14, backgroundColor: '#f8faff', borderWidth: 1, borderColor: '#dbe4ff' },
+  requestsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  requestsTitle: { color: '#172033', fontWeight: '900', fontSize: 15 },
+  requestsCount: { minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5', color: '#fff', textAlign: 'center', fontSize: 11, fontWeight: '800', overflow: 'hidden' },
+  requestRow: { paddingVertical: 12, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  requestActions: { width: 102, marginLeft: 8, gap: 4 },
+  acceptButton: { minHeight: 28, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 7, backgroundColor: '#3157d5' },
+  acceptText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  declineButton: { minHeight: 28, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 7, backgroundColor: '#e5eaf4' },
+  declineText: { color: '#475569', fontSize: 10, fontWeight: '800' },
+  blockButton: { minHeight: 28, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 7, backgroundColor: '#fee2e2' },
+  blockText: { color: '#b91c1c', fontSize: 10, fontWeight: '800' },
   notificationHeader: { minHeight: 48, flexWrap: 'wrap', gap: 8, paddingVertical: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   notificationTitle: { color: '#172033', fontWeight: '800' },
   link: { color: '#3157d5', fontWeight: '700', fontSize: 12 },

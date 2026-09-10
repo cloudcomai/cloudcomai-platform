@@ -22,10 +22,27 @@ const DetailRow = ({ label, value }) => (
 export default function UserProfileModal({ visible, userId, fallbackName, onClose }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+
+  const loadProfile = async () => {
+    if (!visible || !userId) return;
+    setLoading(true);
+    setError('');
+    setImageFailed(false);
+    setImagePreviewVisible(false);
+    try {
+      const { data } = await platformApi.getUserProfile(userId);
+      setProfile(data.user || null);
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load this profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!visible || !userId) return undefined;
@@ -50,11 +67,52 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
     }
   }, [visible]);
 
+  const runFriendAction = async (action, requestId = null) => {
+    if (actionBusy || !profile?.id) return;
+    setActionBusy(true);
+    setError('');
+    try {
+      if (action === 'send') await platformApi.sendFriendRequest(profile.id);
+      else await platformApi.respondToFriendRequest(requestId, action);
+      await loadProfile();
+    } catch (actionError) {
+      setError(actionError.message || 'Unable to update friend request.');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const name = profile?.name || fallbackName || 'CloudComAI user';
   const imageSource = profile?.id
     ? `${mediaUrl('user', profile.id)}&v=${profile.image_version || ''}`
     : '';
   const canPreviewImage = Boolean(imageSource && !imageFailed);
+  const relationship = profile?.relationship || { status: 'none' };
+  const status = relationship.status;
+  const requestId = relationship.request_id;
+
+  const renderFriendActions = () => {
+    if (!profile || status === 'self') return null;
+    if (status === 'accepted') return <View style={styles.statusCard}><Text style={styles.statusText}>✓ Friends / Contact</Text></View>;
+    if (status === 'blocked') return <View style={styles.statusCard}><Text style={styles.blockedText}>Blocked</Text></View>;
+    if (status === 'pending' && relationship.direction === 'outgoing') {
+      return <View style={styles.statusCard}><Text style={styles.statusText}>Friend request sent</Text><Pressable disabled={actionBusy} onPress={() => runFriendAction('cancel', requestId)}><Text style={styles.linkText}>{actionBusy ? 'Updating…' : 'Cancel request'}</Text></Pressable></View>;
+    }
+    if (status === 'pending' && relationship.direction === 'incoming') {
+      return <View style={styles.requestCard}>
+        <Text style={styles.requestTitle}>Friend request</Text>
+        <Text style={styles.requestText}>{name} wants to add you as a friend/contact.</Text>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.primaryAction} disabled={actionBusy} onPress={() => runFriendAction('accept', requestId)}><Text style={styles.primaryActionText}>Accept</Text></Pressable>
+          <Pressable style={styles.secondaryAction} disabled={actionBusy} onPress={() => runFriendAction('decline', requestId)}><Text style={styles.secondaryActionText}>Decline</Text></Pressable>
+          <Pressable style={styles.blockAction} disabled={actionBusy} onPress={() => runFriendAction('block', requestId)}><Text style={styles.blockActionText}>Block</Text></Pressable>
+        </View>
+      </View>;
+    }
+    return <Pressable style={styles.addFriendButton} disabled={actionBusy} onPress={() => runFriendAction('send')}>
+      {actionBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.addFriendText}>＋ Add Contact / Add Friend</Text>}
+    </Pressable>;
+  };
 
   return (
     <Modal visible={Boolean(visible)} animationType="slide" onRequestClose={onClose}>
@@ -67,7 +125,7 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
           <View style={styles.headerSpacer} />
         </View>
 
-        {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : error ? (
+        {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : error && !profile ? (
           <View style={styles.errorCard}>
             <Text style={styles.error}>{error}</Text>
             <Pressable style={styles.retryButton} onPress={() => setReloadKey(value => value + 1)}>
@@ -84,13 +142,13 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
                 accessibilityRole={canPreviewImage ? 'button' : undefined}
                 accessibilityLabel={canPreviewImage ? `View ${name}'s profile picture` : undefined}
               >
-                {!imageFailed && imageSource ? (
-                  <Image source={{ uri: imageSource }} style={styles.avatarImage} onError={() => setImageFailed(true)} />
-                ) : null}
+                {!imageFailed && imageSource ? <Image source={{ uri: imageSource }} style={styles.avatarImage} onError={() => setImageFailed(true)} /> : null}
                 <Text style={styles.avatarFallback}>{name[0]?.toUpperCase() || 'U'}</Text>
               </Pressable>
               <Text style={styles.name}>{name}</Text>
               {profile.user_id ? <Text style={styles.userId}>@{profile.user_id}</Text> : null}
+              {renderFriendActions()}
+              {error ? <Text style={styles.actionError}>{error}</Text> : null}
             </View>
 
             <View style={styles.detailsCard}>
@@ -98,36 +156,15 @@ export default function UserProfileModal({ visible, userId, fallbackName, onClos
               <DetailRow label="Gender" value={profile.hidden_fields?.includes('gender') ? 'Private' : profile.gender || 'Not set'} />
               {profile.email ? <DetailRow label="Email" value={profile.email} /> : null}
               {profile.mobile ? <DetailRow label="Contact" value={profile.mobile} /> : null}
-              {!profile.email && !profile.mobile ? (
-                <Text style={styles.optionalNote}>Email and contact details are not shared.</Text>
-              ) : null}
+              {!profile.email && !profile.mobile ? <Text style={styles.optionalNote}>Email and contact details are not shared.</Text> : null}
             </View>
           </ScrollView>
         ) : null}
 
-        <Modal
-          visible={imagePreviewVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setImagePreviewVisible(false)}
-        >
+        <Modal visible={imagePreviewVisible} transparent animationType="fade" onRequestClose={() => setImagePreviewVisible(false)}>
           <View style={styles.previewBackdrop}>
-            <Pressable
-              style={styles.previewCloseArea}
-              onPress={() => setImagePreviewVisible(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Close profile picture preview"
-            >
-              <Text style={styles.previewClose}>×</Text>
-            </Pressable>
-            {canPreviewImage ? (
-              <Image
-                source={{ uri: imageSource }}
-                style={styles.previewImage}
-                resizeMode="contain"
-                accessibilityLabel={`${name}'s profile picture`}
-              />
-            ) : null}
+            <Pressable style={styles.previewCloseArea} onPress={() => setImagePreviewVisible(false)} accessibilityRole="button" accessibilityLabel="Close profile picture preview"><Text style={styles.previewClose}>×</Text></Pressable>
+            {canPreviewImage ? <Image source={{ uri: imageSource }} style={styles.previewImage} resizeMode="contain" accessibilityLabel={`${name}'s profile picture`} /> : null}
           </View>
         </Modal>
       </SafeAreaView>
@@ -150,6 +187,23 @@ const styles = StyleSheet.create({
   avatarFallback: { color: '#3157d5', fontSize: 38, fontWeight: '900' },
   name: { marginTop: 14, color: '#172033', fontSize: 23, fontWeight: '900', textAlign: 'center' },
   userId: { marginTop: 4, color: '#64748b', fontSize: 13 },
+  addFriendButton: { minHeight: 46, marginTop: 16, paddingHorizontal: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' },
+  addFriendText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  statusCard: { width: '100%', marginTop: 16, padding: 12, borderRadius: 12, alignItems: 'center', backgroundColor: '#eef2ff' },
+  statusText: { color: '#3157d5', fontWeight: '800' },
+  blockedText: { color: '#b91c1c', fontWeight: '800' },
+  linkText: { marginTop: 7, color: '#3157d5', fontWeight: '700', fontSize: 12 },
+  requestCard: { width: '100%', marginTop: 16, padding: 14, borderRadius: 12, backgroundColor: '#f8faff', borderWidth: 1, borderColor: '#dbe4ff' },
+  requestTitle: { color: '#172033', fontSize: 14, fontWeight: '900' },
+  requestText: { marginTop: 4, color: '#64748b', fontSize: 12, lineHeight: 18 },
+  actionRow: { flexDirection: 'row', gap: 7, marginTop: 12 },
+  primaryAction: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#3157d5' },
+  primaryActionText: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  secondaryAction: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#e5eaf4' },
+  secondaryActionText: { color: '#475569', fontWeight: '800', fontSize: 12 },
+  blockAction: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#fee2e2' },
+  blockActionText: { color: '#b91c1c', fontWeight: '800', fontSize: 12 },
+  actionError: { marginTop: 10, color: '#b91c1c', textAlign: 'center', fontSize: 12 },
   detailsCard: { paddingHorizontal: 18, borderRadius: 18, backgroundColor: '#fff' },
   detailRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   detailLabel: { width: 82, color: '#64748b', fontSize: 13, fontWeight: '700' },
