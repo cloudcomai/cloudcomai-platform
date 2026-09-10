@@ -21,7 +21,6 @@ import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { buildProfileImageCacheKey } from '../utils/profileImage';
-import Hubs from './Hubs';
 
 const GROUP_TYPES = [
   'Family Group','Friend Group','Fan Group','Study Group','College Group','Class Group',
@@ -51,18 +50,23 @@ export default function MobileMenu({
   const [screen, setScreen] = useState('menu');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
   const [userQuery, setUserQuery] = useState('');
   const [userResults, setUserResults] = useState([]);
+
   const [groupName, setGroupName] = useState('');
   const [groupType, setGroupType] = useState(GROUP_TYPES[0]);
+
   const [preferencesText, setPreferencesText] = useState('');
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+
   const [pollChats, setPollChats] = useState([]);
   const [pollChatId, setPollChatId] = useState(null);
   const [pollExpiry, setPollExpiry] = useState('');
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptionA, setPollOptionA] = useState('');
   const [pollOptionB, setPollOptionB] = useState('');
+
   const [googleStatus, setGoogleStatus] = useState(null);
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profileDob, setProfileDob] = useState(user?.dob || '');
@@ -75,54 +79,548 @@ export default function MobileMenu({
 
   useEffect(() => {
     if (visible) {
-      setScreen(initialScreen || 'menu'); setProfileName(user?.name || ''); setProfileDob(user?.dob || ''); setProfileGender(user?.gender || 'Male'); setProfileImageVersion(buildProfileImageCacheKey(user?.image_version)); setProfileImageFailed(false); isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
+      setScreen(initialScreen || 'menu');
+      setProfileName(user?.name || '');
+      setProfileDob(user?.dob || '');
+      setProfileGender(user?.gender || 'Male');
+      setProfileImageVersion(buildProfileImageCacheKey(user?.image_version));
+      setProfileImageFailed(false);
+      isAppLockEnabled().then(setAppLockEnabled).catch(() => setAppLockEnabled(false));
     } else {
-      setScreen('menu'); setError(''); setBusy(false); setUserQuery(''); setUserResults([]); setPollChats([]); setPollChatId(null); setGoogleStatus(null);
+      setScreen('menu');
+      setError('');
+      setBusy(false);
+      setUserQuery('');
+      setUserResults([]);
+      setPollChats([]);
+      setPollChatId(null);
+      setGoogleStatus(null);
     }
   }, [visible]);
 
-  const go = next => { setError(''); setScreen(next); };
-  const searchUsers = async () => { const query = userQuery.trim(); if (!query || busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.searchUsers(query); setUserResults(data.users || []); } catch (e) { setError(e.message || 'Unable to search users.'); } finally { setBusy(false); } };
-  const startPrivateChat = async target => { if (busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.createPrivateChat(target.id); if (!data.chat) throw new Error('Chat was not created.'); onChatCreated?.({ ...data.chat, id: Number(data.chat.id), isGroup: false }); onClose(); } catch (e) { setError(e.message || 'Unable to create private chat.'); } finally { setBusy(false); } };
-  const createGroup = async () => { if (!groupName.trim() || busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.createGroup({ name: groupName.trim(), group_category: groupType }); if (!data.group) throw new Error('Group was not created.'); onGroupCreated?.({ ...data.group, id: Number(data.group.id), isGroup: true }); onClose(); } catch (e) { setError(e.message || 'Unable to create group.'); } finally { setBusy(false); } };
-  const loadPreferences = async () => { go('preferences'); if (preferencesLoaded) return; setBusy(true); try { const { data } = await platformApi.getPreferences(); setPreferencesText((data.preferences || []).join(', ')); setPreferencesLoaded(true); } catch (e) { setError(e.message || 'Unable to load preferences.'); } finally { setBusy(false); } };
-  const savePreferences = async () => { const interests = preferencesText.split(',').map(v => v.trim()).filter(Boolean); if (!interests.length) { setError('Enter at least one preference.'); return; } setBusy(true); setError(''); try { await platformApi.updatePreferences(interests); Alert.alert('Preferences saved', 'Your CloudComAI preferences have been updated.'); setScreen('menu'); } catch (e) { setError(e.message || 'Unable to save preferences.'); } finally { setBusy(false); } };
-  const loadPoll = async () => { go('poll'); setBusy(true); try { const [{ data: privateData }, { data: groupData }] = await Promise.all([platformApi.listChats('private'), platformApi.listChats('group')]); const chats = [...(privateData.chats || []).map(c => ({ ...c, id: Number(c.id), label: c.name || 'Private chat' })), ...(groupData.chats || []).map(c => ({ ...c, id: Number(c.id), label: c.name || 'Group' }))]; setPollChats(chats); if (chats[0]) setPollChatId(chats[0].id); } catch (e) { setError(e.message || 'Unable to load conversations for the poll.'); } finally { setBusy(false); } };
-  const createPoll = async () => { if (!pollChatId || !pollQuestion.trim() || !pollOptionA.trim() || !pollOptionB.trim() || busy) return; setBusy(true); setError(''); try { await platformApi.createPoll({ chat_id: pollChatId, question: pollQuestion.trim(), expires_at: pollDateExpiry(pollExpiry), options: [pollOptionA.trim(), pollOptionB.trim()] }); Alert.alert('Poll created', 'The poll was posted to the selected conversation.'); onClose(); } catch (e) { setError(e.message || 'Unable to create poll.'); } finally { setBusy(false); } };
-  const openSyncContacts = async () => { go('contacts'); setBusy(true); try { const { data } = await platformApi.getGoogleStatus(); setGoogleStatus(data); } catch (e) { setError(e.message || 'Unable to check Google Contacts status.'); } finally { setBusy(false); } };
-  const syncContacts = async () => { if (busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.syncGoogleContacts(); const count = Array.isArray(data.contacts) ? data.contacts.length : (data.contact_count || 0); Alert.alert('Contacts synced', count ? `${count} contacts were processed.` : 'Google Contacts sync completed.'); const { data: status } = await platformApi.getGoogleStatus(); setGoogleStatus(status); } catch (e) { setError(e.message || 'Unable to sync Google Contacts.'); } finally { setBusy(false); } };
-  const connectGoogle = async () => { if (busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.getGoogleConnect(); if (!data.authorization_url) throw new Error('Google authorization URL was not returned.'); await Linking.openURL(data.authorization_url); } catch (e) { setError(e.message || 'Unable to open Google connection.'); } finally { setBusy(false); } };
-  const selectProfilePhoto = async useCamera => { if (busy) return; setError(''); try { const result = await withAppLockExternalActivity(async () => { if (useCamera) { const permission = await ImagePicker.requestCameraPermissionsAsync(); if (!permission.granted) throw new Error('Camera permission is required to take a profile photo.'); } const options = { mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.72, preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible }; return useCamera ? ImagePicker.launchCameraAsync(options) : ImagePicker.launchImageLibraryAsync(options); }); if (result.canceled || !result.assets?.[0]) return; const asset = result.assets[0]; if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; } setBusy(true); const { data } = await uploadMediaAsset(asset, { type: 'user', id: user.id }); const nextUser = { ...user, image_url: data.image_url, image_version: data.updated_at }; setProfileImageVersion(buildProfileImageCacheKey(data.updated_at, Date.now())); setProfileImageFailed(false); onProfileUpdated?.(nextUser); Alert.alert('Photo updated', 'Your cropped profile photo was saved.'); } catch (e) { setError(e.message || 'Unable to update profile photo.'); } finally { setBusy(false); } };
-  const chooseProfilePhoto = () => { if (busy) return; Alert.alert('Change profile photo', 'Take a new photo or choose one from your phone.', [{ text: 'Camera', onPress: () => selectProfilePhoto(true) }, { text: 'Photo library', onPress: () => selectProfilePhoto(false) }, { text: 'Cancel', style: 'cancel' }]); };
-  const saveProfile = async () => { if (!profileName.trim() || !profileDob.trim() || busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.updateProfile({ name: profileName.trim(), dob: profileDob.trim(), gender: profileGender }); if (data.user) { onProfileUpdated?.(data.user); Alert.alert('Profile updated', 'Your profile changes were saved.'); setScreen('menu'); } } catch (e) { setError(e.message || 'Unable to update profile.'); } finally { setBusy(false); } };
-  const saveAppLock = async () => { if (busy) return; if (appLockPin !== appLockConfirm) { setError('App lock PINs do not match.'); return; } setBusy(true); setError(''); try { await setAppLockPin(appLockPin); setAppLockEnabled(true); setAppLockPinValue(''); setAppLockConfirm(''); Alert.alert('App Lock enabled', 'CloudComAI will require this PIN when the app is reopened or resumed.'); setScreen('settings'); } catch (e) { setError(e.message || 'Unable to enable App Lock.'); } finally { setBusy(false); } };
-  const turnOffAppLock = async () => { if (busy) return; setBusy(true); setError(''); try { await disableAppLock(); setAppLockEnabled(false); setAppLockPinValue(''); setAppLockConfirm(''); Alert.alert('App Lock disabled', 'CloudComAI will no longer ask for an App Lock PIN.'); setScreen('settings'); } catch (e) { setError(e.message || 'Unable to disable App Lock.'); } finally { setBusy(false); } };
-
-  const body = () => {
-    if (screen === 'hubs') return <Hubs user={user} onClose={() => go('menu')} />;
-    if (screen === 'private') return <><ScreenHeader title="Start private chat" onBack={() => go('menu')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><TextInput style={styles.input} value={userQuery} onChangeText={setUserQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={searchUsers} /><Pressable style={styles.primary} onPress={searchUsers}><Text style={styles.primaryText}>Search</Text></Pressable><ScrollView style={styles.results}>{userResults.map(target => <Pressable key={target.id} style={styles.resultRow} onPress={() => startPrivateChat(target)}><Text style={styles.resultTitle}>{target.name}</Text><Text style={styles.resultSub}>{target.user_id ? `@${target.user_id}` : 'CloudComAI user'}</Text></Pressable>)}</ScrollView></ScrollView></>;
-    if (screen === 'group') return <><ScreenHeader title="Create group" onBack={() => go('menu')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><TextInput style={styles.input} value={groupName} onChangeText={setGroupName} placeholder="Group name" /><Text style={styles.label}>Group category</Text><View style={styles.chips}>{GROUP_TYPES.map(type => <Pressable key={type} style={[styles.chip, groupType === type && styles.chipActive]} onPress={() => setGroupType(type)}><Text style={[styles.chipText, groupType === type && styles.chipTextActive]}>{type}</Text></Pressable>)}</View><Pressable style={styles.primary} onPress={createGroup}><Text style={styles.primaryText}>Create group</Text></Pressable></ScrollView></>;
-    if (screen === 'preferences') return <><ScreenHeader title="Preferences" onBack={() => go('menu')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={styles.help}>Enter interests separated by commas.</Text><TextInput style={[styles.input, styles.multiline]} value={preferencesText} onChangeText={setPreferencesText} multiline placeholder="Technology, Private Chats, Family Group" /><Pressable style={styles.primary} onPress={savePreferences}><Text style={styles.primaryText}>Save preferences</Text></Pressable></ScrollView></>;
-    if (screen === 'poll') return <><ScreenHeader title="Create poll" onBack={() => go('menu')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={styles.label}>Conversation</Text><View style={styles.chips}>{pollChats.map(chat => <Pressable key={chat.id} style={[styles.chip, pollChatId === chat.id && styles.chipActive]} onPress={() => setPollChatId(chat.id)}><Text style={[styles.chipText, pollChatId === chat.id && styles.chipTextActive]} numberOfLines={1}>{chat.label}</Text></Pressable>)}</View><TextInput style={styles.input} value={pollQuestion} onChangeText={setPollQuestion} placeholder="Poll question" /><TextInput style={styles.input} value={pollOptionA} onChangeText={setPollOptionA} placeholder="Option 1" /><TextInput style={styles.input} value={pollOptionB} onChangeText={setPollOptionB} placeholder="Option 2" /><Text style={styles.label}>Expiry date (optional, YYYY-MM-DD)</Text><TextInput style={styles.input} value={pollExpiry} onChangeText={setPollExpiry} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" accessibilityLabel="Poll expiry date" /><Text style={styles.menuSub}>Leave blank for 30 days. A chosen date expires at the end of your local day.</Text><Pressable disabled={busy} style={styles.primary} onPress={createPoll}><Text style={styles.primaryText}>Create poll</Text></Pressable></ScrollView></>;
-    if (screen === 'contacts') return <><ScreenHeader title="Sync contacts" onBack={() => go('menu')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">{googleStatus?.connected ? <><Text style={styles.resultTitle}>Google connected</Text><Text style={styles.help}>{googleStatus.email || ''}</Text><Text style={styles.help}>{googleStatus.contact_count || 0} contacts stored</Text><Text style={styles.help}>Last sync: {googleStatus.last_contacts_sync_at || 'Not synced yet'}</Text><Pressable style={styles.primary} onPress={syncContacts}><Text style={styles.primaryText}>Sync Google Contacts</Text></Pressable></> : <><Text style={styles.help}>Google Contacts is not connected on this account.</Text><Pressable style={styles.primary} onPress={connectGoogle}><Text style={styles.primaryText}>Connect Google Contacts</Text></Pressable></>}</ScrollView></>;
-    if (screen === 'app_lock') return <><ScreenHeader title="App Lock" onBack={() => go('settings')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={styles.resultTitle}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text><Text style={styles.help}>{appLockEnabled ? 'Your PIN is required when CloudComAI is reopened or resumed from the background.' : 'Set a 4 to 6 digit PIN. This PIN is stored only in secure device storage.'}</Text>{!appLockEnabled ? <><TextInput style={styles.input} value={appLockPin} onChangeText={value => setAppLockPinValue(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" secureTextEntry placeholder="New PIN (4-6 digits)" maxLength={6} /><TextInput style={styles.input} value={appLockConfirm} onChangeText={value => setAppLockConfirm(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" secureTextEntry placeholder="Confirm PIN" maxLength={6} /><Pressable style={styles.primary} onPress={saveAppLock}><Text style={styles.primaryText}>Enable App Lock</Text></Pressable></> : <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={turnOffAppLock}><Text style={styles.dangerText}>Disable App Lock</Text></Pressable>}</ScrollView></>;
-    if (screen === 'profile') return <><ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><View style={styles.profilePhotoWrap}><View style={styles.profilePhotoFrame}>{!profileImageFailed ? <Image source={{ uri: `${mediaUrl('user', user?.id)}&v=${profileImageVersion}` }} style={styles.profilePhoto} onError={() => setProfileImageFailed(true)} /> : null}<Text style={styles.profilePhotoFallback}>{profileName[0]?.toUpperCase() || 'U'}</Text></View><Pressable style={styles.photoButton} onPress={chooseProfilePhoto}><Text style={styles.photoButtonText}>Change & crop photo</Text></Pressable><Text style={styles.help}>JPG, PNG or WebP · max 2 MB · square crop</Text></View><Text style={styles.label}>Full name</Text><TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" /><Text style={styles.label}>CloudComAI User ID</Text><View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.user_id ? `@${user.user_id}` : 'Not set'}</Text></View><Text style={styles.label}>Email</Text><View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.email || 'Not set'}</Text></View><Text style={styles.label}>Mobile</Text><View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.mobile || 'Not set'}</Text></View><Text style={styles.label}>Date of birth</Text><TextInput style={styles.input} value={profileDob} onChangeText={setProfileDob} placeholder="YYYY-MM-DD" autoCapitalize="none" /><Text style={styles.label}>Gender</Text><View style={styles.chips}>{['Male', 'Female'].map(value => <Pressable key={value} style={[styles.chip, profileGender === value && styles.chipActive]} onPress={() => setProfileGender(value)}><Text style={[styles.chipText, profileGender === value && styles.chipTextActive]}>{value}</Text></Pressable>)}</View><Pressable style={styles.primary} onPress={saveProfile}><Text style={styles.primaryText}>Save profile</Text></Pressable></ScrollView></>;
-    if (screen === 'settings') return <><ScreenHeader title="Settings" onBack={() => go('menu')} onClose={onClose} /><ScrollView contentContainerStyle={styles.content}><Pressable style={styles.menuItem} onPress={() => go('profile')}><Text style={styles.menuTitle}>Profile</Text><Text style={styles.menuSub}>Name, date of birth and account information</Text></Pressable><Pressable style={styles.menuItem} onPress={() => go('app_lock')}><Text style={styles.menuTitle}>App Lock</Text><Text style={styles.menuSub}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'Protect the app with a 4-6 digit PIN'}</Text></Pressable><Pressable style={styles.menuItem} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}><Text style={styles.menuTitle}>Privacy, account & notifications</Text><Text style={styles.menuSub}>Push notification preferences</Text></Pressable><Pressable style={styles.menuItem} onPress={openSyncContacts}><Text style={styles.menuTitle}>Google Contacts</Text><Text style={styles.menuSub}>Connection and sync status</Text></Pressable><Pressable style={[styles.menuItem, styles.dangerItem]} onPress={() => { onClose(); onLogout?.(); }}><Text style={styles.dangerText}>Sign out</Text></Pressable></ScrollView></>;
-    return <><ScreenHeader title="CloudComAI Menu" onClose={onClose} /><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">{[
-      ['Hubs', 'Discover people, posts and popular public Hubs', () => go('hubs')],
-      ['Profile', 'View and edit your CloudComAI profile', () => go('profile')],
-      ['Start private chat', 'Search users and begin a direct conversation', () => go('private')],
-      ['Create group', 'Create a new CloudComAI group', () => go('group')],
-      ['Preferences', 'Edit your interests and preferences', loadPreferences],
-      ['Create poll', 'Post a poll to a chat or group', loadPoll],
-      ['Settings', 'Notifications, account and integrations', () => go('settings')],
-      ['Sync contacts', 'Connect or sync Google Contacts', openSyncContacts],
-    ].map(([title, sub, action]) => <Pressable key={title} style={styles.menuItem} onPress={action}><Text style={styles.menuTitle}>{title}</Text><Text style={styles.menuSub}>{sub}</Text></Pressable>)}</ScrollView></>;
+  const go = next => {
+    setError('');
+    setScreen(next);
   };
 
-  return <Modal visible={visible} animationType="slide" onRequestClose={screen === 'menu' ? onClose : () => go('menu')}><SafeAreaProvider initialMetrics={initialWindowMetrics}><SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>{body()}</KeyboardAvoidingView>{busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}{error ? <Text style={styles.error}>{error}</Text> : null}</SafeAreaView></SafeAreaProvider></Modal>;
+  const searchUsers = async () => {
+    const query = userQuery.trim();
+    if (!query || busy) return;
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.searchUsers(query);
+      setUserResults(data.users || []);
+    } catch (e) {
+      setError(e.message || 'Unable to search users.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startPrivateChat = async user => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.createPrivateChat(user.id);
+      if (!data.chat) throw new Error('Chat was not created.');
+      onChatCreated?.({ ...data.chat, id: Number(data.chat.id), isGroup: false });
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Unable to create private chat.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createGroup = async () => {
+    if (!groupName.trim() || busy) return;
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.createGroup({
+        name: groupName.trim(),
+        group_category: groupType,
+      });
+      if (!data.group) throw new Error('Group was not created.');
+      onGroupCreated?.({ ...data.group, id: Number(data.group.id), isGroup: true });
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Unable to create group.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadPreferences = async () => {
+    go('preferences');
+    if (preferencesLoaded) return;
+    setBusy(true);
+    try {
+      const { data } = await platformApi.getPreferences();
+      setPreferencesText((data.preferences || []).join(', '));
+      setPreferencesLoaded(true);
+    } catch (e) {
+      setError(e.message || 'Unable to load preferences.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const savePreferences = async () => {
+    const interests = preferencesText.split(',').map(v => v.trim()).filter(Boolean);
+    if (!interests.length) { setError('Enter at least one preference.'); return; }
+    setBusy(true); setError('');
+    try {
+      await platformApi.updatePreferences(interests);
+      Alert.alert('Preferences saved', 'Your CloudComAI preferences have been updated.');
+      setScreen('menu');
+    } catch (e) {
+      setError(e.message || 'Unable to save preferences.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadPoll = async () => {
+    go('poll');
+    setBusy(true);
+    try {
+      const [{ data: privateData }, { data: groupData }] = await Promise.all([
+        platformApi.listChats('private'),
+        platformApi.listChats('group'),
+      ]);
+      const chats = [
+        ...(privateData.chats || []).map(c => ({ ...c, id: Number(c.id), label: c.name || 'Private chat' })),
+        ...(groupData.chats || []).map(c => ({ ...c, id: Number(c.id), label: c.name || 'Group' })),
+      ];
+      setPollChats(chats);
+      if (chats[0]) setPollChatId(chats[0].id);
+    } catch (e) {
+      setError(e.message || 'Unable to load conversations for the poll.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createPoll = async () => {
+    if (!pollChatId || !pollQuestion.trim() || !pollOptionA.trim() || !pollOptionB.trim() || busy) return;
+    setBusy(true); setError('');
+    try {
+      await platformApi.createPoll({
+        chat_id: pollChatId,
+        question: pollQuestion.trim(),
+        expires_at: pollDateExpiry(pollExpiry),
+        options: [pollOptionA.trim(), pollOptionB.trim()],
+      });
+      Alert.alert('Poll created', 'The poll was posted to the selected conversation.');
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Unable to create poll.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openSyncContacts = async () => {
+    go('contacts');
+    setBusy(true);
+    try {
+      const { data } = await platformApi.getGoogleStatus();
+      setGoogleStatus(data);
+    } catch (e) {
+      setError(e.message || 'Unable to check Google Contacts status.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const syncContacts = async () => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.syncGoogleContacts();
+      const count = Array.isArray(data.contacts) ? data.contacts.length : (data.contact_count || 0);
+      Alert.alert('Contacts synced', count ? `${count} contacts were processed.` : 'Google Contacts sync completed.');
+      const { data: status } = await platformApi.getGoogleStatus();
+      setGoogleStatus(status);
+    } catch (e) {
+      setError(e.message || 'Unable to sync Google Contacts.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connectGoogle = async () => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.getGoogleConnect();
+      if (!data.authorization_url) throw new Error('Google authorization URL was not returned.');
+      await Linking.openURL(data.authorization_url);
+    } catch (e) {
+      setError(e.message || 'Unable to open Google connection.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const selectProfilePhoto = async useCamera => {
+    if (busy) return;
+    setError('');
+    try {
+      const result = await withAppLockExternalActivity(async () => {
+        if (useCamera) {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) throw new Error('Camera permission is required to take a profile photo.');
+        }
+        const options = {
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.72,
+          preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+        };
+        return useCamera
+          ? ImagePicker.launchCameraAsync(options)
+          : ImagePicker.launchImageLibraryAsync(options);
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
+
+      setBusy(true);
+      const { data } = await uploadMediaAsset(asset, { type: 'user', id: user.id });
+      const nextUser = { ...user, image_url: data.image_url, image_version: data.updated_at };
+      setProfileImageVersion(buildProfileImageCacheKey(data.updated_at, Date.now()));
+      setProfileImageFailed(false);
+      onProfileUpdated?.(nextUser);
+      Alert.alert('Photo updated', 'Your cropped profile photo was saved.');
+    } catch (e) {
+      setError(e.message || 'Unable to update profile photo.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseProfilePhoto = () => {
+    if (busy) return;
+    Alert.alert('Change profile photo', 'Take a new photo or choose one from your phone.', [
+      { text: 'Camera', onPress: () => selectProfilePhoto(true) },
+      { text: 'Photo library', onPress: () => selectProfilePhoto(false) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const saveProfile = async () => {
+    if (!profileName.trim() || !profileDob.trim() || busy) return;
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.updateProfile({
+        name: profileName.trim(),
+        dob: profileDob.trim(),
+        gender: profileGender,
+      });
+      if (data.user) {
+        onProfileUpdated?.(data.user);
+        Alert.alert('Profile updated', 'Your profile changes were saved.');
+        setScreen('menu');
+      }
+    } catch (e) {
+      setError(e.message || 'Unable to update profile.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveAppLock = async () => {
+    if (busy) return;
+    if (appLockPin !== appLockConfirm) { setError('App lock PINs do not match.'); return; }
+    setBusy(true); setError('');
+    try {
+      await setAppLockPin(appLockPin);
+      setAppLockEnabled(true);
+      setAppLockPinValue('');
+      setAppLockConfirm('');
+      Alert.alert('App Lock enabled', 'CloudComAI will require this PIN when the app is reopened or resumed.');
+      setScreen('settings');
+    } catch (e) {
+      setError(e.message || 'Unable to enable App Lock.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const turnOffAppLock = async () => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      await disableAppLock();
+      setAppLockEnabled(false);
+      setAppLockPinValue('');
+      setAppLockConfirm('');
+      Alert.alert('App Lock disabled', 'CloudComAI will no longer ask for an App Lock PIN.');
+      setScreen('settings');
+    } catch (e) {
+      setError(e.message || 'Unable to disable App Lock.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const body = () => {
+    if (screen === 'private') return (
+      <>
+        <ScreenHeader title="Start private chat" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <TextInput style={styles.input} value={userQuery} onChangeText={setUserQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={searchUsers} />
+          <Pressable style={styles.primary} onPress={searchUsers}><Text style={styles.primaryText}>Search</Text></Pressable>
+          <ScrollView style={styles.results}>
+            {userResults.map(user => (
+              <Pressable key={user.id} style={styles.resultRow} onPress={() => startPrivateChat(user)}>
+                <Text style={styles.resultTitle}>{user.name}</Text>
+                <Text style={styles.resultSub}>{user.user_id ? `@${user.user_id}` : 'CloudComAI user'}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </ScrollView>
+      </>
+    );
+
+    if (screen === 'group') return (
+      <>
+        <ScreenHeader title="Create group" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <TextInput style={styles.input} value={groupName} onChangeText={setGroupName} placeholder="Group name" />
+          <Text style={styles.label}>Group category</Text>
+          <View style={styles.chips}>
+            {GROUP_TYPES.map(type => (
+              <Pressable key={type} style={[styles.chip, groupType === type && styles.chipActive]} onPress={() => setGroupType(type)}>
+                <Text style={[styles.chipText, groupType === type && styles.chipTextActive]}>{type}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={styles.primary} onPress={createGroup}><Text style={styles.primaryText}>Create group</Text></Pressable>
+        </ScrollView>
+      </>
+    );
+
+    if (screen === 'preferences') return (
+      <>
+        <ScreenHeader title="Preferences" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Text style={styles.help}>Enter interests separated by commas.</Text>
+          <TextInput style={[styles.input, styles.multiline]} value={preferencesText} onChangeText={setPreferencesText} multiline placeholder="Technology, Private Chats, Family Group" />
+          <Pressable style={styles.primary} onPress={savePreferences}><Text style={styles.primaryText}>Save preferences</Text></Pressable>
+        </ScrollView>
+      </>
+    );
+
+    if (screen === 'poll') return (
+      <>
+        <ScreenHeader title="Create poll" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Text style={styles.label}>Conversation</Text>
+          <View style={styles.chips}>
+            {pollChats.map(chat => (
+              <Pressable key={chat.id} style={[styles.chip, pollChatId === chat.id && styles.chipActive]} onPress={() => setPollChatId(chat.id)}>
+                <Text style={[styles.chipText, pollChatId === chat.id && styles.chipTextActive]} numberOfLines={1}>{chat.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput style={styles.input} value={pollQuestion} onChangeText={setPollQuestion} placeholder="Poll question" />
+          <TextInput style={styles.input} value={pollOptionA} onChangeText={setPollOptionA} placeholder="Option 1" />
+          <TextInput style={styles.input} value={pollOptionB} onChangeText={setPollOptionB} placeholder="Option 2" />
+          <Text style={styles.label}>Expiry date (optional, YYYY-MM-DD)</Text>
+          <TextInput style={styles.input} value={pollExpiry} onChangeText={setPollExpiry} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" accessibilityLabel="Poll expiry date" />
+          <Text style={styles.menuSub}>Leave blank for 30 days. A chosen date expires at the end of your local day.</Text>
+          <Pressable disabled={busy} style={styles.primary} onPress={createPoll}><Text style={styles.primaryText}>Create poll</Text></Pressable>
+        </ScrollView>
+      </>
+    );
+
+    if (screen === 'contacts') return (
+      <>
+        <ScreenHeader title="Sync contacts" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {googleStatus?.connected ? (
+            <>
+              <Text style={styles.resultTitle}>Google connected</Text>
+              <Text style={styles.help}>{googleStatus.email || ''}</Text>
+              <Text style={styles.help}>{googleStatus.contact_count || 0} contacts stored</Text>
+              <Text style={styles.help}>Last sync: {googleStatus.last_contacts_sync_at || 'Not synced yet'}</Text>
+              <Pressable style={styles.primary} onPress={syncContacts}><Text style={styles.primaryText}>Sync Google Contacts</Text></Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.help}>Google Contacts is not connected on this account.</Text>
+              <Pressable style={styles.primary} onPress={connectGoogle}><Text style={styles.primaryText}>Connect Google Contacts</Text></Pressable>
+            </>
+          )}
+        </ScrollView>
+      </>
+    );
+
+    if (screen === 'app_lock') return (
+      <>
+        <ScreenHeader title="App Lock" onBack={() => go('settings')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Text style={styles.resultTitle}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text>
+          <Text style={styles.help}>
+            {appLockEnabled
+              ? 'Your PIN is required when CloudComAI is reopened or resumed from the background.'
+              : 'Set a 4 to 6 digit PIN. This PIN is stored only in secure device storage.'}
+          </Text>
+          {!appLockEnabled ? <>
+            <TextInput
+              style={styles.input}
+              value={appLockPin}
+              onChangeText={value => setAppLockPinValue(value.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              secureTextEntry
+              placeholder="New PIN (4-6 digits)"
+              maxLength={6}
+            />
+            <TextInput
+              style={styles.input}
+              value={appLockConfirm}
+              onChangeText={value => setAppLockConfirm(value.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              secureTextEntry
+              placeholder="Confirm PIN"
+              maxLength={6}
+            />
+            <Pressable style={styles.primary} onPress={saveAppLock}><Text style={styles.primaryText}>Enable App Lock</Text></Pressable>
+          </> : <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={turnOffAppLock}><Text style={styles.dangerText}>Disable App Lock</Text></Pressable>}
+        </ScrollView>
+      </>
+    );
+
+    if (screen === 'profile') return (
+      <>
+        <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.profilePhotoWrap}>
+            <View style={styles.profilePhotoFrame}>
+              {!profileImageFailed ? <Image source={{ uri: `${mediaUrl('user', user?.id)}&v=${profileImageVersion}` }} style={styles.profilePhoto} onError={() => setProfileImageFailed(true)} /> : null}
+              <Text style={styles.profilePhotoFallback}>{profileName[0]?.toUpperCase() || 'U'}</Text>
+            </View>
+            <Pressable style={styles.photoButton} onPress={chooseProfilePhoto}><Text style={styles.photoButtonText}>Change & crop photo</Text></Pressable>
+            <Text style={styles.help}>JPG, PNG or WebP · max 2 MB · square crop</Text>
+          </View>
+          <Text style={styles.label}>Full name</Text>
+          <TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" />
+          <Text style={styles.label}>CloudComAI User ID</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.user_id ? `@${user.user_id}` : 'Not set'}</Text></View>
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.email || 'Not set'}</Text></View>
+          <Text style={styles.label}>Mobile</Text>
+          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.mobile || 'Not set'}</Text></View>
+          <Text style={styles.label}>Date of birth</Text>
+          <TextInput style={styles.input} value={profileDob} onChangeText={setProfileDob} placeholder="YYYY-MM-DD" autoCapitalize="none" />
+          <Text style={styles.label}>Gender</Text>
+          <View style={styles.chips}>
+            {['Male', 'Female'].map(value => (
+              <Pressable key={value} style={[styles.chip, profileGender === value && styles.chipActive]} onPress={() => setProfileGender(value)}>
+                <Text style={[styles.chipText, profileGender === value && styles.chipTextActive]}>{value}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable style={styles.primary} onPress={saveProfile}><Text style={styles.primaryText}>Save profile</Text></Pressable>
+        </ScrollView>
+      </>
+    );
+
+    if (screen === 'settings') return (
+      <>
+        <ScreenHeader title="Settings" onBack={() => go('menu')} onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Pressable style={styles.menuItem} onPress={() => go('profile')}>
+            <Text style={styles.menuTitle}>Profile</Text>
+            <Text style={styles.menuSub}>Name, date of birth and account information</Text>
+          </Pressable>
+          <Pressable style={styles.menuItem} onPress={() => go('app_lock')}>
+            <Text style={styles.menuTitle}>App Lock</Text>
+            <Text style={styles.menuSub}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'Protect the app with a 4-6 digit PIN'}</Text>
+          </Pressable>
+          <Pressable style={styles.menuItem} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
+            <Text style={styles.menuTitle}>Privacy, account & notifications</Text>
+            <Text style={styles.menuSub}>Push notification preferences</Text>
+          </Pressable>
+          <Pressable style={styles.menuItem} onPress={openSyncContacts}>
+            <Text style={styles.menuTitle}>Google Contacts</Text>
+            <Text style={styles.menuSub}>Connection and sync status</Text>
+          </Pressable>
+          <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={() => { onClose(); onLogout?.(); }}>
+            <Text style={styles.dangerText}>Sign out</Text>
+          </Pressable>
+        </ScrollView>
+      </>
+    );
+
+    return (
+      <>
+        <ScreenHeader title="CloudComAI Menu" onClose={onClose} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {[
+            ['Profile', 'View and edit your CloudComAI profile', () => go('profile')],
+            ['Start private chat', 'Search users and begin a direct conversation', () => go('private')],
+            ['Create group', 'Create a new CloudComAI group', () => go('group')],
+            ['Preferences', 'Edit your interests and preferences', loadPreferences],
+            ['Create poll', 'Post a poll to a chat or group', loadPoll],
+            ['Settings', 'Notifications, account and integrations', () => go('settings')],
+            ['Sync contacts', 'Connect or sync Google Contacts', openSyncContacts],
+          ].map(([title, sub, action]) => (
+            <Pressable key={title} style={styles.menuItem} onPress={action}>
+              <Text style={styles.menuTitle}>{title}</Text>
+              <Text style={styles.menuSub}>{sub}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </>
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={screen === 'menu' ? onClose : () => go('menu')}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>{body()}</KeyboardAvoidingView>
+          {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </Modal>
+  );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#f5f7fb' }, header: { minHeight: 64, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' }, headerTitle: { flex: 1, textAlign: 'center', color: '#fff', fontWeight: '800', fontSize: 18 }, headerAction: { color: '#fff', fontWeight: '700', minWidth: 54 }, headerSpacer: { width: 54 }, content: { padding: 16, gap: 12 }, menuItem: { padding: 16, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e8f0' }, menuTitle: { color: '#172033', fontSize: 16, fontWeight: '800' }, menuSub: { marginTop: 4, color: '#6b7280', fontSize: 12 }, input: { minHeight: 48, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fff', color: '#172033' }, multiline: { minHeight: 120, paddingTop: 12, textAlignVertical: 'top' }, primary: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryText: { color: '#fff', fontWeight: '800' }, results: { maxHeight: 420 }, resultRow: { padding: 14, marginBottom: 8, borderRadius: 12, backgroundColor: '#fff' }, resultTitle: { color: '#172033', fontWeight: '800' }, resultSub: { marginTop: 3, color: '#6b7280', fontSize: 12 }, label: { color: '#172033', fontWeight: '700', marginBottom: -4 }, help: { color: '#6b7280', lineHeight: 19 }, chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }, chip: { maxWidth: '100%', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#d8deea', backgroundColor: '#fff' }, chipActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, chipText: { color: '#64748b', fontSize: 12, fontWeight: '700' }, chipTextActive: { color: '#3157d5' }, busy: { position: 'absolute', right: 18, bottom: 18, width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', elevation: 5 }, error: { margin: 16, marginTop: 0, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' }, profilePhotoWrap: { alignItems: 'center', gap: 8, marginBottom: 8 }, profilePhotoFrame: { width: 104, height: 104, borderRadius: 52, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e5e7eb' }, profilePhoto: { ...StyleSheet.absoluteFillObject, width: 104, height: 104, zIndex: 2 }, profilePhotoFallback: { color: '#3157d5', fontSize: 34, fontWeight: '900' }, photoButton: { minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#eef2ff' }, photoButtonText: { color: '#3157d5', fontWeight: '800' }, readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' }, readOnlyText: { color: '#64748b' }, dangerItem: { borderColor: '#fecaca' }, dangerText: { color: '#b91c1c', fontWeight: '800' },
+  page: { flex: 1, backgroundColor: '#f5f7fb' },
+  header: { minHeight: 64, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#3157d5' },
+  headerTitle: { flex: 1, textAlign: 'center', color: '#fff', fontWeight: '800', fontSize: 18 },
+  headerAction: { color: '#fff', fontWeight: '700', minWidth: 54 },
+  headerSpacer: { width: 54 },
+  content: { padding: 16, gap: 12 },
+  menuItem: { padding: 16, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e8f0' },
+  menuTitle: { color: '#172033', fontSize: 16, fontWeight: '800' },
+  menuSub: { marginTop: 4, color: '#6b7280', fontSize: 12 },
+  input: { minHeight: 48, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fff', color: '#172033' },
+  multiline: { minHeight: 120, paddingTop: 12, textAlignVertical: 'top' },
+  primary: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' },
+  primaryText: { color: '#fff', fontWeight: '800' },
+  results: { maxHeight: 420 },
+  resultRow: { padding: 14, marginBottom: 8, borderRadius: 12, backgroundColor: '#fff' },
+  resultTitle: { color: '#172033', fontWeight: '800' },
+  resultSub: { marginTop: 3, color: '#6b7280', fontSize: 12 },
+  label: { color: '#172033', fontWeight: '700', marginBottom: -4 },
+  help: { color: '#6b7280', lineHeight: 19 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  chip: { maxWidth: '100%', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#d8deea', backgroundColor: '#fff' },
+  chipActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' },
+  chipText: { color: '#64748b', fontSize: 12, fontWeight: '700' },
+  chipTextActive: { color: '#3157d5' },
+  busy: { position: 'absolute', right: 18, bottom: 18, width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', elevation: 5 },
+  error: { margin: 16, marginTop: 0, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' },
+  profilePhotoWrap: { alignItems: 'center', gap: 8, marginBottom: 8 }, profilePhotoFrame: { width: 104, height: 104, borderRadius: 52, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e5e7eb' }, profilePhoto: { ...StyleSheet.absoluteFillObject, width: 104, height: 104, zIndex: 2 }, profilePhotoFallback: { color: '#3157d5', fontSize: 34, fontWeight: '900' }, photoButton: { minHeight: 40, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#eef2ff' }, photoButtonText: { color: '#3157d5', fontWeight: '800' }, readOnlyBox: { minHeight: 46, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#f8fafc' },
+  readOnlyText: { color: '#64748b' },
+  dangerItem: { borderColor: '#fecaca' },
+  dangerText: { color: '#b91c1c', fontWeight: '800' },
 });
