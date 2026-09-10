@@ -109,18 +109,30 @@ const parseUploadResult = async (result, requestToken) => {
   return { data, status: result.status, headers: result.headers };
 };
 
-export function createMobileMultipartBody(asset, {
+/**
+ * React Native 0.86 no longer accepts the plain { uri, name, type } object
+ * as a FormData part in all native environments. That object is the source
+ * of the "unsupported FormDataPart implementation" error seen with camera
+ * and document uploads. Native FormData accepts Blob/File parts instead.
+ */
+export async function createMobileMultipartBody(asset, {
   fieldName = 'file',
   parameters = {},
 } = {}, FormDataCtor = globalThis.FormData) {
   if (typeof FormDataCtor !== 'function') throw new ApiError('Multipart upload is unavailable on this device.');
   const normalized = normalizeUploadAsset(asset, { fallbackName: 'attachment' });
   const form = new FormDataCtor();
-  form.append(fieldName, {
-    uri: normalized.uri,
-    name: normalized.name,
-    type: normalized.mimeType,
-  });
+
+  const response = await fetch(normalized.uri);
+  if (!response.ok) {
+    throw new ApiError(`Unable to read the selected file (status ${response.status}).`);
+  }
+  const blob = await response.blob();
+  const typedBlob = blob.type === normalized.mimeType
+    ? blob
+    : blob.slice(0, blob.size, normalized.mimeType);
+  form.append(fieldName, typedBlob, normalized.name);
+
   for (const [key, value] of Object.entries(parameters)) {
     if (value !== undefined && value !== null) form.append(key, String(value));
   }
@@ -142,7 +154,7 @@ export async function uploadMobileFile(route, asset, {
   if (size > maxBytes) throw new ApiError(`The selected file must be ${Math.floor(maxBytes / 1024 / 1024)} MB or smaller.`);
 
   const token = await sessionManager.getToken();
-  const formData = createMobileMultipartBody(normalized, { fieldName, parameters: {
+  const formData = await createMobileMultipartBody(normalized, { fieldName, parameters: {
     ...parameters,
     original_filename: parameters.original_filename || normalized.name,
   } });
