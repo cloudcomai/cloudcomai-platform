@@ -11,8 +11,8 @@ if ($method === 'GET') {
     $targetId = (int)($_GET['user_id'] ?? $_GET['id'] ?? 0);
     if ($targetId > 0) {
         if ($targetId === $viewerId) out(['relationship' => ['status' => 'self']]);
-        $state = relationship_for_users($viewerId, $targetId);
-        out(['relationship' => $state]);
+        if (users_block_state($viewerId, $targetId)['blocked']) fail('This profile is unavailable', 403);
+        out(['relationship' => relationship_for_users($viewerId, $targetId)]);
     }
 
     $incoming = db()->prepare('
@@ -20,9 +20,10 @@ if ($method === 'GET') {
         FROM friend_requests fr
         INNER JOIN users u ON u.id=fr.requester_id AND u.account_status="active"
         WHERE fr.recipient_id=? AND fr.status="pending"
+          AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE b.user_id=? AND b.blocked_user_id=fr.requester_id)
         ORDER BY fr.id DESC
     ');
-    $incoming->execute([$viewerId]);
+    $incoming->execute([$viewerId, $viewerId]);
     $outgoing = db()->prepare('
         SELECT fr.id,fr.recipient_id AS user_id,fr.created_at,u.name,u.user_id AS username
         FROM friend_requests fr
@@ -36,20 +37,21 @@ if ($method === 'GET') {
 
 if ($method !== 'POST') fail('Method not allowed', 405);
 
-$input = json_input();
+$input = input();
 $action = strtolower(trim((string)($input['action'] ?? '')));
-$targetId = (int)($input['user_id'] ?? $input['target_user_id'] ?? 0);
-if ($targetId <= 0) fail('User id is required');
-if ($targetId === $viewerId) fail('You cannot send a friend request to yourself', 400);
-
-$userStmt = db()->prepare('SELECT id FROM users WHERE id=? AND account_status="active" LIMIT 1');
-$userStmt->execute([$targetId]);
-if (!$userStmt->fetchColumn()) fail('User not found', 404);
-
-$blockState = users_block_state($viewerId, $targetId);
-if ($blockState['blocked']) fail('This user is blocked', 403);
+if (!in_array($action, ['send','accept','decline','block','cancel'], true)) fail('Unsupported friend request action', 400);
 
 if ($action === 'send') {
+    $targetId = (int)($input['user_id'] ?? $input['target_user_id'] ?? 0);
+    if ($targetId <= 0) fail('User id is required');
+    if ($targetId === $viewerId) fail('You cannot send a friend request to yourself', 400);
+
+    $userStmt = db()->prepare('SELECT id FROM users WHERE id=? AND account_status="active" LIMIT 1');
+    $userStmt->execute([$targetId]);
+    if (!$userStmt->fetchColumn()) fail('User not found', 404);
+
+    if (users_block_state($viewerId, $targetId)['blocked']) fail('This user is blocked', 403);
+
     $state = relationship_for_users($viewerId, $targetId);
     if ($state['status'] === 'accepted') fail('You are already friends', 409);
     if ($state['status'] === 'pending') fail($state['direction'] === 'incoming' ? 'This user has already sent you a friend request' : 'Friend request already sent', 409);
