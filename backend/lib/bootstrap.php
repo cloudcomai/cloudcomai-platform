@@ -64,26 +64,39 @@ function queue_user_notification(int $userId, string $category, string $title, s
     }
     return $notificationId;
 }
+
 function create_chat_notifications(int $chatId, int $senderId, string $senderName, string $body, int $messageId): void {
     $chat = db()->prepare('SELECT type FROM chats WHERE id=? LIMIT 1');
     $chat->execute([$chatId]);
     $chatType = $chat->fetchColumn();
     $kind = db()->prepare('SELECT type FROM messages WHERE id=?');
     $kind->execute([$messageId]);
-    $category = in_array($kind->fetchColumn(), ['attachment','voice','video'], true) ? 'attachment' : ($chatType === 'group' ? 'group' : 'message');
-    $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
+    $category = in_array($kind->fetchColumn(), ['attachment', 'voice', 'video'], true) ? 'attachment' : ($chatType === 'group' ? 'group' : 'message');
+    $st = db()->prepare('SELECT cm.user_id,u.user_id AS public_user_id,u.name AS recipient_name FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id WHERE cm.chat_id=? AND cm.user_id<>? AND cm.status="active" AND u.account_status="active"');
     $st->execute([$chatId, $senderId]);
     $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
-    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $recipientId) {
-        $mute = db()->prepare('SELECT notifications_muted FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
-        $mute->execute([$chatId, (int)$recipientId]);
-        $muted = (bool)$mute->fetchColumn();
-        queue_user_notification((int)$recipientId, $category, $senderName, $text, [
+    foreach ($st->fetchAll() as $recipient) {
+        $recipientId = (int)$recipient['user_id'];
+        $mute = db()->prepare('SELECT notifications_muted,notifications_muted_until FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
+        $mute->execute([$chatId, $recipientId]);
+        $muteState = $mute->fetch() ?: [];
+        $muted = (bool)($muteState['notifications_muted'] ?? false)
+            && (($muteState['notifications_muted_until'] ?? null) === null || $muteState['notifications_muted_until'] > gmdate('Y-m-d H:i:s'));
+        $mentioned = false;
+        if ($chatType === 'group') {
+            $needleId = '@' . strtolower((string)$recipient['public_user_id']);
+            $needleName = '@' . strtolower(trim((string)$recipient['recipient_name']));
+            $lowerText = strtolower($body);
+            $mentioned = $needleId !== '@' && preg_match('/(^|[^a-z0-9_])' . preg_quote($needleId, '/') . '(?![a-z0-9_])/i', $lowerText) === 1;
+            if (!$mentioned && $needleName !== '@') $mentioned = preg_match('/(^|[^a-z0-9_])' . preg_quote($needleName, '/') . '(?![a-z0-9_])/i', $lowerText) === 1;
+        }
+        queue_user_notification($recipientId, $category, $senderName, $text, [
             'category' => $category,
             'chat_id' => $chatId,
             'chat_type' => $chatType,
             'message_id' => $messageId,
-        ], !$muted);
+            'mention' => $mentioned,
+        ], !$muted || $mentioned);
     }
 }
 function user_privacy_settings(int $userId): array {
@@ -133,31 +146,18 @@ function assert_visible_message(int $messageId, int $userId): void {
 }
 function auth_user(): array {
     global $config;
-    $header = $_SERVER['HTTP_AUTHORIZATION']
-        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
-        ?? '';
-
+    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
     if ($header === '' && function_exists('getallheaders')) {
         $headers = getallheaders();
-        if (is_array($headers)) {
-            $header = $headers['Authorization']
-                ?? $headers['authorization']
-                ?? '';
-        }
+        if (is_array($headers)) $header = $headers['Authorization'] ?? $headers['authorization'] ?? '';
     }
     if (!preg_match('/Bearer\s+(.+)/i', $header, $m)) fail('Authentication required', 401);
     $decoded = base64_decode($m[1], true);
     if (!$decoded) fail('Invalid token', 401);
     $parts = explode('|', $decoded);
-    // Existing four-part tokens remain valid until that account resets its password.
-    if (count($parts) === 4) {
-        [$uid,$issued,$nonce,$sig] = $parts;
-        $sessionVersion = '0';
-    } elseif (count($parts) === 5) {
-        [$uid,$issued,$nonce,$sessionVersion,$sig] = $parts;
-    } else {
-        fail('Invalid token', 401);
-    }
+    if (count($parts) === 4) { [$uid,$issued,$nonce,$sig] = $parts; $sessionVersion = '0'; }
+    elseif (count($parts) === 5) { [$uid,$issued,$nonce,$sessionVersion,$sig] = $parts; }
+    else fail('Invalid token', 401);
     $payload = implode('|', array_slice($parts, 0, -1));
     $expected = hash_hmac('sha256', $payload, $config['app']['token_secret']);
     if (!hash_equals($expected, $sig)) fail('Invalid token', 401);
@@ -176,23 +176,10 @@ function auth_user(): array {
 }
 function chat_retention_seconds(string $chatType): int {
     global $config;
-
-    $fallbacks = [
-        'private' => 30 * 24 * 60 * 60,
-        'group' => 30 * 24 * 60 * 60,
-        'public' => 4 * 60 * 60,
-    ];
-
-    if (!array_key_exists($chatType, $fallbacks)) {
-        throw new InvalidArgumentException("Unsupported chat type for retention: {$chatType}");
-    }
-
+    $fallbacks = ['private' => 30 * 24 * 60 * 60, 'group' => 30 * 24 * 60 * 60, 'public' => 4 * 60 * 60];
+    if (!array_key_exists($chatType, $fallbacks)) throw new InvalidArgumentException("Unsupported chat type for retention: {$chatType}");
     $configured = $config['app']['retention'][$chatType] ?? null;
-    if (is_numeric($configured)) {
-        $seconds = (int)$configured;
-        if ($seconds > 0) return $seconds;
-    }
-
+    if (is_numeric($configured)) { $seconds = (int)$configured; if ($seconds > 0) return $seconds; }
     return $fallbacks[$chatType];
 }
 function normalize_mobile_identifier(string $mobile): string {
