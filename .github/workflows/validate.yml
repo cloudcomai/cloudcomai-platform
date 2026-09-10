@@ -66,6 +66,7 @@ jobs:
       - run: php backend/tests/notification_push_test.php
       - run: php backend/tests/public_chat_rooms_test.php
       - run: php backend/tests/friend_requests_feature_test.php
+      - run: php backend/tests/media_upload_resilience_test.php
       - run: php backend/tests/privacy_messaging_test.php
         env:
           CLOUDCOMAI_RUN_DB_TESTS: '1'
