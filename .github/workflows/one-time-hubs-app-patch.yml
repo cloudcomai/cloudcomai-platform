@@ -25,29 +25,27 @@ jobs:
             const current = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
             const source = Buffer.from(current.data.content, 'base64').toString('utf8');
             let updated = source;
+            const fail = message => { throw new Error(message); };
             const importNeedle = "import PublicChatsList from './src/components/PublicChatsList';";
             if (!updated.includes("import Hubs from './src/components/Hubs';")) {
-              if (!updated.includes(importNeedle)) core.setFailed('App.js import anchor not found');
-              else updated = updated.replace(importNeedle, `${importNeedle}\nimport Hubs from './src/components/Hubs';`);
+              if (!updated.includes(importNeedle)) fail('App.js import anchor not found');
+              updated = updated.replace(importNeedle, `${importNeedle}\nimport Hubs from './src/components/Hubs';`);
             }
-            const stateNeedle = "  const [lastBackPressRef, setLastBackPressRef] = useState(0);";
-            if (!updated.includes(stateNeedle)) {
-              const fallbackState = "  const [section, setSection] = useState('all');";
-              if (updated.includes(fallbackState) && !updated.includes("const [showHubs, setShowHubs] = useState(false);")) {
-                updated = updated.replace(fallbackState, `${fallbackState}\n  const [showHubs, setShowHubs] = useState(false);`);
-              }
+            const fallbackState = "  const [section, setSection] = useState('all');";
+            if (!updated.includes("const [showHubs, setShowHubs] = useState(false);")) {
+              if (!updated.includes(fallbackState)) fail('ChatsScreen state anchor not found');
+              updated = updated.replace(fallbackState, `${fallbackState}\n  const [showHubs, setShowHubs] = useState(false);`);
             }
-            if (!updated.includes("const [showHubs, setShowHubs] = useState(false);")) core.setFailed('Unable to locate ChatsScreen state anchor');
             const renderNeedle = "  if (selectedChat) return <ChatDetail";
-            if (updated.includes(renderNeedle) && !updated.includes("if (showHubs) return <Hubs")) {
+            if (!updated.includes("if (showHubs) return <Hubs")) {
+              if (!updated.includes(renderNeedle)) fail('Chat render anchor not found');
               updated = updated.replace(renderNeedle, "  if (showHubs) return <Hubs user={session.user} onClose={() => setShowHubs(false)} />;\n\n" + renderNeedle);
             }
             const contactNeedle = "<Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👥</Text></View><Text style={styles.quickLabel}>Contacts</Text></Pressable>";
             const hubsQuick = "<Pressable style={styles.quickAction} onPress={() => setShowHubs(true)}><View style={styles.quickCircle}><Text style={styles.quickIcon}>◉</Text></View><Text style={styles.quickLabel}>Hubs</Text></Pressable>";
             if (updated.includes(contactNeedle)) updated = updated.replace(contactNeedle, hubsQuick);
-            else if (!updated.includes(hubsQuick)) core.setFailed('Contacts quick action anchor not found');
-            if (updated === source) core.setFailed('No Hubs changes were applied');
-            if (core.errors.length) return;
+            else if (!updated.includes(hubsQuick)) fail('Contacts quick action anchor not found');
+            if (updated === source) fail('No Hubs changes were applied');
             await github.rest.repos.createOrUpdateFileContents({ owner, repo, path, branch, message: 'feat(mobile): replace highlighted Contacts shortcut with Hubs', content: Buffer.from(updated).toString('base64'), sha: current.data.sha });
             const workflow = await github.rest.repos.getContent({ owner, repo, path: '.github/workflows/one-time-hubs-app-patch.yml', ref: branch });
             await github.rest.repos.deleteFile({ owner, repo, path: '.github/workflows/one-time-hubs-app-patch.yml', branch, message: 'chore: remove one-time Hubs patch workflow', sha: workflow.data.sha });
