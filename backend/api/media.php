@@ -3,7 +3,8 @@ require __DIR__ . '/../lib/bootstrap.php';
 
 $map = [
     'user' => 'users',
-    'group' => 'groups'
+    'group' => 'groups',
+    'hub' => 'hubs'
 ];
 $type = trim((string)($_GET['type'] ?? ''));
 $id = (int)($_GET['id'] ?? 0);
