@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.5.0",
+  "contractVersion": "1.6.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
@@ -17,6 +17,7 @@
     "v1/users/backup": { "handler": "backup.php", "methods": ["GET"], "auth": true },
     "v1/chats": { "handler": "chats.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/public-chats": { "handler": "public_chats.php", "methods": ["GET", "POST"], "auth": true },
+    "v1/hubs": { "handler": "hubs.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/groups": { "handler": "groups.php", "methods": ["GET", "POST", "PUT", "DELETE"], "auth": true },
     "v1/group-members": { "handler": "group_members.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/messages": { "handler": "messages.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
