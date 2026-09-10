@@ -61,6 +61,7 @@ jobs:
       - run: php backend/tests/contact_matching_test.php
       - run: php backend/tests/user_validation_test.php
       - run: php backend/tests/poll_expiry_test.php
+      - run: php backend/tests/chat_mute_test.php
       - run: php backend/tests/utf8mb4_schema_test.php
       - run: php backend/tests/profile_media_presence_test.php
       - run: php backend/tests/notification_push_test.php
