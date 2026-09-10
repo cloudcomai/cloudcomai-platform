@@ -12,6 +12,8 @@ export const ApiRoute = Object.freeze({
   PRIVACY: 'v1/users/privacy',
   ACCOUNT_BACKUP: 'v1/users/backup',
   CHATS: 'v1/chats',
+  PUBLIC_CHATS: 'v1/public-chats',
+  FRIEND_REQUESTS: 'v1/friend-requests',
   GROUPS: 'v1/groups',
   GROUP_MEMBERS: 'v1/group-members',
   MESSAGES: 'v1/messages',
