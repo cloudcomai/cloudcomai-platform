@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 const app = fs.readFileSync(new URL('../App.js', import.meta.url), 'utf8');
 const hubs = fs.readFileSync(new URL('../src/components/Hubs.js', import.meta.url), 'utf8');
-const api = fs.readFileSync(new URL('../../backend/api/hubs.php', import.meta.url), 'utf8');
+const api = fs.readFileSync(new URL('../../../backend/api/hubs.php', import.meta.url), 'utf8');
 
 test('highlighted top shortcut opens Hubs without changing bottom Contacts', () => {
   assert.match(app, /setShowHubs\(true\)/);
