@@ -1,13 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { CHAT_MUTE_OPTIONS } from '../utils/chatMute';
 import { platformApi } from '../services/platform';
-
-export const MUTE_OPTIONS = [
-  { key: '10_hours', label: '10 hours' },
-  { key: '1_week', label: '1 week' },
-  { key: '2_weeks', label: '2 weeks' },
-  { key: 'always', label: 'Always' },
-];
 
 export default function ChatNotificationMuteSheet({ visible, chatId, muted = false, mutedUntil = null, onClose, onChanged }) {
   const [selected, setSelected] = useState('10_hours');
@@ -15,28 +9,19 @@ export default function ChatNotificationMuteSheet({ visible, chatId, muted = fal
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (visible) {
-      setSelected('10_hours');
-      setError('');
-    }
+    if (visible) { setSelected('10_hours'); setError(''); }
   }, [visible]);
 
   const save = async muteFor => {
     if (busy) return;
-    setBusy(true);
-    setError('');
+    setBusy(true); setError('');
     try {
       const { data } = await platformApi.updateChatNotificationState(chatId, { mute_for: muteFor });
       onChanged?.(data);
       onClose?.();
-    } catch (e) {
-      setError(e.message || 'Unable to update notification mute.');
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setError(e.message || 'Unable to update notification mute.'); }
+    finally { setBusy(false); }
   };
-
-  const unmute = () => save('off');
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -46,12 +31,12 @@ export default function ChatNotificationMuteSheet({ visible, chatId, muted = fal
           {muted && mutedUntil ? <Text style={styles.subtitle}>Muted until {new Date(`${mutedUntil.replace(' ', 'T')}Z`).toLocaleString()}</Text> : null}
           {!muted ? <>
             <Text style={styles.subtitle}>Choose how long this chat should stay quiet. Other members cannot see this setting.</Text>
-            {MUTE_OPTIONS.map(option => <Pressable key={option.key} disabled={busy} onPress={() => setSelected(option.key)} style={styles.option} accessibilityRole="radio" accessibilityState={{ selected: selected === option.key }}>
+            {CHAT_MUTE_OPTIONS.map(option => <Pressable key={option.key} disabled={busy} onPress={() => setSelected(option.key)} style={styles.option} accessibilityRole="radio" accessibilityState={{ selected: selected === option.key }}>
               <View style={[styles.radio, selected === option.key && styles.radioSelected]} />
               <Text style={styles.optionText}>{option.label}</Text>
             </Pressable>)}
             <Pressable disabled={busy} style={styles.primary} onPress={() => save(selected)}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Confirm</Text>}</Pressable>
-          </> : <Pressable disabled={busy} style={styles.primary} onPress={unmute}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Unmute notifications</Text>}</Pressable>}
+          </> : <Pressable disabled={busy} style={styles.primary} onPress={() => save('off')}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Unmute notifications</Text>}</Pressable>}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable disabled={busy} onPress={onClose} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable>
         </View>
