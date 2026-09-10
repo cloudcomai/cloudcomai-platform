@@ -15,7 +15,8 @@ test('mobile uploads use native FormData Blob parts instead of unsupported objec
 });
 
 test('mobile media upload preserves MIME metadata and filename', () => {
-  assert.match(platformSource, /name: normalized\.name/);
-  assert.match(platformSource, /typedBlob/);
+  assert.match(platformSource, /blob\.type === normalized\.mimeType/);
+  assert.match(platformSource, /blob\.slice\(0, blob\.size, normalized\.mimeType\)/);
+  assert.match(platformSource, /form\.append\(fieldName, typedBlob, normalized\.name\)/);
   assert.match(platformSource, /original_filename: parameters\.original_filename \|\| normalized\.name/);
 });
