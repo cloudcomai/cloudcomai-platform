@@ -22,13 +22,19 @@ try {
         strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')),
         (string)($_SERVER['REQUEST_URI'] ?? '')
     );
-
-    if ($result['status'] !== 200) {
-        route_error($result);
-    }
-
-    require $result['handler'];
 } catch (Throwable $error) {
     error_log('API router failure: ' . $error->getMessage());
     route_error(['status' => 500, 'error' => 'API router unavailable']);
+}
+
+if ($result['status'] !== 200) {
+    route_error($result);
+}
+
+try {
+    require $result['handler'];
+} catch (Throwable $error) {
+    $handler = basename((string)($result['handler'] ?? 'unknown'));
+    error_log('API handler failure [' . $handler . ']: ' . $error->getMessage());
+    route_error(['status' => 500, 'error' => 'API request failed']);
 }
