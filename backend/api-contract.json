@@ -18,6 +18,7 @@
     "v1/chats": { "handler": "chats.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/public-chats": { "handler": "public_chats.php", "methods": ["GET", "POST"], "auth": true },
     "v1/hubs": { "handler": "hubs.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
+    "v1/hubs/media": { "handler": "hub_media.php", "methods": ["POST"], "auth": true, "contentType": "multipart/form-data" },
     "v1/groups": { "handler": "groups.php", "methods": ["GET", "POST", "PUT", "DELETE"], "auth": true },
     "v1/group-members": { "handler": "group_members.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/messages": { "handler": "messages.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
