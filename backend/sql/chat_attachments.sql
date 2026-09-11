@@ -1,5 +1,5 @@
--- Chat attachment support with sender-controlled download approval.
--- Run once against the existing CloudComAI database.
+-- Chat attachment support with sender-controlled download/forward approval.
+-- Run once against an existing CloudComAI database.
 
 CREATE TABLE IF NOT EXISTS message_attachments (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -20,11 +20,12 @@ CREATE TABLE IF NOT EXISTS attachment_download_requests (
  attachment_id BIGINT UNSIGNED NOT NULL,
  requester_id BIGINT UNSIGNED NOT NULL,
  sender_id BIGINT UNSIGNED NOT NULL,
+ request_type ENUM('DOWNLOAD','FORWARD') NOT NULL DEFAULT 'DOWNLOAD',
  status ENUM('PENDING','APPROVED','DENIED') NOT NULL DEFAULT 'PENDING',
  requested_at DATETIME NOT NULL,
  responded_at DATETIME NULL,
- UNIQUE KEY uq_attachment_request(attachment_id,requester_id),
+ UNIQUE KEY uq_attachment_request_action(attachment_id,requester_id,request_type),
  INDEX(sender_id,status),
- INDEX(requester_id,status),
+ INDEX(requester_id,request_type,status),
  INDEX(attachment_id,status)
 ) ENGINE=InnoDB;
