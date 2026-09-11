@@ -14,6 +14,25 @@ $member->execute([$chatId, $user['id']]);
 if (!$member->fetch()) fail('Not a member', 403);
 assert_chat_allows_messages($chatId, (int)$user['id']);
 
+$conversation = db()->prepare(<<<'SQL'
+    SELECT c.name, c.type,
+           (
+               SELECT u.name
+               FROM chat_members cm2
+               INNER JOIN users u ON u.id=cm2.user_id
+               WHERE cm2.chat_id=c.id AND cm2.user_id<>? AND cm2.status='active'
+               ORDER BY cm2.user_id
+               LIMIT 1
+           ) AS peer_name
+    FROM chats c
+    WHERE c.id=?
+    LIMIT 1
+SQL);
+$conversation->execute([$user['id'], $chatId]);
+$conversationRow = $conversation->fetch();
+if (!$conversationRow) fail('Conversation not found', 404);
+$conversationName = trim((string)($conversationRow['name'] ?: $conversationRow['peer_name'] ?: 'CloudComAI conversation'));
+
 // Native listeners can fire more than once for the same capture.
 $recent = db()->prepare('SELECT id FROM notification_history WHERE created_at>UTC_TIMESTAMP()-INTERVAL 10 SECOND AND JSON_UNQUOTE(JSON_EXTRACT(data_json,"$.event"))="screenshot" AND CAST(JSON_UNQUOTE(JSON_EXTRACT(data_json,"$.actor_id")) AS UNSIGNED)=? AND CAST(JSON_UNQUOTE(JSON_EXTRACT(data_json,"$.chat_id")) AS UNSIGNED)=? LIMIT 1');
 $recent->execute([$user['id'], $chatId]);
@@ -36,8 +55,15 @@ foreach ($recipientIds as $recipientId) {
         $recipientId,
         'system',
         'Screenshot alert',
-        (string)$user['name'] . ' took a screenshot of a conversation.',
-        ['category' => 'system', 'event' => 'screenshot', 'chat_id' => $chatId, 'actor_id' => (int)$user['id']]
+        (string)$user['name'] . ' took a screenshot of ' . $conversationName . '.',
+        [
+            'category' => 'system',
+            'event' => 'screenshot',
+            'chat_id' => $chatId,
+            'chat_name' => $conversationName,
+            'actor_id' => (int)$user['id'],
+            'actor_name' => (string)$user['name'],
+        ]
     );
     $notified++;
 }
