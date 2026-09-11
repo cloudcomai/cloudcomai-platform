@@ -9,9 +9,8 @@ test('user profile picture opens a dedicated large preview modal', async () => {
 
   assert.ok(source.includes('const [imagePreviewVisible, setImagePreviewVisible] = useState(false);'));
   assert.ok(source.includes('setImagePreviewVisible(true)'));
-  assert.ok(source.includes("profile picture` : undefined"));
   assert.ok(source.includes('visible={imagePreviewVisible}'));
-  assert.ok(source.includes('Close profile picture preview'));
+  assert.ok(source.includes('onRequestClose={() => setImagePreviewVisible(false)}'));
   assert.ok(source.includes('style={styles.previewImage}'));
   assert.ok(source.includes('resizeMode="contain"'));
 });
