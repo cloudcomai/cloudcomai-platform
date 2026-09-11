@@ -58,6 +58,7 @@ jobs:
           extensions: pdo_mysql, fileinfo
       - run: find backend -name '*.php' -type f -print0 | xargs -0 -n1 php -l
       - run: php backend/tests/api_router_test.php
+      - run: php backend/tests/alerts_screenshot_only_test.php
       - run: php backend/tests/contact_matching_test.php
       - run: php backend/tests/user_validation_test.php
       - run: php backend/tests/poll_expiry_test.php
