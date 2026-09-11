@@ -33,6 +33,7 @@ if ($method === 'GET') {
         WHERE cm.user_id = ?
           AND cm.status = "active"
           AND (COALESCE(cus.hidden, 0) = 0 OR m.id IS NOT NULL)
+          AND (c.type <> "private" OR m.id IS NOT NULL)
     ';
 
     $params = [$user['id']];
@@ -237,5 +238,3 @@ if ($method === 'DELETE') {
         fail('Unable to delete chat', 500);
     }
 }
-
-fail('Method not allowed', 405);
