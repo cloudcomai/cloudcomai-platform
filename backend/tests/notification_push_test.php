@@ -22,4 +22,10 @@ assert($payload['data']['message_id'] === 99);
 $invalid = build_expo_push_payload([...$row, 'data_json' => '{invalid']);
 assert($invalid['data'] === []);
 
+$migration = file_get_contents(__DIR__ . '/../database/migrations/015_notification_delivery_queue.sql');
+assert(is_string($migration));
+assert(str_contains($migration, 'CREATE TABLE IF NOT EXISTS notification_delivery_queue'));
+assert(str_contains($migration, 'UNIQUE KEY uq_notification_delivery (notification_id, device_id)'));
+assert(str_contains($migration, 'INDEX idx_notification_delivery_pending (status, available_at, id)'));
+
 echo "notification_push_test.php passed\n";
