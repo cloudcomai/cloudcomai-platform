@@ -1,71 +1,12 @@
 <?php
 require __DIR__ . '/../lib/bootstrap.php';
 require_once __DIR__ . '/../lib/contact_matching.php';
-
-$user = auth_user();
-$method = $_SERVER['REQUEST_METHOD'];
-if ($method !== 'GET') fail('Method not allowed', 405);
-
-$page = max(1, (int)($_GET['page'] ?? 1));
-$pageSize = min(500, max(1, (int)($_GET['page_size'] ?? 500)));
-$offset = ($page - 1) * $pageSize;
-$userId = (int)$user['id'];
-
-$googleStmt = db()->prepare('SELECT id,resource_name,display_name,given_name,family_name,email,phone,photo_url,"GOOGLE" AS source FROM google_contacts WHERE user_id=? AND deleted_at IS NULL');
-$googleStmt->execute([$userId]);
-$googleContacts = $googleStmt->fetchAll();
-
-$phoneStmt = db()->prepare('SELECT id,display_name,email,phone,"PHONE" AS source FROM phone_contacts WHERE user_id=?');
-$phoneStmt->execute([$userId]);
-$phoneContacts = $phoneStmt->fetchAll();
-
-$friendStmt = db()->prepare('
-    SELECT u.id,u.name,u.user_id,u.email,u.mobile,u.account_status,u.updated_at,
-           COALESCE(ups.hide_online_status,0) AS hide_online
-    FROM friend_requests fr
-    INNER JOIN users u ON u.id=CASE WHEN fr.requester_id=? THEN fr.recipient_id ELSE fr.requester_id END
-    LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
-    WHERE (fr.requester_id=? OR fr.recipient_id=?) AND fr.status="accepted" AND u.account_status="active"
-      AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=u.id) OR (b.user_id=u.id AND b.blocked_user_id=?))
-    ORDER BY u.name ASC
-');
-$friendStmt->execute([$userId,$userId,$userId,$userId,$userId]);
-$friends = $friendStmt->fetchAll();
-
-$emailKeys = [];
-$phoneKeys = [];
-foreach (array_merge($googleContacts, $phoneContacts) as $contact) {
-    $email = contact_email_key($contact['email'] ?? null);
-    $phone = contact_phone_key($contact['phone'] ?? null);
-    if ($email !== '') $emailKeys[$email] = true;
-    if ($phone !== '') $phoneKeys[$phone] = true;
-}
-foreach ($friends as $friend) {
-    $email = contact_email_key($friend['email'] ?? null);
-    $phone = contact_phone_key($friend['mobile'] ?? null);
-    if ($email !== '') $emailKeys[$email] = true;
-    if ($phone !== '') $phoneKeys[$phone] = true;
-}
-
-$registeredUsers = [];
-$registeredIds = [];
-foreach ($friends as $friend) {
-    $id = (int)$friend['id'];
-    if (!isset($registeredIds[$id])) { $registeredIds[$id] = true; $registeredUsers[] = $friend; }
-}
-$loadCandidates = static function (string $column, array $identifiers) use (&$registeredUsers,&$registeredIds,$userId): void {
-    foreach (array_chunk(array_keys($identifiers), 500) as $chunk) {
-        if (!$chunk) continue;
-        $placeholders = implode(',', array_fill(0,count($chunk),'?'));
-        $sql = "SELECT u.id,u.name,u.user_id,u.email,u.mobile,u.account_status,u.updated_at,COALESCE(ups.hide_online_status,0) AS hide_online FROM users u LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id WHERE u.id<>? AND u.account_status='active' AND u.{$column} IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=u.id) OR (b.user_id=u.id AND b.blocked_user_id=?))";
-        $st=db()->prepare($sql); $st->execute(array_merge([$userId],$chunk,[$userId,$userId]));
-        foreach($st->fetchAll() as $candidate){$id=(int)$candidate['id'];if(!isset($registeredIds[$id])){$registeredIds[$id]=true;$registeredUsers[]=$candidate;}}
-    }
-};
-if ($emailKeys) $loadCandidates('email',$emailKeys);
-if ($phoneKeys) $loadCandidates('mobile',$phoneKeys);
-
-$contacts = merge_contact_sources($googleContacts,$phoneContacts,$friends,$registeredUsers,$userId);
-$total = count($contacts);
-$contacts = array_slice($contacts,$offset,$pageSize);
-out(['contacts'=>$contacts,'pagination'=>['page'=>$page,'page_size'=>$pageSize,'total'=>$total,'has_more'=>($offset+count($contacts))<$total]]);
+$user=auth_user();if($_SERVER['REQUEST_METHOD']!=='GET')fail('Method not allowed',405);$page=max(1,(int)($_GET['page']??1));$pageSize=min(500,max(1,(int)($_GET['page_size']??500)));$offset=($page-1)*$pageSize;$userId=(int)$user['id'];
+$googleStmt=db()->prepare('SELECT id,resource_name,display_name,given_name,family_name,email,phone,"GOOGLE" AS source FROM google_contacts WHERE user_id=? AND deleted_at IS NULL');$googleStmt->execute([$userId]);$googleContacts=$googleStmt->fetchAll();
+$phoneStmt=db()->prepare('SELECT id,display_name,email,phone,"PHONE" AS source FROM phone_contacts WHERE user_id=?');$phoneStmt->execute([$userId]);$phoneContacts=$phoneStmt->fetchAll();
+$friendStmt=db()->prepare('SELECT u.id,u.name,u.user_id,u.email,u.mobile,u.account_status,u.updated_at,COALESCE(ups.hide_online_status,0) AS hide_online FROM friend_requests fr INNER JOIN users u ON u.id=CASE WHEN fr.requester_id=? THEN fr.recipient_id ELSE fr.requester_id END LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id WHERE (fr.requester_id=? OR fr.recipient_id=?) AND fr.status="accepted" AND u.account_status="active" AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=u.id) OR (b.user_id=u.id AND b.blocked_user_id=?)) ORDER BY u.name ASC');$friendStmt->execute([$userId,$userId,$userId,$userId,$userId]);$friends=$friendStmt->fetchAll();
+$emailKeys=[];$phoneKeys=[];foreach(array_merge($googleContacts,$phoneContacts) as $contact){$email=contact_email_key($contact['email']??null);$phone=contact_phone_key($contact['phone']??null);if($email!=='')$emailKeys[$email]=true;if($phone!=='')$phoneKeys[$phone]=true;}
+$registeredUsers=[];$registeredIds=[];foreach($friends as $friend){$id=(int)$friend['id'];if(!isset($registeredIds[$id])){$registeredIds[$id]=true;$registeredUsers[]=$friend;}}
+$loadCandidates=static function(string $column,array $identifiers)use(&$registeredUsers,&$registeredIds,$userId):void{foreach(array_chunk(array_keys($identifiers),500)as$chunk){if(!$chunk)continue;$placeholders=implode(',',array_fill(0,count($chunk),'?'));$identifierSql=$column==='mobile'?"RIGHT(REGEXP_REPLACE(u.mobile,'[^0-9]',''),10) IN ({$placeholders})":"u.email IN ({$placeholders})";$sql="SELECT u.id,u.name,u.user_id,u.email,u.mobile,u.account_status,u.updated_at,COALESCE(ups.hide_online_status,0) AS hide_online FROM users u LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id WHERE u.id<>? AND u.account_status='active' AND {$identifierSql} AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=u.id) OR (b.user_id=u.id AND b.blocked_user_id=?))";$st=db()->prepare($sql);$st->execute(array_merge([$userId],$chunk,[$userId,$userId]));foreach($st->fetchAll() as$candidate){$id=(int)$candidate['id'];if(!isset($registeredIds[$id])){$registeredIds[$id]=true;$registeredUsers[]=$candidate;}}}};
+if($emailKeys)$loadCandidates('email',$emailKeys);if($phoneKeys)$loadCandidates('mobile',$phoneKeys);
+$contacts=merge_contact_sources($googleContacts,$phoneContacts,$friends,$registeredUsers,$userId);$total=count($contacts);$contacts=array_slice($contacts,$offset,$pageSize);out(['contacts'=>$contacts,'pagination'=>['page'=>$page,'page_size'=>$pageSize,'total'=>$total,'has_more'=>($offset+count($contacts))<$total]]);
