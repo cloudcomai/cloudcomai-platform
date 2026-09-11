@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.5.0",
+  "contractVersion": "1.6.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
@@ -30,6 +30,7 @@
     "v1/attachment-requests/request": { "handler": "request_attachment_download.php", "methods": ["POST"], "auth": true },
     "v1/attachment-requests/respond": { "handler": "respond_attachment_download.php", "methods": ["POST"], "auth": true },
     "v1/contacts": { "handler": "contacts.php", "methods": ["GET"], "auth": true },
+    "v1/contacts/phone": { "handler": "phone_contacts.php", "methods": ["GET", "POST"], "auth": true },
     "v1/integrations/google/connect": { "handler": "google/connect.php", "methods": ["GET"], "auth": true },
     "v1/integrations/google/callback": { "handler": "google/callback.php", "methods": ["GET"], "auth": false },
     "v1/integrations/google/status": { "handler": "google/status.php", "methods": ["GET"], "auth": true },

@@ -3,14 +3,11 @@ module.exports = ({ config }) => {
   if (!variant) return config;
   if (!['preview', 'release'].includes(variant)) throw new Error('Invalid CLOUDCOMAI_NATIVE_BUILD variant.');
   const versionCode = Number(process.env.ANDROID_VERSION_CODE || (variant === 'preview' ? 1 : 0));
-  if (!Number.isSafeInteger(versionCode) || versionCode < 1 || versionCode > 2100000000) {
-    throw new Error('ANDROID_VERSION_CODE must be a positive integer, higher than your last published build.');
-  }
+  if (!Number.isSafeInteger(versionCode) || versionCode < 1 || versionCode > 2100000000) throw new Error('ANDROID_VERSION_CODE must be a positive integer, higher than your last published build.');
   return {
     ...config,
     name: variant === 'preview' ? 'CloudComAI Test' : config.name,
     scheme: variant === 'preview' ? 'cloudcomai-test' : config.scheme,
-    // Standalone Gradle builds contain their own JS bundle and update by installing a new binary.
     updates: { ...config.updates, enabled: false },
     android: {
       ...config.android,
@@ -18,6 +15,10 @@ module.exports = ({ config }) => {
       versionCode,
       ...(process.env.ANDROID_GOOGLE_SERVICES_FILE ? { googleServicesFile: process.env.ANDROID_GOOGLE_SERVICES_FILE } : {}),
     },
-    plugins: [...(config.plugins || []), './plugins/with-gradle-signing.cjs'],
+    plugins: [
+      ...(config.plugins || []),
+      ['expo-contacts', { contactsPermission: 'Allow CloudComAI to access your contacts so you can find registered friends.' }],
+      './plugins/with-gradle-signing.cjs',
+    ],
   };
 };

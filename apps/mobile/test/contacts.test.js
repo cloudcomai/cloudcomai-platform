@@ -23,10 +23,12 @@ const createApi = ({ connected = true, syncError = null, contacts = [], statusEr
   };
 };
 
+const testOptions = { syncDeviceContacts: false };
+
 test('refreshes Google contacts before reading the local snapshot when connected', async () => {
   const contacts = [{ registered_user_id: 42, display_name: 'Alice' }];
   const api = createApi({ contacts });
-  assert.deepEqual(await loadMobileContacts(api), contacts);
+  assert.deepEqual(await loadMobileContacts(api, 1, 500, testOptions), contacts);
   assert.deepEqual(api.calls, ['status', 'sync', ['list', 1, 500]]);
 });
 
@@ -36,5 +38,5 @@ test('uses the saved contact snapshot when disconnected or sync/status is unavai
     createApi({ connected: false, contacts }),
     createApi({ syncError: 'offline', contacts }),
     createApi({ statusError: 'offline', contacts }),
-  ]) assert.deepEqual(await loadMobileContacts(api), contacts);
+  ]) assert.deepEqual(await loadMobileContacts(api, 1, 500, testOptions), contacts);
 });
