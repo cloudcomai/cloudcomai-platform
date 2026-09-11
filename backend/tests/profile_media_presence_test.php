@@ -15,7 +15,7 @@ expect_contract(str_contains($chats,'AND (c.type <> "private" OR m.id IS NOT NUL
 expect_contract(str_contains($contacts,'merge_contact_sources'),'Contacts API must merge all contact sources');
 expect_contract(str_contains($contacts,'friend_requests'),'Accepted CloudComAI friends must be included in contacts');
 expect_contract(str_contains($phoneContacts,'DELETE FROM phone_contacts'),'Phone sync must replace the caller snapshot without duplicating records');
-expect_contract(str_contains($mobilePlatform,'setInterval(sendPresenceHeartbeat, 30000)'),'Mobile presence must refresh every 30 seconds');
+expect_contract(preg_match('/setInterval\(sendPresenceHeartbeat,\s*30000\)/',$mobilePlatform)===1,'Mobile presence must refresh every 30 seconds');
 expect_contract(str_contains($mobilePlatform,"nextState==='active'"),'Presence heartbeat must follow app foreground state');
 expect_contract(str_contains($mobilePlatform,'stopPresenceHeartbeat();'),'Mobile logout/session expiry must stop presence heartbeats');
 expect_contract(str_contains($mobileContacts,'Contact.getAllDetails'),'Phone contacts must use the stable Expo Contacts API');
