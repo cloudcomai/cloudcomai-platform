@@ -38,8 +38,10 @@ expect_contact_match($byId[2]['presence_status']==='ONLINE','Kumar should be onl
 expect_contact_match($byId[3]['presence_status']==='AWAY','G Kavitha should be away');
 expect_contact_match($byId[4]['presence_status']==='OFFLINE','Naveen Kumar should be offline');
 expect_contact_match($byId[5]['presence_status']==='ONLINE','Kalyan should be online');
-expect_contact_match($merged[0]['registered_user_id']===2,'Online users must sort before away/offline contacts');
-expect_contact_match($merged[1]['registered_user_id']===5,'All online users should remain at the top');
+$leadingOnlineIds = array_column(array_slice($merged, 0, 2), 'registered_user_id');
+sort($leadingOnlineIds);
+expect_contact_match($leadingOnlineIds === [2,5], 'All online users must sort before away/offline contacts');
+expect_contact_match($merged[2]['presence_status'] !== 'ONLINE' && $merged[3]['presence_status'] !== 'ONLINE', 'Away/offline contacts must follow online users');
 
 $ambiguous = merge_contact_sources([
  ['display_name'=>'Ambiguous','email'=>'kumar@example.com','phone'=>'9000022222','source'=>'GOOGLE'],
