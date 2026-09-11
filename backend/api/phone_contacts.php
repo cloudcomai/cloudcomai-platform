@@ -29,10 +29,10 @@ if ($method === 'POST') {
             if (isset($seen[$key])) continue;
             $seen[$key] = true;
             $name = trim((string)($contact['name'] ?? $contact['display_name'] ?? ''));
-            $insert->execute([$userId, $key, $name !== '' ? mb_substr($name,0,255) : null, $email !== '' ? $email : null, $phone !== '' ? $phone : null]);
+            $insert->execute([$userId, $key, $name !== '' ? mb_substr($name, 0, 255) : null, $email !== '' ? $email : null, $phone !== '' ? $phone : null]);
         }
         $pdo->commit();
-        out(['ok'=>true,'count'=>count($seen),'source'=>'PHONE']);
+        out(['ok' => true, 'count' => count($seen), 'source' => 'PHONE']);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
@@ -40,22 +40,36 @@ if ($method === 'POST') {
 }
 
 if ($method === 'GET') {
-    $st = db()->prepare('
-        SELECT pc.id,pc.display_name,pc.email,pc.phone,
-               u.id AS registered_user_id,u.name AS registered_name,u.user_id AS registered_user_id_text,
-               CASE WHEN u.updated_at IS NOT NULL AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(ups.hide_online_status,0)=0 THEN 1 ELSE 0 END AS online,
-               CASE WHEN u.updated_at IS NULL THEN "OFFLINE"
-                    WHEN u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(ups.hide_online_status,0)=0 THEN "ONLINE"
-                    WHEN u.updated_at >= UTC_TIMESTAMP() - INTERVAL 300 SECOND AND COALESCE(ups.hide_online_status,0)=0 THEN "AWAY"
-                    ELSE "OFFLINE" END AS presence_status
+    $sql = "
+        SELECT pc.id, pc.display_name, pc.email, pc.phone,
+               u.id AS registered_user_id,
+               u.name AS registered_name,
+               u.user_id AS registered_user_id_text,
+               CASE
+                   WHEN u.updated_at IS NOT NULL
+                    AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
+                    AND COALESCE(ups.hide_online_status, 0) = 0 THEN 1
+                   ELSE 0
+               END AS online,
+               CASE
+                   WHEN u.updated_at IS NULL THEN 'OFFLINE'
+                   WHEN u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
+                    AND COALESCE(ups.hide_online_status, 0) = 0 THEN 'ONLINE'
+                   WHEN u.updated_at >= UTC_TIMESTAMP() - INTERVAL 300 SECOND
+                    AND COALESCE(ups.hide_online_status, 0) = 0 THEN 'AWAY'
+                   ELSE 'OFFLINE'
+               END AS presence_status
         FROM phone_contacts pc
-        LEFT JOIN users u ON (pc.email IS NOT NULL AND pc.email=u.email) OR (pc.phone IS NOT NULL AND pc.phone=u.mobile)
-        LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
-        WHERE pc.user_id=?
-        ORDER BY COALESCE(NULLIF(pc.display_name,''),u.name,pc.email,pc.phone) ASC,pc.id ASC
-    ');
+        LEFT JOIN users u
+          ON (pc.email IS NOT NULL AND pc.email = u.email)
+          OR (pc.phone IS NOT NULL AND pc.phone = u.mobile)
+        LEFT JOIN user_privacy_settings ups ON ups.user_id = u.id
+        WHERE pc.user_id = ?
+        ORDER BY COALESCE(NULLIF(pc.display_name, ''), u.name, pc.email, pc.phone) ASC, pc.id ASC
+    ";
+    $st = db()->prepare($sql);
     $st->execute([$userId]);
-    out(['contacts'=>$st->fetchAll(),'source'=>'PHONE']);
+    out(['contacts' => $st->fetchAll(), 'source' => 'PHONE']);
 }
 
-fail('Method not allowed',405);
+fail('Method not allowed', 405);
