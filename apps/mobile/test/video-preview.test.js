@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import { pauseVideoPlayback, retryVideoPlayback, startVideoPlayback } from '../src/utils/videoPlayback.js';
 
@@ -30,4 +31,12 @@ test('handles unavailable players safely', () => {
   assert.equal(startVideoPlayback(null), false);
   assert.equal(pauseVideoPlayback(null), false);
   assert.equal(retryVideoPlayback(null, 'file:///retry.mp4'), false);
+});
+
+test('chat video does not force pause during player setup or lifecycle effect', () => {
+  const source = fs.readFileSync(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
+  assert.match(source, /useVideoPlayer\(source, p => \{ p\.loop = false; \}\)/);
+  assert.doesNotMatch(source, /useVideoPlayer\(source, p => \{ p\.pause\(\); \}\)/);
+  assert.doesNotMatch(source, /\n\s*pauseVideoPlayback\(player\);/);
+  assert.doesNotMatch(source, /const \[viewerOpen, setViewerOpen\]/);
 });
