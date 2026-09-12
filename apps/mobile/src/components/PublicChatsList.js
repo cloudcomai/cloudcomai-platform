@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { apiClient } from '../services/platform';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { platformApi } from '../services/platform';
 
 const formatRoomStats = room => `👥 ${Number(room?.joined_count || 0)} Joined · 🟢 ${Number(room?.online_count || 0)} Online`;
 
@@ -11,13 +11,14 @@ export default function PublicChatsList({ onOpenChat }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async (refresh = false, silent = false) => {
     if (!silent) refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      const { data } = await apiClient.get('v1/public-chats');
+      const { data } = await platformApi.listPublicChats();
       const nextRooms = Array.isArray(data.rooms) ? data.rooms.slice(0, 50) : [];
       setRooms(nextRooms);
       setSelected(current => current && nextRooms.some(room => Number(room.id) === Number(current.id)) ? nextRooms.find(room => Number(room.id) === Number(current.id)) : current);
@@ -38,11 +39,11 @@ export default function PublicChatsList({ onOpenChat }) {
   }, [load]);
 
   const openRoom = async room => {
-    if (!room?.id || joining) return;
+    if (!room?.id || joining || leaving) return;
     setJoining(true);
     setError('');
     try {
-      const { data } = await apiClient.post('v1/public-chats', { room_id: Number(room.id) });
+      const { data } = await platformApi.joinPublicChat(Number(room.id));
       const chat = data.chat || { id: Number(room.id), type: 'public', name: room.name, isPublic: true };
       setSelected({ ...room, joined: true });
       setRooms(current => current.map(item => Number(item.id) === Number(room.id) ? { ...item, joined: true } : item));
@@ -53,6 +54,35 @@ export default function PublicChatsList({ onOpenChat }) {
     } finally {
       setJoining(false);
     }
+  };
+
+  const leaveRoom = room => {
+    if (!room?.id || leaving || joining) return;
+    Alert.alert(
+      'Leave public chat room?',
+      `You will leave ${room.name || 'this public chat room'}. Your previous messages will remain subject to the room retention policy, but you will no longer receive new room messages until you join again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave room',
+          style: 'destructive',
+          onPress: async () => {
+            setLeaving(true);
+            setError('');
+            try {
+              await platformApi.leavePublicChat(Number(room.id));
+              setRooms(current => current.map(item => Number(item.id) === Number(room.id) ? { ...item, joined: false } : item));
+              setSelected(null);
+              setOpen(false);
+            } catch (e) {
+              setError(e.message || 'Unable to leave public chat room.');
+            } finally {
+              setLeaving(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (loading) return <ActivityIndicator style={styles.loader} color="#3157d5" />;
@@ -74,14 +104,19 @@ export default function PublicChatsList({ onOpenChat }) {
       keyExtractor={item => String(item.id)}
       style={styles.menu}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-      renderItem={({ item }) => <Pressable style={styles.roomRow} onPress={() => openRoom(item)} disabled={joining}>
+      renderItem={({ item }) => <Pressable style={styles.roomRow} onPress={() => openRoom(item)} disabled={joining || leaving}>
         <View style={styles.cityIcon}><Text style={styles.cityIconText}>{item.name?.[0] || 'I'}</Text></View>
         <View style={styles.roomMeta}><Text style={styles.roomName}>{item.name}</Text><Text style={styles.roomSub}>{formatRoomStats(item)}</Text></View>
         <Text style={styles.roomAction}>{item.joined ? 'Open' : 'Join'}</Text>
       </Pressable>}
       ListEmptyComponent={<Text style={styles.empty}>No public city rooms are available.</Text>}
     /> : <View style={styles.selectedArea}>{selected
-      ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : formatRoomStats(selected)}</Text></Pressable>
+      ? <>
+        <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining || leaving}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : formatRoomStats(selected)}</Text></Pressable>
+        <Pressable style={styles.leaveButton} onPress={() => leaveRoom(selected)} disabled={joining || leaving} accessibilityRole="button" accessibilityLabel={`Leave ${selected.name || 'public chat room'}`}>
+          <Text style={styles.leaveButtonText}>{leaving ? 'Leaving…' : 'Leave room'}</Text>
+        </Pressable>
+      </>
       : <Text style={styles.empty}>Choose a city or town above to join its public chat room.</Text>}
     </View>}
   </View>;
@@ -104,5 +139,7 @@ const styles = StyleSheet.create({
   roomAction: { color: '#3157d5', fontWeight: '800', fontSize: 12 }, selectedArea: { flex: 1, paddingTop: 14 },
   selectedRoom: { padding: 16, borderRadius: 12, backgroundColor: '#f8faff', borderWidth: 1, borderColor: '#e2e7f0' },
   selectedRoomName: { color: '#172033', fontSize: 16, fontWeight: '800' }, selectedRoomSub: { marginTop: 5, color: '#5b6577', fontSize: 12, fontWeight: '700' },
+  leaveButton: { marginTop: 12, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff7f7' },
+  leaveButtonText: { color: '#b91c1c', fontSize: 13, fontWeight: '800' },
   empty: { padding: 20, color: '#718096', textAlign: 'center', lineHeight: 20 },
 });
