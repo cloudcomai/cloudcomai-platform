@@ -6,8 +6,8 @@ const normalizeRoom = room => ({
   ...room,
   id: Number(room.id),
   joined: Boolean(room.joined),
+  joined_users: Number(room.joined_users || 0),
   online_users: Number(room.online_users || 0),
-  total_messages: Number(room.total_messages || 0),
 });
 
 export default function PublicChatsList({ onOpenChat }) {
@@ -60,8 +60,8 @@ export default function PublicChatsList({ onOpenChat }) {
     try {
       const { data } = await platformApi.joinPublicChat(room.id);
       const chat = data.chat || { id: room.id, type: 'public', name: room.name, isPublic: true };
-      setRooms(current => current.map(item => Number(item.id) === Number(room.id) ? { ...item, joined: true } : item));
-      setSelected({ ...room, joined: true });
+      setRooms(current => current.map(item => Number(item.id) === Number(room.id) ? { ...item, joined: true, joined_users: Number(item.joined_users || 0) + 1 } : item));
+      setSelected({ ...room, joined: true, joined_users: Number(room.joined_users || 0) + 1 });
       setOpen(false);
       onOpenChat?.({ ...chat, id: Number(chat.id), isPublic: true, isGroup: false });
     } catch (e) {
@@ -77,7 +77,7 @@ export default function PublicChatsList({ onOpenChat }) {
     <View style={styles.cityIcon}><Text style={styles.cityIconText}>{item.name?.[0] || 'I'}</Text></View>
     <View style={styles.roomMeta}>
       <Text style={styles.roomName}>{item.name}</Text>
-      <Text style={styles.roomStats}>{`Online: ${item.online_users} | Msgs: ${item.total_messages}`}</Text>
+      <Text style={styles.roomStats}>{`👥 ${item.joined_users} Joined · 🟢 ${item.online_users} Online`}</Text>
       <Text style={styles.roomSub}>{item.joined ? 'Joined · tap to open' : 'Public room · tap to join'}</Text>
     </View>
     <Text style={styles.roomAction}>{item.joined ? 'Open' : 'Join'}</Text>
@@ -85,7 +85,7 @@ export default function PublicChatsList({ onOpenChat }) {
 
   return <View style={styles.container}>
     <Text style={styles.heading}>Public Chats</Text>
-    <Text style={styles.description}>India city and town rooms. Joined rooms stay at the top as Favorites.</Text>
+    <Text style={styles.description}>India city and town rooms. Live membership and online counts refresh automatically.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Pressable style={styles.dropdown} onPress={() => setOpen(value => !value)} accessibilityRole="button">
       <View style={styles.dropdownText}>
@@ -105,7 +105,7 @@ export default function PublicChatsList({ onOpenChat }) {
       ListFooterComponent={unjoined.length ? <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>All public rooms</Text><Text style={styles.sectionHint}>Available to join</Text></View> : null}
       ListEmptyComponent={<Text style={styles.empty}>No public city rooms are available.</Text>}
     /> : <View style={styles.selectedArea}>{selected
-      ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomStats}>{`Online: ${selected.online_users} | Msgs: ${selected.total_messages}`}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : 'Tap to open this public chat'}</Text></Pressable>
+      ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomStats}>{`👥 ${selected.joined_users} Joined · 🟢 ${selected.online_users} Online`}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : 'Tap to open this public chat'}</Text></Pressable>
       : <Text style={styles.empty}>Choose a city or town above to join its public chat room.</Text>}
     </View>}
   </View>;
