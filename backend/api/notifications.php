@@ -5,11 +5,14 @@ if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') fail('M
 $limit = max(1, min(100, (int)($_GET['limit'] ?? 50)));
 $beforeId = max(0, (int)($_GET['before_id'] ?? 0));
 
-// Alerts is a dedicated screenshot-only inbox. Keep both unread and read
-// screenshot alerts visible so an alert is not lost from the main Alerts section
-// simply because it has already been opened or marked read.
-$screenshotFilter = "LOWER(COALESCE(h.category,''))='system' AND JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event'))='screenshot'";
-$sql = 'SELECT id, category, title, body, data_json, read_at, created_at FROM notification_history h WHERE h.user_id=? AND ' . $screenshotFilter . ' AND ' . notification_visibility_sql();
+// Alerts includes security screenshot events and friend-request activity while
+// continuing to use the existing notification history/delivery system.
+$alertsFilter = "(
+    (LOWER(COALESCE(h.category,''))='system' AND JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event'))='screenshot')
+    OR
+    (LOWER(COALESCE(h.category,''))='system' AND JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event')) IN ('friend_request','friend_request_accepted','friend_request_declined'))
+)";
+$sql = 'SELECT id, category, title, body, data_json, read_at, created_at FROM notification_history h WHERE h.user_id=? AND ' . $alertsFilter . ' AND ' . notification_visibility_sql();
 $params = [$user['id']];
 if ($beforeId > 0) { $sql .= ' AND id<?'; $params[] = $beforeId; }
 $sql .= " ORDER BY id DESC LIMIT $limit";
@@ -21,6 +24,6 @@ $items = array_map(static function (array $row): array {
     $row['data'] = is_array($decoded) ? $decoded : [];
     return $row;
 }, $st->fetchAll());
-$count = db()->prepare('SELECT COUNT(*) FROM notification_history h WHERE h.user_id=? AND h.read_at IS NULL AND ' . $screenshotFilter . ' AND ' . notification_visibility_sql());
+$count = db()->prepare('SELECT COUNT(*) FROM notification_history h WHERE h.user_id=? AND h.read_at IS NULL AND ' . $alertsFilter . ' AND ' . notification_visibility_sql());
 $count->execute([$user['id']]);
 out(['notifications'=>$items,'unread_count'=>(int)$count->fetchColumn()]);
