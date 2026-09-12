@@ -9,9 +9,7 @@ return [
     ],
     'app' => [
         'base_url' => 'https://www.cloudcomai.com/apiapp/api',
-        // Full web URL, including /app if installed there. Used by recovery emails.
         'web_url' => 'https://www.cloudcomai.com',
-        // A real sender mailbox accepted by this hosting account's PHP mail transport.
         'mail_from' => 'support@cloudcomai.com',
         'allowed_origins' => [
             'https://www.cloudcomai.com',
@@ -19,10 +17,12 @@ return [
             'https://app.cloudcomai.com',
         ],
         'token_secret' => 'GENERATE_ONCE_AND_KEEP_THIS_PRODUCTION_SECRET_STABLE',
+        // Keep these values outside source control in production. backup_dir must not be web-readable.
+        'backup_encryption_key' => 'GENERATE_A_RANDOM_32_BYTE_SECRET_AND_KEEP_IT_PRIVATE',
+        'backup_cron_secret' => 'GENERATE_A_RANDOM_CRON_SECRET_AND_KEEP_IT_PRIVATE',
+        'backup_dir' => __DIR__ . '/../storage/backups',
         'upload_dir' => __DIR__ . '/../storage/uploads',
         'retention' => [
-            // Values are seconds. Defaults in code are used when these are
-            // missing/invalid: private/group = 30 days, public = 4 hours.
             'private' => 2592000,
             'group' => 2592000,
             'public' => 14400,
