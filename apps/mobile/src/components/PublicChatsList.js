@@ -17,7 +17,19 @@ export default function PublicChatsList({ onOpenChat }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [blockedOpen, setBlockedOpen] = useState(false);
+  const [blockedBusy, setBlockedBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const loadBlockedUsers = useCallback(async () => {
+    try {
+      const { data } = await platformApi.getPrivacySettings();
+      setBlockedUsers(Array.isArray(data.blocked_users) ? data.blocked_users : []);
+    } catch (e) {
+      setError(e.message || 'Unable to load blocked contacts.');
+    }
+  }, []);
 
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
@@ -39,9 +51,10 @@ export default function PublicChatsList({ onOpenChat }) {
 
   useEffect(() => {
     load();
+    loadBlockedUsers();
     const timer = setInterval(() => load(true), 15000);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, loadBlockedUsers]);
 
   const favorites = useMemo(() => rooms.filter(room => room.joined), [rooms]);
   const unjoined = useMemo(() => rooms.filter(room => !room.joined), [rooms]);
@@ -68,6 +81,20 @@ export default function PublicChatsList({ onOpenChat }) {
       setError(e.message || 'Unable to join public chat room.');
     } finally {
       setJoining(false);
+    }
+  };
+
+  const unblock = async userId => {
+    if (!userId || blockedBusy) return;
+    setBlockedBusy(true);
+    setError('');
+    try {
+      await platformApi.unblockContact(userId);
+      setBlockedUsers(current => current.filter(user => Number(user.id) !== Number(userId)));
+    } catch (e) {
+      setError(e.message || 'Unable to unblock contact.');
+    } finally {
+      setBlockedBusy(false);
     }
   };
 
@@ -108,6 +135,18 @@ export default function PublicChatsList({ onOpenChat }) {
       ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomStats}>{`👥 ${selected.joined_users} Joined · 🟢 ${selected.online_users} Online`}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : 'Tap to open this public chat'}</Text></Pressable>
       : <Text style={styles.empty}>Choose a city or town above to join its public chat room.</Text>}
     </View>}
+
+    <View style={styles.blockedSection}>
+      <Pressable style={styles.blockedHeader} onPress={() => setBlockedOpen(value => !value)} accessibilityRole="button">
+        <View><Text style={styles.blockedTitle}>🚫 Blocked Contacts</Text><Text style={styles.blockedHint}>{blockedUsers.length} blocked</Text></View>
+        <Text style={styles.chevron}>{blockedOpen ? '⌃' : '⌄'}</Text>
+      </Pressable>
+      {blockedOpen ? (blockedUsers.length ? blockedUsers.map(contact => <View key={contact.id} style={styles.blockedRow}>
+        <View style={styles.blockedAvatar}><Text style={styles.blockedAvatarText}>{contact.name?.[0]?.toUpperCase() || 'U'}</Text></View>
+        <View style={styles.blockedMeta}><Text style={styles.blockedName}>{contact.name || 'CloudComAI user'}</Text>{contact.user_id ? <Text style={styles.blockedUserId}>@{contact.user_id}</Text> : null}</View>
+        <Pressable style={styles.unblockButton} disabled={blockedBusy} onPress={() => unblock(contact.id)}><Text style={styles.unblockText}>{blockedBusy ? '…' : 'Unblock'}</Text></Pressable>
+      </View>) : <Text style={styles.empty}>No blocked contacts.</Text>) : null}
+    </View>
   </View>;
 }
 
@@ -131,5 +170,12 @@ const styles = StyleSheet.create({
   roomAction: { color: '#3157d5', fontWeight: '800', fontSize: 12 }, selectedArea: { flex: 1, paddingTop: 14 },
   selectedRoom: { padding: 16, borderRadius: 12, backgroundColor: '#f8faff', borderWidth: 1, borderColor: '#e2e7f0' },
   selectedRoomName: { color: '#172033', fontSize: 16, fontWeight: '800' }, selectedRoomStats: { marginTop: 5, color: '#3157d5', fontSize: 12, fontWeight: '700' }, selectedRoomSub: { marginTop: 5, color: '#68748a', fontSize: 12 },
+  blockedSection: { marginTop: 14, borderWidth: 1, borderColor: '#e2e7f0', borderRadius: 12, overflow: 'hidden' },
+  blockedHeader: { minHeight: 58, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff7f7' },
+  blockedTitle: { color: '#7f1d1d', fontSize: 14, fontWeight: '900' }, blockedHint: { marginTop: 2, color: '#9f6b6b', fontSize: 10 },
+  blockedRow: { minHeight: 64, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#f1e4e4', backgroundColor: '#fff' },
+  blockedAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fee2e2' }, blockedAvatarText: { color: '#991b1b', fontWeight: '800' },
+  blockedMeta: { flex: 1, marginLeft: 10 }, blockedName: { color: '#172033', fontWeight: '800', fontSize: 13 }, blockedUserId: { marginTop: 2, color: '#7a8497', fontSize: 10 },
+  unblockButton: { minHeight: 34, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: '#eef2ff' }, unblockText: { color: '#3157d5', fontSize: 11, fontWeight: '800' },
   empty: { padding: 20, color: '#718096', textAlign: 'center', lineHeight: 20 },
 });
