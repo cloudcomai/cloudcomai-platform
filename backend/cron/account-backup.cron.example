@@ -1,0 +1,3 @@
+# Run every hour. The PHP runner checks each user's Daily/Weekly/Monthly schedule.
+# Keep backup_cron_secret and backup_encryption_key only in backend/config/config.php.
+0 * * * * /usr/local/bin/php /path/to/cloudcomai/backend/cron/account_backups.php >> /path/to/cloudcomai/backend/storage/account-backup-cron.log 2>&1
