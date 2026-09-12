@@ -5,10 +5,11 @@ if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') fail('M
 $limit = max(1, min(100, (int)($_GET['limit'] ?? 50)));
 $beforeId = max(0, (int)($_GET['before_id'] ?? 0));
 
-// Alerts is a dedicated screenshot-only inbox. Other categories belong to
-// Chats or Contacts and are never returned from this endpoint.
+// Alerts is a dedicated screenshot-only inbox. Keep both unread and read
+// screenshot alerts visible so an alert is not lost from the main Alerts section
+// simply because it has already been opened or marked read.
 $screenshotFilter = "LOWER(COALESCE(h.category,''))='system' AND JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event'))='screenshot'";
-$sql = 'SELECT id, category, title, body, data_json, read_at, created_at FROM notification_history h WHERE h.user_id=? AND h.read_at IS NULL AND ' . $screenshotFilter . ' AND ' . notification_visibility_sql();
+$sql = 'SELECT id, category, title, body, data_json, read_at, created_at FROM notification_history h WHERE h.user_id=? AND ' . $screenshotFilter . ' AND ' . notification_visibility_sql();
 $params = [$user['id']];
 if ($beforeId > 0) { $sql .= ' AND id<?'; $params[] = $beforeId; }
 $sql .= " ORDER BY id DESC LIMIT $limit";
