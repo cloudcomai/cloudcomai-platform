@@ -94,4 +94,39 @@ if ($method === 'POST') {
     }
 }
 
+if ($method === 'DELETE') {
+    $roomId=(int)($_GET['id'] ?? 0);
+    if ($roomId<=0) fail('A valid public chat room is required',422);
+
+    $membership=$pdo->prepare("
+        SELECT c.id
+        FROM chats c
+        INNER JOIN chat_members cm ON cm.chat_id=c.id
+        WHERE c.id=?
+          AND c.type='public'
+          AND c.group_category='india-city'
+          AND cm.user_id=?
+          AND cm.status='active'
+        LIMIT 1
+    ");
+    $membership->execute([$roomId,$user['id']]);
+    if (!$membership->fetch()) fail('Public chat room not found or you are not a member',404);
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare("UPDATE chat_members SET status='left' WHERE chat_id=? AND user_id=? AND status='active'")->execute([$roomId,$user['id']]);
+        $pdo->prepare("UPDATE chat_user_states SET hidden=1,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$roomId,$user['id']]);
+        $pdo->commit();
+        out([
+            'message'=>'You left the public chat room',
+            'chat_id'=>$roomId,
+            'status'=>'left',
+        ]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('public_chats.php DELETE error: '.$e->getMessage());
+        fail('Unable to leave public chat room',500);
+    }
+}
+
 fail('Method not allowed',405);
