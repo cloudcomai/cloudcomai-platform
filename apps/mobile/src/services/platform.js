@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Directory, File, Paths } from 'expo-file-system';
-import { AppState } from 'react-native';
-import { ApiError, ApiRoute, createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
+import { Alert, AppState } from 'react-native';
+import { ApiError, ApiRoute, buildApiUrl as apiBuildUrl, createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
 import { createAuthSessionManager } from '@cloudcomai/auth';
 import { attachmentPreviewExtension, buildApiUrl, normalizeUploadAsset } from '../utils/media';
 
@@ -11,11 +11,13 @@ export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '');
 const secureStorage = { getItem:key=>SecureStore.getItemAsync(key), setItem:(key,value)=>SecureStore.setItemAsync(key,value), removeItem:key=>SecureStore.deleteItemAsync(key) };
 const authSessionManager = createAuthSessionManager({ storage: secureStorage });
 const sessionExpirationListeners = new Set();
+const restorePromptedEmails = new Set();
 let presenceTimer = null; let presenceInFlight = false; let appState = AppState.currentState || 'active'; let appStateSubscription = null;
 export const subscribeToSessionExpiration = listener => { sessionExpirationListeners.add(listener); return ()=>sessionExpirationListeners.delete(listener); };
 const stopPresenceHeartbeat=()=>{if(presenceTimer!==null)clearInterval(presenceTimer);presenceTimer=null;};
 const expireSession=async()=>{stopPresenceHeartbeat();await authSessionManager.clearSession();for(const listener of sessionExpirationListeners)listener();};
 export const apiClient=createApiClient({baseUrl:API_BASE_URL,tokenProvider:()=>authSessionManager.getToken(),onUnauthorized:expireSession});
+const offerBackupRestore=async session=>{const email=String(session?.user?.email||'').trim().toLowerCase();if(!session?.token||!email||restorePromptedEmails.has(email))return;restorePromptedEmails.add(email);try{const response=await apiClient.get(ApiRoute.ACCOUNT_BACKUP,{auth:true,headers:{Authorization:`Bearer ${session.token}`}});const backup=response?.data?.backup;if(!backup?.restore_available)return;Alert.alert('Cloud backup found',`A CloudComAI backup is available for ${email}. Restore it on this device?`,[{text:'Skip',style:'cancel'},{text:'Restore',onPress:async()=>{try{const restored=await apiClient.post(ApiRoute.ACCOUNT_BACKUP,{action:'restore'},{auth:true,headers:{Authorization:`Bearer ${session.token}`}});Alert.alert('Restore completed',`${restored?.data?.restore?.chats||0} chats and ${restored?.data?.restore?.messages||0} messages restored.`);}catch(error){Alert.alert('Restore failed',error?.message||'Unable to restore the cloud backup.');}}}]);}catch{}}
 const sendPresenceHeartbeat=async()=>{if(appState!=='active'||presenceInFlight||!(await authSessionManager.getToken()))return;presenceInFlight=true;try{await apiClient.post(ApiRoute.HEARTBEAT,{}, {auth:true});}catch{}finally{presenceInFlight=false;}};
 const startPresenceHeartbeat=()=>{if(presenceTimer!==null)return;sendPresenceHeartbeat();presenceTimer=setInterval(sendPresenceHeartbeat,30000);};
 const bindPresenceAppState=()=>{if(appStateSubscription)return;appStateSubscription=AppState.addEventListener('change',nextState=>{appState=nextState;if(nextState==='active'){startPresenceHeartbeat();}else{stopPresenceHeartbeat();}});};
@@ -23,7 +25,7 @@ bindPresenceAppState();
 export const sessionManager={
   getToken:()=>authSessionManager.getToken(),
   getSession:async()=>{const session=await authSessionManager.getSession();if(session?.token&&appState==='active')startPresenceHeartbeat();return session;},
-  setSession:async session=>{const result=await authSessionManager.setSession(session);if(session?.token&&appState==='active')startPresenceHeartbeat();else stopPresenceHeartbeat();return result;},
+  setSession:async session=>{const result=await authSessionManager.setSession(session);if(session?.token&&appState==='active')startPresenceHeartbeat();else stopPresenceHeartbeat();if(session?.token)void offerBackupRestore(session);return result;},
   clearSession:async()=>{stopPresenceHeartbeat();return authSessionManager.clearSession();},
 };
 export const platformApi=createCloudComAiApi(apiClient);
