@@ -8,7 +8,7 @@ assert($contract['routes']['v1/friend-requests']['methods'] === ['GET', 'POST'])
 assert($contract['routes']['v1/friend-requests']['auth'] === true);
 
 $handler = (string)file_get_contents($root . '/api/friend_requests.php');
-foreach (['send','accept','decline','block','cancel','friend_requests','users_block_state'] as $needle) {
+foreach (['send','accept','decline','block','cancel','friend_requests','users_block_state','GET_LOCK','queue_user_notification'] as $needle) {
     assert(str_contains($handler, $needle), "Missing friend request handler contract: {$needle}");
 }
 
