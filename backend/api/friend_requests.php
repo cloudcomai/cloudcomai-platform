@@ -147,6 +147,7 @@ function relationship_for_users(int $viewerId, int $targetId): array {
     $stmt->execute([$viewerId,$targetId,$targetId,$viewerId]);
     $row = $stmt->fetch();
     if (!$row) return ['status' => 'none'];
+    if ((string)$row['status'] === 'blocked' && !users_block_state($viewerId, $targetId)['blocked']) return ['status' => 'none'];
     return [
         'status' => (string)$row['status'],
         'direction' => (int)$row['requester_id'] === $viewerId ? 'outgoing' : 'incoming',
