@@ -6,6 +6,7 @@ assert(isset($contract['routes']['v1/public-chats']));
 assert($contract['routes']['v1/public-chats']['handler']==='public_chats.php');
 assert(in_array('GET',$contract['routes']['v1/public-chats']['methods'],true));
 assert(in_array('POST',$contract['routes']['v1/public-chats']['methods'],true));
+assert(in_array('DELETE',$contract['routes']['v1/public-chats']['methods'],true));
 
 $handler=(string)file_get_contents(__DIR__.'/../api/public_chats.php');
 assert(str_contains($handler,"c.type='public'"));
@@ -16,6 +17,10 @@ assert(str_contains($handler,"AS joined_count"));
 assert(str_contains($handler,"AS online_count"));
 assert(str_contains($handler,'UTC_TIMESTAMP() - INTERVAL 90 SECOND'));
 assert(str_contains($handler,'hide_online_status'));
+assert(str_contains($handler,"$method === 'DELETE'"));
+assert(str_contains($handler,"status='left'"));
+assert(str_contains($handler,'You left the public chat room'));
+assert(str_contains($handler,"cm.status='active'"));
 
 $fresh=(string)file_get_contents(__DIR__.'/../database/fresh-install.sql');
 $migration=(string)file_get_contents(__DIR__.'/../database/migrations/013_public_city_chat_rooms.sql');
