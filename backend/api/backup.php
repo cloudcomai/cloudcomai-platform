@@ -1,76 +1,160 @@
 <?php
 
+declare(strict_types=1);
 require __DIR__ . '/../lib/bootstrap.php';
 
 $user = auth_user();
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') fail('Method not allowed', 405);
-
 $pdo = db();
-$profile = $pdo->prepare('SELECT id,user_id,name,email,mobile,dob,gender,email_verified,mobile_verified,account_status,created_at,updated_at FROM users WHERE id=?');
-$profile->execute([$user['id']]);
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 
-$preferences = $pdo->prepare('SELECT interest,display_order,pinned,hidden,updated_at FROM user_interests WHERE user_id=? ORDER BY display_order,interest');
-$preferences->execute([$user['id']]);
+function backup_key(): string {
+    global $config;
+    $configured = trim((string)($config['app']['backup_encryption_key'] ?? ''));
+    if ($configured !== '' && !str_contains($configured, 'GENERATE')) {
+        return hash('sha256', $configured, true);
+    }
+    return hash('sha256', (string)$config['app']['token_secret'] . '|cloudcomai-account-backup', true);
+}
+function backup_dir(): string {
+    global $config;
+    $dir = (string)($config['app']['backup_dir'] ?? (__DIR__ . '/../storage/backups'));
+    if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) fail('Backup storage is unavailable', 500);
+    @chmod($dir, 0700);
+    return rtrim($dir, '/\\');
+}
+function encrypt_backup(string $plain): string {
+    $iv = random_bytes(12);
+    $tag = '';
+    $cipher = openssl_encrypt($plain, 'aes-256-gcm', backup_key(), OPENSSL_RAW_DATA, $iv, $tag, '', 16);
+    if ($cipher === false) fail('Unable to encrypt backup', 500);
+    return "CCAI-BACKUP-1\0" . $iv . $tag . $cipher;
+}
+function decrypt_backup(string $payload): string {
+    if (!str_starts_with($payload, "CCAI-BACKUP-1\0") || strlen($payload) < 40) fail('Backup format is invalid', 422);
+    $offset = 14;
+    $iv = substr($payload, $offset, 12); $offset += 12;
+    $tag = substr($payload, $offset, 16); $offset += 16;
+    $plain = openssl_decrypt(substr($payload, $offset), 'aes-256-gcm', backup_key(), OPENSSL_RAW_DATA, $iv, $tag);
+    if ($plain === false) fail('Backup could not be decrypted', 422);
+    return $plain;
+}
+function backup_settings(int $userId): array {
+    $st = db()->prepare('SELECT automatic_frequency,include_videos,wifi_only FROM account_backup_settings WHERE user_id=? LIMIT 1');
+    $st->execute([$userId]);
+    $row = $st->fetch() ?: ['automatic_frequency'=>'off','include_videos'=>0,'wifi_only'=>1];
+    return ['automatic_frequency'=>(string)$row['automatic_frequency'],'include_videos'=>(bool)$row['include_videos'],'wifi_only'=>(bool)$row['wifi_only']];
+}
+function ensure_backup_settings(int $userId, ?string $email = null): array {
+    $settings = backup_settings($userId);
+    $pdo = db();
+    $emailValue = $email !== null ? strtolower(trim($email)) : null;
+    if ($emailValue !== null) {
+        $up = $pdo->prepare('INSERT INTO account_backup_settings (user_id,backup_account_email,automatic_frequency,include_videos,wifi_only,updated_at) VALUES (?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE backup_account_email=VALUES(backup_account_email),updated_at=UTC_TIMESTAMP()');
+        $up->execute([$userId,$emailValue,$settings['automatic_frequency'],$settings['include_videos']?1:0,$settings['wifi_only']?1:0]);
+    }
+    return $settings;
+}
+function backup_status(int $userId): array {
+    $user = db()->prepare('SELECT email,email_verified FROM users WHERE id=? LIMIT 1'); $user->execute([$userId]); $profile=$user->fetch() ?: [];
+    $settingsSt = db()->prepare('SELECT automatic_frequency,include_videos,wifi_only,backup_account_email FROM account_backup_settings WHERE user_id=? LIMIT 1'); $settingsSt->execute([$userId]);
+    $settings=$settingsSt->fetch() ?: [];
+    $backupSt = db()->prepare('SELECT version,backup_size,last_backup_at,created_at FROM account_backups WHERE user_id=? LIMIT 1'); $backupSt->execute([$userId]);
+    $backup=$backupSt->fetch() ?: null;
+    $email = strtolower(trim((string)($profile['email'] ?? '')));
+    return [
+        'available'=>(bool)$backup,
+        'restore_available'=>(bool)$backup && (bool)($profile['email_verified'] ?? false),
+        'backup_account_email'=>(string)($settings['backup_account_email'] ?? $email),
+        'email_verified'=>(bool)($profile['email_verified'] ?? false),
+        'automatic_frequency'=>(string)($settings['automatic_frequency'] ?? 'off'),
+        'include_videos'=>(bool)($settings['include_videos'] ?? false),
+        'wifi_only'=>(bool)($settings['wifi_only'] ?? true),
+        'version'=>(int)($backup['version'] ?? 0),
+        'backup_size'=>(int)($backup['backup_size'] ?? 0),
+        'last_backup_at'=>$backup['last_backup_at'] ?? null,
+    ];
+}
+function build_backup_payload(int $userId, bool $includeVideos): array {
+    $pdo=db();
+    $profile=$pdo->prepare('SELECT user_id,name,email,mobile,dob,gender,email_verified,mobile_verified,account_status,created_at,updated_at FROM users WHERE id=?'); $profile->execute([$userId]);
+    $preferences=$pdo->prepare('SELECT interest,display_order,pinned,hidden,updated_at FROM user_interests WHERE user_id=? ORDER BY display_order,interest'); $preferences->execute([$userId]);
+    $blocks=$pdo->prepare('SELECT blocked_user_id,created_at FROM user_blocks WHERE user_id=? ORDER BY created_at'); $blocks->execute([$userId]);
+    $phone=$pdo->prepare('SELECT contact_key,display_name,email,phone,created_at,updated_at FROM phone_contacts WHERE user_id=? ORDER BY id'); $phone->execute([$userId]);
+    $google=$pdo->prepare('SELECT display_name,given_name,family_name,email,phone,resource_name,updated_at FROM google_contacts WHERE user_id=? AND deleted_at IS NULL ORDER BY id'); $google->execute([$userId]);
+    $chats=$pdo->prepare('SELECT c.id,c.type,c.name,c.group_category,c.owner_id,c.retention_seconds,c.created_at,cm.role FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=? AND cm.status="active" ORDER BY c.id'); $chats->execute([$userId]);
+    $messages=$pdo->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.expires_at,m.created_at FROM messages m INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id WHERE m.id>COALESCE(cus.cleared_through_message_id,0) AND m.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) ORDER BY m.chat_id,m.id'); $messages->execute([$userId]);
+    $attachments=$pdo->prepare('SELECT a.id,a.message_id,m.chat_id,a.original_filename,a.mime_type,a.file_size,a.download_policy,a.created_at,a.storage_path FROM message_attachments a INNER JOIN messages m ON m.id=a.message_id INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" ORDER BY a.id'); $attachments->execute([$userId]);
+    $attachmentRows=[];
+    foreach($attachments->fetchAll() as $a){
+        $a['storage_path']=null;
+        if($includeVideos && str_starts_with(strtolower((string)$a['mime_type']),'video/')){
+            $path=(string)($pdo->query("SELECT 1")->fetchColumn() ?? '');
+            $full=(string)($a['storage_path'] ?? '');
+            if($full !== '' && is_file($full) && is_readable($full)) $a['video_data_base64']=base64_encode((string)file_get_contents($full));
+        }
+        $attachmentRows[]=$a;
+    }
+    return [
+        'format'=>'cloudcomai-chat-backup','version'=>2,'created_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        'profile'=>$profile->fetch(),'privacy_settings'=>user_privacy_settings($userId),'preferences'=>$preferences->fetchAll(),
+        'blocked_contacts'=>$blocks->fetchAll(),'phone_contacts'=>$phone->fetchAll(),'google_contacts'=>$google->fetchAll(),
+        'chats'=>$chats->fetchAll(),'messages'=>$messages->fetchAll(),'attachments'=>$attachmentRows,
+    ];
+}
+function create_backup(int $userId, bool $includeVideos): array {
+    $pdo=db();
+    $user=$pdo->prepare('SELECT email,email_verified FROM users WHERE id=?'); $user->execute([$userId]); $account=$user->fetch();
+    if(!$account || !(bool)$account['email_verified'] || trim((string)$account['email'])==='') fail('A verified email address is required for cloud backup',422);
+    $payload=json_encode(build_backup_payload($userId,$includeVideos),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+    if($payload===false) fail('Unable to prepare backup',500);
+    $encrypted=encrypt_backup($payload); $dir=backup_dir(); $tmp=$dir.'/'.bin2hex(random_bytes(16)).'.tmp'; $final=$dir.'/'.bin2hex(random_bytes(16)).'.backup';
+    if(file_put_contents($tmp,$encrypted,LOCK_EX)===false){@unlink($tmp);fail('Unable to store backup',500);} @chmod($tmp,0600);
+    if(!rename($tmp,$final)){@unlink($tmp);fail('Unable to finalize backup',500);} @chmod($final,0600);
+    $old=$pdo->prepare('SELECT file_path FROM account_backups WHERE user_id=? LIMIT 1'); $old->execute([$userId]); $oldPath=$old->fetchColumn();
+    $ver=$pdo->prepare('SELECT COALESCE(MAX(version),0)+1 FROM account_backup_versions WHERE user_id=?'); $ver->execute([$userId]); $version=(int)$ver->fetchColumn();
+    $pdo->beginTransaction();
+    try{
+        $pdo->prepare('INSERT INTO account_backup_versions (user_id,version,file_path,backup_size,created_at) VALUES (?,?,?,?,UTC_TIMESTAMP())')->execute([$userId,$version,$final,strlen($encrypted)]);
+        $pdo->prepare('INSERT INTO account_backups (user_id,version,file_path,backup_size,last_backup_at,created_at) VALUES (?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE version=VALUES(version),file_path=VALUES(file_path),backup_size=VALUES(backup_size),last_backup_at=UTC_TIMESTAMP()')->execute([$userId,$version,$final,strlen($encrypted)]);
+        $pdo->commit();
+    }catch(Throwable $e){$pdo->rollBack();@unlink($final);throw $e;}
+    if(is_string($oldPath) && $oldPath!=='' && $oldPath!==$final) @unlink($oldPath);
+    return ['version'=>$version,'backup_size'=>strlen($encrypted),'last_backup_at'=>gmdate('Y-m-d\TH:i:s\Z')];
+}
+function restore_backup(int $userId): array {
+    $pdo=db(); $st=$pdo->prepare('SELECT file_path FROM account_backups WHERE user_id=? LIMIT 1'); $st->execute([$userId]); $path=$st->fetchColumn();
+    if(!$path || !is_string($path) || !is_file($path)) fail('No cloud backup is available',404);
+    $decoded=json_decode(decrypt_backup((string)file_get_contents($path)),true); if(!is_array($decoded)) fail('Backup data is invalid',422);
+    $pdo->beginTransaction();
+    try{
+        $counts=['chats'=>0,'messages'=>0,'contacts'=>0,'preferences'=>0]; $chatMap=[];
+        foreach(($decoded['preferences']??[]) as $p){$q=$pdo->prepare('INSERT INTO user_interests(user_id,interest,display_order,pinned,hidden,updated_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE display_order=VALUES(display_order),pinned=VALUES(pinned),hidden=VALUES(hidden),updated_at=UTC_TIMESTAMP()');$q->execute([$userId,$p['interest'],$p['display_order'],$p['pinned'],$p['hidden']]);$counts['preferences']++;}
+        foreach(($decoded['phone_contacts']??[]) as $c){$q=$pdo->prepare('INSERT INTO phone_contacts(user_id,contact_key,display_name,email,phone,created_at,updated_at) VALUES(?,?,?,?,?,COALESCE(?,UTC_TIMESTAMP()),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),email=VALUES(email),phone=VALUES(phone),updated_at=UTC_TIMESTAMP()');$q->execute([$userId,$c['contact_key'],$c['display_name']??null,$c['email']??null,$c['phone']??null,$c['created_at']??null]);$counts['contacts']++;}
+        foreach(($decoded['chats']??[]) as $c){$q=$pdo->prepare('INSERT INTO chats(type,name,group_category,owner_id,retention_seconds,created_at,updated_at) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP())');$q->execute([$c['type'],$c['name']??null,$c['group_category']??null,$userId,$c['retention_seconds']??null,$c['created_at']??gmdate('Y-m-d H:i:s')]);$new=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO chat_members(chat_id,user_id,role,status,joined_at) VALUES(?,?,?,"active",UTC_TIMESTAMP())')->execute([$new,$userId,$c['role']??'member']);$chatMap[(string)$c['id']]=$new;$counts['chats']++;}
+        foreach(($decoded['messages']??[]) as $m){$newChat=$chatMap[(string)$m['chat_id']]??null;if(!$newChat)continue;$sender=(int)$m['sender_id']===$userId?$userId:$userId;$q=$pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,edit_count,edited_at,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?)');$q->execute([$newChat,$sender,$m['type'],$m['body']??null,$m['edit_count']??0,$m['edited_at']??null,$m['expires_at']??null,$m['created_at']??gmdate('Y-m-d H:i:s')]);$counts['messages']++;}
+        $pdo->commit(); return $counts;
+    }catch(Throwable $e){$pdo->rollBack();throw $e;}
+}
 
-$blocks = $pdo->prepare('SELECT blocked_user_id,created_at FROM user_blocks WHERE user_id=? ORDER BY created_at');
-$blocks->execute([$user['id']]);
-
-$contacts = $pdo->prepare('SELECT display_name,given_name,family_name,email,phone,resource_name,updated_at FROM google_contacts WHERE user_id=? AND deleted_at IS NULL ORDER BY id');
-$contacts->execute([$user['id']]);
-
-$chats = $pdo->prepare(<<<'SQL'
-    SELECT c.id,c.type,c.name,c.group_category,c.owner_id,c.retention_seconds,c.created_at,
-           cm.role,cm.joined_at,COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id
-    FROM chats c
-    INNER JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=? AND cm.status='active'
-    LEFT JOIN chat_user_states cus ON cus.chat_id=c.id AND cus.user_id=cm.user_id
-    ORDER BY c.id
-SQL);
-$chats->execute([$user['id']]);
-
-$messages = $pdo->prepare(<<<'SQL'
-    SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.expires_at,m.created_at
-    FROM messages m
-    INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status='active'
-    LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id
-    LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id
-    WHERE m.id>COALESCE(cus.cleared_through_message_id,0)
-      AND m.deleted_for_everyone=0
-      AND COALESCE(mus.hidden,0)=0
-      AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
-    ORDER BY m.chat_id,m.id
-SQL);
-$messages->execute([$user['id']]);
-
-$attachments = $pdo->prepare(<<<'SQL'
-    SELECT a.id,a.message_id,m.chat_id,a.original_filename,a.mime_type,a.file_size,a.download_policy,a.created_at
-    FROM message_attachments a
-    INNER JOIN messages m ON m.id=a.message_id
-    INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status='active'
-    LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id
-    LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id
-    WHERE m.id>COALESCE(cus.cleared_through_message_id,0)
-      AND m.deleted_for_everyone=0
-      AND COALESCE(mus.hidden,0)=0
-      AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
-    ORDER BY m.chat_id,m.id,a.id
-SQL);
-$attachments->execute([$user['id']]);
-
-$exportedAt = gmdate('Y-m-d\TH:i:s\Z');
-header('Cache-Control: private, no-store');
-header('Content-Disposition: attachment; filename="cloudcomai-account-backup-' . gmdate('Ymd-His') . '.json"');
-out([
-    'format' => 'cloudcomai-account-backup',
-    'version' => 1,
-    'exported_at' => $exportedAt,
-    'profile' => $profile->fetch(),
-    'privacy_settings' => user_privacy_settings((int)$user['id']),
-    'blocked_contacts' => $blocks->fetchAll(),
-    'preferences' => $preferences->fetchAll(),
-    'google_contacts' => $contacts->fetchAll(),
-    'chats' => $chats->fetchAll(),
-    'messages' => $messages->fetchAll(),
-    'attachments' => $attachments->fetchAll(),
-    'notes' => ['Attachment files are not embedded; attachment metadata is included.'],
-]);
+if($method==='GET'){
+    $status=backup_status((int)$user['id']); out(['backup'=>$status]);
+}
+if($method==='PUT'){
+    $input=input(); $frequency=(string)($input['automatic_frequency']??'off');
+    if(!in_array($frequency,['off','daily','weekly','monthly'],true)) fail('Invalid backup frequency',422);
+    $include=!empty($input['include_videos']); $wifi=!empty($input['wifi_only']);
+    if(!empty($user['email']) && !filter_var($user['email'],FILTER_VALIDATE_EMAIL)) fail('Registered email address is invalid',422);
+    if(empty($user['email'])) fail('A registered email address is required for cloud backup',422);
+    if(!($pdo->query('SELECT 1')->fetchColumn())) fail('Database unavailable',500);
+    $q=$pdo->prepare('INSERT INTO account_backup_settings(user_id,backup_account_email,automatic_frequency,include_videos,wifi_only,updated_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE backup_account_email=VALUES(backup_account_email),automatic_frequency=VALUES(automatic_frequency),include_videos=VALUES(include_videos),wifi_only=VALUES(wifi_only),updated_at=UTC_TIMESTAMP()');
+    $q->execute([$user['id'],strtolower($user['email']),$frequency,$include?1:0,$wifi?1:0]); out(['settings'=>backup_status((int)$user['id'])]);
+}
+if($method==='POST'){
+    $input=input(); $action=(string)($input['action']??'backup');
+    if($action==='backup'){
+        $settings=backup_status((int)$user['id']); $result=create_backup((int)$user['id'],!empty($input['include_videos'])?$input['include_videos']:(bool)$settings['include_videos']); out(['message'=>'Backup completed','backup'=>array_merge(backup_status((int)$user['id']),$result)]);
+    }
+    if($action==='restore') out(['message'=>'Backup restored','restore'=>restore_backup((int)$user['id'])]);
+    fail('Unsupported backup action',422);
+}
+fail('Method not allowed',405);
