@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { apiClient } from '../services/platform';
 
+const formatRoomStats = room => `👥 ${Number(room?.joined_count || 0)} Joined · 🟢 ${Number(room?.online_count || 0)} Online`;
+
 export default function PublicChatsList({ onOpenChat }) {
   const [rooms, setRooms] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -11,23 +13,29 @@ export default function PublicChatsList({ onOpenChat }) {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (refresh = false) => {
-    refresh ? setRefreshing(true) : setLoading(true);
+  const load = useCallback(async (refresh = false, silent = false) => {
+    if (!silent) refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
       const { data } = await apiClient.get('v1/public-chats');
       const nextRooms = Array.isArray(data.rooms) ? data.rooms.slice(0, 50) : [];
       setRooms(nextRooms);
-      setSelected(current => current && nextRooms.some(room => Number(room.id) === Number(current.id)) ? current : null);
+      setSelected(current => current && nextRooms.some(room => Number(room.id) === Number(current.id)) ? nextRooms.find(room => Number(room.id) === Number(current.id)) : current);
     } catch (e) {
-      setError(e.message || 'Unable to load public chat rooms.');
+      if (!silent) setError(e.message || 'Unable to load public chat rooms.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const timer = setInterval(() => load(false, true), 5000);
+    return () => clearInterval(timer);
+  }, [load]);
 
   const openRoom = async room => {
     if (!room?.id || joining) return;
@@ -57,6 +65,7 @@ export default function PublicChatsList({ onOpenChat }) {
       <View style={styles.dropdownText}>
         <Text style={styles.dropdownLabel}>India city & town rooms</Text>
         <Text style={styles.dropdownValue}>{selected?.name || 'Select a public chat room'}</Text>
+        {selected ? <Text style={styles.selectedStats}>{formatRoomStats(selected)}</Text> : null}
       </View>
       <Text style={styles.chevron}>{open ? '⌃' : '⌄'}</Text>
     </Pressable>
@@ -67,12 +76,12 @@ export default function PublicChatsList({ onOpenChat }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
       renderItem={({ item }) => <Pressable style={styles.roomRow} onPress={() => openRoom(item)} disabled={joining}>
         <View style={styles.cityIcon}><Text style={styles.cityIconText}>{item.name?.[0] || 'I'}</Text></View>
-        <View style={styles.roomMeta}><Text style={styles.roomName}>{item.name}</Text><Text style={styles.roomSub}>{item.joined ? 'Joined · tap to open' : 'Public room · tap to join'}</Text></View>
+        <View style={styles.roomMeta}><Text style={styles.roomName}>{item.name}</Text><Text style={styles.roomSub}>{formatRoomStats(item)}</Text></View>
         <Text style={styles.roomAction}>{item.joined ? 'Open' : 'Join'}</Text>
       </Pressable>}
       ListEmptyComponent={<Text style={styles.empty}>No public city rooms are available.</Text>}
     /> : <View style={styles.selectedArea}>{selected
-      ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : 'Tap to open this public chat'}</Text></Pressable>
+      ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : formatRoomStats(selected)}</Text></Pressable>
       : <Text style={styles.empty}>Choose a city or town above to join its public chat room.</Text>}
     </View>}
   </View>;
@@ -86,14 +95,14 @@ const styles = StyleSheet.create({
   error: { marginBottom: 10, padding: 10, borderRadius: 8, color: '#b91c1c', backgroundColor: '#fee2e2' },
   dropdown: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#f8faff' },
   dropdownText: { flex: 1, minWidth: 0 }, dropdownLabel: { color: '#68748a', fontSize: 10, fontWeight: '700' },
-  dropdownValue: { marginTop: 4, color: '#172033', fontSize: 15, fontWeight: '700' }, chevron: { color: '#3157d5', fontSize: 24, paddingLeft: 10 },
+  dropdownValue: { marginTop: 4, color: '#172033', fontSize: 15, fontWeight: '700' }, selectedStats: { marginTop: 4, color: '#5b6577', fontSize: 11, fontWeight: '700' }, chevron: { color: '#3157d5', fontSize: 24, paddingLeft: 10 },
   menu: { marginTop: 8, borderWidth: 1, borderColor: '#e2e7f0', borderRadius: 12, backgroundColor: '#fff' },
-  roomRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  roomRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   cityIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff' },
   cityIconText: { color: '#3157d5', fontWeight: '800' }, roomMeta: { flex: 1, minWidth: 0, marginLeft: 10 },
-  roomName: { color: '#172033', fontSize: 14, fontWeight: '800' }, roomSub: { marginTop: 3, color: '#7a8497', fontSize: 11 },
+  roomName: { color: '#172033', fontSize: 14, fontWeight: '800' }, roomSub: { marginTop: 3, color: '#5b6577', fontSize: 11, fontWeight: '700' },
   roomAction: { color: '#3157d5', fontWeight: '800', fontSize: 12 }, selectedArea: { flex: 1, paddingTop: 14 },
   selectedRoom: { padding: 16, borderRadius: 12, backgroundColor: '#f8faff', borderWidth: 1, borderColor: '#e2e7f0' },
-  selectedRoomName: { color: '#172033', fontSize: 16, fontWeight: '800' }, selectedRoomSub: { marginTop: 5, color: '#68748a', fontSize: 12 },
+  selectedRoomName: { color: '#172033', fontSize: 16, fontWeight: '800' }, selectedRoomSub: { marginTop: 5, color: '#5b6577', fontSize: 12, fontWeight: '700' },
   empty: { padding: 20, color: '#718096', textAlign: 'center', lineHeight: 20 },
 });
