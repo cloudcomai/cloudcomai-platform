@@ -12,11 +12,13 @@ foreach (['send','accept','decline','block','cancel','friend_requests','users_bl
     assert(str_contains($handler, $needle), "Missing friend request handler contract: {$needle}");
 }
 assert(str_contains($handler, "'event' => 'friend_request'"));
+assert(str_contains($handler, "if ((string)$row['status'] === 'blocked' && !users_block_state($viewerId, $targetId)['blocked'])"));
 
 $profile = (string)file_get_contents($root . '/api/user_profile.php');
 assert(str_contains($profile, 'shared_chat.type IN ("private","public")'));
 assert(str_contains($profile, "'relationship' => $relationship"));
 assert(str_contains($profile, "'request_id' => (int)$request['id']"));
+assert(str_contains($profile, "if ($status === 'blocked' && !users_block_state"));
 
 $privacy = (string)file_get_contents($root . '/api/privacy.php');
 assert(str_contains($privacy, 'UPDATE friend_requests SET status="blocked"'));
