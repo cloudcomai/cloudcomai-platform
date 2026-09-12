@@ -31,7 +31,7 @@ export class CloudComAiApi {
   updateAccountBackupSettings(settings, options = {}) { return this.client.put(ApiRoute.ACCOUNT_BACKUP, settings, options); }
   createAccountBackup(input = {}, options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'backup', ...input }, options); }
   restoreAccountBackup(options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'restore' }, options); }
-  downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, options); }
+  downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, { ...options, query: { ...options.query, export: '1' } }); }
   listChats(type, options = {}) { return this.client.get(ApiRoute.CHATS, { ...options, query: { ...options.query, type } }); }
   createPrivateChat(targetUserId, options = {}) { return this.client.post(ApiRoute.CHATS, { type: 'private', target_user_id: targetUserId }, options); }
   deleteChat(id, options = {}) { return this.client.delete(ApiRoute.CHATS, { ...options, query: { ...options.query, id } }); }
