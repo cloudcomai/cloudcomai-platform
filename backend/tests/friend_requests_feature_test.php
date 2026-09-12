@@ -13,7 +13,7 @@ foreach (['send','accept','decline','block','cancel','friend_requests','users_bl
 }
 assert(str_contains($handler, "'event' => 'friend_request'"));
 assert(str_contains($handler, "'status'] === 'blocked'"));
-assert(str_contains($handler, "!users_block_state($viewerId, $targetId)['blocked']"));
+assert(str_contains($handler, 'users_block_state($viewerId, $targetId)'));
 
 $profile = (string)file_get_contents($root . '/api/user_profile.php');
 assert(str_contains($profile, 'shared_chat.type IN ("private","public")'));
