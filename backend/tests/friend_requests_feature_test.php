@@ -8,13 +8,22 @@ assert($contract['routes']['v1/friend-requests']['methods'] === ['GET', 'POST'])
 assert($contract['routes']['v1/friend-requests']['auth'] === true);
 
 $handler = (string)file_get_contents($root . '/api/friend_requests.php');
-foreach (['send','accept','decline','block','cancel','friend_requests','users_block_state'] as $needle) {
+foreach (['send','accept','decline','block','cancel','friend_requests','users_block_state','queue_user_notification','request_id'] as $needle) {
     assert(str_contains($handler, $needle), "Missing friend request handler contract: {$needle}");
 }
+assert(str_contains($handler, "'event' => 'friend_request'"));
 
 $profile = (string)file_get_contents($root . '/api/user_profile.php');
 assert(str_contains($profile, 'shared_chat.type IN ("private","public")'));
 assert(str_contains($profile, "'relationship' => $relationship"));
+assert(str_contains($profile, "'request_id' => (int)$request['id']"));
+
+$privacy = (string)file_get_contents($root . '/api/privacy.php');
+assert(str_contains($privacy, 'UPDATE friend_requests SET status="blocked"'));
+assert(str_contains($privacy, 'INSERT IGNORE INTO user_blocks'));
+
+$notifications = (string)file_get_contents($root . '/api/notifications.php');
+assert(str_contains($notifications, "'friend_request'"));
 
 $migration = (string)file_get_contents($root . '/database/migrations/014_friend_requests.sql');
 $fresh = (string)file_get_contents($root . '/database/fresh-install.sql');
