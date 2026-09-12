@@ -27,10 +27,17 @@ export class CloudComAiApi {
   updatePrivacySettings(settings, options = {}) { return this.client.put(ApiRoute.PRIVACY, settings, options); }
   blockContact(userId, options = {}) { return this.client.post(ApiRoute.PRIVACY, { user_id: userId }, options); }
   unblockContact(userId, options = {}) { return this.client.delete(ApiRoute.PRIVACY, { ...options, query: { ...options.query, user_id: userId } }); }
-  downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, options); }
+  getAccountBackupStatus(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, options); }
+  updateAccountBackupSettings(settings, options = {}) { return this.client.put(ApiRoute.ACCOUNT_BACKUP, settings, options); }
+  createAccountBackup(input = {}, options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'backup', ...input }, options); }
+  restoreAccountBackup(options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'restore' }, options); }
+  downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, { ...options, query: { ...options.query, export: '1' } }); }
   listChats(type, options = {}) { return this.client.get(ApiRoute.CHATS, { ...options, query: { ...options.query, type } }); }
   createPrivateChat(targetUserId, options = {}) { return this.client.post(ApiRoute.CHATS, { type: 'private', target_user_id: targetUserId }, options); }
   deleteChat(id, options = {}) { return this.client.delete(ApiRoute.CHATS, { ...options, query: { ...options.query, id } }); }
+  listPublicChats(options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, options); }
+  joinPublicChat(roomId, options = {}) { return this.client.post(ApiRoute.PUBLIC_CHATS, { room_id: roomId }, options); }
+  leavePublicChat(roomId, options = {}) { return this.client.delete(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, id: roomId } }); }
   listGroups(options = {}) { return this.client.get(ApiRoute.GROUPS, options); }
   createGroup(input, options = {}) { return this.client.post(ApiRoute.GROUPS, input, options); }
   createGroupInvite(id, options = {}) { return this.client.post(ApiRoute.GROUPS, {}, { ...options, query: { ...options.query, action: 'invite', id } }); }

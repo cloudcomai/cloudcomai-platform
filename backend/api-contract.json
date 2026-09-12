@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.6.0",
+  "contractVersion": "1.7.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
@@ -14,9 +14,9 @@
     "v1/users/search": { "handler": "search_users.php", "methods": ["GET"], "auth": true },
     "v1/users/preferences": { "handler": "preferences.php", "methods": ["GET", "PUT"], "auth": true },
     "v1/users/privacy": { "handler": "privacy.php", "methods": ["GET", "PUT", "POST", "DELETE"], "auth": true },
-    "v1/users/backup": { "handler": "backup.php", "methods": ["GET"], "auth": true },
+    "v1/users/backup": { "handler": "backup.php", "methods": ["GET", "POST", "PUT"], "auth": true },
     "v1/chats": { "handler": "chats.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
-    "v1/public-chats": { "handler": "public_chats.php", "methods": ["GET", "POST"], "auth": true },
+    "v1/public-chats": { "handler": "public_chats.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/friend-requests": { "handler": "friend_requests.php", "methods": ["GET", "POST"], "auth": true },
     "v1/groups": { "handler": "groups.php", "methods": ["GET", "POST", "PUT", "DELETE"], "auth": true },
     "v1/group-members": { "handler": "group_members.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
