@@ -27,7 +27,10 @@ export class CloudComAiApi {
   updatePrivacySettings(settings, options = {}) { return this.client.put(ApiRoute.PRIVACY, settings, options); }
   blockContact(userId, options = {}) { return this.client.post(ApiRoute.PRIVACY, { user_id: userId }, options); }
   unblockContact(userId, options = {}) { return this.client.delete(ApiRoute.PRIVACY, { ...options, query: { ...options.query, user_id: userId } }); }
-  downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, options); }
+  getAccountBackupStatus(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, options); }
+  updateAccountBackupSettings(settings, options = {}) { return this.client.put(ApiRoute.ACCOUNT_BACKUP, settings, options); }
+  createAccountBackup(input = {}, options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'backup', ...input }, options); }
+  restoreAccountBackup(options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'restore' }, options); }
   listChats(type, options = {}) { return this.client.get(ApiRoute.CHATS, { ...options, query: { ...options.query, type } }); }
   createPrivateChat(targetUserId, options = {}) { return this.client.post(ApiRoute.CHATS, { type: 'private', target_user_id: targetUserId }, options); }
   deleteChat(id, options = {}) { return this.client.delete(ApiRoute.CHATS, { ...options, query: { ...options.query, id } }); }
