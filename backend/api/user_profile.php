@@ -71,7 +71,7 @@ if (!$self) {
 $relationship = ['status' => $self ? 'self' : 'none'];
 if (!$self) {
     $relationshipStmt = db()->prepare('
-        SELECT status, requester_id, recipient_id
+        SELECT id,status, requester_id, recipient_id
         FROM friend_requests
         WHERE (requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?)
         ORDER BY id DESC
@@ -82,6 +82,7 @@ if (!$self) {
         $relationship = [
             'status' => (string)$request['status'],
             'direction' => (int)$request['requester_id'] === (int)$viewer['id'] ? 'outgoing' : 'incoming',
+            'request_id' => (int)$request['id'],
         ];
     }
 }
