@@ -12,6 +12,10 @@ assert(str_contains($handler,"c.type='public'"));
 assert(str_contains($handler,"c.group_category='india-city'"));
 assert(str_contains($handler,'LIMIT 50'));
 assert(str_contains($handler,'INSERT INTO chat_members'));
+assert(str_contains($handler,"AS joined_count"));
+assert(str_contains($handler,"AS online_count"));
+assert(str_contains($handler,'UTC_TIMESTAMP() - INTERVAL 90 SECOND'));
+assert(str_contains($handler,'hide_online_status'));
 
 $fresh=(string)file_get_contents(__DIR__.'/../database/fresh-install.sql');
 $migration=(string)file_get_contents(__DIR__.'/../database/migrations/013_public_city_chat_rooms.sql');

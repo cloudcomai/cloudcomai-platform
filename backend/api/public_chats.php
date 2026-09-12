@@ -8,8 +8,30 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
     try {
         $st = $pdo->prepare("
-            SELECT c.id,c.name,c.retention_seconds,c.created_at,
-                   CASE WHEN cm.status='active' THEN 1 ELSE 0 END AS joined
+            SELECT
+                c.id,
+                c.name,
+                c.retention_seconds,
+                c.created_at,
+                CASE WHEN cm.status='active' THEN 1 ELSE 0 END AS joined,
+                (
+                    SELECT COUNT(*)
+                    FROM chat_members count_members
+                    WHERE count_members.chat_id=c.id
+                      AND count_members.status='active'
+                ) AS joined_count,
+                (
+                    SELECT COUNT(*)
+                    FROM chat_members online_members
+                    INNER JOIN users online_users ON online_users.id=online_members.user_id
+                    LEFT JOIN user_privacy_settings online_privacy ON online_privacy.user_id=online_users.id
+                    WHERE online_members.chat_id=c.id
+                      AND online_members.status='active'
+                      AND online_users.account_status='active'
+                      AND online_users.updated_at IS NOT NULL
+                      AND online_users.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
+                      AND COALESCE(online_privacy.hide_online_status,0)=0
+                ) AS online_count
             FROM chats c
             LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=?
             WHERE c.type='public' AND c.group_category='india-city'
@@ -23,6 +45,8 @@ if ($method === 'GET') {
             'type'=>'public',
             'isPublic'=>true,
             'joined'=>(bool)$room['joined'],
+            'joined_count'=>(int)$room['joined_count'],
+            'online_count'=>(int)$room['online_count'],
             'retention_seconds'=>$room['retention_seconds'] !== null ? (int)$room['retention_seconds'] : null,
             'created_at'=>$room['created_at'],
         ], $st->fetchAll());

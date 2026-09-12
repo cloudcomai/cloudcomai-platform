@@ -106,7 +106,17 @@ if ($method === 'POST') {
     $target->execute([$blockedUserId]);
     $blockedUser = $target->fetch();
     if (!$blockedUser) fail('Contact not found', 404);
-    $pdo->prepare('INSERT IGNORE INTO user_blocks(user_id,blocked_user_id,created_at) VALUES(?,?,UTC_TIMESTAMP())')->execute([$user['id'], $blockedUserId]);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT IGNORE INTO user_blocks(user_id,blocked_user_id,created_at) VALUES(?,?,UTC_TIMESTAMP())')->execute([$user['id'], $blockedUserId]);
+        $pdo->prepare('UPDATE friend_requests SET status="blocked",responded_at=UTC_TIMESTAMP() WHERE status="pending" AND ((requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?))')->execute([$user['id'],$blockedUserId,$blockedUserId,$user['id']]);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+
     out(['blocked_user' => [
         'id' => (int)$blockedUser['id'],
         'name' => $blockedUser['name'],

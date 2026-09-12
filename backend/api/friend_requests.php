@@ -46,9 +46,10 @@ if ($action === 'send') {
     if ($targetId <= 0) fail('User id is required');
     if ($targetId === $viewerId) fail('You cannot send a friend request to yourself', 400);
 
-    $userStmt = db()->prepare('SELECT id FROM users WHERE id=? AND account_status="active" LIMIT 1');
+    $userStmt = db()->prepare('SELECT id,name FROM users WHERE id=? AND account_status="active" LIMIT 1');
     $userStmt->execute([$targetId]);
-    if (!$userStmt->fetchColumn()) fail('User not found', 404);
+    $targetUser = $userStmt->fetch();
+    if (!$targetUser) fail('User not found', 404);
 
     if (users_block_state($viewerId, $targetId)['blocked']) fail('This user is blocked', 403);
 
@@ -56,10 +57,31 @@ if ($action === 'send') {
     if ($state['status'] === 'accepted') fail('You are already friends', 409);
     if ($state['status'] === 'pending') fail($state['direction'] === 'incoming' ? 'This user has already sent you a friend request' : 'Friend request already sent', 409);
 
-    $insert = db()->prepare('INSERT INTO friend_requests (requester_id,recipient_id,status) VALUES (?,?,"pending")');
-    $insert->execute([$viewerId, $targetId]);
+    $pdo = db();
+    try {
+        $pdo->beginTransaction();
+        $insert = $pdo->prepare('INSERT INTO friend_requests (requester_id,recipient_id,status) VALUES (?,?,"pending")');
+        $insert->execute([$viewerId, $targetId]);
+        $requestId = (int)$pdo->lastInsertId();
+        queue_user_notification(
+            $targetId,
+            'system',
+            'New friend request',
+            ($viewer['name'] ?: 'A CloudComAI user') . ' wants to add you as a friend/contact.',
+            [
+                'event' => 'friend_request',
+                'request_id' => $requestId,
+                'user_id' => $viewerId,
+            ]
+        );
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+
     out(['request' => [
-        'id' => (int)db()->lastInsertId(),
+        'id' => $requestId,
         'status' => 'pending',
         'direction' => 'outgoing',
         'user_id' => $targetId,
@@ -77,6 +99,7 @@ if (!$request) fail('Friend request not found', 404);
 if ($action === 'accept' || $action === 'decline' || $action === 'block') {
     if ((int)$request['recipient_id'] !== $viewerId) fail('Only the recipient can respond to this friend request', 403);
     if ($request['status'] !== 'pending') fail('This friend request is no longer pending', 409);
+    if (users_block_state($viewerId, (int)$request['requester_id'])['blocked']) fail('This user is blocked', 403);
 
     if ($action === 'accept') {
         $update = db()->prepare('UPDATE friend_requests SET status="accepted",responded_at=UTC_TIMESTAMP() WHERE id=? AND recipient_id=? AND status="pending"');
@@ -124,6 +147,7 @@ function relationship_for_users(int $viewerId, int $targetId): array {
     $stmt->execute([$viewerId,$targetId,$targetId,$viewerId]);
     $row = $stmt->fetch();
     if (!$row) return ['status' => 'none'];
+    if ((string)$row['status'] === 'blocked' && !users_block_state($viewerId, $targetId)['blocked']) return ['status' => 'none'];
     return [
         'status' => (string)$row['status'],
         'direction' => (int)$row['requester_id'] === $viewerId ? 'outgoing' : 'incoming',
