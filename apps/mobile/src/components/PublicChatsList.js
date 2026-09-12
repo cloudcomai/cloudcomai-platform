@@ -1,6 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { apiClient } from '../services/platform';
+import { apiClient, platformApi } from '../services/platform';
+
+const normalizeRoom = room => ({
+  ...room,
+  id: Number(room.id),
+  joined: Boolean(room.joined),
+  online_users: Number(room.online_users || 0),
+  total_messages: Number(room.total_messages || 0),
+});
 
 export default function PublicChatsList({ onOpenChat }) {
   const [rooms, setRooms] = useState([]);
@@ -16,9 +24,11 @@ export default function PublicChatsList({ onOpenChat }) {
     setError('');
     try {
       const { data } = await apiClient.get('v1/public-chats');
-      const nextRooms = Array.isArray(data.rooms) ? data.rooms.slice(0, 50) : [];
+      const nextRooms = Array.isArray(data.rooms) ? data.rooms.slice(0, 50).map(normalizeRoom) : [];
       setRooms(nextRooms);
-      setSelected(current => current && nextRooms.some(room => Number(room.id) === Number(current.id)) ? current : null);
+      setSelected(current => current && nextRooms.some(room => Number(room.id) === Number(current.id))
+        ? nextRooms.find(room => Number(room.id) === Number(current.id))
+        : null);
     } catch (e) {
       setError(e.message || 'Unable to load public chat rooms.');
     } finally {
@@ -27,17 +37,31 @@ export default function PublicChatsList({ onOpenChat }) {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const timer = setInterval(() => load(true), 15000);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  const favorites = useMemo(() => rooms.filter(room => room.joined), [rooms]);
+  const unjoined = useMemo(() => rooms.filter(room => !room.joined), [rooms]);
+  const orderedRooms = useMemo(() => [...favorites, ...unjoined], [favorites, unjoined]);
 
   const openRoom = async room => {
     if (!room?.id || joining) return;
+    if (room.joined) {
+      setSelected(room);
+      setOpen(false);
+      onOpenChat?.({ id: room.id, type: 'public', name: room.name, isPublic: true, isGroup: false });
+      return;
+    }
     setJoining(true);
     setError('');
     try {
-      const { data } = await apiClient.post('v1/public-chats', { room_id: Number(room.id) });
-      const chat = data.chat || { id: Number(room.id), type: 'public', name: room.name, isPublic: true };
-      setSelected({ ...room, joined: true });
+      const { data } = await platformApi.joinPublicChat(room.id);
+      const chat = data.chat || { id: room.id, type: 'public', name: room.name, isPublic: true };
       setRooms(current => current.map(item => Number(item.id) === Number(room.id) ? { ...item, joined: true } : item));
+      setSelected({ ...room, joined: true });
       setOpen(false);
       onOpenChat?.({ ...chat, id: Number(chat.id), isPublic: true, isGroup: false });
     } catch (e) {
@@ -49,9 +73,19 @@ export default function PublicChatsList({ onOpenChat }) {
 
   if (loading) return <ActivityIndicator style={styles.loader} color="#3157d5" />;
 
+  const renderRoom = ({ item }) => <Pressable style={styles.roomRow} onPress={() => openRoom(item)} disabled={joining}>
+    <View style={styles.cityIcon}><Text style={styles.cityIconText}>{item.name?.[0] || 'I'}</Text></View>
+    <View style={styles.roomMeta}>
+      <Text style={styles.roomName}>{item.name}</Text>
+      <Text style={styles.roomStats}>{`Online: ${item.online_users} | Msgs: ${item.total_messages}`}</Text>
+      <Text style={styles.roomSub}>{item.joined ? 'Joined · tap to open' : 'Public room · tap to join'}</Text>
+    </View>
+    <Text style={styles.roomAction}>{item.joined ? 'Open' : 'Join'}</Text>
+  </Pressable>;
+
   return <View style={styles.container}>
     <Text style={styles.heading}>Public Chats</Text>
-    <Text style={styles.description}>Join an India city or town room. Public messages expire after 4 hours by default.</Text>
+    <Text style={styles.description}>India city and town rooms. Joined rooms stay at the top as Favorites.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Pressable style={styles.dropdown} onPress={() => setOpen(value => !value)} accessibilityRole="button">
       <View style={styles.dropdownText}>
@@ -60,19 +94,18 @@ export default function PublicChatsList({ onOpenChat }) {
       </View>
       <Text style={styles.chevron}>{open ? '⌃' : '⌄'}</Text>
     </Pressable>
+
     {open ? <FlatList
-      data={rooms}
+      data={orderedRooms}
       keyExtractor={item => String(item.id)}
       style={styles.menu}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-      renderItem={({ item }) => <Pressable style={styles.roomRow} onPress={() => openRoom(item)} disabled={joining}>
-        <View style={styles.cityIcon}><Text style={styles.cityIconText}>{item.name?.[0] || 'I'}</Text></View>
-        <View style={styles.roomMeta}><Text style={styles.roomName}>{item.name}</Text><Text style={styles.roomSub}>{item.joined ? 'Joined · tap to open' : 'Public room · tap to join'}</Text></View>
-        <Text style={styles.roomAction}>{item.joined ? 'Open' : 'Join'}</Text>
-      </Pressable>}
+      ListHeaderComponent={favorites.length ? <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Favorites</Text><Text style={styles.sectionHint}>Joined rooms</Text></View> : null}
+      renderItem={renderRoom}
+      ListFooterComponent={unjoined.length ? <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>All public rooms</Text><Text style={styles.sectionHint}>Available to join</Text></View> : null}
       ListEmptyComponent={<Text style={styles.empty}>No public city rooms are available.</Text>}
     /> : <View style={styles.selectedArea}>{selected
-      ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : 'Tap to open this public chat'}</Text></Pressable>
+      ? <Pressable style={styles.selectedRoom} onPress={() => openRoom(selected)} disabled={joining}><Text style={styles.selectedRoomName}>{selected.name}</Text><Text style={styles.selectedRoomStats}>{`Online: ${selected.online_users} | Msgs: ${selected.total_messages}`}</Text><Text style={styles.selectedRoomSub}>{joining ? 'Opening…' : 'Tap to open this public chat'}</Text></Pressable>
       : <Text style={styles.empty}>Choose a city or town above to join its public chat room.</Text>}
     </View>}
   </View>;
@@ -88,12 +121,15 @@ const styles = StyleSheet.create({
   dropdownText: { flex: 1, minWidth: 0 }, dropdownLabel: { color: '#68748a', fontSize: 10, fontWeight: '700' },
   dropdownValue: { marginTop: 4, color: '#172033', fontSize: 15, fontWeight: '700' }, chevron: { color: '#3157d5', fontSize: 24, paddingLeft: 10 },
   menu: { marginTop: 8, borderWidth: 1, borderColor: '#e2e7f0', borderRadius: 12, backgroundColor: '#fff' },
-  roomRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  sectionHeader: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f6f8ff', borderBottomWidth: 1, borderBottomColor: '#e2e7f0' },
+  sectionTitle: { color: '#172033', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' },
+  sectionHint: { color: '#7a8497', fontSize: 10 },
+  roomRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   cityIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff' },
   cityIconText: { color: '#3157d5', fontWeight: '800' }, roomMeta: { flex: 1, minWidth: 0, marginLeft: 10 },
-  roomName: { color: '#172033', fontSize: 14, fontWeight: '800' }, roomSub: { marginTop: 3, color: '#7a8497', fontSize: 11 },
+  roomName: { color: '#172033', fontSize: 14, fontWeight: '800' }, roomStats: { marginTop: 3, color: '#3157d5', fontSize: 11, fontWeight: '700' }, roomSub: { marginTop: 2, color: '#7a8497', fontSize: 10 },
   roomAction: { color: '#3157d5', fontWeight: '800', fontSize: 12 }, selectedArea: { flex: 1, paddingTop: 14 },
   selectedRoom: { padding: 16, borderRadius: 12, backgroundColor: '#f8faff', borderWidth: 1, borderColor: '#e2e7f0' },
-  selectedRoomName: { color: '#172033', fontSize: 16, fontWeight: '800' }, selectedRoomSub: { marginTop: 5, color: '#68748a', fontSize: 12 },
+  selectedRoomName: { color: '#172033', fontSize: 16, fontWeight: '800' }, selectedRoomStats: { marginTop: 5, color: '#3157d5', fontSize: 12, fontWeight: '700' }, selectedRoomSub: { marginTop: 5, color: '#68748a', fontSize: 12 },
   empty: { padding: 20, color: '#718096', textAlign: 'center', lineHeight: 20 },
 });
