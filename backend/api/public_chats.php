@@ -12,22 +12,24 @@ if ($method === 'GET') {
                    CASE WHEN cm.status='active' THEN 1 ELSE 0 END AS joined,
                    (
                        SELECT COUNT(*)
+                       FROM chat_members joined_cm
+                       INNER JOIN users joined_u ON joined_u.id=joined_cm.user_id
+                       WHERE joined_cm.chat_id=c.id
+                         AND joined_cm.status='active'
+                         AND joined_u.account_status='active'
+                   ) AS joined_users,
+                   (
+                       SELECT COUNT(*)
                        FROM chat_members online_cm
                        INNER JOIN users online_u ON online_u.id=online_cm.user_id
                        LEFT JOIN user_privacy_settings online_ups ON online_ups.user_id=online_cm.user_id
                        WHERE online_cm.chat_id=c.id
                          AND online_cm.status='active'
+                         AND online_u.account_status='active'
                          AND online_u.updated_at IS NOT NULL
                          AND online_u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
                          AND COALESCE(online_ups.hide_online_status,0)=0
-                   ) AS online_users,
-                   (
-                       SELECT COUNT(*)
-                       FROM messages room_m
-                       WHERE room_m.chat_id=c.id
-                         AND room_m.deleted_for_everyone=0
-                         AND (room_m.expires_at IS NULL OR room_m.expires_at > UTC_TIMESTAMP())
-                   ) AS total_messages
+                   ) AS online_users
             FROM chats c
             LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=?
             WHERE c.type='public' AND c.group_category='india-city'
@@ -41,8 +43,8 @@ if ($method === 'GET') {
             'type'=>'public',
             'isPublic'=>true,
             'joined'=>(bool)$room['joined'],
+            'joined_users'=>(int)$room['joined_users'],
             'online_users'=>(int)$room['online_users'],
-            'total_messages'=>(int)$room['total_messages'],
             'retention_seconds'=>$room['retention_seconds'] !== null ? (int)$room['retention_seconds'] : null,
             'created_at'=>$room['created_at'],
         ], $st->fetchAll());
