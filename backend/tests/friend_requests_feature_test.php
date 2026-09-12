@@ -17,9 +17,9 @@ assert(str_contains($handler, 'users_block_state($viewerId, $targetId)'));
 
 $profile = (string)file_get_contents($root . '/api/user_profile.php');
 assert(str_contains($profile, 'shared_chat.type IN ("private","public")'));
-assert(str_contains($profile, "'relationship' => $relationship"));
-assert(str_contains($profile, "'request_id' => (int)$request['id']"));
-assert(str_contains($profile, "if ($status === 'blocked'"));
+assert(str_contains($profile, "'relationship' => \$relationship"));
+assert(str_contains($profile, "'request_id' => (int)\$request['id']"));
+assert(str_contains($profile, "if (\$status === 'blocked'"));
 assert(str_contains($profile, 'users_block_state((int)$viewer[\'id\'], $targetUserId)'));
 
 $privacy = (string)file_get_contents($root . '/api/privacy.php');
