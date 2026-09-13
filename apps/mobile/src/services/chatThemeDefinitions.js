@@ -1,7 +1,7 @@
 const LIGHT_THEME_TEXT = '#172033';
 const DARK_THEME_TEXT = '#f8fafc';
 
-export const CHAT_THEME_IDS = ['system', 'light', 'dark', 'amoled', 'nature', 'ocean', 'sunset', 'royal', 'minimal', 'gradient', 'wallpaper'];
+export const CHAT_THEME_IDS = ['system', 'light', 'dark', 'amoled', 'nature', 'ocean', 'sunset', 'royal', 'minimal', 'gradient', 'romance', 'wallpaper'];
 
 export const CHAT_THEMES = {
   system: { id: 'system', label: 'System Default', colors: { background: '#f5f7fb', header: '#3157d5', incoming: '#ffffff', outgoing: '#dfe6ff', text: LIGHT_THEME_TEXT, secondary: '#536078', accent: '#3157d5', border: '#dfe4ee', composer: '#ffffff' } },
@@ -14,6 +14,7 @@ export const CHAT_THEMES = {
   royal: { id: 'royal', label: 'Royal Purple', colors: { background: '#f5f0ff', header: '#512a83', incoming: '#ffffff', outgoing: '#eee5fb', text: '#241b31', secondary: '#5e536a', accent: '#512a83', border: '#dfd4ef', composer: '#ffffff' } },
   minimal: { id: 'minimal', label: 'Minimal', colors: { background: '#fafafa', header: '#242424', incoming: '#ffffff', outgoing: '#eeeeee', text: '#181818', secondary: '#5f5f5f', accent: '#242424', border: '#e2e2e2', composer: '#ffffff' } },
   gradient: { id: 'gradient', label: 'Gradient', colors: { background: '#f3efff', header: '#5b4bb7', incoming: '#ffffff', outgoing: '#f0ebff', text: '#171329', secondary: '#5b566b', accent: '#5b4bb7', border: '#ddd6f2', composer: '#ffffff' }, gradient: ['#eef9ff', '#f2edff', '#fff0f7'] },
+  romance: { id: 'romance', label: 'Romance', colors: { background: '#fff7f5', header: '#b84f70', incoming: '#fffdfb', outgoing: '#f9dce4', text: '#3d2830', secondary: '#765d67', accent: '#b84f70', border: '#efd4dc', composer: '#fffdfb' }, gradient: ['#fff7f5', '#fff0f2', '#f8f0fa'] },
   wallpaper: { id: 'wallpaper', label: 'Wallpaper', colors: { background: '#20242b', header: '#3157d5', incoming: '#30353d', outgoing: '#3157d5', text: DARK_THEME_TEXT, secondary: '#c3cad5', accent: '#9eb1ff', border: '#3a414c', composer: '#252a32' } },
 };
 
