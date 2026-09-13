@@ -10,8 +10,6 @@ test('Ring Bells expire after exactly 36 hours', () => {
 });
 
 test('Ring Bells remain active before expiry and inactive at expiry', () => {
-  const created = Date.parse('2026-09-13T10:00:00Z');
-  const expiry = created + RING_BELLS_EXPIRY_MS;
   assert.equal(isRingBellsActive('2026-09-14T21:59:59Z'), true);
   assert.equal(isRingBellsActive('2026-09-14T22:00:00Z'), false);
   assert.equal(isRingBellsActive('2026-09-14T22:00:01Z'), false);
