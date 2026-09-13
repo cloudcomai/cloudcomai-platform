@@ -65,6 +65,8 @@ export class CloudComAiApi {
   markNotificationsRead(input, options = {}) { return this.client.post(ApiRoute.NOTIFICATIONS_READ, input, options); }
   updateChatNotificationState(chatId, input, options = {}) { return this.client.post(ApiRoute.CHAT_NOTIFICATION_STATE, input, { ...options, query: { ...options.query, chat_id: chatId } }); }
   reportScreenshot(chatId, options = {}) { return this.client.post(ApiRoute.SCREENSHOT_EVENT, { chat_id: chatId }, options); }
+  listStories(options = {}) { return this.client.get(ApiRoute.STORIES, options); }
+  createStory(input, options = {}) { return this.client.post(ApiRoute.STORIES, input, options); }
 }
 
 export const createCloudComAiApi = client => new CloudComAiApi(client);
