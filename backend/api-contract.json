@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.8.0",
+  "contractVersion": "1.6.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
