@@ -4,7 +4,7 @@ import { platformApi } from '../services/platform';
 
 const GREEN = '#16a34a';
 
-export default function ReadReceipt({ message }) {
+export default function ReadReceipt({ message, children }) {
   const targetRef = useRef(null);
   const markedRef = useRef(false);
   const [isSender, setIsSender] = useState(false);
@@ -58,17 +58,16 @@ export default function ReadReceipt({ message }) {
     return () => clearInterval(timer);
   }, [loaded, isSender, loadStatus]);
 
-  if (!isSender || !readBy.length) return <View ref={targetRef} style={styles.anchor} />;
-  const label = readBy.length === 1 ? 'Read' : `Read by ${readBy.length}`;
-  return (
-    <Pressable ref={targetRef} style={styles.receipt} onPress={() => Alert.alert('Read by', readBy.map(item => item.name || 'Member').join('\n'))} accessibilityRole="button" accessibilityLabel={label}>
-      <Text style={styles.dot}>●</Text><Text style={styles.label}>{label}</Text>
+  const receipt = isSender && readBy.length ? (
+    <Pressable ref={targetRef} style={styles.receipt} onPress={() => Alert.alert('Read by', readBy.map(item => item.name || 'Member').join('\n'))} accessibilityRole="button" accessibilityLabel={readBy.length === 1 ? 'Read' : `Read by ${readBy.length}`}>
+      <Text style={styles.dot}>●</Text><Text style={styles.label}>{readBy.length === 1 ? 'Read' : `Read by ${readBy.length}`}</Text>
     </Pressable>
-  );
+  ) : null;
+
+  return <View ref={targetRef} collapsable={false}>{children}{receipt}</View>;
 }
 
 const styles = StyleSheet.create({
-  anchor: { width: 1, height: 1, opacity: 0 },
   receipt: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginTop: 3, paddingVertical: 1 },
   dot: { color: GREEN, fontSize: 8, marginRight: 4 },
   label: { color: GREEN, fontSize: 10, fontWeight: '700' },
