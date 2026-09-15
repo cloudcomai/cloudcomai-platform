@@ -18,8 +18,10 @@ assert(str_contains($handler,"AS online_count"));
 assert(str_contains($handler,'UTC_TIMESTAMP() - INTERVAL 90 SECOND'));
 assert(str_contains($handler,'hide_online_status'));
 assert(str_contains($handler,"$method === 'DELETE'"));
-assert(str_contains($handler,"status='left'"));
-assert(str_contains($handler,'You left the public chat room'));
+assert(str_contains($handler,"status='removed'"));
+assert(str_contains($handler,'notifications_muted=1'));
+assert(str_contains($handler,'c.name LIKE'));
+assert(str_contains($handler,'favorites'));
 assert(str_contains($handler,"cm.status='active'"));
 
 $fresh=(string)file_get_contents(__DIR__.'/../database/fresh-install.sql');
