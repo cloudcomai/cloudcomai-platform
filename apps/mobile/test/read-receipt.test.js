@@ -3,10 +3,11 @@ import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const root = path.resolve(process.cwd(), 'apps/mobile');
-const receipt = fs.readFileSync(path.join(root, 'src/components/ReadReceipt.js'), 'utf8');
-const media = fs.readFileSync(path.join(root, 'src/components/MediaMessage.js'), 'utf8');
-const handler = fs.readFileSync(path.resolve(process.cwd(), 'backend/api/message_read_receipts.php'), 'utf8');
+const appRoot = process.cwd();
+const repoRoot = path.resolve(appRoot, '..');
+const receipt = fs.readFileSync(path.join(appRoot, 'src/components/ReadReceipt.js'), 'utf8');
+const media = fs.readFileSync(path.join(appRoot, 'src/components/MediaMessage.js'), 'utf8');
+const handler = fs.readFileSync(path.join(repoRoot, 'backend/api/message_read_receipts.php'), 'utf8');
 
 test('uses viewport measurement before marking an item read', () => {
   assert.match(receipt, /measureInWindow/);
