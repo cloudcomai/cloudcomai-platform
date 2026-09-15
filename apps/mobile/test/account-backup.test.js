@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
 
-const api = fs.readFileSync(new URL('../../packages/api-client/src/cloudcomai-api.js', import.meta.url), 'utf8');
+const api = fs.readFileSync(new URL('../../../packages/api-client/src/cloudcomai-api.js', import.meta.url), 'utf8');
 const ui = fs.readFileSync(new URL('../src/components/PrivacySettings.js', import.meta.url), 'utf8');
-const contract = fs.readFileSync(new URL('../../backend/api-contract.json', import.meta.url), 'utf8');
+const contract = fs.readFileSync(new URL('../../../backend/api-contract.json', import.meta.url), 'utf8');
 
 test('mobile account backup exposes cloud backup and restore API methods', () => {
   assert.match(api, /getAccountBackupStatus/);
