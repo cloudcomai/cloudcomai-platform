@@ -8,6 +8,7 @@ import { attachmentKind } from '../utils/media';
 import { pauseVideoPlayback, retryVideoPlayback, startVideoPlayback } from '../utils/videoPlayback';
 import ForwardMessageModal from './ForwardMessageModal';
 import UserProfileModal from './UserProfileModal';
+import ReadReceipt from './ReadReceipt';
 
 export function AudioPreview({ source }) {
   const player = useAudioPlayer(source);
@@ -86,7 +87,7 @@ function AttachmentApproval({ attachment }) {
   </View>;
 }
 
-export default function MediaMessage({ message, autoDownload }) {
+function MediaMessageContent({ message, autoDownload }) {
   const { width } = useWindowDimensions();
   const mediaWidth = Math.min(280, (width - 28) * 0.82 - 22);
   const [requested, setRequested] = useState(false);
@@ -141,6 +142,10 @@ export default function MediaMessage({ message, autoDownload }) {
     {error ? <View><Text style={styles.error}>{error}</Text><Pressable onPress={() => { setSource(null); setError(''); setRequested(true); setReloadKey(value => value + 1); }} style={styles.control}><Text style={styles.link}>Try preview again</Text></Pressable></View> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'video' ? <><Pressable onPress={() => setViewerOpen(true)}><VideoPreview source={source} /></Pressable><Modal visible={viewerOpen} animationType="fade" onRequestClose={() => setViewerOpen(false)}><View style={styles.viewer}><Pressable style={styles.viewerClose} onPress={() => setViewerOpen(false)}><Text style={styles.viewerCloseText}>×</Text></Pressable><VideoPreview source={source} /></View></Modal></> : kind === 'image' ? <Image source={{ uri: source }} style={[styles.image, { width: mediaWidth, height: mediaWidth * 0.75 }]} resizeMode="contain" onError={() => setError('Image preview could not be displayed.')} /> : <View style={styles.documentCard}><Text style={styles.documentIcon}>▤</Text><Text numberOfLines={2} style={styles.documentName}>{attachment.name || 'Document'}</Text><Pressable style={styles.documentButton} onPress={() => setRequested(true)}><Text style={styles.link}>Preview document</Text></Pressable></View> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.previewPlaceholder}><Text style={kind === 'video' ? styles.videoPlaceholderIcon : styles.previewIcon}>{kind === 'video' ? '▶' : kind === 'audio' ? '♫' : '▤'}</Text><Text style={styles.previewLabel}>{kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Document'}</Text></Pressable> : null}
     {kind ? <AttachmentApproval attachment={attachment} /> : null}
   </View>;
+}
+
+export default function MediaMessage({ message, autoDownload }) {
+  return <View><MediaMessageContent message={message} autoDownload={autoDownload} /><ReadReceipt message={message} /></View>;
 }
 
 const styles = StyleSheet.create({
