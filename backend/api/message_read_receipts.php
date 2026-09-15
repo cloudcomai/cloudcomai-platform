@@ -36,13 +36,13 @@ if ($method === 'GET') {
     $messageQuery->execute([(int)$user['id'], $messageId]);
     $message = $messageQuery->fetch();
     if (!$message) fail('Message not found', 404);
-    if (!in_array($message['type'], ['private', 'group'], true)) out(['is_sender' => (int)$message['sender_id'] === (int)$user['id'], 'read' => false, 'read_by' => []]);
+    if (!in_array($message['type'], ['private', 'group'], true)) out(['eligible' => false, 'is_sender' => (int)$message['sender_id'] === (int)$user['id'], 'read' => false, 'read_by' => []]);
 
     $receipts = db()->prepare('SELECT r.user_id,u.name,r.read_at FROM message_read_receipts r INNER JOIN users u ON u.id=r.user_id WHERE r.message_id=? AND r.user_id<>? ORDER BY r.read_at ASC,r.user_id ASC');
     $receipts->execute([$messageId, (int)$message['sender_id']]);
     $rows = $receipts->fetchAll();
     $readBy = array_map(static fn(array $row): array => ['user_id'=>(int)$row['user_id'],'name'=>$row['name'],'read_at'=>$row['read_at']], $rows);
-    out(['is_sender' => (int)$message['sender_id'] === (int)$user['id'], 'read' => !empty($readBy), 'read_by' => $readBy]);
+    out(['eligible' => true, 'is_sender' => (int)$message['sender_id'] === (int)$user['id'], 'read' => !empty($readBy), 'read_by' => $readBy]);
 }
 
 fail('Method not allowed', 405);
