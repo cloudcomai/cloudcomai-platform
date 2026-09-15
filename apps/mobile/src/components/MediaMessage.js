@@ -145,7 +145,7 @@ function MediaMessageContent({ message, autoDownload }) {
 }
 
 export default function MediaMessage({ message, autoDownload }) {
-  return <View><MediaMessageContent message={message} autoDownload={autoDownload} /><ReadReceipt message={message} /></View>;
+  return <ReadReceipt message={message}><MediaMessageContent message={message} autoDownload={autoDownload} /></ReadReceipt>;
 }
 
 const styles = StyleSheet.create({
