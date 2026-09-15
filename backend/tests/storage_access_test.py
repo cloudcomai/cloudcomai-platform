@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory(prefix="cloudcomai-apache-test-") as directory:
     document_root = root / "www"
     document_root.mkdir()
     protected_paths = [
-        "storage/attachments/fixture.png", "storage/uploads/fixture.json",
+        "storage/attachments/fixture.png", "storage/uploads/fixture.json", "storage/backups/fixture.backup",
         "config/config.php", "database/fresh-install.sql", "sql/schema.sql",
         "lib/bootstrap.php", "tests/fixture.txt", "cron/send_notifications.php",
         "cron_cleanup.php", "error_log", "cron_debug.log",

@@ -19,10 +19,13 @@ return [
             'https://app.cloudcomai.com',
         ],
         'token_secret' => 'GENERATE_ONCE_AND_KEEP_THIS_PRODUCTION_SECRET_STABLE',
+        // Keep these values outside source control in production. backup_dir must not be web-readable.
+        'backup_encryption_key' => 'GENERATE_A_RANDOM_32_BYTE_SECRET_AND_KEEP_IT_PRIVATE',
+        'backup_max_bytes' => 25 * 1024 * 1024,
+        'backup_dir' => __DIR__ . '/../storage/backups',
         'upload_dir' => __DIR__ . '/../storage/uploads',
         'retention' => [
-            // Values are seconds. Defaults in code are used when these are
-            // missing/invalid: private/group = 30 days, public = 4 hours.
+            // Values are seconds. Missing/invalid values use 30 days for private/group and 4 hours for public chats.
             'private' => 2592000,
             'group' => 2592000,
             'public' => 14400,

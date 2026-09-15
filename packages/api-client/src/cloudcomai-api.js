@@ -27,10 +27,17 @@ export class CloudComAiApi {
   updatePrivacySettings(settings, options = {}) { return this.client.put(ApiRoute.PRIVACY, settings, options); }
   blockContact(userId, options = {}) { return this.client.post(ApiRoute.PRIVACY, { user_id: userId }, options); }
   unblockContact(userId, options = {}) { return this.client.delete(ApiRoute.PRIVACY, { ...options, query: { ...options.query, user_id: userId } }); }
-  downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, options); }
+  getAccountBackupStatus(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, { ...options, query: { ...options.query, status: '1' } }); }
+  updateAccountBackupSettings(settings, options = {}) { return this.client.put(ApiRoute.ACCOUNT_BACKUP, settings, options); }
+  createAccountBackup(input = {}, options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'backup', ...input }, options); }
+  restoreAccountBackup(options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'restore' }, options); }
+  downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, { ...options, query: { ...options.query, export: '1' } }); }
   listChats(type, options = {}) { return this.client.get(ApiRoute.CHATS, { ...options, query: { ...options.query, type } }); }
   createPrivateChat(targetUserId, options = {}) { return this.client.post(ApiRoute.CHATS, { type: 'private', target_user_id: targetUserId }, options); }
   deleteChat(id, options = {}) { return this.client.delete(ApiRoute.CHATS, { ...options, query: { ...options.query, id } }); }
+  listPublicChats(options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, options); }
+  joinPublicChat(roomId, options = {}) { return this.client.post(ApiRoute.PUBLIC_CHATS, { room_id: roomId }, options); }
+  leavePublicChat(roomId, options = {}) { return this.client.delete(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, id: roomId } }); }
   listGroups(options = {}) { return this.client.get(ApiRoute.GROUPS, options); }
   createGroup(input, options = {}) { return this.client.post(ApiRoute.GROUPS, input, options); }
   createGroupInvite(id, options = {}) { return this.client.post(ApiRoute.GROUPS, {}, { ...options, query: { ...options.query, action: 'invite', id } }); }
@@ -44,6 +51,9 @@ export class CloudComAiApi {
   searchMessages(chatId, query, options = {}) { return this.client.get(ApiRoute.MESSAGES, { ...options, query: { ...options.query, chat_id: chatId, after_id: 0, q: query } }); }
   deleteMessage(id, scope = 'self', options = {}) { return this.client.delete(ApiRoute.MESSAGES, { ...options, query: { ...options.query, id, scope } }); }
   sendMessage(input, options = {}) { return this.client.post(ApiRoute.MESSAGES, input, options); }
+  forwardMessage(messageId, chatIds, options = {}) { return this.client.post(ApiRoute.FORWARD_MESSAGE, { message_id: messageId, chat_ids: chatIds }, options); }
+  markMessagesRead(messageIds, options = {}) { return this.client.post(ApiRoute.MESSAGE_READ, { message_ids: messageIds }, options); }
+  getMessageReadStatus(messageId, options = {}) { return this.client.get(ApiRoute.MESSAGE_READ, { ...options, query: { ...options.query, message_id: messageId } }); }
   editMessage(messageId, body, options = {}) { return this.client.post(ApiRoute.EDIT_MESSAGE, { editing_id: messageId, body }, options); }
   shareLocation(chatId, latitude, longitude, label = 'Shared location', options = {}) { return this.sendMessage({ chat_id: chatId, type: 'location', latitude, longitude, label }, options); }
   createPoll(input, options = {}) { return this.client.post(ApiRoute.POLLS, input, options); }

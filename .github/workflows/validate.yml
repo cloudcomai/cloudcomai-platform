@@ -65,6 +65,9 @@ jobs:
       - run: php backend/tests/utf8mb4_schema_test.php
       - run: php backend/tests/profile_media_presence_test.php
       - run: php backend/tests/notification_push_test.php
+      - run: php backend/tests/account_backup_test.php
+      - run: php backend/tests/forward_message_test.php
+      - run: php backend/tests/message_read_receipts_feature_test.php
       - run: php backend/tests/public_chat_rooms_test.php
       - run: php backend/tests/friend_requests_feature_test.php
       - run: php backend/tests/media_upload_resilience_test.php

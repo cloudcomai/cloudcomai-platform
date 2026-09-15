@@ -57,7 +57,7 @@ try {
     $admin->exec("INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(1,1,'member','active'),(1,2,'member','active')");
 
     copy_backend(dirname(__DIR__), $root);
-    $config = ['db' => ['host'=>'127.0.0.1','name'=>$database,'user'=>'root','pass'=>$password,'charset'=>'utf8mb4'], 'app'=>['token_secret'=>'integration-test-secret','allowed_origins'=>[]]];
+    $config = ['db' => ['host'=>'127.0.0.1','name'=>$database,'user'=>'root','pass'=>$password,'charset'=>'utf8mb4'], 'app'=>['token_secret'=>'integration-test-secret','backup_encryption_key'=>'integration-test-backup-key-32-bytes-only','backup_cron_secret'=>'integration-test-retired-cron-secret','allowed_origins'=>[]]];
     file_put_contents($root . '/config/config.php', '<?php return ' . var_export($config, true) . ';');
     $process = proc_open([PHP_BINARY, '-S', '127.0.0.1:18765', '-t', $root . '/api', $root . '/api/index.php'], [0=>['pipe','r'],1=>['file',$root.'/server.log','a'],2=>['file',$root.'/server.log','a']], $pipes);
     check(is_resource($process), 'Unable to start local test API');
@@ -226,6 +226,9 @@ try {
     $admin->exec('RENAME TABLE unavailable_delivery_queue TO notification_delivery_queue');
     request('POST','v1/messages',1,['chat_id'=>1,'body'=>'successful retry fixture'],201);
     check((int)$admin->query('SELECT COUNT(*) FROM messages')->fetchColumn()===$messageCount+1,'Retry did not create exactly one message');
+    require __DIR__ . '/account_backup_cases.php';
+    require __DIR__ . '/public_status_cases.php';
+    require __DIR__ . '/forward_receipt_cases.php';
     require __DIR__ . '/lifecycle_cases.php';
     echo "Profiles, group authorization, DOB, privacy, search, deletion, media, poll synchronization, transactional sends, backup, and migration integration tests passed\n";
 } catch (Throwable $error) {

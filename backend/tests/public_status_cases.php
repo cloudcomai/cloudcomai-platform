@@ -1,0 +1,44 @@
+<?php
+// Included by the isolated privacy/messaging integration suite.
+$admin->exec("INSERT INTO chats(id,type,name,group_category,retention_seconds) VALUES(2500,'public','Public leave fixture','india-city',14400)");
+request('POST','v1/public-chats',1,['room_id'=>2500]);
+request('POST','v1/public-chats',2,['room_id'=>2500]);
+$directory=request('GET','v1/public-chats?q=Public%20leave',2)['data'];
+check(count($directory['rooms'])===1 && count($directory['favorites'])===1,'Public room search or favorites failed');
+check(request('GET','v1/public-chats?q=not-a-room',2)['data']['rooms']===[],'Public room search ignored query');
+$publicMessage=request('POST','v1/messages',1,['chat_id'=>2500,'body'=>'Public room history'],201)['data']['message'];
+request('DELETE','v1/public-chats?id=2500',3,null,404);
+request('DELETE','v1/public-chats?id=201',2,null,404);
+request('DELETE','v1/public-chats?id=2500',2);
+check($admin->query('SELECT status FROM chat_members WHERE chat_id=2500 AND user_id=2')->fetchColumn()==='removed','Public leave failed');
+check(request('GET','v1/public-chats',2)['data']['favorites']===[],'Left room remained in favorites');
+check((int)$admin->query('SELECT notifications_muted FROM chat_user_states WHERE chat_id=2500 AND user_id=2')->fetchColumn()===1,'Left room remains unmuted');
+check((int)$admin->query('SELECT COUNT(*) FROM messages WHERE id='.(int)$publicMessage['id'])->fetchColumn()===1,'Leaving deleted public room history');
+request('GET','v1/messages?chat_id=2500',2,null,403);
+check((int)$admin->query("SELECT COUNT(*) FROM notification_delivery_queue q INNER JOIN notification_history h ON h.id=q.notification_id WHERE h.user_id=2 AND JSON_EXTRACT(h.data_json,'$.chat_id')=2500 AND q.status='PENDING'")->fetchColumn()===0,'Public leave retained pending pushes');
+request('POST','v1/public-chats',2,['room_id'=>2500]);
+check(count(request('GET','v1/messages?chat_id=2500',2)['data']['messages'])===1,'Public rejoin failed');
+$admin->exec("UPDATE chat_members SET status='banned' WHERE chat_id=2500 AND user_id=2");
+request('POST','v1/public-chats',2,['room_id'=>2500],403);
+
+$friendStory=request('POST','v1/stories',3,['content'=>'Friends only 😀','audience'=>'friends'],201)['data']['story_id'];
+$publicStory=request('POST','v1/stories',3,['content'=>'Public update','audience'=>'public'],201)['data']['story_id'];
+$storyIds=static fn(int $viewer): array => array_map('intval',array_column(request('GET','v1/stories',$viewer)['data']['stories'],'id'));
+check(in_array($friendStory,$storyIds(3),true),'Author cannot see own Ring Bell');
+check(!in_array($friendStory,$storyIds(1),true) && in_array($publicStory,$storyIds(1),true),'Ring Bells ignored audience privacy');
+$friend=request('POST','v1/friend-requests',3,['action'=>'send','user_id'=>1],201)['data']['request'];
+request('POST','v1/friend-requests',1,['action'=>'accept','request_id'=>$friend['id']]);
+check(in_array($friendStory,$storyIds(1),true),'Accepted friend cannot see Ring Bell');
+check(!in_array($friendStory,$storyIds(2),true),'Shared public room disclosed friends-only Ring Bell');
+$admin->exec('INSERT INTO user_blocks(user_id,blocked_user_id) VALUES(1,3)');
+check(!in_array($friendStory,$storyIds(1),true) && !in_array($publicStory,$storyIds(1),true),'Blocked Ring Bells are visible');
+$admin->exec('DELETE FROM user_blocks WHERE user_id=1 AND blocked_user_id=3');
+$admin->exec('INSERT INTO user_blocks(user_id,blocked_user_id) VALUES(3,1)');
+check(!in_array($friendStory,$storyIds(1),true),'Author block was ignored');
+$admin->exec('DELETE FROM user_blocks WHERE user_id=3 AND blocked_user_id=1');
+check((int)$admin->query('SELECT TIMESTAMPDIFF(SECOND,created_at,expires_at) FROM stories WHERE id='.(int)$friendStory)->fetchColumn()===36*3600,'Ring Bell lifetime differs from 36 hours');
+$admin->exec('UPDATE stories SET expires_at="2000-01-01" WHERE id='.(int)$friendStory);
+check(!in_array($friendStory,$storyIds(1),true),'Expired Ring Bell remained visible');
+foreach ([['content'=>''],['content'=>str_repeat('x',701)],['content'=>['bad']],['content'=>'Hello','audience'=>'anyone'],['content'=>'Hello','type'=>'video']] as $invalid) request('POST','v1/stories',1,$invalid,422);
+request('POST','v1/stories',1,['content'=>str_repeat('😀',700)],201);
+echo "Public room leave/rejoin, banned membership and Ring Bells audience/expiry integration cases passed\n";
