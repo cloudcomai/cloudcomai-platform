@@ -52,6 +52,8 @@ export class CloudComAiApi {
   deleteMessage(id, scope = 'self', options = {}) { return this.client.delete(ApiRoute.MESSAGES, { ...options, query: { ...options.query, id, scope } }); }
   sendMessage(input, options = {}) { return this.client.post(ApiRoute.MESSAGES, input, options); }
   forwardMessage(messageId, chatIds, options = {}) { return this.client.post(ApiRoute.FORWARD_MESSAGE, { message_id: messageId, chat_ids: chatIds }, options); }
+  markMessagesRead(messageIds, options = {}) { return this.client.post(ApiRoute.MESSAGE_READ, { message_ids: messageIds }, options); }
+  getMessageReadStatus(messageId, options = {}) { return this.client.get(ApiRoute.MESSAGE_READ, { ...options, query: { ...options.query, message_id: messageId } }); }
   editMessage(messageId, body, options = {}) { return this.client.post(ApiRoute.EDIT_MESSAGE, { editing_id: messageId, body }, options); }
   shareLocation(chatId, latitude, longitude, label = 'Shared location', options = {}) { return this.sendMessage({ chat_id: chatId, type: 'location', latitude, longitude, label }, options); }
   createPoll(input, options = {}) { return this.client.post(ApiRoute.POLLS, input, options); }
