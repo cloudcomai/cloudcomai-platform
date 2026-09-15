@@ -39,15 +39,45 @@ check((int)$admin->query('SELECT last_read_message_id FROM chat_user_states WHER
 request('POST','v1/notifications/chat-state',3,['chat_id'=>100,'mark_read'=>true],404);
 request('POST','v1/notifications/chat-state',2,['chat_id'=>100,'muted'=>'false'],422);
 $inbox=request('GET','v1/notifications',2)['data'];
-$notification=array_values(array_filter($inbox['notifications'],fn($n)=>(int)($n['data']['message_id']??0)===$newerId))[0];
-$notificationId=(int)$notification['id'];
-request('POST','v1/notifications/read',3,['notification_ids'=>[$notificationId]]);
+// Chat notification history drives push and the application badge, but the
+// Alerts API only lists unread screenshot and friend-request events.
+check(count(array_filter($inbox['notifications'],fn($n)=>(int)($n['data']['message_id']??0)===$newerId))===0,'Chat activity leaked into Alerts');
+$notificationIds=$admin->query("SELECT id FROM notification_history WHERE user_id=2 AND JSON_EXTRACT(data_json,'$.message_id')=$newerId")->fetchAll(PDO::FETCH_COLUMN);
+check(count($notificationIds)===1,'Expected exactly one recipient notification for the unread message');
+$notificationId=(int)$notificationIds[0];
+check((int)$admin->query("SELECT COUNT(*) FROM notification_delivery_queue WHERE notification_id=$notificationId AND status='PENDING'")->fetchColumn()>0,'Unread message did not queue push delivery');
+$unauthorized=request('POST','v1/notifications/read',3,['notification_ids'=>[$notificationId]])['data'];
+check($unauthorized['updated_count']===0,'Another user updated the notification');
 check($admin->query("SELECT read_at FROM notification_history WHERE id=$notificationId")->fetchColumn()===null,'Another user marked notification read');
 $read=request('POST','v1/notifications/read',2,['notification_ids'=>[$notificationId]])['data'];
-check($read['unread_count']===request('GET','v1/notifications',2)['data']['unread_count'],'Badge not authoritative');
-request('POST','v1/notifications/read',2,['notification_ids'=>[$notificationId],'read'=>false]);
+check($read['updated_count']===1 && $read['unread_count']===$receipt['unread_count']-1,'Reading a message notification did not reduce the application badge');
+check($read['unread_count']===request('GET','v1/notifications/chat-state?chat_id=100',2)['data']['unread_count'],'Badge not authoritative');
+$unread=request('POST','v1/notifications/read',2,['notification_ids'=>[$notificationId],'read'=>false])['data'];
+check($unread['updated_count']===1 && $unread['unread_count']===$receipt['unread_count'],'Mark unread did not restore the application badge');
 check($admin->query("SELECT read_at FROM notification_history WHERE id=$notificationId")->fetchColumn()===null,'Mark unread failed');
 check((int)$admin->query("SELECT COUNT(*) FROM notification_delivery_queue WHERE notification_id=$notificationId AND status='PENDING'")->fetchColumn()===0,'Mark unread requeued push');
+check(request('GET','v1/notifications',2)['data']['unread_count']===$inbox['unread_count'],'Chat read state changed the Alerts count');
+
+// Exercise the Alerts contract through real API events, including both allowed
+// event types and the read/unread transitions that remove and restore a row.
+check(request('POST','v1/security/screenshot',1,['chat_id'=>100],201)['data']['notified_users']===1,'Screenshot alert fixture was not created');
+$friendRequest=request('POST','v1/friend-requests',3,['action'=>'send','user_id'=>2],201)['data']['request'];
+$alerts=request('GET','v1/notifications',2)['data'];
+check($alerts['unread_count']===$inbox['unread_count']+2,'Alerts count did not include screenshot and friend-request events');
+foreach ($alerts['notifications'] as $alert) {
+    check($alert['category']==='system' && in_array($alert['data']['event']??null,['screenshot','friend_request'],true) && $alert['read_at']===null,'Non-alert activity leaked into Alerts');
+}
+$screenshots=array_values(array_filter($alerts['notifications'],fn($n)=>($n['data']['event']??null)==='screenshot' && (int)($n['data']['chat_id']??0)===100));
+$friendAlerts=array_values(array_filter($alerts['notifications'],fn($n)=>($n['data']['event']??null)==='friend_request' && (int)($n['data']['request_id']??0)===(int)$friendRequest['id']));
+check(count($screenshots)===1 && count($friendAlerts)===1,'Screenshot or friend-request alert missing from inbox');
+$screenshotId=(int)$screenshots[0]['id'];
+request('POST','v1/notifications/read',2,['notification_ids'=>[$screenshotId]]);
+$readAlerts=request('GET','v1/notifications',2)['data'];
+check($readAlerts['unread_count']===$alerts['unread_count']-1 && !in_array($screenshotId,array_map('intval',array_column($readAlerts['notifications'],'id')),true),'Read screenshot remained in Alerts');
+request('POST','v1/notifications/read',2,['notification_ids'=>[$screenshotId],'read'=>false]);
+$restoredAlerts=request('GET','v1/notifications',2)['data'];
+check($restoredAlerts['unread_count']===$alerts['unread_count'] && in_array($screenshotId,array_map('intval',array_column($restoredAlerts['notifications'],'id')),true),'Unread screenshot was not restored to Alerts');
+check((int)$admin->query("SELECT COUNT(*) FROM notification_delivery_queue WHERE notification_id=$screenshotId AND status='PENDING'")->fetchColumn()===0,'Marking an alert unread requeued push');
 
 request('PUT','v1/notifications/preferences',2,['group'=>false]);
 $disabled=request('POST','v1/messages',1,['chat_id'=>100,'body'=>'Inbox without push'],201)['data']['message'];

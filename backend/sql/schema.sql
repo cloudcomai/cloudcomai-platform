@@ -6,6 +6,7 @@ CREATE TABLE chats (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,type ENUM('pri
 CREATE TABLE chat_members (chat_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,role ENUM('owner','admin','moderator','member','readonly') NOT NULL DEFAULT 'member',status ENUM('active','pending','removed','banned') NOT NULL DEFAULT 'active',joined_at DATETIME NOT NULL,PRIMARY KEY(chat_id,user_id),INDEX(user_id,status)) ENGINE=InnoDB;
 CREATE TABLE messages (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,chat_id BIGINT UNSIGNED NOT NULL,sender_id BIGINT UNSIGNED NOT NULL,type VARCHAR(40) NOT NULL DEFAULT 'text',body TEXT NULL,reply_to_message_id BIGINT UNSIGNED NULL,edit_count TINYINT UNSIGNED NOT NULL DEFAULT 0,edited_at DATETIME NULL,deleted_for_everyone TINYINT(1) NOT NULL DEFAULT 0,expires_at DATETIME NULL,created_at DATETIME NOT NULL,INDEX(chat_id,id),INDEX(sender_id),INDEX(expires_at),INDEX(reply_to_message_id)) ENGINE=InnoDB;
 CREATE TABLE message_user_states (message_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,hidden TINYINT(1) NOT NULL DEFAULT 0,PRIMARY KEY(message_id,user_id)) ENGINE=InnoDB;
+CREATE TABLE message_read_receipts (message_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(message_id,user_id),INDEX idx_message_read_receipts_user_message(user_id,message_id),INDEX idx_message_read_receipts_message_read_at(message_id,read_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE group_invites (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,chat_id BIGINT UNSIGNED NOT NULL,token_hash CHAR(64) NOT NULL UNIQUE,created_by BIGINT UNSIGNED NOT NULL,requires_approval TINYINT(1) NOT NULL DEFAULT 0,max_uses INT UNSIGNED NULL,use_count INT UNSIGNED NOT NULL DEFAULT 0,expires_at DATETIME NULL,active TINYINT(1) NOT NULL DEFAULT 1,created_at DATETIME NOT NULL,INDEX(chat_id),INDEX(active,expires_at)) ENGINE=InnoDB;
 CREATE TABLE group_shortcuts (user_id BIGINT UNSIGNED NOT NULL,chat_id BIGINT UNSIGNED NOT NULL,display_order INT NOT NULL DEFAULT 0,created_at DATETIME NOT NULL,PRIMARY KEY(user_id,chat_id)) ENGINE=InnoDB;
 CREATE TABLE user_interests (user_id BIGINT UNSIGNED NOT NULL,interest VARCHAR(100) NOT NULL,display_order INT NOT NULL DEFAULT 0,pinned TINYINT(1) NOT NULL DEFAULT 1,hidden TINYINT(1) NOT NULL DEFAULT 0,updated_at DATETIME NOT NULL,PRIMARY KEY(user_id,interest)) ENGINE=InnoDB;
@@ -19,3 +20,33 @@ CREATE TABLE password_reset_tokens (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KE
 CREATE TABLE message_attachments (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,message_id BIGINT UNSIGNED NOT NULL,original_filename VARCHAR(255) NOT NULL,stored_filename VARCHAR(255) NOT NULL UNIQUE,storage_path VARCHAR(500) NOT NULL,mime_type VARCHAR(150) NOT NULL,file_size BIGINT UNSIGNED NOT NULL,download_policy ENUM('ALLOW','APPROVAL_REQUIRED','VIEW_ONLY') NOT NULL DEFAULT 'APPROVAL_REQUIRED',created_at DATETIME NOT NULL,INDEX(message_id),INDEX(download_policy)) ENGINE=InnoDB;
 CREATE TABLE attachment_download_requests (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,attachment_id BIGINT UNSIGNED NOT NULL,requester_id BIGINT UNSIGNED NOT NULL,sender_id BIGINT UNSIGNED NOT NULL,request_type ENUM('DOWNLOAD','FORWARD') NOT NULL DEFAULT 'DOWNLOAD',status ENUM('PENDING','APPROVED','DENIED') NOT NULL DEFAULT 'PENDING',requested_at DATETIME NOT NULL,responded_at DATETIME NULL,UNIQUE KEY uq_attachment_request_action(attachment_id,requester_id,request_type),INDEX(sender_id,status),INDEX(requester_id,request_type,status),INDEX(attachment_id,status)) ENGINE=InnoDB;
 CREATE TABLE phone_contacts (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,user_id BIGINT UNSIGNED NOT NULL,contact_key VARCHAR(320) NOT NULL,display_name VARCHAR(255) NULL,email VARCHAR(320) NULL,phone VARCHAR(100) NULL,created_at DATETIME NOT NULL,updated_at DATETIME NOT NULL,UNIQUE KEY uq_phone_contacts_user_key(user_id,contact_key),INDEX(user_id),INDEX(user_id,email),INDEX(user_id,phone)) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS account_backup_settings (
+    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    backup_account_email VARCHAR(190) NOT NULL,
+    automatic_frequency ENUM('off','daily','weekly','monthly') NOT NULL DEFAULT 'off',
+    include_videos TINYINT(1) NOT NULL DEFAULT 0,
+    wifi_only TINYINT(1) NOT NULL DEFAULT 1,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_account_backup_settings_email (backup_account_email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS account_backups (
+    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    version INT UNSIGNED NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    last_backup_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_account_backups_last_backup (last_backup_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS account_backup_versions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    version INT UNSIGNED NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_account_backup_version (user_id, version),
+    INDEX idx_account_backup_versions_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -57,7 +57,7 @@ export default function ChatThemeSettings({ value, onChange, onBack }) {
               <Pressable key={theme.id} style={[styles.card, selected && styles.cardSelected]} onPress={() => theme.id === 'wallpaper' ? chooseWallpaper() : save({ ...settings, id: theme.id })} disabled={busy}>
                 <View style={[styles.preview, { backgroundColor: c.background }]}>
                   <View style={[styles.previewHeader, { backgroundColor: c.header }]} />
-                  {PREVIEW_MESSAGES.map((message, index) => <View key={index} style={[styles.previewBubble, { alignSelf: message.mine ? 'flex-end' : 'flex-start', backgroundColor: message.mine ? c.outgoing : c.incoming }]}><Text style={{ color: message.mine ? '#fff' : c.text, fontSize: 8 }}>{message.text}</Text></View>)}
+                  {PREVIEW_MESSAGES.map((message, index) => <View key={index} style={[styles.previewBubble, { alignSelf: message.mine ? 'flex-end' : 'flex-start', backgroundColor: message.mine ? c.outgoing : c.incoming }]}><Text style={{ color: c.text, fontSize: 8, fontWeight: '600' }}>{message.text}</Text></View>)}
                 </View>
                 <Text style={styles.cardLabel}>{theme.label}</Text>
                 {selected ? <Text style={[styles.selected, { color: settings.accentColor || c.accent }]}>✓ Selected</Text> : null}
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   wallpaperSection: { marginTop: 18, padding: 14, borderRadius: 14, backgroundColor: '#fff' },
   wallpaper: { width: '100%', height: 160, borderRadius: 10, marginVertical: 10 },
   sectionTitle: { color: '#172033', fontSize: 15, fontWeight: '800', marginBottom: 8 },
-  sectionHelp: { color: '#68748a', fontSize: 12, marginBottom: 8 },
+  sectionHelp: { color: '#536078', fontSize: 12, marginBottom: 8 },
   adjustRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   adjustButton: { minHeight: 38, paddingHorizontal: 12, borderRadius: 9, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center' },
   adjustText: { color: '#3157d5', fontWeight: '700', fontSize: 12 },

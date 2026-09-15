@@ -41,6 +41,7 @@ import GroupManagement from './src/components/GroupManagement';
 import UserProfileModal from './src/components/UserProfileModal';
 import ChatThemeSettings from './src/components/ChatThemeSettings';
 import { getChatThemeSettings, resolveChatTheme } from './src/services/chatTheme';
+import { readableMessageColor } from './src/services/chatThemeDefinitions';
 
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
@@ -218,6 +219,11 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [error, setError] = useState('');
   const cursorRef = useRef(0);
   const listRef = useRef(null);
+  const [visibleMessageIds, setVisibleMessageIds] = useState(() => new Set());
+  const onMessageViewabilityChanged = useRef(({ viewableItems }) => {
+    setVisibleMessageIds(new Set(viewableItems.map(({ item }) => Number(item.id))));
+  }).current;
+  const messageViewabilityConfig = useRef({ itemVisiblePercentThreshold: 10, minimumViewTime: 250 }).current;
   const atBottomRef = useRef(true);
   const [privacy, setPrivacy] = useState({ media_auto_download: false });
   const [searchOpen, setSearchOpen] = useState(false);
@@ -509,6 +515,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : (
         <FlatList
           ref={listRef}
+          onViewableItemsChanged={onMessageViewabilityChanged}
+          viewabilityConfig={messageViewabilityConfig}
+          extraData={visibleMessageIds}
           data={searchActive ? results : messages}
           keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.messageList}
@@ -518,16 +527,18 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
           renderItem={({ item }) => {
             const mine = Number(item.sender_id) === Number(user.id);
+            const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
+            const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, theme.colors.text), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
             const selected = Number(selectedMessage?.id) === Number(item.id);
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage]}>
-              {(chat.isGroup || chat.isPublic) && <Text style={styles.sender}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
-              {item.reply_to_text ? <View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={styles.replySender}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={styles.replyText}>{item.reply_to_text}</Text></View> : null}
-              <MediaMessage message={item} autoDownload={privacy.media_auto_download} />
-              <Text style={[styles.messageTime, { color: theme.colors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
+              {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
+              {item.reply_to_text ? <View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View> : null}
+              <MediaMessage message={item} autoDownload={privacy.media_auto_download} colors={messageColors} textScale={Number(themeSettings?.textScale || 1)} isVisible={visibleMessageIds.has(Number(item.id)) && !groupManagementOpen && !profileOpen} />
+              <Text style={[styles.messageTime, { color: messageColors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
               {selected ? <View style={styles.messageActions}>
-                <Pressable onPress={() => toggleSaved(item)}><Text style={styles.messageActionText}>{item.saved ? 'Unsave' : 'Save'}</Text></Pressable>
-                <Pressable onPress={() => { setReplyTo(item); if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setEditing(null); setSelectedMessage(null); }}><Text style={styles.messageActionText}>↩ Reply</Text></Pressable>
-                {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}><Text style={styles.messageActionText}>Edit</Text></Pressable> : null}
+                <Pressable onPress={() => toggleSaved(item)}><Text style={[styles.messageActionText, { color: messageColors.text }]}>{item.saved ? 'Unsave' : 'Save'}</Text></Pressable>
+                <Pressable onPress={() => { setReplyTo(item); if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setEditing(null); setSelectedMessage(null); }}><Text style={[styles.messageActionText, { color: messageColors.text }]}>↩ Reply</Text></Pressable>
+                {mine && item.type === 'text' && Number(item.edit_count || 0) === 0 ? <Pressable onPress={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}><Text style={[styles.messageActionText, { color: messageColors.text }]}>Edit</Text></Pressable> : null}
                 <Pressable onPress={() => { setSelectedMessage(null); deleteMessage(item); }}><Text style={[styles.messageActionText, styles.messageDeleteAction]}>🗑 Delete</Text></Pressable>
               </View> : null}
             </Pressable>;
@@ -537,7 +548,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       {(replyTo || editing) ? <View style={[styles.contextBar, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><View style={styles.contextBarText}><Text style={styles.contextBarLabel}>{editing ? 'Editing message' : 'Replying to'}</Text><Text numberOfLines={1} style={styles.contextBarValue}>{(editing || replyTo)?.body || (editing || replyTo)?.text || 'Message'}</Text></View><Pressable onPress={() => { if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setReplyTo(null); setEditing(null); }}><Text style={styles.contextBarClose}>×</Text></Pressable></View> : null}
       {localMessageError ? <Text style={styles.listError}>{localMessageError}</Text> : null}
       {localMessages?.outbox?.some(item => item.payload.chat_id === Number(chat.id)) ? <ScrollView style={{ maxHeight: 130, flexGrow: 0 }} accessibilityLabel="Pending messages">
-        {localMessages.outbox.filter(item => item.payload.chat_id === Number(chat.id)).map(item => <View key={item.id} style={{ padding: 8, backgroundColor: '#eef2ff' }}><Text numberOfLines={2}>{item.payload.body}</Text><Text style={styles.preview}>{item.status === 'sending' ? 'Sending…' : item.status === 'failed' ? item.error : 'Queued · sends when connected'}</Text>{item.status !== 'sending' && <View style={styles.messageActions}><Pressable onPress={() => messaging.retry(item.id).then(() => messaging.flush()).catch(e => setError(e.message))}><Text style={styles.messageActionText}>Retry</Text></Pressable><Pressable onPress={() => messaging.remove(item.id).catch(e => setError(e.message))}><Text style={styles.messageActionText}>Discard</Text></Pressable></View>}</View>)}
+        {localMessages.outbox.filter(item => item.payload.chat_id === Number(chat.id)).map(item => <View key={item.id} style={{ padding: 8, backgroundColor: '#eef2ff' }}><Text numberOfLines={2}>{item.payload.body}</Text><Text style={styles.preview}>{item.status === 'sending' ? 'Sending…' : item.status === 'failed' ? item.error : 'Queued · sends when connected'}</Text>{item.status !== 'sending' && <View style={styles.messageActions}><Pressable onPress={() => messaging.retry(item.id).then(() => messaging.flush()).catch(e => setError(e.message))}><Text style={[styles.messageActionText, { color: messageColors.text }]}>Retry</Text></Pressable><Pressable onPress={() => messaging.remove(item.id).catch(e => setError(e.message))}><Text style={[styles.messageActionText, { color: messageColors.text }]}>Discard</Text></Pressable></View>}</View>)}
       </ScrollView> : null}
       <MediaComposer chat={chat} onMessage={onMediaMessage} />
       {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.emojiStrip, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]} contentContainerStyle={styles.emojiStripContent}>

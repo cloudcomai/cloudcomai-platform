@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { parseSharedLocation, parseMessageTimestamp } from '@cloudcomai/chat-core';
 import { apiClient, downloadAttachmentPreview } from '../services/platform';
 import { attachmentKind } from '../utils/media';
 import { pauseVideoPlayback, retryVideoPlayback, startVideoPlayback } from '../utils/videoPlayback';
+import ForwardMessageModal from './ForwardMessageModal';
+import UserProfileModal from './UserProfileModal';
+import ReadReceipt from './ReadReceipt';
 
 export function AudioPreview({ source }) {
   const player = useAudioPlayer(source);
@@ -27,7 +30,7 @@ export function AudioPreview({ source }) {
 export function VideoPreview({ source }) {
   const { width } = useWindowDimensions();
   const mediaWidth = Math.min(280, (width - 28) * 0.82 - 22);
-  const player = useVideoPlayer(source, p => { p.pause(); });
+  const player = useVideoPlayer(source, p => { p.loop = false; });
   const [error, setError] = useState('');
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
@@ -35,7 +38,6 @@ export function VideoPreview({ source }) {
       if (event.status === 'error') setError('Video could not be played. Tap retry to try again.');
     });
     const playingSubscription = player.addListener('playingChange', event => setPlaying(Boolean(event.isPlaying)));
-    pauseVideoPlayback(player);
     return () => { statusSubscription.remove(); playingSubscription.remove(); };
   }, [player]);
   const retry = () => { setError(''); if (!retryVideoPlayback(player, source)) setError('Video could not be played. Tap retry to try again.'); };
@@ -84,7 +86,7 @@ function AttachmentApproval({ attachment }) {
   </View>;
 }
 
-export default function MediaMessage({ message, autoDownload }) {
+function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1 }) {
   const { width } = useWindowDimensions();
   const mediaWidth = Math.min(280, (width - 28) * 0.82 - 22);
   const [requested, setRequested] = useState(false);
@@ -93,8 +95,12 @@ export default function MediaMessage({ message, autoDownload }) {
   const [source, setSource] = useState(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
-  const [viewerOpen, setViewerOpen] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const attachment = message.attachment;
+  const messageTextStyle = { color: colors.text || '#172033', fontSize: 15 * textScale };
+  const actionTextStyle = { color: colors.text || '#3157d5' };
+  const canForward = ['text', 'forwarded_text'].includes(message.type);
   useEffect(() => { setPollOptions(message.poll?.options || []); }, [message.poll?.options]);
   const kind = attachmentKind(message.type, attachment);
   useEffect(() => { setRequested(false); setSource(null); setError(''); }, [attachment?.id]);
@@ -119,19 +125,34 @@ export default function MediaMessage({ message, autoDownload }) {
       catch (e) { setError(e.message || 'Unable to save vote.'); }
       finally { setPollBusy(false); }
     };
-    return <View style={[styles.pollCard, { width: mediaWidth }]}><Text style={styles.pollQuestion}>📊 {message.poll?.question || 'Poll'}</Text>{pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}{message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}{error ? <Text style={styles.error}>{error}</Text> : null}</View>;
+    return <View style={[styles.pollCard, { width: mediaWidth }]}><Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>{pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}{message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}{error ? <Text style={styles.error}>{error}</Text> : null}</View>;
   }
   if (message.type === 'location') {
     const location = parseSharedLocation(message.body);
-    return location ? <Pressable onPress={() => Linking.openURL(location.url).catch(() => setError('Unable to open maps.'))} accessibilityRole="link"><Text style={styles.link}>📍 {location.label}</Text><Text>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text><Text style={styles.link}>Open in maps ↗</Text>{error ? <Text>{error}</Text> : null}</Pressable> : <Text>Location unavailable</Text>;
+    return location ? <Pressable onPress={() => Linking.openURL(location.url).catch(() => setError('Unable to open maps.'))} accessibilityRole="link"><Text style={[styles.link, actionTextStyle]}>📍 {location.label}</Text><Text style={messageTextStyle}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text><Text style={[styles.link, actionTextStyle]}>Open in maps ↗</Text>{error ? <Text>{error}</Text> : null}</Pressable> : <Text style={messageTextStyle}>Location unavailable</Text>;
   }
-  if (!attachment) return <Text style={styles.text}>{message.body || ''}</Text>;
+  if (!attachment) return <Pressable onLongPress={canForward ? () => setForwardOpen(true) : undefined}><View>
+    {message.type === 'forwarded_text' ? <Text style={[styles.forwardedLabel, { color: colors.secondary || '#64748b' }]}>Forwarded</Text> : null}
+    <Text style={[styles.text, messageTextStyle]}>{message.body || ''}</Text>
+    {message.sender_id ? <Pressable style={styles.profileLink} onPress={() => setProfileOpen(true)}><Text style={[styles.profileLinkText, actionTextStyle]}>View {message.sender_name || 'sender'} profile</Text></Pressable> : null}
+    {canForward ? <Pressable style={styles.forwardLink} onPress={() => setForwardOpen(true)}><Text style={[styles.link, actionTextStyle]}>↗ Forward</Text></Pressable> : null}
+    <ForwardMessageModal visible={forwardOpen} message={message} onClose={() => setForwardOpen(false)} />
+    <UserProfileModal visible={profileOpen} userId={message.sender_id} fallbackName={message.sender_name} onClose={() => setProfileOpen(false)} />
+  </View></Pressable>;
   return <View>
-    {error ? <View><Text style={styles.error}>{error}</Text><Pressable onPress={() => { setSource(null); setError(''); setRequested(true); setReloadKey(value => value + 1); }} style={styles.control}><Text style={styles.link}>Try preview again</Text></Pressable></View> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'video' ? <><Pressable onPress={() => setViewerOpen(true)}><VideoPreview source={source} /></Pressable><Modal visible={viewerOpen} animationType="fade" onRequestClose={() => setViewerOpen(false)}><View style={styles.viewer}><Pressable style={styles.viewerClose} onPress={() => setViewerOpen(false)}><Text style={styles.viewerCloseText}>×</Text></Pressable><VideoPreview source={source} /></View></Modal></> : kind === 'image' ? <Image source={{ uri: source }} style={[styles.image, { width: mediaWidth, height: mediaWidth * 0.75 }]} resizeMode="contain" onError={() => setError('Image preview could not be displayed.')} /> : <View style={styles.documentCard}><Text style={styles.documentIcon}>▤</Text><Text numberOfLines={2} style={styles.documentName}>{attachment.name || 'Document'}</Text><Pressable style={styles.documentButton} onPress={() => setRequested(true)}><Text style={styles.link}>Preview document</Text></Pressable></View> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.previewPlaceholder}><Text style={kind === 'video' ? styles.videoPlaceholderIcon : styles.previewIcon}>{kind === 'video' ? '▶' : kind === 'audio' ? '♫' : '▤'}</Text><Text style={styles.previewLabel}>{kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Document'}</Text></Pressable> : null}
+    {error ? <View><Text style={styles.error}>{error}</Text><Pressable onPress={() => { setSource(null); setError(''); setRequested(true); setReloadKey(value => value + 1); }} style={styles.control}><Text style={styles.link}>Try preview again</Text></Pressable></View> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'video' ? <VideoPreview source={source} /> : kind === 'image' ? <Image source={{ uri: source }} style={[styles.image, { width: mediaWidth, height: mediaWidth * 0.75 }]} resizeMode="contain" onError={() => setError('Image preview could not be displayed.')} /> : <View style={styles.documentCard}><Text style={styles.documentIcon}>▤</Text><Text numberOfLines={2} style={styles.documentName}>{attachment.name || 'Document'}</Text><Pressable style={styles.documentButton} onPress={() => setRequested(true)}><Text style={styles.link}>Preview document</Text></Pressable></View> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.previewPlaceholder}><Text style={kind === 'video' ? styles.videoPlaceholderIcon : styles.previewIcon}>{kind === 'video' ? '▶' : kind === 'audio' ? '♫' : '▤'}</Text><Text style={styles.previewLabel}>{kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Document'}</Text></Pressable> : null}
     {kind ? <AttachmentApproval attachment={attachment} /> : null}
   </View>;
 }
 
+export default function MediaMessage({ message, autoDownload, colors, textScale, isVisible = true }) {
+  return <ReadReceipt message={message} isVisible={isVisible}><MediaMessageContent message={message} autoDownload={autoDownload} colors={colors} textScale={textScale} /></ReadReceipt>;
+}
+
 const styles = StyleSheet.create({
-  pollCard: { maxWidth: '100%' }, pollQuestion: { color: '#172033', fontWeight: '800', fontSize: 15, marginBottom: 8 }, pollOption: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, marginBottom: 6, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, backgroundColor: '#fff' }, pollOptionSelected: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, pollOptionText: { color: '#172033', flex: 1 }, pollVotes: { color: '#3157d5', fontWeight: '800', marginLeft: 8 }, error: { color: '#b91c1c', marginTop: 6 }, control: { paddingVertical: 12 }, link: { color: '#3157d5', fontWeight: '700' }, rejectLink: { color: '#b91c1c', fontWeight: '700' }, text: { color: '#172033', fontSize: 15 }, meta: { color: '#68748a', fontSize: 11, marginVertical: 6 }, audioCard: { minWidth: 210, maxWidth: 280, minHeight: 58, padding: 10, borderRadius: 12, backgroundColor: '#eef2ff', flexDirection: 'row', alignItems: 'center' }, audioButton: { width: 38, height: 38, borderRadius: 19, textAlign: 'center', textAlignVertical: 'center', backgroundColor: '#3157d5', color: '#fff', fontWeight: '800', fontSize: 18 }, audioCopy: { marginLeft: 10 }, audioTitle: { color: '#172033', fontWeight: '700' }, audioTime: { color: '#68748a', fontSize: 11, marginTop: 2 }, videoShell: { borderRadius: 10, overflow: 'hidden', backgroundColor: '#10131a', position: 'relative' }, videoPlayOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, videoPlay: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#fff', color: '#172033', textAlign: 'center', textAlignVertical: 'center', fontSize: 28, paddingLeft: 4 }, videoPauseOverlay: { position: 'absolute', left: 12, bottom: 12 }, videoPause: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(0,0,0,.65)', color: '#fff', textAlign: 'center', textAlignVertical: 'center', fontSize: 17 }, approvalBox: { marginTop: 6 }, approvalActions: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' }, approvalAction: { minWidth: 105 }, approvalStatus: { color: '#166534', fontSize: 11, fontWeight: '800', marginBottom: 4 }, rejected: { color: '#b91c1c' }, senderApproval: { marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: '#fff7ed' }, senderApprovalText: { color: '#7c2d12', fontSize: 11, marginBottom: 4 }, previewPlaceholder: { width: 230, height: 140, borderRadius: 10, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center' }, previewIcon: { fontSize: 32, color: '#3157d5' }, videoPlaceholderIcon: { fontSize: 40, color: '#3157d5' }, previewLabel: { marginTop: 4, color: '#3157d5', fontWeight: '700' }, image: { borderRadius: 10, backgroundColor: '#f4f6fa' }, documentCard: { width: 230, minHeight: 100, padding: 12, borderRadius: 10, backgroundColor: '#f4f6fa' }, documentIcon: { fontSize: 28, color: '#3157d5' }, documentName: { color: '#172033', fontWeight: '700', marginVertical: 5 }, documentButton: { paddingVertical: 4 }, viewer: { flex: 1, backgroundColor: '#05070b', alignItems: 'center', justifyContent: 'center' }, viewerClose: { position: 'absolute', top: 48, right: 18, zIndex: 10 }, viewerCloseText: { color: '#fff', fontSize: 36 },
+  pollCard: { maxWidth: '100%' }, pollQuestion: { color: '#172033', fontWeight: '800', fontSize: 15, marginBottom: 8 }, pollOption: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, marginBottom: 6, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, backgroundColor: '#fff' }, pollOptionSelected: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, pollOptionText: { color: '#172033', flex: 1 }, pollVotes: { color: '#3157d5', fontWeight: '800', marginLeft: 8 },
+  approvalBox: { marginTop: 6 }, approvalActions: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' }, approvalAction: { minWidth: 105 }, approvalStatus: { color: '#166534', fontSize: 11, fontWeight: '800', marginBottom: 4 }, rejected: { color: '#b91c1c' }, senderApproval: { marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: '#fff7ed' }, senderApprovalText: { color: '#7c2d12', fontSize: 11, marginBottom: 4 },
+  error: { color: '#b91c1c', marginTop: 6 }, control: { paddingVertical: 12 }, link: { color: '#3157d5', fontWeight: '700' }, rejectLink: { color: '#b91c1c', fontWeight: '700' }, text: { color: '#172033', fontSize: 15 }, meta: { color: '#68748a', fontSize: 11, marginVertical: 6 }, forwardedLabel: { marginBottom: 3, color: '#64748b', fontSize: 10, fontWeight: '800' }, forwardLink: { marginTop: 5, alignSelf: 'flex-start' }, profileLink: { marginTop: 5, alignSelf: 'flex-start' }, profileLinkText: { color: '#3157d5', fontSize: 11, fontWeight: '700' },
+  audioCard: { minWidth: 210, maxWidth: 280, minHeight: 58, padding: 10, borderRadius: 12, backgroundColor: '#eef2ff', flexDirection: 'row', alignItems: 'center' }, audioButton: { width: 38, height: 38, borderRadius: 19, textAlign: 'center', textAlignVertical: 'center', backgroundColor: '#3157d5', color: '#fff', fontWeight: '800', fontSize: 18 }, audioCopy: { marginLeft: 10 }, audioTitle: { color: '#172033', fontWeight: '700' }, audioTime: { color: '#68748a', fontSize: 11, marginTop: 2 }, videoShell: { borderRadius: 10, overflow: 'hidden', backgroundColor: '#10131a', position: 'relative' }, videoPlayOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' }, videoPlay: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#fff', color: '#172033', textAlign: 'center', textAlignVertical: 'center', fontSize: 28, paddingLeft: 4 }, videoPauseOverlay: { position: 'absolute', left: 12, bottom: 12 }, videoPause: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(0,0,0,.65)', color: '#fff', textAlign: 'center', textAlignVertical: 'center', fontSize: 17 },
+  previewPlaceholder: { width: 230, height: 140, borderRadius: 10, backgroundColor: '#eef2ff', alignItems: 'center', justifyContent: 'center' }, previewIcon: { fontSize: 32, color: '#3157d5' }, videoPlaceholderIcon: { fontSize: 40, color: '#3157d5' }, previewLabel: { marginTop: 4, color: '#3157d5', fontWeight: '700' }, image: { borderRadius: 10, backgroundColor: '#f4f6fa' }, documentCard: { width: 230, minHeight: 100, padding: 12, borderRadius: 10, backgroundColor: '#f4f6fa' }, documentIcon: { fontSize: 28, color: '#3157d5' }, documentName: { color: '#172033', fontWeight: '700', marginVertical: 5 }, documentButton: { paddingVertical: 4 },
 });
