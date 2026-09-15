@@ -9,7 +9,7 @@ assert(in_array('POST',$contract['routes']['v1/messages/read']['methods'],true))
 
 $handler=(string)file_get_contents(__DIR__.'/../api/message_read_receipts.php');
 assert(str_contains($handler,'message_read_receipts'));
-assert(str_contains($handler,"!in_array($message['type'], ['private', 'group'], true)"));
+assert(str_contains($handler,'!in_array($message[\'type\'], [\'private\', \'group\'], true)'));
 assert(str_contains($handler,'$message[\'sender_id\']'));
 assert(str_contains($handler,'read_by'));
 assert(str_contains($handler,'cm.status=\'active\''));
