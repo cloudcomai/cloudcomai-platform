@@ -15,6 +15,6 @@ assert(str_contains($handler, '$user[\'id\'], $user[\'id\'], $user[\'id\'], $cle
 
 assert(str_contains($mobile, 'Number(message.show_profile) === 1 && message.sender_id'));
 assert(substr_count($mobile, '{profileAction}') >= 4);
-assert(!str_contains($mobile, "{message.sender_id ? <Pressable style={styles.profileLink}"));
+assert(!str_contains($mobile, '{message.sender_id ? <Pressable style={styles.profileLink}'));
 
 echo "message_profile_visibility_test.php passed\n";
