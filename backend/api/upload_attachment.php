@@ -44,7 +44,6 @@ if (!isset($allowed[$mime])) fail('File type is not allowed');
 $messageType = 'attachment';
 if ($requestedType === 'voice') {
  $originalExtension = strtolower((string)pathinfo((string)$file['name'], PATHINFO_EXTENSION));
- // libmagic reports audio-only WebM as video/webm on several hosts.
  if (!str_starts_with($mime, 'audio/') && $mime !== 'video/webm' && !($mime === 'video/mp4' && in_array($originalExtension, ['m4a','aac'], true))) fail('Voice messages must contain audio');
  $messageType = 'voice';
 } elseif ($requestedType === 'video') {
@@ -67,6 +66,34 @@ $stored = bin2hex(random_bytes(24)) . '.' . $allowed[$mime];
 $path = $root . '/' . $stored;
 if (!move_uploaded_file($file['tmp_name'], $path)) fail('Unable to store attachment', 500);
 
+$thumbnailFilename = null;
+$thumbnailPath = null;
+$width = isset($_POST['video_width']) ? max(0, (int)$_POST['video_width']) : null;
+$height = isset($_POST['video_height']) ? max(0, (int)$_POST['video_height']) : null;
+$duration = isset($_POST['video_duration_seconds']) ? max(0, (float)$_POST['video_duration_seconds']) : null;
+if ($messageType === 'video') {
+    $thumbnailFile = $_FILES['thumbnail'] ?? null;
+    if (is_array($thumbnailFile) && ($thumbnailFile['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK && (int)$thumbnailFile['size'] > 0 && (int)$thumbnailFile['size'] <= 2 * 1024 * 1024) {
+        $thumbnailMime = (new finfo(FILEINFO_MIME_TYPE))->file($thumbnailFile['tmp_name']);
+        if (in_array($thumbnailMime, ['image/jpeg','image/png','image/webp'], true)) {
+            $thumbnailFilename = bin2hex(random_bytes(24)) . '.jpg';
+            $thumbnailPath = $root . '/' . $thumbnailFilename;
+            if (!move_uploaded_file($thumbnailFile['tmp_name'], $thumbnailPath)) { $thumbnailFilename = null; $thumbnailPath = null; }
+        }
+    }
+    if (!$thumbnailPath && function_exists('shell_exec')) {
+        $ffmpeg = trim((string)shell_exec('command -v ffmpeg 2>/dev/null'));
+        if ($ffmpeg !== '') {
+            $thumbnailFilename = bin2hex(random_bytes(24)) . '.jpg';
+            $thumbnailPath = $root . '/' . $thumbnailFilename;
+            $command = escapeshellarg($ffmpeg) . ' -y -ss 0.1 -i ' . escapeshellarg($path) . ' -frames:v 1 -vf ' . escapeshellarg('scale=min(640,iw):-2') . ' -q:v 5 ' . escapeshellarg($thumbnailPath) . ' 2>/dev/null';
+            shell_exec($command);
+            if (!is_file($thumbnailPath) || (int)filesize($thumbnailPath) <= 0) { @unlink($thumbnailPath); $thumbnailFilename = null; $thumbnailPath = null; }
+        }
+    }
+    if ($thumbnailPath && (($size = @getimagesize($thumbnailPath)) !== false)) { $thumbnailWidth = (int)$size[0]; $thumbnailHeight = (int)$size[1]; if (!$width) $width = $thumbnailWidth; if (!$height) $height = $thumbnailHeight; }
+}
+
 $expires = $row['retention_seconds'] ? gmdate('Y-m-d H:i:s', time() + (int)$row['retention_seconds']) : null;
 $createdAt = gmdate('Y-m-d H:i:s');
 $defaultBody = $messageType === 'voice' ? 'Voice message' : ($messageType === 'video' ? 'Video message' : 'Attachment');
@@ -77,14 +104,15 @@ try {
  $st = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,reply_to_message_id,expires_at,created_at) VALUES(?,?,?,?,?,?,?)');
  $st->execute([$chat,$user['id'],$messageType,$messageBody,$reply ?: null,$expires,$createdAt]);
  $messageId = (int)$pdo->lastInsertId();
- $st = $pdo->prepare('INSERT INTO message_attachments(message_id,original_filename,stored_filename,storage_path,mime_type,file_size,download_policy,created_at) VALUES(?,?,?,?,?,?,?,?)');
- $st->execute([$messageId, $originalFilename, $stored, 'storage/attachments/' . $stored, $mime, (int)$file['size'], $policy, $createdAt]);
+ $st = $pdo->prepare('INSERT INTO message_attachments(message_id,original_filename,stored_filename,storage_path,thumbnail_filename,thumbnail_path,mime_type,file_size,width,height,duration_seconds,download_policy,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
+ $st->execute([$messageId, $originalFilename, $stored, 'storage/attachments/' . $stored, $thumbnailFilename, $thumbnailPath ? 'storage/attachments/' . $thumbnailFilename : null, $mime, (int)$file['size'], $width ?: null, $height ?: null, $duration ?: null, $policy, $createdAt]);
  $attachmentId = (int)$pdo->lastInsertId();
  $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
  $pdo->commit();
 } catch (Throwable $e) {
  if ($pdo->inTransaction()) $pdo->rollBack();
  @unlink($path);
+ if ($thumbnailPath) @unlink($thumbnailPath);
  error_log('Media message creation failed: ' . $e->getMessage());
  fail('Unable to send media', 500);
 }
@@ -92,12 +120,11 @@ try {
 try {
  create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], $messageType === 'voice' ? 'Voice message' : ($messageType === 'video' ? 'Video message' : ($body !== '' ? $body : 'Sent you an attachment')), $messageId);
 } catch (Throwable $e) {
- // A notification problem must not roll back an already stored voice/video/attachment message.
  error_log('Media notification creation failed for message ' . $messageId . ': ' . $e->getMessage());
 }
 
 out(['message' => [
  'id' => $messageId, 'chat_id' => $chat, 'sender_id' => (int)$user['id'], 'sender_name' => $user['name'],
  'type' => $messageType, 'body' => $messageBody, 'reply_to_message_id' => $reply ?: null, 'created_at' => $createdAt,
- 'attachment' => ['id' => $attachmentId, 'name' => $originalFilename, 'mime_type' => $mime, 'file_size' => (int)$file['size'], 'download_policy' => $policy]
+ 'attachment' => ['id' => $attachmentId, 'name' => $originalFilename, 'mime_type' => $mime, 'file_size' => (int)$file['size'], 'thumbnail_available' => (bool)$thumbnailPath, 'width' => $width, 'height' => $height, 'duration_seconds' => $duration, 'download_policy' => $policy]
 ]], 201);

@@ -351,8 +351,13 @@ CREATE TABLE IF NOT EXISTS message_attachments (
     original_filename VARCHAR(255) NOT NULL,
     stored_filename VARCHAR(255) NOT NULL,
     storage_path VARCHAR(500) NOT NULL,
+    thumbnail_filename VARCHAR(255) NULL,
+    thumbnail_path VARCHAR(500) NULL,
     mime_type VARCHAR(150) NOT NULL,
     file_size BIGINT UNSIGNED NOT NULL,
+    width INT UNSIGNED NULL,
+    height INT UNSIGNED NULL,
+    duration_seconds DECIMAL(10,3) NULL,
     download_policy ENUM('ALLOW','APPROVAL_REQUIRED','VIEW_ONLY') NOT NULL DEFAULT 'APPROVAL_REQUIRED',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_message_attachments_stored_filename (stored_filename),
@@ -577,7 +582,8 @@ VALUES
     ('014_friend_requests.sql', UTC_TIMESTAMP()),
     ('015_notification_delivery_queue.sql', UTC_TIMESTAMP()),
     ('016_account_backup.sql', UTC_TIMESTAMP()),
-    ('017_message_read_receipts.sql', UTC_TIMESTAMP())
+    ('017_message_read_receipts.sql', UTC_TIMESTAMP()),
+    ('020_video_message_metadata.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
