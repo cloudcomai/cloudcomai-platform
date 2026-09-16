@@ -1,44 +1,108 @@
-import { Platform, Vibration } from 'react-native';
+import { AppState, Platform, Vibration } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import appConfig from '../../app.json';
 import { shouldNotifyWithFeedback } from './notificationFeedback';
 
 const PREFERENCE_KEY = 'cloudcomai.notification.preferences';
-export const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({ enabled: true, message: true, group: true, attachment: true, system: true });
+const MESSAGE_CATEGORIES = new Set(['message', 'group', 'attachment']);
+export const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({
+  enabled: true,
+  message: true,
+  group: true,
+  attachment: true,
+  system: true,
+  sound: true,
+  vibration: true,
+  preview: true,
+});
+
+let activeChatId = null;
+let appState = AppState.currentState || 'active';
+AppState.addEventListener('change', nextState => { appState = nextState; });
 
 export async function getNotificationPreferences() {
-  try { const value = JSON.parse((await SecureStore.getItemAsync(PREFERENCE_KEY)) || 'null'); return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(value || {}) }; }
-  catch { return { ...DEFAULT_NOTIFICATION_PREFERENCES }; }
+  try {
+    const value = JSON.parse((await SecureStore.getItemAsync(PREFERENCE_KEY)) || 'null');
+    return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(value || {}) };
+  } catch {
+    return { ...DEFAULT_NOTIFICATION_PREFERENCES };
+  }
 }
 
 export async function setNotificationPreferences(preferences) {
-  const next = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...preferences };
+  const next = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(preferences || {}) };
   await SecureStore.setItemAsync(PREFERENCE_KEY, JSON.stringify(next));
+  if (Platform.OS === 'android') await configureAndroidNotificationChannels(next);
   return next;
+}
+
+export function setActiveChatId(chatId) {
+  activeChatId = Number.isSafeInteger(Number(chatId)) && Number(chatId) > 0 ? Number(chatId) : null;
+}
+
+export function getActiveChatId() { return activeChatId; }
+
+export function shouldSuppressForegroundMessage(notification) {
+  const category = notification?.request?.content?.data?.category || 'system';
+  const chatId = Number(notification?.request?.content?.data?.chat_id);
+  return appState === 'active' && MESSAGE_CATEGORIES.has(category) && Number.isSafeInteger(chatId) && chatId > 0 && chatId === activeChatId;
+}
+
+export function notificationChannelId(preferences = DEFAULT_NOTIFICATION_PREFERENCES) {
+  if (!preferences.sound && !preferences.vibration) return 'messages_silent_v2';
+  if (preferences.sound && preferences.vibration) return 'messages_alerts_v2';
+  if (preferences.sound) return 'messages_sound_v2';
+  return 'messages_vibration_v2';
+}
+
+async function configureAndroidNotificationChannels() {
+  if (Platform.OS !== 'android') return;
+  const definitions = [
+    ['messages_alerts_v2', 'Messages', true, true],
+    ['messages_sound_v2', 'Messages · Sound only', true, false],
+    ['messages_vibration_v2', 'Messages · Vibration only', false, true],
+    ['messages_silent_v2', 'Messages · Silent', false, false],
+  ];
+  await Promise.all(definitions.map(async ([id, name, sound, vibration]) => {
+    await Notifications.setNotificationChannelAsync(id, {
+      name,
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: sound ? 'default' : null,
+      enableVibrate: vibration,
+      vibrationPattern: vibration ? [0, 250, 150, 250] : null,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+      showBadge: true,
+    });
+  }));
+  await Notifications.setNotificationChannelAsync('messages', {
+    name: 'Messages (legacy)',
+    importance: Notifications.AndroidImportance.LOW,
+    sound: null,
+    enableVibrate: false,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+    showBadge: true,
+  });
 }
 
 Notifications.setNotificationHandler({
   handleNotification: async notification => {
     const preferences = await getNotificationPreferences();
     const category = notification?.request?.content?.data?.category || 'system';
-    const show = preferences.enabled && preferences[category] !== false;
-    return { shouldPlaySound: show, shouldSetBadge: show, shouldShowBanner: show, shouldShowList: show };
+    const show = preferences.enabled && preferences[category] !== false && !shouldSuppressForegroundMessage(notification);
+    return {
+      shouldPlaySound: show && preferences.sound,
+      shouldSetBadge: show,
+      shouldShowBanner: show,
+      shouldShowList: show,
+    };
   },
 });
 
 export async function requestNotificationPermission() {
   const preferences = await getNotificationPreferences();
   if (!preferences.enabled) return null;
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('messages', {
-      name: 'Messages',
-      importance: Notifications.AndroidImportance.HIGH,
-      sound: 'default',
-      enableVibrate: true,
-      vibrationPattern: [0, 250, 150, 250],
-    });
-  }
+  if (Platform.OS === 'android') await configureAndroidNotificationChannels(preferences);
   const current = await Notifications.getPermissionsAsync();
   if (current.status !== 'granted') {
     const requested = await Notifications.requestPermissionsAsync();
@@ -49,10 +113,10 @@ export async function requestNotificationPermission() {
 
 export const subscribeToNotifications = async onNotification => Notifications.addNotificationReceivedListener(async event => {
   const preferences = await getNotificationPreferences();
-  if (preferences.enabled && preferences[event?.request?.content?.data?.category || 'system'] !== false) {
-    if (shouldNotifyWithFeedback(event, preferences)) Vibration.vibrate([0, 250, 150, 250]);
-    onNotification(event);
-  }
+  const category = event?.request?.content?.data?.category || 'system';
+  const show = preferences.enabled && preferences[category] !== false && !shouldSuppressForegroundMessage(event);
+  if (show && shouldNotifyWithFeedback(event, preferences) && preferences.vibration) Vibration.vibrate([0, 250, 150, 250]);
+  if (show) onNotification(event);
 });
 
 export const rememberDeviceToken = token => SecureStore.setItemAsync('cloudcomai.push.token', token);
@@ -63,13 +127,21 @@ export async function forgetDeviceToken(api) {
   await setApplicationBadge(0);
 }
 
-export const subscribeToNotificationResponses = onResponse =>
-  Notifications.addNotificationResponseReceivedListener(onResponse);
+export const subscribeToNotificationResponses = onResponse => Notifications.addNotificationResponseReceivedListener(onResponse);
 
-export async function getLastNotificationResponse() {
-  return Notifications.getLastNotificationResponseAsync();
-}
+export async function getLastNotificationResponse() { return Notifications.getLastNotificationResponseAsync(); }
 
 export async function setApplicationBadge(count) {
   try { await Notifications.setBadgeCountAsync(Math.max(0, Number(count) || 0)); } catch {}
+}
+
+export async function dismissChatNotifications(chatId) {
+  const target = Number(chatId);
+  if (!Number.isSafeInteger(target) || target <= 0) return;
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    await Promise.all((presented || [])
+      .filter(item => Number(item?.request?.content?.data?.chat_id) === target)
+      .map(item => Notifications.dismissNotificationAsync(item.request.identifier)));
+  } catch {}
 }
