@@ -1,10 +1,20 @@
 <?php
-$messages = file_get_contents(__DIR__ . '/../api/messages.php');
-$media = file_get_contents(__DIR__ . '/../../apps/mobile/src/components/MediaMessage.js');
+declare(strict_types=1);
 
-if (strpos($messages, 'AS show_profile') === false) { fwrite(STDERR, "messages API must expose show_profile\n"); exit(1); }
-if (strpos($messages, 'c.type="public"') === false || strpos($messages, 'friend_requests') === false || strpos($messages, 'fr.status="accepted"') === false) { fwrite(STDERR, "public non-friend profile visibility rule missing\n"); exit(1); }
-if (strpos($media, 'Number(message.show_profile) === 1') === false) { fwrite(STDERR, "mobile media must normalize profile visibility flag\n"); exit(1); }
-if (strpos($media, 'profileAction') === false || strpos($media, 'UserProfileModal') === false) { fwrite(STDERR, "mobile public profile action missing\n"); exit(1); }
+$root = dirname(__DIR__);
+$handler = (string)file_get_contents($root . '/api/messages.php');
+$mobile = (string)file_get_contents(dirname($root) . '/apps/mobile/src/components/MediaMessage.js');
 
-echo "Message profile visibility checks passed.\n";
+assert(str_contains($handler, 'INNER JOIN chats c ON c.id=m.chat_id'));
+assert(str_contains($handler, 'c.type="public" AND m.sender_id<>?'));
+assert(str_contains($handler, 'fr.status="accepted"'));
+assert(str_contains($handler, 'fr.requester_id=? AND fr.recipient_id=m.sender_id'));
+assert(str_contains($handler, 'fr.requester_id=m.sender_id AND fr.recipient_id=?'));
+assert(str_contains($handler, 'END AS show_profile'));
+assert(str_contains($handler, '$user[\'id\'], $user[\'id\'], $user[\'id\'], $clearedThrough'));
+
+assert(str_contains($mobile, 'Number(message.show_profile) === 1 && message.sender_id'));
+assert(substr_count($mobile, '{profileAction}') >= 4);
+assert(!str_contains($mobile, "{message.sender_id ? <Pressable style={styles.profileLink}"));
+
+echo "message_profile_visibility_test.php passed\n";

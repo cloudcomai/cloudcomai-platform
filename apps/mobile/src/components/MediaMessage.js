@@ -101,6 +101,7 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   const messageTextStyle = { color: colors.text || '#172033', fontSize: 15 * textScale };
   const actionTextStyle = { color: colors.text || '#3157d5' };
   const canForward = ['text', 'forwarded_text'].includes(message.type);
+  const profileAction = Number(message.show_profile) === 1 && message.sender_id ? <Pressable style={styles.profileLink} onPress={() => setProfileOpen(true)}><Text style={[styles.profileLinkText, actionTextStyle]}>View {message.sender_name || 'sender'} profile</Text></Pressable> : null;
   useEffect(() => { setPollOptions(message.poll?.options || []); }, [message.poll?.options]);
   const kind = attachmentKind(message.type, attachment);
   useEffect(() => { setRequested(false); setSource(null); setError(''); }, [attachment?.id]);
@@ -125,16 +126,16 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
       catch (e) { setError(e.message || 'Unable to save vote.'); }
       finally { setPollBusy(false); }
     };
-    return <View style={[styles.pollCard, { width: mediaWidth }]}><Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>{pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}{message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}{error ? <Text style={styles.error}>{error}</Text> : null}</View>;
+    return <View style={[styles.pollCard, { width: mediaWidth }]}><Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>{pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}{message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}{error ? <Text style={styles.error}>{error}</Text> : null}{profileAction}<UserProfileModal visible={profileOpen} userId={message.sender_id} fallbackName={message.sender_name} onClose={() => setProfileOpen(false)} /></View>;
   }
   if (message.type === 'location') {
     const location = parseSharedLocation(message.body);
-    return location ? <Pressable onPress={() => Linking.openURL(location.url).catch(() => setError('Unable to open maps.'))} accessibilityRole="link"><Text style={[styles.link, actionTextStyle]}>📍 {location.label}</Text><Text style={messageTextStyle}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text><Text style={[styles.link, actionTextStyle]}>Open in maps ↗</Text>{error ? <Text>{error}</Text> : null}</Pressable> : <Text style={messageTextStyle}>Location unavailable</Text>;
+    return <View>{location ? <Pressable onPress={() => Linking.openURL(location.url).catch(() => setError('Unable to open maps.'))} accessibilityRole="link"><Text style={[styles.link, actionTextStyle]}>📍 {location.label}</Text><Text style={messageTextStyle}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text><Text style={[styles.link, actionTextStyle]}>Open in maps ↗</Text>{error ? <Text>{error}</Text> : null}</Pressable> : <Text style={messageTextStyle}>Location unavailable</Text>}{profileAction}<UserProfileModal visible={profileOpen} userId={message.sender_id} fallbackName={message.sender_name} onClose={() => setProfileOpen(false)} /></View>;
   }
   if (!attachment) return <Pressable onLongPress={canForward ? () => setForwardOpen(true) : undefined}><View>
     {message.type === 'forwarded_text' ? <Text style={[styles.forwardedLabel, { color: colors.secondary || '#64748b' }]}>Forwarded</Text> : null}
     <Text style={[styles.text, messageTextStyle]}>{message.body || ''}</Text>
-    {message.sender_id ? <Pressable style={styles.profileLink} onPress={() => setProfileOpen(true)}><Text style={[styles.profileLinkText, actionTextStyle]}>View {message.sender_name || 'sender'} profile</Text></Pressable> : null}
+    {profileAction}
     {canForward ? <Pressable style={styles.forwardLink} onPress={() => setForwardOpen(true)}><Text style={[styles.link, actionTextStyle]}>↗ Forward</Text></Pressable> : null}
     <ForwardMessageModal visible={forwardOpen} message={message} onClose={() => setForwardOpen(false)} />
     <UserProfileModal visible={profileOpen} userId={message.sender_id} fallbackName={message.sender_name} onClose={() => setProfileOpen(false)} />
@@ -142,6 +143,8 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   return <View>
     {error ? <View><Text style={styles.error}>{error}</Text><Pressable onPress={() => { setSource(null); setError(''); setRequested(true); setReloadKey(value => value + 1); }} style={styles.control}><Text style={styles.link}>Try preview again</Text></Pressable></View> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'video' ? <VideoPreview source={source} /> : kind === 'image' ? <Image source={{ uri: source }} style={[styles.image, { width: mediaWidth, height: mediaWidth * 0.75 }]} resizeMode="contain" onError={() => setError('Image preview could not be displayed.')} /> : <View style={styles.documentCard}><Text style={styles.documentIcon}>▤</Text><Text numberOfLines={2} style={styles.documentName}>{attachment.name || 'Document'}</Text><Pressable style={styles.documentButton} onPress={() => setRequested(true)}><Text style={styles.link}>Preview document</Text></Pressable></View> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.previewPlaceholder}><Text style={kind === 'video' ? styles.videoPlaceholderIcon : styles.previewIcon}>{kind === 'video' ? '▶' : kind === 'audio' ? '♫' : '▤'}</Text><Text style={styles.previewLabel}>{kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Document'}</Text></Pressable> : null}
     {kind ? <AttachmentApproval attachment={attachment} /> : null}
+    {profileAction}
+    <UserProfileModal visible={profileOpen} userId={message.sender_id} fallbackName={message.sender_name} onClose={() => setProfileOpen(false)} />
   </View>;
 }
 
