@@ -63,4 +63,14 @@ function hydrate_message_state(array &$messages, int $userId): void {
         $message['client_message_id']=$clientIds[$message['id']] ?? null;
     }
     unset($message);
+
+    $groupMarks=implode(',',array_fill(0,count($ids),'?'));
+    $groupProfile = db()->prepare("SELECT m.id FROM messages m INNER JOIN chats c ON c.id=m.chat_id WHERE m.id IN ($groupMarks) AND c.type=\"group\" AND m.sender_id<>? AND NOT EXISTS (SELECT 1 FROM friend_requests fr WHERE fr.status=\"accepted\" AND ((fr.requester_id=? AND fr.recipient_id=m.sender_id) OR (fr.requester_id=m.sender_id AND fr.recipient_id=?)))");
+    $groupProfile->execute(array_merge($ids,[$userId,$userId,$userId]));
+    $groupProfileIds=array_flip(array_map('intval',$groupProfile->fetchAll(PDO::FETCH_COLUMN)));
+    foreach ($messages as &$message) {
+        if (isset($groupProfileIds[(int)$message['id']])) $message['show_profile']=1;
+        elseif (!array_key_exists('show_profile', $message)) $message['show_profile']=0;
+    }
+    unset($message);
 }
