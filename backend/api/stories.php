@@ -49,7 +49,7 @@ if ($method === 'POST') {
         $content = ['media_filename' => $filename, 'caption' => $caption];
     }
     $st = db()->prepare('INSERT INTO stories(user_id,type,content,audience,created_at,expires_at) VALUES(?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()+INTERVAL 36 HOUR)');
-    $st->execute([$userId, $type, is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
+    $st->execute([$userId, $type, is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $audience]);
     out(['story_id' => (int)db()->lastInsertId(), 'expires_in_hours' => 36], 201);
 }
 
