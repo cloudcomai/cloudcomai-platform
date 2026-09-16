@@ -3,23 +3,18 @@ import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import appConfig from '../../app.json';
 import { shouldNotifyWithFeedback } from './notificationFeedback';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  notificationChannelId,
+  shouldSuppressSameChat,
+} from './notificationPolicy';
 
 const PREFERENCE_KEY = 'cloudcomai.notification.preferences';
-const MESSAGE_CATEGORIES = new Set(['message', 'group', 'attachment']);
-export const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({
-  enabled: true,
-  message: true,
-  group: true,
-  attachment: true,
-  system: true,
-  sound: true,
-  vibration: true,
-  preview: true,
-});
-
 let activeChatId = null;
 let appState = AppState.currentState || 'active';
 AppState.addEventListener('change', nextState => { appState = nextState; });
+
+export { DEFAULT_NOTIFICATION_PREFERENCES, notificationChannelId };
 
 export async function getNotificationPreferences() {
   try {
@@ -33,7 +28,7 @@ export async function getNotificationPreferences() {
 export async function setNotificationPreferences(preferences) {
   const next = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(preferences || {}) };
   await SecureStore.setItemAsync(PREFERENCE_KEY, JSON.stringify(next));
-  if (Platform.OS === 'android') await configureAndroidNotificationChannels(next);
+  if (Platform.OS === 'android') await configureAndroidNotificationChannels();
   return next;
 }
 
@@ -44,16 +39,12 @@ export function setActiveChatId(chatId) {
 export function getActiveChatId() { return activeChatId; }
 
 export function shouldSuppressForegroundMessage(notification) {
-  const category = notification?.request?.content?.data?.category || 'system';
-  const chatId = Number(notification?.request?.content?.data?.chat_id);
-  return appState === 'active' && MESSAGE_CATEGORIES.has(category) && Number.isSafeInteger(chatId) && chatId > 0 && chatId === activeChatId;
-}
-
-export function notificationChannelId(preferences = DEFAULT_NOTIFICATION_PREFERENCES) {
-  if (!preferences.sound && !preferences.vibration) return 'messages_silent_v2';
-  if (preferences.sound && preferences.vibration) return 'messages_alerts_v2';
-  if (preferences.sound) return 'messages_sound_v2';
-  return 'messages_vibration_v2';
+  return shouldSuppressSameChat({
+    appState,
+    activeChatId,
+    notificationChatId: notification?.request?.content?.data?.chat_id,
+    category: notification?.request?.content?.data?.category || 'system',
+  });
 }
 
 async function configureAndroidNotificationChannels() {
@@ -102,7 +93,7 @@ Notifications.setNotificationHandler({
 export async function requestNotificationPermission() {
   const preferences = await getNotificationPreferences();
   if (!preferences.enabled) return null;
-  if (Platform.OS === 'android') await configureAndroidNotificationChannels(preferences);
+  if (Platform.OS === 'android') await configureAndroidNotificationChannels();
   const current = await Notifications.getPermissionsAsync();
   if (current.status !== 'granted') {
     const requested = await Notifications.requestPermissionsAsync();
@@ -128,20 +119,15 @@ export async function forgetDeviceToken(api) {
 }
 
 export const subscribeToNotificationResponses = onResponse => Notifications.addNotificationResponseReceivedListener(onResponse);
-
 export async function getLastNotificationResponse() { return Notifications.getLastNotificationResponseAsync(); }
-
 export async function setApplicationBadge(count) {
   try { await Notifications.setBadgeCountAsync(Math.max(0, Number(count) || 0)); } catch {}
 }
-
 export async function dismissChatNotifications(chatId) {
   const target = Number(chatId);
   if (!Number.isSafeInteger(target) || target <= 0) return;
   try {
     const presented = await Notifications.getPresentedNotificationsAsync();
-    await Promise.all((presented || [])
-      .filter(item => Number(item?.request?.content?.data?.chat_id) === target)
-      .map(item => Notifications.dismissNotificationAsync(item.request.identifier)));
+    await Promise.all((presented || []).filter(item => Number(item?.request?.content?.data?.chat_id) === target).map(item => Notifications.dismissNotificationAsync(item.request.identifier)));
   } catch {}
 }
