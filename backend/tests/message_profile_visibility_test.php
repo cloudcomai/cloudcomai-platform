@@ -13,7 +13,7 @@ assert(str_contains($handler, 'fr.requester_id=m.sender_id AND fr.recipient_id=?
 assert(str_contains($handler, 'END AS show_profile'));
 assert(str_contains($handler, '$user[\'id\'], $user[\'id\'], $user[\'id\'], $clearedThrough'));
 
-assert(str_contains($mobile, 'message.show_profile && message.sender_id'));
+assert(str_contains($mobile, 'Number(message.show_profile) === 1 && message.sender_id'));
 assert(substr_count($mobile, '{profileAction}') >= 4);
 assert(!str_contains($mobile, "{message.sender_id ? <Pressable style={styles.profileLink}"));
 
