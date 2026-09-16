@@ -16,7 +16,7 @@ assert(str_contains($handler, '$user[\'id\'], $user[\'id\'], $user[\'id\'], $cle
 
 assert(str_contains($payload, 'c.type=\"group\" AND m.sender_id<>?'));
 assert(str_contains($payload, 'fr.status=\"accepted\"'));
-assert(str_contains($payload, 'if (isset($groupProfileIds')));
+assert(str_contains($payload, 'if (isset($groupProfileIds'));
 assert(str_contains($payload, '$message[\'show_profile\']=1;'));
 assert(str_contains($payload, 'array_key_exists(\'show_profile\', $message)'));
 
