@@ -6,7 +6,7 @@ function hydrate_message_attachments(array &$messages): void {
     $ids = array_values(array_filter(array_map(fn($message) => (int)($message['id'] ?? 0), $messages)));
     if (!$ids) return;
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $st = db()->prepare("SELECT id,message_id,original_filename,mime_type,file_size,download_policy FROM message_attachments WHERE message_id IN ($placeholders) ORDER BY id ASC");
+    $st = db()->prepare("SELECT id,message_id,original_filename,mime_type,file_size,thumbnail_path,width,height,duration_seconds,download_policy FROM message_attachments WHERE message_id IN ($placeholders) ORDER BY id ASC");
     $st->execute($ids);
     $attachments = [];
     foreach ($st->fetchAll() as $attachment) {
@@ -15,6 +15,10 @@ function hydrate_message_attachments(array &$messages): void {
             'name' => $attachment['original_filename'],
             'mime_type' => $attachment['mime_type'],
             'file_size' => (int)$attachment['file_size'],
+            'thumbnail_available' => !empty($attachment['thumbnail_path']),
+            'width' => $attachment['width'] !== null ? (int)$attachment['width'] : null,
+            'height' => $attachment['height'] !== null ? (int)$attachment['height'] : null,
+            'duration_seconds' => $attachment['duration_seconds'] !== null ? (float)$attachment['duration_seconds'] : null,
             'download_policy' => $attachment['download_policy'],
         ];
     }
@@ -43,7 +47,6 @@ function hydrate_message_polls(array &$messages, int $userId): void {
     }
     unset($message);
 }
-
 
 function hydrate_message_state(array &$messages, int $userId): void {
     if (!$messages) return;

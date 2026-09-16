@@ -33,10 +33,24 @@ test('handles unavailable players safely', () => {
   assert.equal(retryVideoPlayback(null, 'file:///retry.mp4'), false);
 });
 
-test('chat video does not force pause during player setup or lifecycle effect', () => {
+test('chat video is lazy, thumbnail-backed and aspect-ratio safe', () => {
   const source = fs.readFileSync(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
-  assert.match(source, /useVideoPlayer\(source, p => \{ p\.loop = false; \}\)/);
+  assert.match(source, /downloadVideoThumbnail\(attachment\)/);
+  assert.match(source, /downloadAttachmentPreview\(attachment\)/);
+  assert.match(source, /thumbnail_available/);
+  assert.match(source, /attachment\?\.width/);
+  assert.match(source, /attachment\?\.height/);
+  assert.match(source, /formatBytes\(attachment\?\.file_size\)/);
+  assert.match(source, /presentationStyle="fullScreen"/);
+  assert.match(source, /fullscreenOptions=\{\{ enable: true \}\}/);
+  assert.match(source, /contentFit="contain"/);
+  assert.match(source, /useVideoPlayer\(videoSource/);
   assert.doesNotMatch(source, /useVideoPlayer\(source, p => \{ p\.pause\(\); \}\)/);
-  assert.doesNotMatch(source, /\n\s*pauseVideoPlayback\(player\);/);
-  assert.doesNotMatch(source, /const \[viewerOpen, setViewerOpen\]/);
+});
+
+test('chat video does not eagerly download the video attachment on render', () => {
+  const source = fs.readFileSync(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
+  const videoBlock = source.slice(source.indexOf('export function VideoPreview'), source.indexOf('function AttachmentApproval'));
+  assert.match(videoBlock, /if \(!videoSource\)/);
+  assert.match(videoBlock, /downloadAttachmentPreview\(attachment\)/);
 });

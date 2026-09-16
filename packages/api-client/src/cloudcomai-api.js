@@ -77,6 +77,9 @@ export class CloudComAiApi {
   reportScreenshot(chatId, options = {}) { return this.client.post(ApiRoute.SCREENSHOT_EVENT, { chat_id: chatId }, options); }
   listStories(options = {}) { return this.client.get(ApiRoute.STORIES, options); }
   createStory(input, options = {}) { return this.client.post(ApiRoute.STORIES, input, options); }
+  viewStory(storyId, options = {}) { return this.client.post(ApiRoute.STORIES, { action: 'view', story_id: storyId }, options); }
+  deleteStory(storyId, options = {}) { return this.client.delete(ApiRoute.STORIES, { ...options, query: { ...options.query, id: storyId } }); }
+  listStoryViewers(storyId, options = {}) { return this.client.get(ApiRoute.STORIES, { ...options, query: { ...options.query, action: 'viewers', story_id: storyId } }); }
 }
 
 export const createCloudComAiApi = client => new CloudComAiApi(client);

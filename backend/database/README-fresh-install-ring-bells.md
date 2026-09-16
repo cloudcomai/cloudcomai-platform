@@ -1,0 +1,1 @@
+The consolidated Ring Bells schema companion is `fresh-install-ring-bells.sql`. It is temporary integration documentation until the statements are folded into `fresh-install.sql` before merge to main.

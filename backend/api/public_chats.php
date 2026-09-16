@@ -11,8 +11,13 @@ if ($method === 'GET') {
     try {
         $where = "c.type='public' AND c.group_category='india-city'";
         $params = [$user['id']];
-        if ($search !== '') { $where .= ' AND c.name LIKE ?'; $params[] = '%' . $search . '%'; }
-        $st = $pdo->prepare("SELECT c.id,c.name,c.retention_seconds,c.created_at,
+        if ($search !== '') {
+            $where .= ' AND (c.name LIKE ? OR c.group_category LIKE ?)';
+            $pattern = '%' . $search . '%';
+            $params[] = $pattern;
+            $params[] = $pattern;
+        }
+        $st = $pdo->prepare("SELECT c.id,c.name,c.group_category,c.retention_seconds,c.created_at,
                 CASE WHEN cm.status='active' THEN 1 ELSE 0 END AS joined,
                 (SELECT COUNT(*) FROM chat_members count_members WHERE count_members.chat_id=c.id AND count_members.status='active') AS joined_count,
                 (SELECT COUNT(*) FROM chat_members online_members INNER JOIN users online_users ON online_users.id=online_members.user_id LEFT JOIN user_privacy_settings online_privacy ON online_privacy.user_id=online_users.id WHERE online_members.chat_id=c.id AND online_members.status='active' AND online_users.account_status='active' AND online_users.updated_at IS NOT NULL AND online_users.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(online_privacy.hide_online_status,0)=0) AS online_count
@@ -20,11 +25,12 @@ if ($method === 'GET') {
         $st->execute($params);
         $rooms = array_map(static fn(array $room): array => [
             'id'=>(int)$room['id'],'name'=>$room['name'],'type'=>'public','isPublic'=>true,
+            'city'=>$room['name'],'category'=>$room['group_category'],'group_category'=>$room['group_category'],
             'joined'=>(bool)$room['joined'],'joined_count'=>(int)$room['joined_count'],'online_count'=>(int)$room['online_count'],
             'retention_seconds'=>$room['retention_seconds'] !== null ? (int)$room['retention_seconds'] : null,'created_at'=>$room['created_at'],
         ], $st->fetchAll());
 
-        $favoritesStmt = $pdo->prepare("SELECT c.id,c.name,c.retention_seconds,c.created_at,
+        $favoritesStmt = $pdo->prepare("SELECT c.id,c.name,c.group_category,c.retention_seconds,c.created_at,
                 1 AS joined,
                 (SELECT COUNT(*) FROM chat_members cm2 WHERE cm2.chat_id=c.id AND cm2.status='active') AS joined_count,
                 (SELECT COUNT(*) FROM chat_members om INNER JOIN users ou ON ou.id=om.user_id LEFT JOIN user_privacy_settings op ON op.user_id=ou.id WHERE om.chat_id=c.id AND om.status='active' AND ou.account_status='active' AND ou.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(op.hide_online_status,0)=0) AS online_count
@@ -33,6 +39,7 @@ if ($method === 'GET') {
         $favoritesStmt->execute([$user['id']]);
         $favorites = array_map(static fn(array $room): array => [
             'id'=>(int)$room['id'],'name'=>$room['name'],'type'=>'public','isPublic'=>true,'joined'=>true,
+            'city'=>$room['name'],'category'=>$room['group_category'],'group_category'=>$room['group_category'],
             'joined_count'=>(int)$room['joined_count'],'online_count'=>(int)$room['online_count'],
             'retention_seconds'=>$room['retention_seconds'] !== null ? (int)$room['retention_seconds'] : null,'created_at'=>$room['created_at'],
         ], $favoritesStmt->fetchAll());

@@ -3,6 +3,7 @@ require __DIR__ . '/../lib/bootstrap.php';
 $user = auth_user();
 $id = (int)($_GET['id'] ?? 0);
 $preview = ($_GET['preview'] ?? '') === '1';
+$thumbnail = ($_GET['thumbnail'] ?? '') === '1';
 if ($id <= 0) fail('Invalid attachment', 400);
 
 $st = db()->prepare('SELECT a.*,m.chat_id,m.sender_id,c.type AS chat_type FROM message_attachments a JOIN messages m ON m.id=a.message_id AND m.deleted_for_everyone=0 JOIN chats c ON c.id=m.chat_id WHERE a.id=?');
@@ -21,6 +22,21 @@ $clearedThrough = (int)($cleared->fetchColumn() ?: 0);
 if ((int)$a['message_id'] <= $clearedThrough) fail('Attachment not found', 404);
 
 $root = dirname(__DIR__);
+if ($thumbnail) {
+    $thumbnailPath = trim((string)($a['thumbnail_path'] ?? ''));
+    if ($thumbnailPath === '') fail('Video thumbnail is not available', 404);
+    $path = $root . '/' . ltrim($thumbnailPath, '/');
+    if (!is_file($path)) fail('Video thumbnail file not found', 404);
+    $mime = 'image/jpeg';
+    header('Content-Type: ' . $mime);
+    header('Cache-Control: private, max-age=3600');
+    header('Content-Disposition: inline; filename="video-thumbnail.jpg"');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+
 $path = $root . '/' . ltrim($a['storage_path'], '/');
 if (!is_file($path)) fail('Attachment file not found', 404);
 
@@ -44,8 +60,6 @@ $isAudio = str_starts_with($mime, 'audio/');
 $isVideo = str_starts_with($mime, 'video/');
 if ($preview) {
     if (!$isImage && !$isAudio && !$isVideo) fail('Preview is not available for this file type', 400);
-    // Inline media may be viewed by chat members, while the original download
-    // remains protected by the sender's download policy.
     $authorizedPreview = true;
 } else {
     $authorizedPreview = (int)$a['sender_id'] === (int)$user['id'] || $a['download_policy'] === 'ALLOW';

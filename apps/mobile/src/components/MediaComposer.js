@@ -12,47 +12,31 @@ export default function MediaComposer({ chat, onMessage }) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const state = useAudioRecorderState(recorder, 200);
   const [busy, setBusy] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [draft, setDraft] = useState(null);
   const active = useRef(true);
   const stopping = useRef(false);
   const recordingUri = useRef(null);
   const disabled = Boolean(chat.blocked || busy || state.isRecording || draft);
-  const removeRecording = () => {
-    if (recordingUri.current) { try { const file = new File(recordingUri.current); if (file.exists) file.delete(); } catch {} recordingUri.current = null; }
-  };
+  const removeRecording = () => { if (recordingUri.current) { try { const file = new File(recordingUri.current); if (file.exists) file.delete(); } catch {} recordingUri.current = null; } };
   const stop = async () => {
     if (stopping.current) return;
     stopping.current = true;
-    try {
-      await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false });
-      if (active.current && recorder.uri) {
-        recordingUri.current = recorder.uri;
-        setDraft({ uri: recorder.uri, name: `voice-${Date.now()}.m4a`, mimeType: 'audio/mp4', type: 'voice' });
-      }
-    } catch (error) { if (active.current) Alert.alert('Recording failed', error.message); }
+    try { await recorder.stop(); await setAudioModeAsync({ allowsRecording: false }); if (active.current && recorder.uri) { recordingUri.current = recorder.uri; setDraft({ uri: recorder.uri, name: `voice-${Date.now()}.m4a`, mimeType: 'audio/mp4', type: 'voice' }); } }
+    catch (error) { if (active.current) Alert.alert('Recording failed', error.message); }
     finally { stopping.current = false; }
   };
   useEffect(() => { if (state.isRecording && state.durationMillis >= 30000) stop(); }, [state.isRecording, state.durationMillis]);
-  useEffect(() => {
-    active.current = true;
-    const subscription = AppState.addEventListener('change', next => { if (next !== 'active' && recorder.isRecording) stop(); });
-    return () => { active.current = false; subscription.remove(); removeRecording(); setAudioModeAsync({ allowsRecording: false }).catch(() => {}); };
-  }, [recorder]);
+  useEffect(() => { active.current = true; const subscription = AppState.addEventListener('change', next => { if (next !== 'active' && recorder.isRecording) stop(); }); return () => { active.current = false; subscription.remove(); removeRecording(); setAudioModeAsync({ allowsRecording: false }).catch(() => {}); }; }, [recorder]);
 
   const recordVoice = async () => {
     if (disabled) return;
     setBusy('permission');
-    try {
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (!permission.granted) throw new Error('Allow microphone access to record voice messages.');
-      if (!active.current) return;
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync();
-      if (active.current) recorder.record();
-    } catch (error) { if (active.current) Alert.alert('Microphone unavailable', error.message); }
+    try { const permission = await AudioModule.requestRecordingPermissionsAsync(); if (!permission.granted) throw new Error('Allow microphone access to record voice messages.'); if (!active.current) return; await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true }); await recorder.prepareToRecordAsync(); if (active.current) recorder.record(); }
+    catch (error) { if (active.current) Alert.alert('Microphone unavailable', error.message); }
     finally { if (active.current) setBusy(''); }
   };
+
   const chooseVideo = async camera => {
     if (disabled) return;
     setBusy('video');
@@ -64,37 +48,40 @@ export default function MediaComposer({ chat, onMessage }) {
       });
       if (!active.current || result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      if (asset.fileSize > 25 * 1024 * 1024) throw new Error('Videos must be 25 MB or smaller.');
+      if (asset.fileSize > 25 * 1024 * 1024) throw new Error('Videos must be 25 MB or smaller. Choose a shorter or lower-quality video.');
       const extension = asset.uri.split('.').pop()?.split('?')[0] || 'mp4';
-      setDraft({ uri: asset.uri, name: asset.fileName || `video-${Date.now()}.${extension}`, mimeType: asset.mimeType || (extension === 'mov' ? 'video/quicktime' : 'video/mp4'), type: 'video' });
+      setDraft({ uri: asset.uri, name: asset.fileName || `video-${Date.now()}.${extension}`, mimeType: asset.mimeType || (extension === 'mov' ? 'video/quicktime' : 'video/mp4'), type: 'video', width: Number(asset.width || 0), height: Number(asset.height || 0), durationSeconds: Number(asset.duration || 0) > 0 ? Number(asset.duration) / 1000 : 0, fileSize: Number(asset.fileSize || 0) });
     } catch (error) { if (active.current) Alert.alert('Video unavailable', error.message); }
     finally { if (active.current) setBusy(''); }
   };
+
   const send = async () => {
     if (!draft || busy) return;
     setBusy('upload');
+    setUploadProgress(0);
     try {
       const { data } = await uploadAttachmentAsset(draft, {
         chat_id: chat.id,
         message_type: draft.type,
         download_policy: 'APPROVAL_REQUIRED',
+        video_width: draft.width || undefined,
+        video_height: draft.height || undefined,
+        video_duration_seconds: draft.durationSeconds || undefined,
+        onProgress: setUploadProgress,
       });
-      if (active.current) { onMessage(data.message); setDraft(null); removeRecording(); }
+      if (active.current) { setUploadProgress(1); onMessage(data.message); setDraft(null); removeRecording(); }
     } catch (error) { if (active.current) Alert.alert('Unable to send media', error.message); }
     finally { if (active.current) setBusy(''); }
   };
+
   const shareLocation = async () => {
     if (disabled) return;
     setBusy('location');
-    try {
-      if (!(await Location.requestForegroundPermissionsAsync()).granted) throw new Error('Allow location access to share your current location.');
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      if (!active.current) return;
-      const { data } = await platformApi.shareLocation(chat.id, position.coords.latitude, position.coords.longitude, 'Current location');
-      if (active.current) onMessage(data.message);
-    } catch (error) { if (active.current) Alert.alert('Unable to share location', error.message); }
+    try { if (!(await Location.requestForegroundPermissionsAsync()).granted) throw new Error('Allow location access to share your current location.'); const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }); if (!active.current) return; const { data } = await platformApi.shareLocation(chat.id, position.coords.latitude, position.coords.longitude, 'Current location'); if (active.current) onMessage(data.message); }
+    catch (error) { if (active.current) Alert.alert('Unable to share location', error.message); }
     finally { if (active.current) setBusy(''); }
   };
+
   return <View>
     <View style={styles.row}>
       <Pressable disabled={disabled && !state.isRecording} onPress={state.isRecording ? stop : recordVoice} style={styles.button}><Text style={styles.link}>{state.isRecording ? `Stop · ${Math.floor(state.durationMillis / 1000)}s` : 'Voice'}</Text></Pressable>
@@ -103,10 +90,11 @@ export default function MediaComposer({ chat, onMessage }) {
     </View>
     <Modal visible={Boolean(draft)} transparent animationType="slide" onRequestClose={() => { if (!busy) { setDraft(null); removeRecording(); } }}>
       <View style={styles.overlay}><View style={styles.card}><Text style={styles.title}>Preview your message</Text>
-        {draft && (draft.type === 'voice' ? <AudioPreview source={draft.uri} /> : <VideoPreview source={draft.uri} />)}
+        {draft && (draft.type === 'voice' ? <AudioPreview source={draft.uri} /> : <VideoPreview source={draft.uri} local />)}
+        {busy === 'upload' ? <View style={styles.progressBox}><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(uploadProgress * 100)}%` }]} /></View><Text style={styles.progressText}>Sending video… {Math.round(uploadProgress * 100)}%</Text></View> : null}
         <View style={styles.row}><Pressable disabled={Boolean(busy)} onPress={send} style={styles.button}><Text style={styles.link}>{busy === 'upload' ? 'Sending…' : 'Send'}</Text></Pressable><Pressable disabled={Boolean(busy)} onPress={() => { setDraft(null); removeRecording(); }} style={styles.button}><Text style={styles.link}>Cancel</Text></Pressable></View>
       </View></View>
     </Modal>
   </View>;
 }
-const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: 10, justifyContent: 'center', backgroundColor: '#fff' }, button: { padding: 12 }, link: { color: '#3157d5', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center' }, card: { backgroundColor: '#fff', padding: 24, borderRadius: 18, maxWidth: '95%' }, title: { fontSize: 18, fontWeight: '700', color: '#172033', marginBottom: 12 } });
+const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: 10, justifyContent: 'center', backgroundColor: '#fff' }, button: { padding: 12 }, link: { color: '#3157d5', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center' }, card: { backgroundColor: '#fff', padding: 24, borderRadius: 18, maxWidth: '95%' }, title: { fontSize: 18, fontWeight: '700', color: '#172033', marginBottom: 12 }, progressBox: { marginTop: 12, width: '100%' }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#e5e7eb', overflow: 'hidden' }, progressFill: { height: 7, borderRadius: 4, backgroundColor: '#3157d5' }, progressText: { marginTop: 6, color: '#68748a', fontSize: 12 } });
