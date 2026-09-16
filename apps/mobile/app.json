@@ -4,59 +4,31 @@
     "slug": "cloudcomai",
     "version": "0.1.0",
     "orientation": "portrait",
-    "platforms": [
-      "android",
-      "ios"
-    ],
+    "platforms": ["android", "ios"],
     "scheme": "cloudcomai",
     "userInterfaceStyle": "automatic",
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/8b5d2701-7628-494f-8d43-6df16f026fab"
-    },
+    "runtimeVersion": { "policy": "fingerprint" },
+    "updates": { "url": "https://u.expo.dev/8b5d2701-7628-494f-8d43-6df16f026fab" },
     "android": {
       "package": "com.cloudcomai.mobile",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/app-icon.png",
-        "backgroundColor": "#3157d5"
-      },
+      "adaptiveIcon": { "foregroundImage": "./assets/app-icon.png", "backgroundColor": "#3157d5" },
       "edgeToEdgeEnabled": false
     },
-    "ios": {
-      "bundleIdentifier": "com.cloudcomai.mobile",
-      "supportsTablet": true
-    },
+    "ios": { "bundleIdentifier": "com.cloudcomai.mobile", "supportsTablet": true },
     "plugins": [
       "expo-secure-store",
       "expo-document-picker",
-      "expo-notifications",
+      ["expo-notifications", { "defaultChannel": "messages_alerts_v2" }],
       ["expo-audio", { "microphonePermission": "Allow CloudComAI to record voice messages." }],
       ["expo-image-picker", { "cameraPermission": "Allow CloudComAI to take photos and record video messages.", "microphonePermission": "Allow CloudComAI to record sound for video messages.", "photosPermission": "Allow CloudComAI to choose photos and videos to share." }],
       ["expo-location", { "locationWhenInUsePermission": "Allow CloudComAI to share your current location when you choose." }],
       "expo-video"
     ],
-    "extra": {
-      "eas": {
-        "projectId": "8b5d2701-7628-494f-8d43-6df16f026fab"
-      }
-    },
+    "extra": { "eas": { "projectId": "8b5d2701-7628-494f-8d43-6df16f026fab" } },
     "owner": "kumar_1325",
     "icon": "./assets/app-icon.png",
-    "splash": {
-      "image": "./assets/splash-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#3157d5"
-    },
-    "androidStatusBar": {
-      "backgroundColor": "#3157d5",
-      "barStyle": "light-content",
-      "translucent": false
-    },
-    "androidNavigationBar": {
-      "backgroundColor": "#ffffff",
-      "barStyle": "dark-content"
-    }
+    "splash": { "image": "./assets/splash-logo.png", "resizeMode": "contain", "backgroundColor": "#3157d5" },
+    "androidStatusBar": { "backgroundColor": "#3157d5", "barStyle": "light-content", "translucent": false },
+    "androidNavigationBar": { "backgroundColor": "#ffffff", "barStyle": "dark-content" }
   }
 }
