@@ -36,11 +36,10 @@ expect_media(!str_contains($index, "'error' => 'API request failed'"), 'Generic 
 foreach (['cloudcomai_upload_error_message', 'cloudcomai_detect_mime_type', 'finfo_open', 'mime_content_type'] as $needle) {
     expect_media(str_contains($mediaHelper, $needle), "Missing media helper: {$needle}");
 }
-expect_media(str_contains($storyUpload, "$_FILES['file']"), 'Ring Bell upload must consume the multipart file field');
+expect_media(str_contains($storyUpload, '$_FILES[\'file\']'), 'Ring Bell upload must consume the multipart file field');
 expect_media(str_contains($storyUpload, 'is_uploaded_file'), 'Ring Bell upload must verify the uploaded file');
 expect_media(str_contains($storyUpload, 'cloudcomai_detect_mime_type'), 'Ring Bell upload must validate MIME from file bytes');
 expect_media(str_contains($storyUpload, 'is_writable'), 'Ring Bell upload must validate storage permissions');
 expect_media(str_contains($storyUpload, '50 * 1024 * 1024'), 'Ring Bell upload must retain the 50 MB limit');
-
 
 echo "Media upload resilience tests passed\n";
