@@ -53,7 +53,7 @@ if ($method === 'POST') {
 
     try {
         $st = db()->prepare('INSERT INTO stories(user_id,type,content,audience,created_at,expires_at) VALUES(?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()+INTERVAL 36 HOUR)');
-        $st->execute([$userId, $type, is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
+        $st->execute([$userId, $type, is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), $audience]);
         $storyId = (int)db()->lastInsertId();
     } catch (Throwable $error) {
         if ($storedMediaPath && is_file($storedMediaPath)) @unlink($storedMediaPath);
