@@ -1,10 +1,22 @@
 <?php
 declare(strict_types=1);
 
+function notification_preference_columns(): array {
+    static $columns;
+    if ($columns !== null) return $columns;
+    $columns = [];
+    foreach (db()->query('SHOW COLUMNS FROM user_notification_preferences')->fetchAll(PDO::FETCH_COLUMN) as $name) $columns[(string)$name] = true;
+    return $columns;
+}
+
 function notification_preferences(int $userId): array {
-    $st = db()->prepare('SELECT enabled,message,`group`,attachment,`system`,sound,vibration,preview FROM user_notification_preferences WHERE user_id=?');
+    $defaults = ['enabled'=>1,'message'=>1,'group'=>1,'attachment'=>1,'system'=>1,'sound'=>1,'vibration'=>1,'preview'=>1];
+    $columns = notification_preference_columns();
+    $select = ['enabled','message','`group`','attachment','`system`'];
+    foreach (['sound','vibration','preview'] as $optional) if (isset($columns[$optional])) $select[] = $optional;
+    $st = db()->prepare('SELECT ' . implode(',', $select) . ' FROM user_notification_preferences WHERE user_id=?');
     $st->execute([$userId]);
-    return array_map('boolval', array_merge(['enabled'=>1,'message'=>1,'group'=>1,'attachment'=>1,'system'=>1,'sound'=>1,'vibration'=>1,'preview'=>1], $st->fetch() ?: []));
+    return array_map('boolval', array_merge($defaults, $st->fetch() ?: []));
 }
 
 function notification_visibility_sql(): string {
@@ -40,6 +52,10 @@ function cancel_read_notification_deliveries(int $userId): void {
 
 function pending_notification_deliveries(int $limit = 100): array {
     $limit = max(1,min(100,$limit));
+    $columns = notification_preference_columns();
+    $sound = isset($columns['sound']) ? 'COALESCE(np.sound,1)' : '1';
+    $vibration = isset($columns['vibration']) ? 'COALESCE(np.vibration,1)' : '1';
+    $preview = isset($columns['preview']) ? 'COALESCE(np.preview,1)' : '1';
     $joins = <<<'SQL'
         INNER JOIN notification_devices d ON d.id=q.device_id
         INNER JOIN notification_history h ON h.id=q.notification_id
@@ -52,13 +68,9 @@ function pending_notification_deliveries(int $limit = 100): array {
         AND NOT EXISTS (SELECT 1 FROM chat_user_states read_state WHERE read_state.user_id=h.user_id AND read_state.chat_id=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.chat_id')) AS UNSIGNED) AND read_state.last_read_message_id>=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.message_id')) AS UNSIGNED))
         AND " . notification_visibility_sql();
     db()->exec("UPDATE notification_delivery_queue q $joins SET q.status='FAILED',q.last_error='No longer eligible for delivery' WHERE q.status='PENDING' AND NOT ($eligible)");
-    $rows = db()->query("SELECT q.id,q.device_id,d.token,h.user_id,h.title,h.body,h.data_json,COALESCE(np.sound,1) AS sound,COALESCE(np.vibration,1) AS vibration,COALESCE(np.preview,1) AS preview FROM notification_delivery_queue q $joins WHERE q.status='PENDING' AND q.available_at<=UTC_TIMESTAMP() AND ($eligible) ORDER BY q.id LIMIT $limit")->fetchAll();
+    $rows = db()->query("SELECT q.id,q.device_id,d.token,h.user_id,h.title,h.body,h.data_json,$sound AS sound,$vibration AS vibration,$preview AS preview FROM notification_delivery_queue q $joins WHERE q.status='PENDING' AND q.available_at<=UTC_TIMESTAMP() AND ($eligible) ORDER BY q.id LIMIT $limit")->fetchAll();
     $counts = [];
-    foreach ($rows as &$row) {
-        $uid = (int)$row['user_id'];
-        if (!isset($counts[$uid])) $counts[$uid] = notification_unread_count($uid);
-        $row['unread_count'] = $counts[$uid];
-    }
+    foreach ($rows as &$row) { $uid=(int)$row['user_id']; if (!isset($counts[$uid])) $counts[$uid]=notification_unread_count($uid); $row['unread_count']=$counts[$uid]; }
     unset($row);
     return $rows;
 }
