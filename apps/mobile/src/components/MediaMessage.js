@@ -101,7 +101,7 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   const messageTextStyle = { color: colors.text || '#172033', fontSize: 15 * textScale };
   const actionTextStyle = { color: colors.text || '#3157d5' };
   const canForward = ['text', 'forwarded_text'].includes(message.type);
-  const profileAction = message.show_profile && message.sender_id ? <Pressable style={styles.profileLink} onPress={() => setProfileOpen(true)}><Text style={[styles.profileLinkText, actionTextStyle]}>View {message.sender_name || 'sender'} profile</Text></Pressable> : null;
+  const profileAction = Number(message.show_profile) === 1 && message.sender_id ? <Pressable style={styles.profileLink} onPress={() => setProfileOpen(true)}><Text style={[styles.profileLinkText, actionTextStyle]}>View {message.sender_name || 'sender'} profile</Text></Pressable> : null;
   useEffect(() => { setPollOptions(message.poll?.options || []); }, [message.poll?.options]);
   const kind = attachmentKind(message.type, attachment);
   useEffect(() => { setRequested(false); setSource(null); setError(''); }, [attachment?.id]);
