@@ -71,6 +71,8 @@ jobs:
       - run: php backend/tests/public_chat_rooms_test.php
       - run: php backend/tests/friend_requests_feature_test.php
       - run: php backend/tests/ring_bells_feature_test.php
+      - run: php backend/tests/message_profile_visibility_test.php
+      - run: php backend/tests/video_messaging_feature_test.php
       - run: php backend/tests/media_upload_resilience_test.php
       - run: php backend/tests/privacy_messaging_test.php
         env:
