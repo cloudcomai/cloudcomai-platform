@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.6.0",
+  "contractVersion": "1.7.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
@@ -48,7 +48,9 @@
     "v1/health": { "handler": "health.php", "methods": ["GET"], "auth": false },
     "v1/calls": { "handler": "calls.php", "methods": ["POST"], "auth": true },
     "v1/live-locations": { "handler": "live_location.php", "methods": ["POST"], "auth": true },
-    "v1/stories": { "handler": "stories.php", "methods": ["GET", "POST"], "auth": true },
+    "v1/stories": { "handler": "stories.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
+    "v1/stories/media": { "handler": "story_media.php", "methods": ["GET"], "auth": true },
+    "v1/stories/media/upload": { "handler": "story_media_upload.php", "methods": ["POST"], "auth": true, "contentType": "multipart/form-data" },
     "v1/media": { "handler": "media.php", "methods": ["GET"], "auth": true },
     "v1/media/upload": { "handler": "media_upload.php", "methods": ["POST"], "auth": true },
     "v1/invitations/join": { "handler": "join.php", "methods": ["GET", "POST"], "auth": false }
