@@ -2,12 +2,20 @@
 declare(strict_types=1);
 
 function notification_preferences(int $userId): array {
-    $st = db()->prepare('SELECT enabled,message,`group`,attachment,`system` FROM user_notification_preferences WHERE user_id=?');
+    $st = db()->prepare('SELECT enabled,message,`group`,attachment,`system`,sound,vibration,preview FROM user_notification_preferences WHERE user_id=?');
     $st->execute([$userId]);
-    return array_map('boolval', array_merge(['enabled'=>1,'message'=>1,'group'=>1,'attachment'=>1,'system'=>1], $st->fetch() ?: []));
+    return array_map('boolval', array_merge([
+        'enabled'=>1,
+        'message'=>1,
+        'group'=>1,
+        'attachment'=>1,
+        'system'=>1,
+        'sound'=>1,
+        'vibration'=>1,
+        'preview'=>1,
+    ], $st->fetch() ?: []));
 }
 
-// Use the same visibility rules for the inbox, badge and push delivery.
 function notification_visibility_sql(): string {
     return <<<'SQL'
         (
@@ -52,7 +60,9 @@ function pending_notification_deliveries(int $limit = 100): array {
         AND NOT EXISTS (SELECT 1 FROM chat_user_states muted WHERE muted.user_id=h.user_id AND muted.chat_id=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.chat_id')) AS UNSIGNED) AND muted.notifications_muted=1)
         AND " . notification_visibility_sql();
     db()->exec("UPDATE notification_delivery_queue q $joins SET q.status='FAILED',q.last_error='No longer eligible for delivery' WHERE q.status='PENDING' AND NOT ($eligible)");
-    $rows = db()->query("SELECT q.id,q.device_id,d.token,h.user_id,h.title,h.body,h.data_json FROM notification_delivery_queue q $joins WHERE q.status='PENDING' AND q.available_at<=UTC_TIMESTAMP() AND ($eligible) ORDER BY q.id LIMIT $limit")->fetchAll();
+    $rows = $pdoRows = db()->query("SELECT q.id,q.device_id,d.token,h.user_id,h.title,h.body,h.data_json,
+        COALESCE(np.sound,1) AS sound,COALESCE(np.vibration,1) AS vibration,COALESCE(np.preview,1) AS preview
+        FROM notification_delivery_queue q $joins WHERE q.status='PENDING' AND q.available_at<=UTC_TIMESTAMP() AND ($eligible) ORDER BY q.id LIMIT $limit")->fetchAll();
     $counts = [];
     foreach ($rows as &$row) {
         $uid = (int)$row['user_id'];
