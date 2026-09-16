@@ -18,6 +18,7 @@ assert(str_contains($handler, 'ORDER BY watched ASC'));
 assert(str_contains($handler, 's.deleted_at IS NULL'));
 assert(str_contains($handler, 'storedMediaPath'));
 assert(str_contains($handler, 'unlink($storedMediaPath)'));
+assert(str_contains($handler, '], $audience])'));
 
 $mediaUpload = (string)file_get_contents($root . '/api/story_media_upload.php');
 foreach (['50 * 1024 * 1024','video/mp4','image/jpeg','is_uploaded_file','cloudcomai_detect_mime_type','is_writable'] as $needle) {
