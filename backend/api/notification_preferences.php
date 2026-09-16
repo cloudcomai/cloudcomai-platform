@@ -12,5 +12,15 @@ foreach ($current as $key => $value) {
     $current[$key] = $data[$key];
 }
 $pdo = db();
-$pdo->prepare('INSERT INTO user_notification_preferences(user_id,enabled,message,`group`,attachment,`system`) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled),message=VALUES(message),`group`=VALUES(`group`),attachment=VALUES(attachment),`system`=VALUES(`system`)')->execute(array_merge([$user['id']],array_map('intval',array_values($current))));
+$pdo->prepare('INSERT INTO user_notification_preferences(user_id,enabled,message,`group`,attachment,`system`,sound,vibration,preview) VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled),message=VALUES(message),`group`=VALUES(`group`),attachment=VALUES(attachment),`system`=VALUES(`system`),sound=VALUES(sound),vibration=VALUES(vibration),preview=VALUES(preview)')->execute([
+    $user['id'],
+    (int)$current['enabled'],
+    (int)$current['message'],
+    (int)$current['group'],
+    (int)$current['attachment'],
+    (int)$current['system'],
+    (int)$current['sound'],
+    (int)$current['vibration'],
+    (int)$current['preview'],
+]);
 out(['preferences'=>$current]);
