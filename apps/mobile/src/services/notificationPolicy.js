@@ -25,7 +25,7 @@ export function notificationPreview(messageType, body, previewEnabled) {
   if (type === 'file' || type === 'document') return 'File';
   if (type !== 'text') return 'Attachment';
   const text = String(body || '').trim().replace(/\s+/g, ' ');
-  return text.length > 120 ? `${text.slice(0, 117)}…` : (text || 'New message');
+  return text.length > 120 ? `${text.slice(0, 119)}…` : (text || 'New message');
 }
 
 export function shouldSuppressSameChat({ appState, activeChatId, notificationChatId, category }) {
