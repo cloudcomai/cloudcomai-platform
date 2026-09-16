@@ -1,0 +1,44 @@
+name: Apply mobile chat blank-screen fix
+
+on:
+  push:
+    branches:
+      - fix/mobile-chat-blank-after-send
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: ${{ !contains(github.event.head_commit.message, '[blank-fix-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-chat-blank-after-send
+      - name: Replace out-of-scope pending-message color
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/mobile/App.js')
+          text = path.read_text()
+          marker = 'localMessages?.outbox?.some'
+          start = text.index(marker)
+          end = text.index('<MediaComposer', start)
+          block = text[start:end]
+          old = '{ color: messageColors.text }'
+          count = block.count(old)
+          if count != 2:
+              raise SystemExit(f'Expected exactly 2 pending-message color references, found {count}')
+          block = block.replace(old, '{ color: theme.colors.text }')
+          path.write_text(text[:start] + block + text[end:])
+          PY
+      - name: Run regression test
+        run: node apps/mobile/test/chat-pending-message-render.test.js
+      - name: Commit fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/mobile/App.js
+          git commit -m 'fix(mobile): prevent blank chat after sending [blank-fix-applied]'
+          git push origin HEAD:fix/mobile-chat-blank-after-send
