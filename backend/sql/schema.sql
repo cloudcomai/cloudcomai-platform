@@ -21,33 +21,7 @@ CREATE TABLE password_reset_tokens (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KE
 CREATE TABLE message_attachments (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,message_id BIGINT UNSIGNED NOT NULL,original_filename VARCHAR(255) NOT NULL,stored_filename VARCHAR(255) NOT NULL UNIQUE,storage_path VARCHAR(500) NOT NULL,mime_type VARCHAR(150) NOT NULL,file_size BIGINT UNSIGNED NOT NULL,download_policy ENUM('ALLOW','APPROVAL_REQUIRED','VIEW_ONLY') NOT NULL DEFAULT 'APPROVAL_REQUIRED',created_at DATETIME NOT NULL,INDEX(message_id),INDEX(download_policy)) ENGINE=InnoDB;
 CREATE TABLE attachment_download_requests (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,attachment_id BIGINT UNSIGNED NOT NULL,requester_id BIGINT UNSIGNED NOT NULL,sender_id BIGINT UNSIGNED NOT NULL,request_type ENUM('DOWNLOAD','FORWARD') NOT NULL DEFAULT 'DOWNLOAD',status ENUM('PENDING','APPROVED','DENIED') NOT NULL DEFAULT 'PENDING',requested_at DATETIME NOT NULL,responded_at DATETIME NULL,UNIQUE KEY uq_attachment_request_action(attachment_id,requester_id,request_type),INDEX(sender_id,status),INDEX(requester_id,request_type,status),INDEX(attachment_id,status)) ENGINE=InnoDB;
 CREATE TABLE phone_contacts (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,user_id BIGINT UNSIGNED NOT NULL,contact_key VARCHAR(320) NOT NULL,display_name VARCHAR(255) NULL,email VARCHAR(320) NULL,phone VARCHAR(100) NULL,created_at DATETIME NOT NULL,updated_at DATETIME NOT NULL,UNIQUE KEY uq_phone_contacts_user_key(user_id,contact_key),INDEX(user_id),INDEX(user_id,email),INDEX(user_id,phone));
-CREATE TABLE IF NOT EXISTS account_backup_settings (
-    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-    backup_account_email VARCHAR(190) NOT NULL,
-    automatic_frequency ENUM('off','daily','weekly','monthly') NOT NULL DEFAULT 'off',
-    include_videos TINYINT(1) NOT NULL DEFAULT 0,
-    wifi_only TINYINT(1) NOT NULL DEFAULT 1,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_account_backup_settings_email (backup_account_email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS account_backups (
-    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-    version INT UNSIGNED NOT NULL,
-    file_path VARCHAR(500) NOT NULL,
-    backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
-    last_backup_at DATETIME NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_account_backups_last_backup (last_backup_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS account_backup_versions (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT UNSIGNED NOT NULL,
-    version INT UNSIGNED NOT NULL,
-    file_path VARCHAR(500) NOT NULL,
-    backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_account_backup_version (user_id, version),
-    INDEX idx_account_backup_versions_user_created (user_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS account_backup_settings (user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,backup_account_email VARCHAR(190) NOT NULL,automatic_frequency ENUM('off','daily','weekly','monthly') NOT NULL DEFAULT 'off',include_videos TINYINT(1) NOT NULL DEFAULT 0,wifi_only TINYINT(1) NOT NULL DEFAULT 1,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_account_backup_settings_email (backup_account_email)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS account_backups (user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,version INT UNSIGNED NOT NULL,file_path VARCHAR(500) NOT NULL,backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,last_backup_at DATETIME NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_account_backups_last_backup (last_backup_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS account_backup_versions (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,user_id BIGINT UNSIGNED NOT NULL,version INT UNSIGNED NOT NULL,file_path VARCHAR(500) NOT NULL,backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_account_backup_version (user_id,version),INDEX idx_account_backup_versions_user_created (user_id,created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS notification_delivery_queue (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,notification_id BIGINT UNSIGNED NOT NULL,device_id BIGINT UNSIGNED NOT NULL,status ENUM('PENDING','SENT','FAILED') NOT NULL DEFAULT 'PENDING',attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,ticket_id VARCHAR(128) NULL,last_error VARCHAR(500) NULL,available_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_notification_delivery (notification_id,device_id),INDEX idx_notification_delivery_pending (status,available_at,id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
