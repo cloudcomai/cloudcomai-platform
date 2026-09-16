@@ -136,7 +136,7 @@ export default function PublicChatsList({ onOpenChat }) {
             renderItem={({ item }) => renderRoom({ item, favorite: true })}
             style={styles.favoritesList}
             nestedScrollEnabled
-            ListFooterComponent={<View style={styles.panelBottomSpace} />}
+            showsVerticalScrollIndicator={false}
           /> : <View style={styles.emptyFavorite}><Text style={styles.emptyTitle}>No favorite rooms yet</Text><Text style={styles.emptyText}>Join a public room and it will appear here for quick access.</Text></View>}
         </View>
       ) : null}
@@ -162,7 +162,7 @@ export default function PublicChatsList({ onOpenChat }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 8, backgroundColor: '#fff' },
+  container: { position: 'absolute', top: -166, bottom: 0, left: 0, right: 0, zIndex: 20, elevation: 20, minHeight: 0, paddingHorizontal: 12, paddingTop: 8, backgroundColor: '#fff' },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: '#68748a', fontSize: 12 },
   titleRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
@@ -186,13 +186,12 @@ const styles = StyleSheet.create({
   chevron: { paddingHorizontal: 7, color: '#3157d5', fontSize: 22, fontWeight: '700' },
   favoritesPanel: { maxHeight: 230, marginBottom: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#e1e6ef', borderRadius: 12, backgroundColor: '#fff' },
   favoritesList: { flexGrow: 0 },
-  panelBottomSpace: { height: 2 },
   emptyFavorite: { padding: 14 },
   roomsHeader: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   roomsTitle: { color: '#172033', fontSize: 14, fontWeight: '800' },
   roomsHint: { color: '#7a8497', fontSize: 10 },
   roomList: { flex: 1, minHeight: 0 },
-  roomListContent: { paddingBottom: 12 },
+  roomListContent: { paddingBottom: 84 },
   roomRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
   roomIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff' },
   roomIconText: { color: '#3157d5', fontSize: 15, fontWeight: '800' },
