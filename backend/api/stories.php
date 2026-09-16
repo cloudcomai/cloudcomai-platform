@@ -32,6 +32,8 @@ if ($method === 'POST') {
     if (!in_array($type, ['text', 'photo', 'video'], true)) fail('Invalid Ring Bell type', 422);
     if (!in_array($audience, ['friends', 'public'], true)) fail('Invalid Ring Bells audience', 422);
     $content = $data['content'] ?? '';
+    $storedMediaPath = null;
+
     if ($type === 'text') {
         if (!is_string($content)) fail('Story content required', 422);
         $content = trim($content);
@@ -41,16 +43,25 @@ if ($method === 'POST') {
         if (!is_array($content)) fail('Media Ring Bell content is invalid', 422);
         $filename = basename((string)($content['media_filename'] ?? ''));
         if ($filename === '' || !preg_match('/^[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp|mp4|mov|webm)$/i', $filename)) fail('Ring Bell media is invalid', 422);
-        $path = dirname(__DIR__) . '/uploads/stories/' . $userId . '/' . $filename;
-        if (!is_file($path)) fail('Ring Bell media is unavailable', 422);
+        $storedMediaPath = dirname(__DIR__) . '/uploads/stories/' . $userId . '/' . $filename;
+        if (!is_file($storedMediaPath)) fail('Ring Bell media is unavailable', 422);
         $caption = trim((string)($content['caption'] ?? ''));
         $captionLength = preg_match_all('/./us', $caption);
         if ($captionLength !== false && $captionLength > 700) fail('Ring Bell caption must contain at most 700 characters', 422);
         $content = ['media_filename' => $filename, 'caption' => $caption];
     }
-    $st = db()->prepare('INSERT INTO stories(user_id,type,content,audience,created_at,expires_at) VALUES(?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()+INTERVAL 36 HOUR)');
-    $st->execute([$userId, $type, is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
-    out(['story_id' => (int)db()->lastInsertId(), 'expires_in_hours' => 36], 201);
+
+    try {
+        $st = db()->prepare('INSERT INTO stories(user_id,type,content,audience,created_at,expires_at) VALUES(?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()+INTERVAL 36 HOUR)');
+        $st->execute([$userId, $type, is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
+        $storyId = (int)db()->lastInsertId();
+    } catch (Throwable $error) {
+        if ($storedMediaPath && is_file($storedMediaPath)) @unlink($storedMediaPath);
+        error_log('Ring Bell story creation failed for user ' . $userId . ': ' . $error->getMessage());
+        fail('The media uploaded successfully, but the Ring Bell could not be created. Please try again.', 500);
+    }
+
+    out(['story_id' => $storyId, 'expires_in_hours' => 36], 201);
 }
 
 if ($method === 'DELETE') {
