@@ -4,6 +4,7 @@ require __DIR__ . '/../lib/bootstrap.php';
 $user = auth_user();
 $userId = (int)$user['id'];
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+ensureStoryViewsTable();
 
 if ($method === 'POST') {
     $data = input();
@@ -135,6 +136,13 @@ if ($method === 'GET') {
 }
 
 fail('Method not allowed', 405);
+
+function ensureStoryViewsTable(): void {
+    static $ready = false;
+    if ($ready) return;
+    db()->exec('CREATE TABLE IF NOT EXISTS story_views (story_id BIGINT UNSIGNED NOT NULL, viewer_id BIGINT UNSIGNED NOT NULL, viewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (story_id, viewer_id), INDEX idx_story_views_viewer_story (viewer_id, story_id), INDEX idx_story_views_story_viewed_at (story_id, viewed_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    $ready = true;
+}
 
 function deleteStory(int $storyId, int $userId): void {
     $stmt = db()->prepare('UPDATE stories SET deleted_at=UTC_TIMESTAMP() WHERE id=? AND user_id=? AND deleted_at IS NULL');
