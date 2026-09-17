@@ -4,23 +4,29 @@ import { readFile } from 'node:fs/promises';
 
 const platformSource = await readFile(new URL('../src/services/platform.js', import.meta.url), 'utf8');
 const ringBellsSource = await readFile(new URL('../src/components/RingBellsStatus.js', import.meta.url), 'utf8');
+const composerSource = await readFile(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
 
 
-test('mobile uploads use native FormData Blob parts instead of unsupported object parts', () => {
+test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
   assert.match(platformSource, /new FormDataCtor\(\)/);
-  assert.match(platformSource, /const\s+blob\s*=\s*await\s+response\.blob\(\)/);
-  assert.match(platformSource, /blob\.slice\(0,\s*blob\.size,\s*normalized\.mimeType\)/);
-  assert.match(platformSource, /form\.append\(fieldName,\s*typedBlob,\s*normalized\.name\)/);
+  assert.match(platformSource, /isNativeFileUri\s*=\s*uri\s*=>\s*\/\^\(content\|file\)/);
+  assert.match(platformSource, /form\.append\(fieldName,\s*\{\s*uri:\s*normalized\.uri,\s*name:\s*normalized\.name,\s*type:\s*normalized\.mimeType\s*\}\)/);
   assert.match(platformSource, /body:\s*formData/);
   assert.doesNotMatch(platformSource, /UploadType\.MULTIPART/);
-  assert.doesNotMatch(platformSource, /form\.append\(fieldName,\s*\{\s*uri:/);
 });
 
-test('mobile media upload preserves MIME metadata and filename', () => {
-  assert.match(platformSource, /blob\.type\s*===\s*normalized\.mimeType/);
+test('mobile uploads preserve MIME metadata and filename for native and Blob parts', () => {
+  assert.match(platformSource, /original_filename:\s*parameters\.original_filename\s*\|\|\s*normalized\.name/);
   assert.match(platformSource, /blob\.slice\(0,\s*blob\.size,\s*normalized\.mimeType\)/);
   assert.match(platformSource, /form\.append\(fieldName,\s*typedBlob,\s*normalized\.name\)/);
-  assert.match(platformSource, /original_filename:\s*parameters\.original_filename\s*\|\|\s*normalized\.name/);
+});
+
+test('media upload reports progress, real server errors and retry without creating a message on client failure', () => {
+  assert.match(platformSource, /xhr\.onload\s*=\s*\(\)\s*=>resolve/);
+  assert.match(platformSource, /xhr\.ontimeout/);
+  assert.match(composerSource, /setUploadError/);
+  assert.match(composerSource, /Retry/);
+  assert.match(composerSource, /onMessage\(data\.message\)/);
 });
 
 test('Ring Bell media posting uses the shared upload route and exposes retry/success states', () => {

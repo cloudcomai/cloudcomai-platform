@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../lib/bootstrap.php';
+require_once __DIR__ . '/../lib/media_upload.php';
 $user = auth_user();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('Method not allowed', 405);
@@ -11,7 +12,7 @@ $requestedType = strtolower(trim((string)($_POST['message_type'] ?? 'attachment'
 $policy = strtoupper((string)($_POST['download_policy'] ?? 'APPROVAL_REQUIRED'));
 if (!in_array($policy, ['ALLOW','APPROVAL_REQUIRED','VIEW_ONLY'], true)) fail('Invalid download policy');
 if ($chat <= 0) fail('Invalid chat');
-if (!isset($_FILES['file']) || !is_array($_FILES['file'])) fail('File is required');
+if (!isset($_FILES['file']) || !is_array($_FILES['file'])) fail('No media file was received. Check the server post_max_size/upload_max_filesize settings.', 413);
 
 $m = db()->prepare('SELECT c.retention_seconds,COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id FROM chats c JOIN chat_members cm ON cm.chat_id=c.id LEFT JOIN chat_user_states cus ON cus.chat_id=c.id AND cus.user_id=cm.user_id WHERE c.id=? AND cm.user_id=? AND cm.status="active"');
 $m->execute([$chat, $user['id']]);
@@ -20,7 +21,9 @@ if (!$row) fail('Not a member', 403);
 assert_chat_allows_messages($chat, (int)$user['id']);
 
 $file = $_FILES['file'];
-if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) fail('File upload failed');
+$fileError = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+if ($fileError !== UPLOAD_ERR_OK) fail(cloudcomai_upload_error_message($fileError), $fileError === UPLOAD_ERR_INI_SIZE || $fileError === UPLOAD_ERR_FORM_SIZE ? 413 : 400);
+if (!isset($file['tmp_name']) || !is_string($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) fail('The server did not receive a valid uploaded media file.', 400);
 $maxBytes = 25 * 1024 * 1024;
 if ((int)$file['size'] <= 0 || (int)$file['size'] > $maxBytes) fail('File must be between 1 byte and 25 MB');
 $originalFilename = trim((string)($_POST['original_filename'] ?? $file['name'] ?? 'attachment'));
@@ -40,14 +43,14 @@ $allowed = [
 ];
 $finfo = new finfo(FILEINFO_MIME_TYPE);
 $mime = $finfo->file($file['tmp_name']);
-if (!isset($allowed[$mime])) fail('File type is not allowed');
+if (!isset($allowed[$mime])) fail("File type is not allowed. Detected MIME type: {$mime}", 415);
 $messageType = 'attachment';
 if ($requestedType === 'voice') {
  $originalExtension = strtolower((string)pathinfo((string)$file['name'], PATHINFO_EXTENSION));
- if (!str_starts_with($mime, 'audio/') && $mime !== 'video/webm' && !($mime === 'video/mp4' && in_array($originalExtension, ['m4a','aac'], true))) fail('Voice messages must contain audio');
+ if (!str_starts_with($mime, 'audio/') && $mime !== 'video/webm' && !($mime === 'video/mp4' && in_array($originalExtension, ['m4a','aac'], true))) fail("Voice messages must contain audio. Detected MIME type: {$mime}", 415);
  $messageType = 'voice';
 } elseif ($requestedType === 'video') {
- if (!str_starts_with($mime, 'video/')) fail('Video messages must contain video');
+ if (!str_starts_with($mime, 'video/')) fail("Video messages must contain video. Detected MIME type: {$mime}", 415);
  $messageType = 'video';
 } elseif ($requestedType !== 'attachment') {
  fail('Invalid attachment message type');
@@ -61,10 +64,11 @@ if ($reply) {
 }
 
 $root = dirname(__DIR__) . '/storage/attachments';
-if (!is_dir($root) && !mkdir($root, 0750, true)) fail('Unable to prepare attachment storage', 500);
+if (!is_dir($root) && !mkdir($root, 0750, true)) fail('Unable to prepare attachment storage. Check that backend/storage/attachments exists or can be created.', 500);
+if (!is_writable($root)) fail('Attachment storage is not writable. Grant the PHP/web-server user write permission to backend/storage/attachments.', 500);
 $stored = bin2hex(random_bytes(24)) . '.' . $allowed[$mime];
 $path = $root . '/' . $stored;
-if (!move_uploaded_file($file['tmp_name'], $path)) fail('Unable to store attachment', 500);
+if (!move_uploaded_file($file['tmp_name'], $path)) fail('The server received the media but could not store it. Check attachment directory permissions.', 500);
 
 $thumbnailFilename = null;
 $thumbnailPath = null;
@@ -114,7 +118,7 @@ try {
  @unlink($path);
  if ($thumbnailPath) @unlink($thumbnailPath);
  error_log('Media message creation failed: ' . $e->getMessage());
- fail('Unable to send media', 500);
+ fail('Unable to send media. The file was uploaded but the chat message could not be saved.', 500);
 }
 
 try {
