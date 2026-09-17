@@ -13,6 +13,7 @@ export default function MediaComposer({ chat, onMessage }) {
   const state = useAudioRecorderState(recorder, 200);
   const [busy, setBusy] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
   const [draft, setDraft] = useState(null);
   const active = useRef(true);
   const stopping = useRef(false);
@@ -32,6 +33,7 @@ export default function MediaComposer({ chat, onMessage }) {
   const recordVoice = async () => {
     if (disabled) return;
     setBusy('permission');
+    setUploadError('');
     try { const permission = await AudioModule.requestRecordingPermissionsAsync(); if (!permission.granted) throw new Error('Allow microphone access to record voice messages.'); if (!active.current) return; await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true }); await recorder.prepareToRecordAsync(); if (active.current) recorder.record(); }
     catch (error) { if (active.current) Alert.alert('Microphone unavailable', error.message); }
     finally { if (active.current) setBusy(''); }
@@ -40,6 +42,7 @@ export default function MediaComposer({ chat, onMessage }) {
   const chooseVideo = async camera => {
     if (disabled) return;
     setBusy('video');
+    setUploadError('');
     try {
       const result = await withAppLockExternalActivity(async () => {
         if (camera && !(await ImagePicker.requestCameraPermissionsAsync()).granted) throw new Error('Allow camera access to record video.');
@@ -58,6 +61,7 @@ export default function MediaComposer({ chat, onMessage }) {
   const send = async () => {
     if (!draft || busy) return;
     setBusy('upload');
+    setUploadError('');
     setUploadProgress(0);
     try {
       const { data } = await uploadAttachmentAsset(draft, {
@@ -70,8 +74,9 @@ export default function MediaComposer({ chat, onMessage }) {
         onProgress: setUploadProgress,
       });
       if (active.current) { setUploadProgress(1); onMessage(data.message); setDraft(null); removeRecording(); }
-    } catch (error) { if (active.current) Alert.alert('Unable to send media', error.message); }
-    finally { if (active.current) setBusy(''); }
+    } catch (error) {
+      if (active.current) setUploadError(error?.message || 'The media upload failed. Please try again.');
+    } finally { if (active.current) setBusy(''); }
   };
 
   const shareLocation = async () => {
@@ -88,13 +93,14 @@ export default function MediaComposer({ chat, onMessage }) {
       <Pressable disabled={disabled} onPress={() => Alert.alert('Video message', 'Record or choose a video (up to 25 MB).', [{ text: 'Record', onPress: () => chooseVideo(true) }, { text: 'Choose video', onPress: () => chooseVideo(false) }, { text: 'Cancel', style: 'cancel' }])} style={styles.button}><Text style={styles.link}>Video</Text></Pressable>
       <Pressable disabled={disabled} onPress={shareLocation} style={styles.button}><Text style={styles.link}>{busy === 'location' ? 'Locating…' : 'Location'}</Text></Pressable>
     </View>
-    <Modal visible={Boolean(draft)} transparent animationType="slide" onRequestClose={() => { if (!busy) { setDraft(null); removeRecording(); } }}>
+    <Modal visible={Boolean(draft)} transparent animationType="slide" onRequestClose={() => { if (!busy) { setDraft(null); setUploadError(''); removeRecording(); } }}>
       <View style={styles.overlay}><View style={styles.card}><Text style={styles.title}>Preview your message</Text>
         {draft && (draft.type === 'voice' ? <AudioPreview source={draft.uri} /> : <VideoPreview source={draft.uri} local />)}
-        {busy === 'upload' ? <View style={styles.progressBox}><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(uploadProgress * 100)}%` }]} /></View><Text style={styles.progressText}>Sending video… {Math.round(uploadProgress * 100)}%</Text></View> : null}
-        <View style={styles.row}><Pressable disabled={Boolean(busy)} onPress={send} style={styles.button}><Text style={styles.link}>{busy === 'upload' ? 'Sending…' : 'Send'}</Text></Pressable><Pressable disabled={Boolean(busy)} onPress={() => { setDraft(null); removeRecording(); }} style={styles.button}><Text style={styles.link}>Cancel</Text></Pressable></View>
+        {busy === 'upload' ? <View style={styles.progressBox}><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(uploadProgress * 100)}%` }]} /></View><Text style={styles.progressText}>Sending media… {Math.round(uploadProgress * 100)}%</Text></View> : null}
+        {uploadError ? <View style={styles.errorBox}><Text style={styles.errorText}>{uploadError}</Text><Pressable onPress={send} disabled={Boolean(busy)} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable></View> : null}
+        <View style={styles.row}><Pressable disabled={Boolean(busy)} onPress={send} style={styles.button}><Text style={styles.link}>{busy === 'upload' ? 'Sending…' : 'Send'}</Text></Pressable><Pressable disabled={Boolean(busy)} onPress={() => { setDraft(null); setUploadError(''); removeRecording(); }} style={styles.button}><Text style={styles.link}>Cancel</Text></Pressable></View>
       </View></View>
     </Modal>
   </View>;
 }
-const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: 10, justifyContent: 'center', backgroundColor: '#fff' }, button: { padding: 12 }, link: { color: '#3157d5', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center' }, card: { backgroundColor: '#fff', padding: 24, borderRadius: 18, maxWidth: '95%' }, title: { fontSize: 18, fontWeight: '700', color: '#172033', marginBottom: 12 }, progressBox: { marginTop: 12, width: '100%' }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#e5e7eb', overflow: 'hidden' }, progressFill: { height: 7, borderRadius: 4, backgroundColor: '#3157d5' }, progressText: { marginTop: 6, color: '#68748a', fontSize: 12 } });
+const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: 10, justifyContent: 'center', backgroundColor: '#fff' }, button: { padding: 12 }, link: { color: '#3157d5', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center' }, card: { backgroundColor: '#fff', padding: 24, borderRadius: 18, maxWidth: '95%' }, title: { fontSize: 18, fontWeight: '700', color: '#172033', marginBottom: 12 }, progressBox: { marginTop: 12, width: '100%' }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#e5e7eb', overflow: 'hidden' }, progressFill: { height: 7, borderRadius: 4, backgroundColor: '#3157d5' }, progressText: { marginTop: 6, color: '#68748a', fontSize: 12 }, errorBox: { marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: '#fff1f2' }, errorText: { color: '#9f1239', fontSize: 13 }, retryButton: { marginTop: 8, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12 }, retryText: { color: '#3157d5', fontWeight: '700' } });
