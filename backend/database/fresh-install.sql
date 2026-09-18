@@ -42,12 +42,15 @@ CREATE TABLE IF NOT EXISTS chats (
     type ENUM('private','group','public','community') NOT NULL,
     name VARCHAR(160) NULL,
     group_category VARCHAR(80) NULL,
+    room_type ENUM('city','language') NOT NULL DEFAULT 'city',
+    language_code VARCHAR(16) NULL,
     owner_id BIGINT UNSIGNED NULL,
     retention_seconds INT UNSIGNED NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NULL,
     INDEX idx_chats_owner_id (owner_id),
-    INDEX idx_chats_group_category (group_category)
+    INDEX idx_chats_group_category (group_category),
+    INDEX idx_chats_room_type_language (room_type, language_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Fixed public city/town rooms. Public room messages expire after 4 hours by default.
@@ -108,6 +111,36 @@ FROM (
 WHERE NOT EXISTS (
     SELECT 1 FROM chats c
     WHERE c.type='public' AND c.group_category='india-city' AND c.name=v.name
+);
+
+-- Language public rooms. The stable language_code is used for search and room identity.
+INSERT INTO chats(type,name,group_category,room_type,language_code,owner_id,retention_seconds,created_at)
+SELECT 'public',v.name,'language','language',v.code,NULL,14400,UTC_TIMESTAMP()
+FROM (
+    SELECT 'French' AS name,'fr' AS code
+    UNION ALL SELECT 'Spanish','es'
+    UNION ALL SELECT 'Arabic','ar'
+    UNION ALL SELECT 'Assamese','as'
+    UNION ALL SELECT 'Bengali','bn'
+    UNION ALL SELECT 'Gujarati','gu'
+    UNION ALL SELECT 'Hindi','hi'
+    UNION ALL SELECT 'Kannada','kn'
+    UNION ALL SELECT 'Kashmiri','ks'
+    UNION ALL SELECT 'Konkani','kok'
+    UNION ALL SELECT 'Malayalam','ml'
+    UNION ALL SELECT 'Manipuri (Meitei)','mni'
+    UNION ALL SELECT 'Marathi','mr'
+    UNION ALL SELECT 'Nepali','ne'
+    UNION ALL SELECT 'Odia','or'
+    UNION ALL SELECT 'Punjabi','pa'
+    UNION ALL SELECT 'Sanskrit','sa'
+    UNION ALL SELECT 'Sindhi','sd'
+    UNION ALL SELECT 'Tamil','ta'
+    UNION ALL SELECT 'Telugu','te'
+    UNION ALL SELECT 'Urdu','ur'
+) v
+WHERE NOT EXISTS (
+    SELECT 1 FROM chats c WHERE c.type='public' AND c.room_type='language' AND c.language_code=v.code
 );
 
 CREATE TABLE IF NOT EXISTS chat_members (
@@ -584,7 +617,8 @@ VALUES
     ('016_account_backup.sql', UTC_TIMESTAMP()),
     ('017_message_read_receipts.sql', UTC_TIMESTAMP()),
     ('020_video_message_metadata.sql', UTC_TIMESTAMP()),
-    ('021_public_chat_moderation.sql', UTC_TIMESTAMP())
+    ('021_public_chat_moderation.sql', UTC_TIMESTAMP()),
+    ('022_public_language_chat_rooms.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
