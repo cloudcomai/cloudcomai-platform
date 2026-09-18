@@ -119,7 +119,7 @@ if ($method === 'POST') {
         if ($existingStatus === 'banned') {
             $restrictionCheck=$pdo->prepare('SELECT blocked_until,status FROM public_chat_restrictions WHERE chat_id=? AND user_id=? LIMIT 1');
             $restrictionCheck->execute([$roomId,$user['id']]); $currentRestriction=$restrictionCheck->fetch();
-            $expired=!$currentRestriction || !$currentRestriction['blocked_until'] || strtotime($currentRestriction['blocked_until'])<=time();
+            $expired=$currentRestriction && $currentRestriction['blocked_until'] && strtotime($currentRestriction['blocked_until'])<=time();
             if (!$expired) { $pdo->rollBack(); fail('You cannot join this public chat room',403); }
         }
         $pdo->prepare("INSERT INTO chat_members(chat_id,user_id,role,status,joined_at) VALUES(?,?,'member','active',UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE status='active',joined_at=COALESCE(joined_at,UTC_TIMESTAMP())")->execute([$roomId,$user['id']]);
