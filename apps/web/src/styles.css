@@ -2359,3 +2359,9 @@ select {
 .account-tool-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .account-tools-panel button { min-height: 40px; padding: 8px; }
 @media (max-width: 480px) { .account-tool-row { align-items: stretch; flex-direction: column; } }
+
+/* Web/mobile parity controls */
+.profile-heading-button{background:none;border:0;padding:0;color:inherit;cursor:pointer;text-align:left}.profile-heading-button h4{margin:0}
+.parity-dialog{max-width:480px}.parity-list{display:flex;flex-direction:column;gap:8px;max-height:45vh;overflow:auto;margin:12px 0}.parity-list label,.parity-reader{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--border-color);border-radius:8px}.parity-list label{justify-content:flex-start}.parity-reader small{color:var(--text-muted)}.parity-actions{display:flex;gap:8px}.parity-profile p{margin:8px 0}
+.chat-interaction-canvas[data-chat-theme="ocean"]{--primary-color:#2563eb;--bg-directory:#eff6ff}.chat-interaction-canvas[data-chat-theme="forest"]{--primary-color:#15803d;--bg-directory:#f0fdf4}.chat-interaction-canvas[data-chat-theme="sunset"]{--primary-color:#c2410c;--bg-directory:#fff7ed}.chat-interaction-canvas[data-chat-theme="midnight"]{--primary-color:#7c3aed;--bg-directory:#f5f3ff}
+.canvas-action-utilities select{max-width:130px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-primary);color:var(--text-main);padding:6px}
