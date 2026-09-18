@@ -13,7 +13,7 @@ if ($method === 'GET') {
     $roomId=(int)($_GET['room_id'] ?? 0);
     if(in_array($action,['manage','online-users','reports'],true)){
         if($roomId<=0) fail('A valid public chat room is required',422);
-        $room=db()->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");$room->execute([$roomId]);if(!$room->fetch())fail('Public chat room not found',404);
+        $room=db()->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$room->execute([$roomId]);if(!$room->fetch())fail('Public chat room not found',404);
         if(!public_room_active_member($roomId,(int)$user['id']))fail('You are not a member of this public chat room',403);
         if($action==='reports'){
             $role=public_room_role($roomId,(int)$user['id']);if(!in_array($role,['owner','admin','moderator'],true))fail('Moderator access is required',403);
@@ -74,7 +74,7 @@ if ($method === 'POST') {
     $action=strtolower(trim((string)($data['action'] ?? 'join')));
     if($action==='report'){
         $roomId=(int)($data['room_id'] ?? 0);if($roomId<=0)fail('A valid public chat room is required',422);
-        $roomQ=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");$roomQ->execute([$roomId]);$room=$roomQ->fetch();if(!$room)fail('Public chat room not found',404);
+        $roomQ=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$roomQ->execute([$roomId]);$room=$roomQ->fetch();if(!$room)fail('Public chat room not found',404);
         $target=(int)($data['reported_user_id'] ?? 0);if($target<=0||$target===(int)$user['id'])fail('You cannot report yourself',422);if(!public_room_active_member($roomId,$target)||!public_room_active_member($roomId,(int)$user['id']))fail('Both accounts must be active room participants',403);
         $reason=trim((string)($data['reason'] ?? 'Other'));$allowed=['Harassment','Spam','Hate or abusive content','Impersonation','Unsafe content','Other'];if(!in_array($reason,$allowed,true))fail('Invalid report reason',422);$details=trim((string)($data['details'] ?? ''));if(strlen($details)>2000)$details=substr($details,0,2000);
         $messageId=(int)($data['message_id'] ?? 0);if($messageId>0){$mq=$pdo->prepare('SELECT id FROM messages WHERE id=? AND chat_id=? AND deleted_for_everyone=0 LIMIT 1');$mq->execute([$messageId,$roomId]);if(!$mq->fetch())fail('The selected message was not found in this room',404);$incidentKey='message:'.$messageId;}else{$incidentKey=trim((string)($data['incident_key'] ?? ''));}
@@ -104,7 +104,7 @@ if ($method === 'POST') {
     }
     $roomId=(int)($data['room_id'] ?? 0);
     if($roomId<=0) fail('A valid public chat room is required',422);
-    $roomQuery=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");
+    $roomQuery=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");
     $roomQuery->execute([$roomId]); $room=$roomQuery->fetch();
     if (!$room) fail('Public chat room not found',404);
     try {
