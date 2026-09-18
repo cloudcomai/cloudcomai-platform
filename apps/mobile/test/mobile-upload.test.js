@@ -86,3 +86,11 @@ test('chat attachment chooser validates file availability and 25 MB limit before
   assert.match(appSource, /Attachments must be 25 MB or smaller/);
   assert.match(appSource, /selected file is empty or its size could not be determined/);
 });
+
+
+test('attachment previews use a stable on-device cache and avoid repeated server downloads', () => {
+  assert.match(platformSource, /cloudcomai-attachment-previews/);
+  assert.match(platformSource, /attachment\.updated_at\|\|attachment\.created_at\|\|attachment\.file_size/);
+  assert.match(platformSource, /if\(file\.exists&&Number\(file\.size\|\|0\)>0\)return file/);
+  assert.doesNotMatch(platformSource, /\$\{Number\(attachment\.id\)\}-\$\{Date\.now\(\)\}/);
+});
