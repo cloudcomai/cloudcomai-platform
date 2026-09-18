@@ -95,8 +95,6 @@ if ($method === 'POST') {
     }
     $roomId=(int)($data['room_id'] ?? 0);
     if($roomId<=0) fail('A valid public chat room is required',422);
-    (int)(input()['room_id'] ?? 0);
-    if ($roomId<=0) fail('A valid public chat room is required',422);
     $roomQuery=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");
     $roomQuery->execute([$roomId]); $room=$roomQuery->fetch();
     if (!$room) fail('Public chat room not found',404);
@@ -109,9 +107,12 @@ if ($method === 'POST') {
     if($restrictionRow&&$restrictionRow['blocked_until']&&strtotime($restrictionRow['blocked_until'])<=time())$pdo->prepare("UPDATE public_chat_restrictions SET status='expired',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$roomId,$user['id']]);
         $existing = $pdo->prepare('SELECT status FROM chat_members WHERE chat_id=? AND user_id=? FOR UPDATE');
         $existing->execute([$roomId, $user['id']]);
-        if ($existing->fetchColumn() === 'banned') {
-            $pdo->rollBack();
-            fail('You cannot join this public chat room',403);
+        $existingStatus=$existing->fetchColumn();
+        if ($existingStatus === 'banned') {
+            $restrictionCheck=$pdo->prepare('SELECT blocked_until,status FROM public_chat_restrictions WHERE chat_id=? AND user_id=? LIMIT 1');
+            $restrictionCheck->execute([$roomId,$user['id']]); $currentRestriction=$restrictionCheck->fetch();
+            $expired=!$currentRestriction || !$currentRestriction['blocked_until'] || strtotime($currentRestriction['blocked_until'])<=time();
+            if (!$expired) { $pdo->rollBack(); fail('You cannot join this public chat room',403); }
         }
         $pdo->prepare("INSERT INTO chat_members(chat_id,user_id,role,status,joined_at) VALUES(?,?,'member','active',UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE status='active',joined_at=COALESCE(joined_at,UTC_TIMESTAMP())")->execute([$roomId,$user['id']]);
         $pdo->prepare("INSERT INTO chat_user_states(chat_id,user_id,hidden,cleared_through_message_id,updated_at,notifications_muted) VALUES(?,?,0,0,UTC_TIMESTAMP(),0) ON DUPLICATE KEY UPDATE hidden=0,notifications_muted=0,updated_at=UTC_TIMESTAMP()")->execute([$roomId,$user['id']]);
