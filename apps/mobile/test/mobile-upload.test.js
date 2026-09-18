@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const platformSource = await readFile(new URL('../src/services/platform.js', import.meta.url), 'utf8');
 const ringBellsSource = await readFile(new URL('../src/components/RingBellsStatus.js', import.meta.url), 'utf8');
 const composerSource = await readFile(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
+const appSource = await readFile(new URL('../App.js', import.meta.url), 'utf8');
 
 
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
@@ -36,4 +37,13 @@ test('Ring Bell media posting uses the shared upload route and exposes retry/suc
   assert.match(ringBellsSource, /Retry upload/);
   assert.match(ringBellsSource, /mediaPostError/);
   assert.match(ringBellsSource, /upload\?\.data\?\.filename/);
+});
+
+
+test('chat photo/document Send uses the non-XHR upload path so the preview modal cannot remain stuck on the progress overlay', () => {
+  const sendAttachment = appSource.match(/const sendAttachment = async \(\) => \{[\\s\\S]*?\n  \};/)?.[0] || '';
+  assert.match(sendAttachment, /uploadAttachmentAsset\(attachmentDraft,\{chat_id:chat\.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo\?\.id\|\|undefined\}\)/);
+  assert.doesNotMatch(sendAttachment, /onProgress/);
+  assert.match(appSource, /Sending attachment… Please wait\./);
+  assert.match(appSource, /ActivityIndicator color="#3157d5"/);
 });
