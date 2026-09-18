@@ -62,8 +62,19 @@ export class ApiClient {
     const requestHeaders = new Headers(headers);
     let requestBody = body;
 
+    // Multipart bodies can originate in another browser realm (iframe/window) or
+    // from React Native's FormData implementation. instanceof FormData is not
+    // reliable across those environments and caused uploads to be JSON encoded.
     const isFormData =
-      typeof FormData !== 'undefined' && body instanceof FormData;
+      body !== undefined &&
+      body !== null &&
+      typeof body === 'object' &&
+      ((typeof FormData !== 'undefined' && body instanceof FormData) ||
+        Object.prototype.toString.call(body) === '[object FormData]' ||
+        typeof body.append === 'function' && (
+          typeof body.entries === 'function' ||
+          Array.isArray(body._parts)
+        ));
     if (body !== undefined && body !== null && !isFormData) {
       requestHeaders.set('Content-Type', 'application/json');
       requestBody = JSON.stringify(body);
