@@ -40,7 +40,7 @@ if ($method === 'GET') {
                 CASE WHEN cm.status='active' THEN 1 ELSE 0 END AS joined,
                 (SELECT COUNT(*) FROM chat_members count_members WHERE count_members.chat_id=c.id AND count_members.status='active') AS joined_count,
                 (SELECT COUNT(*) FROM chat_members online_members INNER JOIN users online_users ON online_users.id=online_members.user_id LEFT JOIN user_privacy_settings online_privacy ON online_privacy.user_id=online_users.id WHERE online_members.chat_id=c.id AND online_members.status='active' AND online_users.account_status='active' AND online_users.updated_at IS NOT NULL AND online_users.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(online_privacy.hide_online_status,0)=0) AS online_count
-            FROM chats c LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=? WHERE $where ORDER BY CASE WHEN c.room_type='language' THEN c.id ELSE c.name END ASC, c.name ASC LIMIT 100");
+            FROM chats c LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=? WHERE $where ORDER BY CASE WHEN c.room_type='language' THEN FIELD(c.language_code,'fr','es','ar','as','bn','gu','hi','kn','ks','kok','ml','mni','mr','ne','or','pa','sa','sd','ta','te','ur') ELSE 0 END ASC, CASE WHEN c.room_type='city' THEN c.name ELSE '' END ASC LIMIT 100");
         $st->execute($params);
         $rooms = array_map(static fn(array $room): array => [
             'id'=>(int)$room['id'],'name'=>$room['name'],'type'=>'public','isPublic'=>true,
