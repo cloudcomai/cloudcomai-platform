@@ -41,7 +41,7 @@ test('Ring Bell media posting uses the shared upload route and exposes retry/suc
 
 
 test('chat attachment preview uses the native Modal and dismisses after Send', () => {
-  assert.match(appSource, /  Modal,\\n/);
+  assert.match(appSource, /\\bModal,\\n/);
   assert.match(appSource, /setAttachmentDraft\\(null\\);setReplyTo\\(null\\);setAttachmentProgress\\(1\\);/);
   assert.match(appSource, /onRequestClose=\\{\\(\\) => \\{ if\\(!uploading\\)setAttachmentDraft\\(null\\); \\}\\}/);
 });
