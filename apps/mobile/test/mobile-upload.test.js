@@ -108,3 +108,14 @@ test('attachment chooser matches the native dialog format while retaining PR 121
   assert.match(appSource, /attachmentMenuCard: \{ width: '100%', maxWidth: 420/);
   assert.doesNotMatch(appSource, /Supported documents: PDF, TXT, Word, Excel and PowerPoint/);
 });
+
+
+test('chat composer remains a bottom footer while messages load', () => {
+  assert.match(appSource, /messageArea: \{ flex: 1, minHeight: 0 \}/);
+  assert.match(appSource, /<View style=\{styles\.messageArea\}>\s*\{loading \?/);
+  const composer = appSource.match(/<View style=\{\[styles\.composer,[\s\S]*?<\/View>\s*<\/KeyboardAvoidingView>/)?.[0] || '';
+  assert.match(composer, /accessibilityLabel="Add photo or document"/);
+  assert.match(composer, /placeholder="Type a message\.\.\."/);
+  assert.match(composer, />Send<\/Text>/);
+  assert.match(composer, /styles\.emojiToggle/);
+});
