@@ -6,7 +6,7 @@ $limit = max(1, min(100, (int)($_GET['limit'] ?? 50)));
 $beforeId = max(0, (int)($_GET['before_id'] ?? 0));
 
 // Alerts inbox contains screenshot alerts and only currently-pending friend-request alerts.
-$alertFilter = "(LOWER(COALESCE(h.category,''))='system' AND JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event')) IN ('screenshot','friend_request') AND (JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event'))='screenshot' OR EXISTS (SELECT 1 FROM friend_requests fr WHERE fr.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.request_id')) AS UNSIGNED) AND fr.recipient_id=h.user_id AND fr.status='pending')))";
+$alertFilter = "(LOWER(COALESCE(h.category,''))='system' AND JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event')) IN ('screenshot','friend_request','public_chat_block','public_chat_moderation') AND (JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.event')) IN ('screenshot','public_chat_block','public_chat_moderation') OR EXISTS (SELECT 1 FROM friend_requests fr WHERE fr.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.request_id')) AS UNSIGNED) AND fr.recipient_id=h.user_id AND fr.status='pending')))";
 $sql = 'SELECT id, category, title, body, data_json, read_at, created_at FROM notification_history h WHERE h.user_id=? AND h.read_at IS NULL AND ' . $alertFilter . ' AND ' . notification_visibility_sql();
 $params = [$user['id']];
 if ($beforeId > 0) { $sql .= ' AND id<?'; $params[] = $beforeId; }
