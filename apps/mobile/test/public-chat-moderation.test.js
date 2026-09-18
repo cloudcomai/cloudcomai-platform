@@ -10,7 +10,7 @@ const api=fs.readFileSync(path.join(here,'../../../packages/api-client/src/cloud
 const component=fs.readFileSync(path.join(here,'../src/components/PublicChatManagement.js'),'utf8');
 
 test('reply previews navigate to and highlight the original message, loading older context when needed',()=>{
- assert.match(app,/getMessageContext(chat.id,id)/);
+ assert.ok(app.includes('getMessageContext(chat.id,id'));
  assert.match(app,/scrollToIndex/);
  assert.match(app,/highlightedMessageId/);
  assert.match(app,/navigateToMessage(item.reply_to_message_id)/);
@@ -20,7 +20,7 @@ test('public chat management exposes online users, reporting and leave confirmat
  assert.match(component,/Online Users/);
  assert.match(component,/Report User/);
  assert.match(component,/Leave Chat \/ Leave Room/);
- assert.match(component,/You cannot report yourself|Number(selectedUser.id)===Number(user.id)/);
+ assert.ok(component.includes('Number(selectedUser.id)===Number(user.id)'));
 });
 test('attachment plus button keeps camera, photo library and document flows with preview and retry',()=>{
  assert.match(app,/openAttachmentPicker/);
