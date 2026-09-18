@@ -117,5 +117,5 @@ test('chat composer remains a bottom footer while messages load', () => {
   assert.match(composer, /accessibilityLabel="Add photo or document"/);
   assert.match(composer, /placeholder="Type a message\.\.\."/);
   assert.match(composer, />Send<\/Text>/);
-  assert.doesNotMatch(composer, /styles\.emojiToggle/);
+  assert.match(composer, /styles\.emojiToggle/);
 });
