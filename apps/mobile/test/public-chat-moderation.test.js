@@ -33,6 +33,6 @@ test('attachment plus button keeps camera, photo library and document flows with
 });
 test('API client exposes message context and public moderation endpoints',()=>{
  assert.ok(api.includes('getMessageContext(chatId, messageId'));
- assert.match(api,/getPublicChatManage(roomId/);
- assert.match(api,/reportPublicChatUser(roomId/);
+ assert.ok(api.includes('getPublicChatManage(roomId'));
+ assert.ok(api.includes('reportPublicChatUser(roomId'));
 });
