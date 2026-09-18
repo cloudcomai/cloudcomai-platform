@@ -13,7 +13,7 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
     const next = event.target.files?.[0];
     if (!next) return;
     if (!next.type.startsWith('image/')) return alert('Please choose an image file.');
-    if (next.size > 2 * 1024 * 1024) return alert('Image must be 2 MB or smaller.');
+    if (next.size > 12 * 1024 * 1024) return alert('Image must be 12 MB or smaller.');
     setFile(next);
     setPreview(URL.createObjectURL(next));
   };
@@ -62,7 +62,7 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
           </button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={chooseImage}/>
         </div>
-        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-light)', marginTop: -10, marginBottom: 18 }}>Optional profile image, max 2 MB</div>
+        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-light)', marginTop: -10, marginBottom: 18 }}>Optional profile image, max 12 MB</div>
 
         <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Display Name</label>
         <input required value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 20 }} />
