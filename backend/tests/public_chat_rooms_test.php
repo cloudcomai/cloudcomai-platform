@@ -10,8 +10,12 @@ assert(in_array('DELETE',$contract['routes']['v1/public-chats']['methods'],true)
 
 $handler=(string)file_get_contents(__DIR__.'/../api/public_chats.php');
 assert(str_contains($handler,"c.type='public'"));
-assert(str_contains($handler,"c.group_category='india-city'"));
-assert(str_contains($handler,'LIMIT 50'));
+assert(str_contains($handler,"c.room_type IN ('city','language')"));
+assert(!str_contains($handler,"group_category='india-city'"));
+assert(str_contains($handler,"room_type IN ('city','language')"));
+assert(str_contains($handler,'language_code'));
+assert(str_contains($handler,'room_type'));
+assert(str_contains($handler,'LIMIT 100'));
 assert(str_contains($handler,'INSERT INTO chat_members'));
 assert(str_contains($handler,"AS joined_count"));
 assert(str_contains($handler,"AS online_count"));
@@ -35,3 +39,18 @@ foreach ([$fresh,$migration] as $sql) {
 assert(str_contains($fresh,"'013_public_city_chat_rooms.sql'"));
 
 echo "public_chat_rooms_test.php passed\n";
+
+$languageMigration=(string)file_get_contents(__DIR__.'/../database/migrations/022_public_language_chat_rooms.sql');
+assert(str_contains($languageMigration,"'French','fr'"));
+assert(str_contains($languageMigration,"'Manipuri (Meitei)','mni'"));
+assert(substr_count($languageMigration,"UNION ALL SELECT")+1===21);
+assert(str_contains($languageMigration,"room_type='language'"));
+foreach ([$fresh,$languageMigration] as $sql) {
+    assert(str_contains($sql,"'French','fr'"));
+    assert(str_contains($sql,"'Telugu','te'"));
+    assert(str_contains($sql,"'Urdu','ur'"));
+}
+
+$languageNames=['French','Spanish','Arabic','Assamese','Bengali','Gujarati','Hindi','Kannada','Kashmiri','Konkani','Malayalam','Manipuri (Meitei)','Marathi','Nepali','Odia','Punjabi','Sanskrit','Sindhi','Tamil','Telugu','Urdu'];
+$previous=-1;
+foreach($languageNames as $languageName){$position=strpos($languageMigration,$languageName);assert($position!==false);assert($position>$previous);$previous=$position;}

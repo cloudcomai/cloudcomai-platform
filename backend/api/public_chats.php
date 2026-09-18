@@ -13,7 +13,7 @@ if ($method === 'GET') {
     $roomId=(int)($_GET['room_id'] ?? 0);
     if(in_array($action,['manage','online-users','reports'],true)){
         if($roomId<=0) fail('A valid public chat room is required',422);
-        $room=db()->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");$room->execute([$roomId]);if(!$room->fetch())fail('Public chat room not found',404);
+        $room=db()->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$room->execute([$roomId]);if(!$room->fetch())fail('Public chat room not found',404);
         if(!public_room_active_member($roomId,(int)$user['id']))fail('You are not a member of this public chat room',403);
         if($action==='reports'){
             $role=public_room_role($roomId,(int)$user['id']);if(!in_array($role,['owner','admin','moderator'],true))fail('Moderator access is required',403);
@@ -27,37 +27,38 @@ if ($method === 'GET') {
     $search = trim((string)($_GET['q'] ?? ''));
     if (strlen($search) > 100) $search = substr($search, 0, 100);
     try {
-        $where = "c.type='public' AND c.group_category='india-city'";
+        $where = "c.type='public' AND c.room_type IN ('city','language')";
         $params = [$user['id']];
         if ($search !== '') {
-            $where .= ' AND (c.name LIKE ? OR c.group_category LIKE ?)';
+            $where .= ' AND (c.name LIKE ? OR c.group_category LIKE ? OR c.language_code LIKE ?)';
             $pattern = '%' . $search . '%';
             $params[] = $pattern;
             $params[] = $pattern;
+            $params[] = $pattern;
         }
-        $st = $pdo->prepare("SELECT c.id,c.name,c.group_category,c.retention_seconds,c.created_at,
+        $st = $pdo->prepare("SELECT c.id,c.name,c.group_category,c.room_type,c.language_code,c.retention_seconds,c.created_at,
                 CASE WHEN cm.status='active' THEN 1 ELSE 0 END AS joined,
                 (SELECT COUNT(*) FROM chat_members count_members WHERE count_members.chat_id=c.id AND count_members.status='active') AS joined_count,
                 (SELECT COUNT(*) FROM chat_members online_members INNER JOIN users online_users ON online_users.id=online_members.user_id LEFT JOIN user_privacy_settings online_privacy ON online_privacy.user_id=online_users.id WHERE online_members.chat_id=c.id AND online_members.status='active' AND online_users.account_status='active' AND online_users.updated_at IS NOT NULL AND online_users.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(online_privacy.hide_online_status,0)=0) AS online_count
-            FROM chats c LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=? WHERE $where ORDER BY c.name ASC LIMIT 50");
+            FROM chats c LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=? WHERE $where ORDER BY CASE WHEN c.room_type='language' THEN FIELD(c.language_code,'fr','es','ar','as','bn','gu','hi','kn','ks','kok','ml','mni','mr','ne','or','pa','sa','sd','ta','te','ur') ELSE 0 END ASC, CASE WHEN c.room_type='city' THEN c.name ELSE '' END ASC LIMIT 100");
         $st->execute($params);
         $rooms = array_map(static fn(array $room): array => [
             'id'=>(int)$room['id'],'name'=>$room['name'],'type'=>'public','isPublic'=>true,
-            'city'=>$room['name'],'category'=>$room['group_category'],'group_category'=>$room['group_category'],
+            'city'=>$room['room_type']==='city' ? $room['name'] : null,'category'=>$room['group_category'],'group_category'=>$room['group_category'],'room_type'=>$room['room_type'],'language_code'=>$room['language_code'],
             'joined'=>(bool)$room['joined'],'joined_count'=>(int)$room['joined_count'],'online_count'=>(int)$room['online_count'],
             'retention_seconds'=>$room['retention_seconds'] !== null ? (int)$room['retention_seconds'] : null,'created_at'=>$room['created_at'],
         ], $st->fetchAll());
 
-        $favoritesStmt = $pdo->prepare("SELECT c.id,c.name,c.group_category,c.retention_seconds,c.created_at,
+        $favoritesStmt = $pdo->prepare("SELECT c.id,c.name,c.group_category,c.room_type,c.language_code,c.retention_seconds,c.created_at,
                 1 AS joined,
                 (SELECT COUNT(*) FROM chat_members cm2 WHERE cm2.chat_id=c.id AND cm2.status='active') AS joined_count,
                 (SELECT COUNT(*) FROM chat_members om INNER JOIN users ou ON ou.id=om.user_id LEFT JOIN user_privacy_settings op ON op.user_id=ou.id WHERE om.chat_id=c.id AND om.status='active' AND ou.account_status='active' AND ou.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND AND COALESCE(op.hide_online_status,0)=0) AS online_count
             FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=? AND cm.status='active'
-            WHERE c.type='public' AND c.group_category='india-city' ORDER BY c.name ASC LIMIT 50");
+            WHERE c.type='public' AND c.room_type IN ('city','language') ORDER BY c.name ASC LIMIT 50");
         $favoritesStmt->execute([$user['id']]);
         $favorites = array_map(static fn(array $room): array => [
             'id'=>(int)$room['id'],'name'=>$room['name'],'type'=>'public','isPublic'=>true,'joined'=>true,
-            'city'=>$room['name'],'category'=>$room['group_category'],'group_category'=>$room['group_category'],
+            'city'=>$room['room_type']==='city' ? $room['name'] : null,'category'=>$room['group_category'],'group_category'=>$room['group_category'],'room_type'=>$room['room_type'],'language_code'=>$room['language_code'],
             'joined_count'=>(int)$room['joined_count'],'online_count'=>(int)$room['online_count'],
             'retention_seconds'=>$room['retention_seconds'] !== null ? (int)$room['retention_seconds'] : null,'created_at'=>$room['created_at'],
         ], $favoritesStmt->fetchAll());
@@ -73,7 +74,7 @@ if ($method === 'POST') {
     $action=strtolower(trim((string)($data['action'] ?? 'join')));
     if($action==='report'){
         $roomId=(int)($data['room_id'] ?? 0);if($roomId<=0)fail('A valid public chat room is required',422);
-        $roomQ=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");$roomQ->execute([$roomId]);$room=$roomQ->fetch();if(!$room)fail('Public chat room not found',404);
+        $roomQ=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$roomQ->execute([$roomId]);$room=$roomQ->fetch();if(!$room)fail('Public chat room not found',404);
         $target=(int)($data['reported_user_id'] ?? 0);if($target<=0||$target===(int)$user['id'])fail('You cannot report yourself',422);if(!public_room_active_member($roomId,$target)||!public_room_active_member($roomId,(int)$user['id']))fail('Both accounts must be active room participants',403);
         $reason=trim((string)($data['reason'] ?? 'Other'));$allowed=['Harassment','Spam','Hate or abusive content','Impersonation','Unsafe content','Other'];if(!in_array($reason,$allowed,true))fail('Invalid report reason',422);$details=trim((string)($data['details'] ?? ''));if(strlen($details)>2000)$details=substr($details,0,2000);
         $messageId=(int)($data['message_id'] ?? 0);if($messageId>0){$mq=$pdo->prepare('SELECT id FROM messages WHERE id=? AND chat_id=? AND deleted_for_everyone=0 LIMIT 1');$mq->execute([$messageId,$roomId]);if(!$mq->fetch())fail('The selected message was not found in this room',404);$incidentKey='message:'.$messageId;}else{$incidentKey=trim((string)($data['incident_key'] ?? ''));}
@@ -103,7 +104,7 @@ if ($method === 'POST') {
     }
     $roomId=(int)($data['room_id'] ?? 0);
     if($roomId<=0) fail('A valid public chat room is required',422);
-    $roomQuery=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");
+    $roomQuery=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");
     $roomQuery->execute([$roomId]); $room=$roomQuery->fetch();
     if (!$room) fail('Public chat room not found',404);
     try {
@@ -132,7 +133,7 @@ if ($method === 'POST') {
 if ($method === 'DELETE') {
     $roomId=(int)($_GET['id'] ?? 0);
     if ($roomId<=0) fail('A valid public chat room is required',422);
-    $membership=$pdo->prepare("SELECT c.id FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id WHERE c.id=? AND c.type='public' AND c.group_category='india-city' AND cm.user_id=? AND cm.status='active' LIMIT 1");
+    $membership=$pdo->prepare("SELECT c.id FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id WHERE c.id=? AND c.type='public' AND c.room_type IN ('city','language') AND cm.user_id=? AND cm.status='active' LIMIT 1");
     $membership->execute([$roomId,$user['id']]);
     if (!$membership->fetch()) fail('Public chat room not found or you are not a member',404);
     try {
