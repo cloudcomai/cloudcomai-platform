@@ -27,3 +27,16 @@ test('web supports per-chat themes like mobile', () => {
   assert.match(parity, /cloudcomai\.web\.chat-theme/);
   for (const theme of ['ocean','forest','sunset','midnight']) assert.match(styles, new RegExp(`data-chat-theme="${theme}"`));
 });
+
+test('web exposes mobile public chats Ring Bells and saved messages', async () => {
+  const community = await readFile(new URL('../src/components/WebCommunityPanels.jsx', import.meta.url), 'utf8');
+  const sidebar = await readFile(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8');
+  assert.match(community, /platformApi\.listPublicChats/);
+  assert.match(community, /platformApi\.joinPublicChat/);
+  assert.match(community, /platformApi\.leavePublicChat/);
+  assert.match(community, /platformApi\.listStories/);
+  assert.match(community, /platformApi\.createStory/);
+  assert.match(sidebar, /setModal\('public_chats'\)/);
+  assert.match(sidebar, /setModal\('ring_bells'\)/);
+  assert.match(sidebar, /setModal\('saved_messages'\)/);
+});
