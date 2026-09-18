@@ -59,3 +59,23 @@ test('chat photo/document Send uses the non-XHR upload path so the preview modal
   assert.match(appSource, /Sending attachment… Please wait\./);
   assert.match(appSource, /ActivityIndicator color="#3157d5"/);
 });
+
+
+test('chat attachment chooser provides working camera, photo library and document actions with explicit close controls', () => {
+  assert.match(appSource, /setAttachmentMenuOpen\(true\)/);
+  assert.match(appSource, /requestCameraPermissionsAsync/);
+  assert.match(appSource, /requestMediaLibraryPermissionsAsync/);
+  assert.match(appSource, /launchCameraAsync/);
+  assert.match(appSource, /launchImageLibraryAsync/);
+  assert.match(appSource, /DocumentPicker\.getDocumentAsync/);
+  assert.match(appSource, /accessibilityLabel="Close attachment menu"/);
+  assert.match(appSource, />Cancel<\/Text>/);
+  assert.match(appSource, /onRequestClose=\{\(\) => setAttachmentMenuOpen\(false\)\}/);
+});
+
+test('chat attachment chooser validates file availability and 25 MB limit before preview/upload', () => {
+  assert.match(appSource, /const validateAttachment = asset =>/);
+  assert.match(appSource, /size > 25 \* 1024 \* 1024/);
+  assert.match(appSource, /Attachments must be 25 MB or smaller/);
+  assert.match(appSource, /selected file is empty or its size could not be determined/);
+});
