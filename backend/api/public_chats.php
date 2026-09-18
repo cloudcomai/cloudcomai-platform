@@ -93,6 +93,14 @@ if ($method === 'POST') {
             $pdo->commit();out(['submitted'=>true,'duplicate'=>false,'unique_reporters'=>$unique,'blocked'=>$blocked,'blocked_until'=>$blockedUntil]);
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();error_log('public_chats.php report error: '.$e->getMessage());fail('Unable to submit report',500);}
     }
+    if($action==='moderation'){
+        $roomId=(int)($data['room_id']??0);if($roomId<=0)fail('A valid public chat room is required',422);
+        $role=public_room_role($roomId,(int)$user['id']);if(!in_array($role,['owner','admin','moderator'],true))fail('Moderator access is required',403);
+        $target=(int)($data['user_id']??0);$moderationAction=strtolower(trim((string)($data['moderation_action']??'')));if($target<=0)fail('A valid user is required',422);
+        if($moderationAction==='remove'){$pdo->prepare("UPDATE public_chat_restrictions SET blocked_until=UTC_TIMESTAMP(),status='removed',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$roomId,$target]);$pdo->prepare("UPDATE chat_members SET status='active' WHERE chat_id=? AND user_id=? AND status='banned'")->execute([$roomId,$target]);out(['status'=>'removed']);}
+        if($moderationAction==='extend'){$days=max(1,min(30,(int)($data['days']??7)));$st=$pdo->prepare('SELECT blocked_until FROM public_chat_restrictions WHERE chat_id=? AND user_id=? LIMIT 1');$st->execute([$roomId,$target]);$until=$st->fetchColumn();$base=$until&&strtotime($until)>time()?strtotime($until):time();$newUntil=gmdate('Y-m-d H:i:s',$base+$days*86400);$pdo->prepare("UPDATE public_chat_restrictions SET blocked_until=?,status='extended',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$newUntil,$roomId,$target]);$pdo->prepare("UPDATE chat_members SET status='banned' WHERE chat_id=? AND user_id=?")->execute([$roomId,$target]);out(['status'=>'extended','blocked_until'=>$newUntil]);}
+        fail('Unsupported moderation action',422);
+    }
     $roomId=(int)($data['room_id'] ?? 0);
     if($roomId<=0) fail('A valid public chat room is required',422);
     $roomQuery=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND group_category='india-city' LIMIT 1");
