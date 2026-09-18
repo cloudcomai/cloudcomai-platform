@@ -29,13 +29,19 @@ Once execution starts, continue through every applicable step in the current exe
 5. **Never commit directly to `main`, `master`, or the base/default branch.**
 6. Use one PR per independent feature or closely related feature group. Keep unrelated features in separate branches/PRs.
 7. Implement the requested feature completely without unnecessary unrelated changes.
-8. Add or update relevant tests.
-9. Run available tests, build, lint, and validation. Fix repository-controlled failures introduced or exposed by the work.
-10. Review the final diff for unrelated changes, secrets, debug code, generated files, and security issues.
-11. Re-check PR state before every commit/push intended for an existing PR.
-12. Commit and push only to the correct active feature/PR branch.
-13. Create a new PR only when no suitable OPEN PR exists.
-14. Do not merge unless explicitly requested by the user/reviewer.
+8. **Web + Mobile feature parity is the default.** Unless the request explicitly limits the work to one platform, implement every user-facing feature/fix in both the Web app and Mobile app (Android/iOS shared mobile code where applicable).
+   - Inspect the existing Web and Mobile implementations before coding.
+   - Keep behavior, validation, permissions, API contracts, error handling, and user-visible states consistent across Web and Mobile.
+   - Do not mark the feature complete because only Web or only Mobile works.
+   - If a platform genuinely cannot support the feature, document the technical reason and treat the missing parity as a blocker unless the user explicitly accepts the limitation.
+   - Add/update Web and Mobile tests for the feature when applicable.
+9. Add or update relevant tests.
+10. Run available tests, build, lint, and validation. Fix repository-controlled failures introduced or exposed by the work.
+11. Review the final diff for unrelated changes, secrets, debug code, generated files, and security issues.
+12. Re-check PR state before every commit/push intended for an existing PR.
+13. Commit and push only to the correct active feature/PR branch.
+14. Create a new PR only when no suitable OPEN PR exists.
+15. Do not merge unless explicitly requested by the user/reviewer.
 
 ## PR State Safety
 
@@ -114,16 +120,17 @@ If database/schema changes are required:
 Report `Status: COMPLETE` only when all applicable conditions are true:
 
 1. Requested implementation is complete.
-2. Relevant tests are added/updated and pass.
-3. Build passes when applicable.
-4. Lint passes when configured.
-5. Changes are committed and pushed.
-6. The correct PR exists and is currently OPEN.
-7. The PR contains the latest implementation commit.
-8. Latest base has been synchronized when required.
-9. Merge conflicts are resolved.
-10. `Validate monorepo` for the latest relevant commit completed successfully.
-11. Final PR/branch/commit/CI state was re-verified immediately before reporting completion.
+2. For user-facing features/fixes, Web and Mobile implementations are both complete unless the task explicitly scopes the change to one platform.
+3. Relevant Web and Mobile tests are added/updated and pass when applicable.
+4. Build passes when applicable.
+5. Lint passes when configured.
+6. Changes are committed and pushed.
+7. The correct PR exists and is currently OPEN.
+8. The PR contains the latest implementation commit.
+9. Latest base has been synchronized when required.
+10. Merge conflicts are resolved.
+11. `Validate monorepo` for the latest relevant commit completed successfully.
+12. Final PR/branch/commit/CI state was re-verified immediately before reporting completion.
 
 Do not use `Status: COMPLETE` if any applicable criterion above remains unfinished.
 
@@ -200,6 +207,9 @@ Do not stop at intermediate milestones or ask me to say continue between normal 
 
 Feature:
 <feature or bug description>
+
+Platform requirement:
+Implement the feature in both Web and Mobile unless explicitly scoped otherwise.
 
 Requirements:
 <optional requirements>
