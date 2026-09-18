@@ -2,7 +2,7 @@ CREATE DATABASE IF NOT EXISTS cloudcomai CHARACTER SET utf8mb4 COLLATE utf8mb4_u
 USE i10982974_m6at1;
 
 CREATE TABLE users (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,user_id VARCHAR(30) UNIQUE NULL,name VARCHAR(120) NOT NULL,email VARCHAR(190) UNIQUE NULL,mobile VARCHAR(30) UNIQUE NULL,password_hash VARCHAR(255) NOT NULL,dob DATE NOT NULL,gender ENUM('Male','Female') NOT NULL,email_verified TINYINT(1) NOT NULL DEFAULT 0,mobile_verified TINYINT(1) NOT NULL DEFAULT 0,account_status ENUM('active','suspended','deleted') NOT NULL DEFAULT 'active',created_at DATETIME NOT NULL,updated_at DATETIME NULL) ENGINE=InnoDB;
-CREATE TABLE chats (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,type ENUM('private','group','public','community') NOT NULL,name VARCHAR(160) NULL,group_category VARCHAR(80) NULL,owner_id BIGINT UNSIGNED NULL,retention_seconds INT UNSIGNED NULL,created_at DATETIME NOT NULL,updated_at DATETIME NULL,INDEX(owner_id),INDEX(group_category)) ENGINE=InnoDB;
+CREATE TABLE chats (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,type ENUM('private','group','public','community') NOT NULL,name VARCHAR(160) NULL,group_category VARCHAR(80) NULL,room_type ENUM('city','language') NOT NULL DEFAULT 'city',language_code VARCHAR(16) NULL,owner_id BIGINT UNSIGNED NULL,retention_seconds INT UNSIGNED NULL,created_at DATETIME NOT NULL,updated_at DATETIME NULL,INDEX(owner_id),INDEX(group_category),INDEX(room_type,language_code)) ENGINE=InnoDB;
 CREATE TABLE chat_members (chat_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,role ENUM('owner','admin','moderator','member','readonly') NOT NULL DEFAULT 'member',status ENUM('active','pending','removed','banned') NOT NULL DEFAULT 'active',joined_at DATETIME NOT NULL,PRIMARY KEY(chat_id,user_id),INDEX(user_id,status)) ENGINE=InnoDB;
 CREATE TABLE messages (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,chat_id BIGINT UNSIGNED NOT NULL,sender_id BIGINT UNSIGNED NOT NULL,type VARCHAR(40) NOT NULL DEFAULT 'text',body TEXT NULL,reply_to_message_id BIGINT UNSIGNED NULL,edit_count TINYINT UNSIGNED NOT NULL DEFAULT 0,edited_at DATETIME NULL,deleted_for_everyone TINYINT(1) NOT NULL DEFAULT 0,expires_at DATETIME NULL,created_at DATETIME NOT NULL,INDEX(chat_id,id),INDEX(sender_id),INDEX(expires_at),INDEX(reply_to_message_id)) ENGINE=InnoDB;
 CREATE TABLE message_user_states (message_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,hidden TINYINT(1) NOT NULL DEFAULT 0,PRIMARY KEY(message_id,user_id));
@@ -25,3 +25,33 @@ CREATE TABLE IF NOT EXISTS account_backup_settings (user_id BIGINT UNSIGNED NOT 
 CREATE TABLE IF NOT EXISTS account_backups (user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,version INT UNSIGNED NOT NULL,file_path VARCHAR(500) NOT NULL,backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,last_backup_at DATETIME NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_account_backups_last_backup (last_backup_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS account_backup_versions (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,user_id BIGINT UNSIGNED NOT NULL,version INT UNSIGNED NOT NULL,file_path VARCHAR(500) NOT NULL,backup_size BIGINT UNSIGNED NOT NULL DEFAULT 0,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_account_backup_version (user_id,version),INDEX idx_account_backup_versions_user_created (user_id,created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS notification_delivery_queue (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,notification_id BIGINT UNSIGNED NOT NULL,device_id BIGINT UNSIGNED NOT NULL,status ENUM('PENDING','SENT','FAILED') NOT NULL DEFAULT 'PENDING',attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,ticket_id VARCHAR(128) NULL,last_error VARCHAR(500) NULL,available_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_notification_delivery (notification_id,device_id),INDEX idx_notification_delivery_pending (status,available_at,id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Language public rooms. The stable language_code is used for search and room identity.
+INSERT INTO chats(type,name,group_category,room_type,language_code,owner_id,retention_seconds,created_at)
+SELECT 'public',v.name,'language','language',v.code,NULL,14400,UTC_TIMESTAMP()
+FROM (
+    SELECT 'French' AS name,'fr' AS code
+    UNION ALL SELECT 'Spanish','es'
+    UNION ALL SELECT 'Arabic','ar'
+    UNION ALL SELECT 'Assamese','as'
+    UNION ALL SELECT 'Bengali','bn'
+    UNION ALL SELECT 'Gujarati','gu'
+    UNION ALL SELECT 'Hindi','hi'
+    UNION ALL SELECT 'Kannada','kn'
+    UNION ALL SELECT 'Kashmiri','ks'
+    UNION ALL SELECT 'Konkani','kok'
+    UNION ALL SELECT 'Malayalam','ml'
+    UNION ALL SELECT 'Manipuri (Meitei)','mni'
+    UNION ALL SELECT 'Marathi','mr'
+    UNION ALL SELECT 'Nepali','ne'
+    UNION ALL SELECT 'Odia','or'
+    UNION ALL SELECT 'Punjabi','pa'
+    UNION ALL SELECT 'Sanskrit','sa'
+    UNION ALL SELECT 'Sindhi','sd'
+    UNION ALL SELECT 'Tamil','ta'
+    UNION ALL SELECT 'Telugu','te'
+    UNION ALL SELECT 'Urdu','ur'
+) v
+WHERE NOT EXISTS (
+    SELECT 1 FROM chats c WHERE c.type='public' AND c.room_type='language' AND c.language_code=v.code
+);
