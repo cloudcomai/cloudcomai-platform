@@ -131,3 +131,42 @@ test('an account-scoped send retains its captured bearer token during an account
   await assert.rejects(() => client.post('v1/messages', { body: 'Account A draft' }, { headers: { Authorization: 'Bearer account-A' } }), error => error.status === 401);
   assert.equal(unauthorized, false);
 });
+
+
+test('preserves multipart bodies without forcing JSON content type', async () => {
+  let captured;
+  const form = new FormData();
+  form.append('chat_id', '7');
+  form.append('file', new Blob(['image-bytes'], { type: 'image/png' }), 'photo.png');
+  const client = new ApiClient({
+    baseUrl: 'https://example.test/api/',
+    fetchImpl: async (_url, options) => {
+      captured = options;
+      return new Response(JSON.stringify({ message: { id: 1 } }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+  await client.post('v1/attachments/upload', form);
+  assert.equal(captured.body, form);
+  assert.equal(captured.headers.has('Content-Type'), false);
+});
+
+test('recognizes React Native compatible multipart bodies', async () => {
+  let captured;
+  const nativeForm = {
+    _parts: [['chat_id', '7'], ['file', { uri: 'file:///photo.jpg', name: 'photo.jpg', type: 'image/jpeg' }]],
+    append(name, value) { this._parts.push([name, value]); },
+  };
+  const client = new ApiClient({
+    baseUrl: 'https://example.test/api/',
+    fetchImpl: async (_url, options) => {
+      captured = options;
+      return new Response('{}', { status: 201, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  await client.post('v1/attachments/upload', nativeForm);
+  assert.equal(captured.body, nativeForm);
+  assert.equal(captured.headers.has('Content-Type'), false);
+});
