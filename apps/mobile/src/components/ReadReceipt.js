@@ -4,7 +4,7 @@ import { platformApi } from '../services/platform';
 
 const GREEN = '#16a34a';
 
-export default function ReadReceipt({ message, children, isVisible = true }) {
+export default function ReadReceipt({ message, children, isVisible = true, showStatus = false }) {
   const targetRef = useRef(null);
   const markedRef = useRef(false);
   const visibleRef = useRef(isVisible);
@@ -72,9 +72,9 @@ export default function ReadReceipt({ message, children, isVisible = true }) {
     return () => clearInterval(timer);
   }, [isVisible, loaded, eligible, isSender, loadStatus]);
 
-  const receipt = eligible && isSender && readBy.length ? (
+  const receipt = showStatus && eligible && isSender && readBy.length ? (
     <Pressable style={styles.receipt} onPress={() => Alert.alert('Read by', readBy.map(item => item.name || 'Member').join('\n'))} accessibilityRole="button" accessibilityLabel={readBy.length === 1 ? 'Read' : `Read by ${readBy.length}`}>
-      <Text style={styles.dot}>●</Text><Text style={styles.label}>{readBy.length === 1 ? 'Read' : `Read by ${readBy.length}`}</Text>
+      <Text style={styles.readIcon}>✓✓</Text>
     </Pressable>
   ) : null;
 
@@ -82,7 +82,6 @@ export default function ReadReceipt({ message, children, isVisible = true }) {
 }
 
 const styles = StyleSheet.create({
-  receipt: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginTop: 3, paddingVertical: 1 },
-  dot: { color: GREEN, fontSize: 8, marginRight: 4 },
-  label: { color: GREEN, fontSize: 10, fontWeight: '700' },
+  receipt: { alignSelf: 'flex-end', width: 30, height: 24, alignItems: 'center', justifyContent: 'center', marginTop: 2, borderRadius: 12 },
+  readIcon: { color: GREEN, fontSize: 13, fontWeight: '800', letterSpacing: -3, paddingRight: 3 },
 });
