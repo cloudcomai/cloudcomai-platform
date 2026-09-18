@@ -38,6 +38,7 @@ import MobileMenu from './src/components/MobileMenu';
 import { ContactsList, NotificationsList } from './src/components/MobileDashboardLists';
 import PublicChatsList from './src/components/PublicChatsList';
 import GroupManagement from './src/components/GroupManagement';
+import PublicChatManagement from './src/components/PublicChatManagement';
 import UserProfileModal from './src/components/UserProfileModal';
 import ChatThemeSettings from './src/components/ChatThemeSettings';
 import { getChatThemeSettings, resolveChatTheme } from './src/services/chatTheme';
@@ -239,6 +240,11 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [muted, setMuted] = useState(Boolean(chat.notifications_muted));
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [publicManageOpen, setPublicManageOpen] = useState(false);
+  const [attachmentDraft, setAttachmentDraft] = useState(null);
+  const [attachmentError, setAttachmentError] = useState('');
+  const [attachmentProgress, setAttachmentProgress] = useState(0);
   const searchActive = searchOpen && query.trim().length > 0;
   const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
   const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
@@ -251,6 +257,23 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     const next = typeof value === 'function' ? value(composer) : value;
     setComposer(next);
     if (!editing && messaging) messaging.saveDraft(chat.id, next).catch(e => setError(e.message));
+  };
+  const scrollToMessage = (messageId, list = messages) => {
+    const id=Number(messageId); const index=list.findIndex(item=>Number(item.id)===id); if(index<0)return false;
+    requestAnimationFrame(()=>listRef.current?.scrollToIndex?.({index,animated:true,viewPosition:0.5}));
+    setHighlightedMessageId(id); setTimeout(()=>setHighlightedMessageId(current=>current===id?null:current),2200); return true;
+  };
+  const navigateToMessage = async messageId => {
+    const id=Number(messageId); if(!id)return;
+    if(scrollToMessage(id))return;
+    setLoading(true); setError('');
+    try {
+      const {data}=await platformApi.getMessageContext(chat.id,id);
+      const merged=mergeMessageBatch(messages,data.messages||[]).messages;
+      setMessages(merged);
+      if(!scrollToMessage(id,merged))throw new Error('The original message is no longer available.');
+    } catch(e){setError(e.message||'Unable to find the original message.');}
+    finally{setLoading(false);}
   };
   const toggleSaved = async item => {
     try { if (item.saved) await platformApi.unsaveMessage(item.id); else await platformApi.saveMessage(item.id); setMessages(current => current.map(message => Number(message.id) === Number(item.id) ? { ...message, saved: !item.saved } : message)); }
@@ -394,15 +417,20 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
 
   const uploadAttachment = async asset => {
     if (!asset || uploading || chat.blocked) return;
-    setUploading(true); setError('');
-    try {
-      const { data } = await uploadAttachmentAsset(asset, {
-        chat_id: chat.id,
-        download_policy: 'APPROVAL_REQUIRED',
-      });
-      if (data.message) setMessages(current => mergeMessageBatch(current, [data.message]).messages);
-    } catch (uploadError) { setError(uploadError.message || 'Unable to upload attachment.'); }
-    finally { setUploading(false); }
+    const size=Number(asset.fileSize ?? asset.size ?? 0);
+    if(size>25*1024*1024){setError('Files must be 25 MB or smaller.');return;}
+    setAttachmentError(''); setAttachmentProgress(0);
+    setAttachmentDraft(asset);
+  };
+  const sendAttachment = async () => {
+    if(!attachmentDraft || uploading || chat.blocked)return;
+    setUploading(true);setAttachmentError('');setAttachmentProgress(0);
+    try{
+      const {data}=await uploadAttachmentAsset(attachmentDraft,{chat_id:chat.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo?.id||undefined,onProgress:setAttachmentProgress});
+      if(data.message)setMessages(current=>mergeMessageBatch(current,[data.message]).messages);
+      setAttachmentDraft(null);setReplyTo(null);setAttachmentProgress(1);
+    }catch(e){setAttachmentError(e.message||'Unable to upload attachment. Please try again.');}
+    finally{setUploading(false);}
   };
 
   const pickImage = async useCamera => {
@@ -506,7 +534,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
         </Pressable>
         <View style={styles.chatHeaderActions}>
           <Pressable onPress={async () => { const next = !muted; try { await platformApi.updateChatNotificationState(chat.id, { muted: next }); setMuted(next); } catch (e) { setError(e.message || 'Unable to update mute setting.'); } }}><Text style={styles.headerActionText}>{muted ? '🔕' : '🔔'}</Text></Pressable>
-          {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : chat.isPublic ? <View style={{ width: 54 }} /> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
+          {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : chat.isPublic ? <Pressable onPress={() => setPublicManageOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
         </View>
       </View>
       <View style={styles.searchRow}><Pressable onPress={() => { setSearchOpen(value => !value); setQuery(''); }}><Text style={styles.searchLink}>{searchOpen ? 'Close search' : 'Search messages'}</Text></Pressable>{chat.blocked && <Text style={styles.error}>Contact blocked</Text>}</View>
@@ -530,9 +558,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
             const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, theme.colors.text), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
             const selected = Number(selectedMessage?.id) === Number(item.id);
-            return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage]}>
+            return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
               {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
-              {item.reply_to_text ? <View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View> : null}
+              {item.reply_to_text ? <Pressable onPress={() => navigateToMessage(item.reply_to_message_id)} accessibilityRole='button' accessibilityLabel='Jump to original message'><View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View></Pressable> : null}
               <MediaMessage message={item} autoDownload={privacy.media_auto_download} colors={messageColors} textScale={Number(themeSettings?.textScale || 1)} isVisible={visibleMessageIds.has(Number(item.id)) && !groupManagementOpen && !profileOpen} />
               <Text style={[styles.messageTime, { color: messageColors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
               {selected ? <View style={styles.messageActions}>
@@ -550,7 +578,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       {localMessages?.outbox?.some(item => item.payload.chat_id === Number(chat.id)) ? <ScrollView style={{ maxHeight: 130, flexGrow: 0 }} accessibilityLabel="Pending messages">
         {localMessages.outbox.filter(item => item.payload.chat_id === Number(chat.id)).map(item => <View key={item.id} style={{ padding: 8, backgroundColor: '#eef2ff' }}><Text numberOfLines={2}>{item.payload.body}</Text><Text style={styles.preview}>{item.status === 'sending' ? 'Sending…' : item.status === 'failed' ? item.error : 'Queued · sends when connected'}</Text>{item.status !== 'sending' && <View style={styles.messageActions}><Pressable onPress={() => messaging.retry(item.id).then(() => messaging.flush()).catch(e => setError(e.message))}><Text style={[styles.messageActionText, { color: theme.colors.text }]}>Retry</Text></Pressable><Pressable onPress={() => messaging.remove(item.id).catch(e => setError(e.message))}><Text style={[styles.messageActionText, { color: theme.colors.text }]}>Discard</Text></Pressable></View>}</View>)}
       </ScrollView> : null}
-      <MediaComposer chat={chat} onMessage={onMediaMessage} />
+            {chat.isPublic ? <PublicChatManagement visible={publicManageOpen} chat={chat} user={user} onClose={() => setPublicManageOpen(false)} onLeave={async () => { try { await platformApi.leavePublicChat(Number(chat.id)); setPublicManageOpen(false); onBack(); } catch (e) { setError(e.message || 'Unable to leave public chat room.'); } }} /> : null}
+<MediaComposer chat={chat} onMessage={onMediaMessage} />
+      {attachmentDraft ? <Modal visible transparent animationType='slide' onRequestClose={() => { if(!uploading)setAttachmentDraft(null); }}><View style={styles.overlay}><View style={styles.attachmentCard}><Text style={styles.attachmentTitle}>Preview attachment</Text>{String(attachmentDraft.mimeType||'').startsWith('image/') ? <Image source={{uri:attachmentDraft.uri}} style={styles.attachmentPreview} resizeMode='contain'/> : <View style={styles.documentPreview}><Text style={styles.documentIcon}>📄</Text><Text style={styles.documentName} numberOfLines={2}>{attachmentDraft.name || 'Selected file'}</Text><Text style={styles.documentSize}>{Number(attachmentDraft.fileSize ?? attachmentDraft.size ?? 0) ? Math.round(Number(attachmentDraft.fileSize ?? attachmentDraft.size)/1024)+' KB' : 'File selected'}</Text></View>}{uploading?<Text style={styles.attachmentProgress}>Uploading… {Math.round(attachmentProgress*100)}%</Text>:null}{attachmentError?<View style={styles.attachmentError}><Text style={styles.attachmentErrorText}>{attachmentError}</Text><Pressable onPress={sendAttachment} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable></View>:null}<View style={styles.attachmentActions}><Pressable onPress={sendAttachment} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable onPress={() => { if(!uploading){setAttachmentDraft(null);setAttachmentError('');} }} disabled={uploading}><Text style={styles.cancelText}>Cancel</Text></Pressable></View></View></View></Modal> : null}
       {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.emojiStrip, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]} contentContainerStyle={styles.emojiStripContent}>
         <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
       </ScrollView> : null}
