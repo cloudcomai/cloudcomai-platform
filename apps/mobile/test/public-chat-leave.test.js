@@ -13,7 +13,7 @@ const handler = fs.readFileSync(path.join(here, '../../../backend/api/public_cha
 
 test('public chat browser provides full-screen layout, live search, expandable favorites and scrolling', () => {
   assert.match(component, /flex: 1, minHeight: 0/);
-  assert.match(component, /Search room, city, category or keyword/);
+  assert.match(component, /Search room, city, (?:language, )?category or keyword/);
   assert.match(component, /onChangeText=\{setQuery\}/);
   assert.match(component, /favoritesOpen/);
   assert.match(component, /accessibilityState=\{\{ expanded: favoritesOpen \}\}/);
