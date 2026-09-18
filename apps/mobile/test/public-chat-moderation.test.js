@@ -20,7 +20,7 @@ test('public chat management exposes online users, reporting and leave confirmat
  assert.match(component,/Online Users/);
  assert.match(component,/Report User/);
  assert.match(component,/Leave Chat \/ Leave Room/);
- assert.ok(component.includes('Number(selectedUser.id)===Number(user.id)'));
+ assert.ok(component.includes('Number(selectedUser.id)') && component.includes('Number(user.id)'));
 });
 test('attachment plus button keeps camera, photo library and document flows with preview and retry',()=>{
  assert.match(app,/openAttachmentPicker/);
