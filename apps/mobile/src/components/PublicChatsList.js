@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, LayoutAnimation, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { platformApi } from '../services/platform';
 
 const formatRoomStats = room => `👥 ${Number(room?.joined_count || 0)} Joined · 🟢 ${Number(room?.online_count || 0)} Online`;
@@ -84,6 +84,10 @@ export default function PublicChatsList({ onOpenChat }) {
 
   const cityRooms = useMemo(() => filteredRooms.filter(room => (room.room_type || 'city') === 'city'), [filteredRooms]);
   const languageRooms = useMemo(() => filteredRooms.filter(room => room.room_type === 'language'), [filteredRooms]);
+  const toggleSection = setter => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setter(value => !value);
+  };
 
   const renderRoom = ({ item, favorite = false }) => (
     <Pressable style={styles.roomRow} onPress={() => openRoom(item)} disabled={Boolean(actionRoomId)} accessibilityRole="button">
@@ -105,7 +109,7 @@ export default function PublicChatsList({ onOpenChat }) {
       <View style={styles.titleRow}>
         <View style={styles.titleMeta}>
           <Text style={styles.heading}>Public Chats</Text>
-          <Text style={styles.description}>Browse city and town rooms</Text>
+          <Text style={styles.description}>Browse city, town and language rooms</Text>
         </View>
         <Text style={styles.roomCount}>{filteredRooms.length}</Text>
       </View>
@@ -148,7 +152,7 @@ export default function PublicChatsList({ onOpenChat }) {
 
       <Pressable
         style={[styles.sectionHeader, publicRoomsOpen && styles.sectionHeaderOpen]}
-        onPress={() => setPublicRoomsOpen(value => !value)}
+        onPress={() => toggleSection(setPublicRoomsOpen)}
         accessibilityRole="button"
         accessibilityState={{ expanded: publicRoomsOpen }}
       >
@@ -175,7 +179,7 @@ export default function PublicChatsList({ onOpenChat }) {
 
       <Pressable
         style={[styles.sectionHeader, languageRoomsOpen && styles.sectionHeaderOpen, styles.languageSectionHeader]}
-        onPress={() => setLanguageRoomsOpen(value => !value)}
+        onPress={() => toggleSection(setLanguageRoomsOpen)}
         accessibilityRole="button"
         accessibilityState={{ expanded: languageRoomsOpen }}
       >
