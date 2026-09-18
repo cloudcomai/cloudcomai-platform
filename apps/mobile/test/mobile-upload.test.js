@@ -96,12 +96,15 @@ test('attachment previews use a stable on-device cache and avoid repeated server
 });
 
 
-test('attachment chooser keeps the previous compact popup style with explicit and backdrop close', () => {
+test('attachment chooser matches the native dialog format while retaining PR 121 close behavior', () => {
   assert.match(appSource, /Choose where the attachment should come from\./);
   assert.match(appSource, /accessibilityLabel="Close attachment menu"/);
   assert.match(appSource, /accessibilityLabel="Close attachment menu backdrop"/);
   assert.match(appSource, /onPress=\{event => event\.stopPropagation\(\)\}/);
-  assert.match(appSource, /attachmentMenuOverlay: \{ flex: 1, alignItems: 'center', justifyContent: 'center'/);
-  assert.match(appSource, /attachmentMenuCard: \{ width: '100%', maxWidth: 360/);
+  assert.match(appSource, /attachmentMenuActions: \{ flexDirection: 'row'/);
+  assert.match(appSource, />CAMERA<\/Text>/);
+  assert.match(appSource, />PHOTO LIBRARY<\/Text>/);
+  assert.match(appSource, />DOCUMENT<\/Text>/);
+  assert.match(appSource, /attachmentMenuCard: \{ width: '100%', maxWidth: 420/);
   assert.doesNotMatch(appSource, /Supported documents: PDF, TXT, Word, Excel and PowerPoint/);
 });
