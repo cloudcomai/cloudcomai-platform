@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm', 'video/3gpp', 'application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ',']);
 const ACCEPT = [
   'image/jpeg',
   'image/png',
@@ -43,6 +44,11 @@ export default function AttachmentControls({ selectedChat, apiBridge, onUploaded
 
     if (file.size > MAX_FILE_SIZE) {
       alert('File size cannot exceed 25 MB.');
+      return;
+    }
+
+    if (!ALLOWED_TYPES.has(file.type)) {
+      alert('Unsupported file type. Choose an image, supported video, PDF, TXT, Word, Excel or PowerPoint file.');
       return;
     }
 
