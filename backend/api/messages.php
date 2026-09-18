@@ -18,6 +18,7 @@ if ($method === 'GET') {
     $search = trim((string)($_GET['q'] ?? ''));
     if ($chatId <= 0) fail('Chat id is required');
     if (strlen($search) > 120) $search = substr($search, 0, 120);
+    $aroundId = (int)($_GET['around_id'] ?? 0);
 
     $membershipQuery = db()->prepare('SELECT COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id FROM chat_members cm LEFT JOIN chat_user_states cus ON cus.chat_id=cm.chat_id AND cus.user_id=cm.user_id WHERE cm.chat_id=? AND cm.user_id=? AND cm.status="active"');
     $membershipQuery->execute([$chatId, $user['id']]);
@@ -25,6 +26,27 @@ if ($method === 'GET') {
     if (!$membership) fail('Not a member', 403);
     $clearedThrough = (int)$membership['cleared_through_message_id'];
     $after = max($after, $clearedThrough);
+    if ($aroundId > 0) {
+        $contextSql = <<<'SQL'
+            SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,
+                   CASE WHEN c.type='public' AND m.sender_id<>? AND NOT EXISTS (SELECT 1 FROM friend_requests fr WHERE fr.status='accepted' AND ((fr.requester_id=? AND fr.recipient_id=m.sender_id) OR (fr.requester_id=m.sender_id AND fr.recipient_id=?))) THEN 1 ELSE 0 END AS show_profile,
+                   CASE WHEN COALESCE(rus.hidden,0)=0 THEN r.body ELSE NULL END AS reply_to_text,
+                   CASE WHEN COALESCE(rus.hidden,0)=0 THEN ru.name ELSE NULL END AS reply_to_sender_name
+            FROM messages m INNER JOIN users u ON u.id=m.sender_id INNER JOIN chats c ON c.id=m.chat_id
+            LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP())
+            LEFT JOIN users ru ON ru.id=r.sender_id LEFT JOIN message_user_states rus ON rus.message_id=r.id AND rus.user_id=?
+            LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=?
+            WHERE m.chat_id=? AND m.id>? AND m.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
+            ORDER BY m.id DESC LIMIT 101
+        SQL;
+        $st=$pdo->prepare($contextSql);$st->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$clearedThrough]);$older=$st->fetchAll();
+        $targetFound=false;foreach($older as $row){if((int)$row['id']===$aroundId){$targetFound=true;break;}}
+        if(!$targetFound){$target=$pdo->prepare(str_replace('m.id>?','m.id=?',$contextSql));$target->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$aroundId]);$targetRow=$target->fetch();if(!$targetRow)fail('Message not found',404);$older[]=$targetRow;}
+        $older=array_reverse($older);
+        $newerSql=str_replace(['m.id>?','ORDER BY m.id DESC LIMIT 101'],['m.id>?','ORDER BY m.id ASC LIMIT 101'],$contextSql);$newer=$pdo->prepare($newerSql);$newer->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$aroundId]);
+        $messages=array_merge($older,$newer->fetchAll());$unique=[];foreach($messages as $row)$unique[(int)$row['id']=$row;$messages=array_values($unique);usort($messages,static fn($a,$b)=>(int)$a['id']<=>(int)$b['id']);
+        hydrate_message_state($messages,(int)$user['id']);hydrate_message_attachments($messages);hydrate_message_polls($messages,(int)$user['id']);out(['messages'=>$messages,'removed_ids'=>[],'synced_at'=>$syncedAt,'search_query'=>'','screenshot_alerts'=>[]]);
+    }
 
     $sql = <<<'SQL'
         SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,
