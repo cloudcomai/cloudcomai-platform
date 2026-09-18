@@ -94,3 +94,14 @@ test('attachment previews use a stable on-device cache and avoid repeated server
   assert.match(platformSource, /if\(file\.exists&&Number\(file\.size\|\|0\)>0\)return file/);
   assert.doesNotMatch(platformSource, /\$\{Number\(attachment\.id\)\}-\$\{Date\.now\(\)\}/);
 });
+
+
+test('attachment chooser keeps the previous compact popup style with explicit and backdrop close', () => {
+  assert.match(appSource, /Choose where the attachment should come from\./);
+  assert.match(appSource, /accessibilityLabel="Close attachment menu"/);
+  assert.match(appSource, /accessibilityLabel="Close attachment menu backdrop"/);
+  assert.match(appSource, /onPress=\{event => event\.stopPropagation\(\)\}/);
+  assert.match(appSource, /attachmentMenuOverlay: \{ flex: 1, alignItems: 'center', justifyContent: 'center'/);
+  assert.match(appSource, /attachmentMenuCard: \{ width: '100%', maxWidth: 360/);
+  assert.doesNotMatch(appSource, /Supported documents: PDF, TXT, Word, Excel and PowerPoint/);
+});
