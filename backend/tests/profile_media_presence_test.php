@@ -6,6 +6,8 @@ $media=file_get_contents(__DIR__.'/../api/media.php');$mediaUpload=file_get_cont
 expect_contract(str_contains($media,'Cache-Control: private, no-cache'),'Profile media must not use a reusable public cache');
 expect_contract(str_contains($media,'Pragma: no-cache'),'Profile media must include a no-cache compatibility header');
 expect_contract(str_contains($mediaUpload,"'image_version' => \$imageVersion"),'Media upload must return a unique image version');
+expect_contract(str_contains($mediaUpload,'12 * 1024 * 1024'),'Profile and group images must allow up to 12 MB');
+expect_contract(str_contains($mediaUpload,"Image must be 12 MB or smaller"),'Profile and group image size errors must use the 12 MB limit');
 expect_contract(str_contains($profile,"'image_version'=>\$imageVersion"),'Profile updates must preserve the image version');
 expect_contract(str_contains($userProfile,"'online' => \$online"),'User profile responses must expose presence state');
 expect_contract(str_contains($heartbeat,'UPDATE users SET updated_at=UTC_TIMESTAMP()'),'Heartbeat must refresh presence timestamp');
