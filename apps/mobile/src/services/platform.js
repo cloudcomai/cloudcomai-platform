@@ -45,11 +45,23 @@ const appendNativeFilePart = (form, fieldName, asset) => {
   return false;
 };
 
-export async function createMobileMultipartBody(asset,{fieldName='file',parameters={},extraFiles={}}={},FormDataCtor=globalThis.FormData){
+// expo/fetch is the global fetch implementation in Expo apps. Its multipart
+// encoder accepts real expo-file-system File parts, but rejects React Native's
+// legacy { uri, name, type } object shape with "Unsupported FormDataPart implementation".
+const appendExpoFilePart = (form, fieldName, asset) => {
+  const normalized = normalizeUploadAsset(asset,{fallbackName:'attachment'});
+  if (!isNativeFileUri(normalized.uri)) return false;
+  const file = new File(normalized.uri);
+  form.append(fieldName, file, normalized.name);
+  return true;
+};
+
+export async function createMobileMultipartBody(asset,{fieldName='file',parameters={},extraFiles={},multipartPartMode='native'}={},FormDataCtor=globalThis.FormData){
   if(typeof FormDataCtor!=='function')throw new ApiError('Multipart upload is unavailable on this device.');
   const normalized=normalizeUploadAsset(asset,{fallbackName:'attachment'});
   const form=new FormDataCtor();
-  if(!appendNativeFilePart(form,fieldName,normalized)){
+  const appendFilePart = multipartPartMode === 'expo-file' ? appendExpoFilePart : appendNativeFilePart;
+  if(!appendFilePart(form,fieldName,normalized)){
     const response=await fetch(normalized.uri);
     if(!response.ok)throw new ApiError(`Unable to read the selected file (status ${response.status}).`);
     const blob=await response.blob();
@@ -58,7 +70,7 @@ export async function createMobileMultipartBody(asset,{fieldName='file',paramete
   }
   for(const [key,value] of Object.entries(extraFiles)){
     const file=normalizeUploadAsset(value.asset || value,{fallbackName:value.fallbackName || key,fallbackMime:value.fallbackMime || 'application/octet-stream'});
-    if(!appendNativeFilePart(form,key,file)){
+    if(!appendFilePart(form,key,file)){
       const fileResponse=await fetch(file.uri);
       if(!fileResponse.ok)throw new ApiError(`Unable to read the selected ${key}.`);
       const fileBlob=await fileResponse.blob();
@@ -69,7 +81,7 @@ export async function createMobileMultipartBody(asset,{fieldName='file',paramete
   return form;
 }
 
-export async function uploadMobileFile(route,asset,{fieldName='file',parameters={},extraFiles={},fallbackName='upload',fallbackMime='application/octet-stream',maxBytes=25*1024*1024,onProgress}={}){
+export async function uploadMobileFile(route,asset,{fieldName='file',parameters={},extraFiles={},fallbackName='upload',fallbackMime='application/octet-stream',maxBytes=25*1024*1024,multipartPartMode='native',onProgress}={}){
   const normalized=normalizeUploadAsset(asset,{fallbackName,fallbackMime});
   const file=new File(normalized.uri);
   if(!file.exists && !isNativeFileUri(normalized.uri))throw new ApiError('The selected file is no longer available.');
@@ -79,7 +91,7 @@ export async function uploadMobileFile(route,asset,{fieldName='file',parameters=
     if(!normalized.size || normalized.size<=0)throw new ApiError('The selected file is empty or its size could not be determined.');
   }
   const token=await sessionManager.getToken();
-  const formData=await createMobileMultipartBody(normalized,{fieldName,parameters:{...parameters,original_filename:parameters.original_filename||normalized.name},extraFiles});
+  const formData=await createMobileMultipartBody(normalized,{fieldName,parameters:{...parameters,original_filename:parameters.original_filename||normalized.name},extraFiles,multipartPartMode});
   if(typeof onProgress!=='function'){
     const response=await fetch(buildApiUrl(API_BASE_URL,route),{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{},body:formData});
     const body=await response.text();
@@ -100,7 +112,7 @@ export async function uploadMobileFile(route,asset,{fieldName='file',parameters=
   return parseUploadResult(result,token);
 }
 export const uploadAttachmentAsset=(asset,parameters={})=>{const {onProgress,extraFiles,...formParameters}=parameters;return uploadMobileFile(ApiRoute.UPLOAD_ATTACHMENT,asset,{fieldName:'file',fallbackName:'attachment',parameters:{...formParameters,original_filename:normalizeUploadAsset(asset,{fallbackName:'attachment'}).name},onProgress,extraFiles});};
-export const uploadMediaAsset=(asset,parameters={})=>uploadMobileFile(ApiRoute.MEDIA_UPLOAD,asset,{fieldName:'image',fallbackName:'profile.jpg',fallbackMime:'image/jpeg',maxBytes:2*1024*1024,parameters});
+export const uploadMediaAsset=(asset,parameters={})=>uploadMobileFile(ApiRoute.MEDIA_UPLOAD,asset,{fieldName:'image',fallbackName:'profile.jpg',fallbackMime:'image/jpeg',maxBytes:12*1024*1024,multipartPartMode:'expo-file',parameters});
 export async function downloadAttachmentPreview(attachment){if(!attachment?.id)throw new ApiError('Attachment preview is unavailable.');const token=await sessionManager.getToken();if(!token)throw new ApiError('Authentication is required to preview this attachment.',{status:401});const directory=new Directory(Paths.cache,'cloudcomai-attachment-previews');directory.create({intermediates:true,idempotent:true});const file=new File(directory,`${Number(attachment.id)}-${Date.now()}.${attachmentPreviewExtension(attachment)}`);try{return await File.downloadFileAsync(buildApiUrl(API_BASE_URL,ApiRoute.ATTACHMENT,{id:attachment.id,preview:1}),file,{headers:{Authorization:`Bearer ${token}`}});}catch(error){if(file.exists){try{file.delete();}catch{}}throw error;}}
 export async function downloadVideoThumbnail(attachment){if(!attachment?.id)throw new ApiError('Video thumbnail is unavailable.');const token=await sessionManager.getToken();if(!token)throw new ApiError('Authentication is required to preview this video.',{status:401});const directory=new Directory(Paths.cache,'cloudcomai-video-thumbnails');directory.create({intermediates:true,idempotent:true});const file=new File(directory,`${Number(attachment.id)}.jpg`);try{return await File.downloadFileAsync(buildApiUrl(API_BASE_URL,ApiRoute.ATTACHMENT,{id:attachment.id,thumbnail:1}),file,{headers:{Authorization:`Bearer ${token}`}});}catch(error){if(file.exists){try{file.delete();}catch{}}throw error;}}
 export const mediaUrl=(type,id,version='')=>{const base=buildApiUrl(API_BASE_URL,ApiRoute.MEDIA||'v1/media',{type,id});return version===''||version===null||version===undefined?base:`${base}&v=${encodeURIComponent(String(version))}`;};

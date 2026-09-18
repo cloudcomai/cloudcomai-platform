@@ -285,7 +285,7 @@ export default function MobileMenu({
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
+      if (asset.fileSize && asset.fileSize > 12 * 1024 * 1024) { setError('Cropped image must be 12 MB or smaller.'); return; }
 
       setBusy(true);
       const { data } = await uploadMediaAsset(asset, { type: 'user', id: user.id });
@@ -504,7 +504,7 @@ export default function MobileMenu({
               <Text style={styles.profilePhotoFallback}>{profileName[0]?.toUpperCase() || 'U'}</Text>
             </View>
             <Pressable style={styles.photoButton} onPress={chooseProfilePhoto}><Text style={styles.photoButtonText}>Change & crop photo</Text></Pressable>
-            <Text style={styles.help}>JPG, PNG or WebP · max 2 MB · square crop</Text>
+            <Text style={styles.help}>JPG, PNG or WebP · max 12 MB · square crop</Text>
           </View>
           <Text style={styles.label}>Full name</Text>
           <TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" />

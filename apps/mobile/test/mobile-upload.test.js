@@ -5,8 +5,13 @@ import { readFile } from 'node:fs/promises';
 const platformSource = await readFile(new URL('../src/services/platform.js', import.meta.url), 'utf8');
 const ringBellsSource = await readFile(new URL('../src/components/RingBellsStatus.js', import.meta.url), 'utf8');
 const composerSource = await readFile(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
-const appSource = await readFile(new URL('../App.js', import.meta.url), 'utf8');
 
+
+test('profile and group image uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
+  assert.match(platformSource, /appendExpoFilePart/);
+  assert.match(platformSource, /multipartPartMode:\s*'expo-file'/);
+  assert.match(platformSource, /maxBytes:\s*12\s*\*\s*1024\s*\*\s*1024/);
+});
 
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
   assert.match(platformSource, /new FormDataCtor\(\)/);
@@ -39,6 +44,7 @@ test('Ring Bell media posting uses the shared upload route and exposes retry/suc
   assert.match(ringBellsSource, /upload\?\.data\?\.filename/);
 });
 
+const appSource = await readFile(new URL('../App.js', import.meta.url), 'utf8');
 
 test('chat attachment preview uses the native Modal and dismisses after Send', () => {
   assert.ok(appSource.includes('  Modal,\n'));
