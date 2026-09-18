@@ -13,6 +13,13 @@ test('profile and group image uploads use Expo File multipart parts to avoid uns
   assert.match(platformSource, /maxBytes:\s*12\s*\*\s*1024\s*\*\s*1024/);
 });
 
+
+test('chat attachment uploads use Expo File multipart parts instead of unsupported legacy FormData objects', () => {
+  const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
+  assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
+  assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
+});
+
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
   assert.match(platformSource, /new FormDataCtor\(\)/);
   assert.match(platformSource, /isNativeFileUri\s*=\s*uri\s*=>\s*\/\^\(content\|file\)/);
