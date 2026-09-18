@@ -60,7 +60,7 @@ export default function Sidebar({ user, setModal, notificationUnreadCount = 0, i
         {/* <button className="nav-item"><Camera size={20}/><span>Status</span></button> */}
         {/* <button className="nav-item"><Video size={20}/><span>Stories</span></button> */}
         <button className={`nav-item ${activeTab === 'people' ? 'active' : ''}`} onClick={() => nav('people')}><UserCheck size={20}/><span>People & Contacts</span></button>
-        <button className="nav-item"><Bookmark size={20}/><span>Saved Messages</span></button>
+        <button className="nav-item" onClick={() => setModal('saved_messages')}><Bookmark size={20}/><span>Saved Messages</span></button>
         <button className="nav-item" onClick={() => setScreen('interests')}><UserCheck size={20}/><span>Edit Preferences</span></button>
         <button className="nav-item" onClick={() => setModal('poll')}><BarChart3 size={20}/><span>Polls</span></button>
         <button className="nav-item" onClick={() => setModal('settings')}><Settings size={20}/><span>Settings</span></button>
