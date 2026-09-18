@@ -22,11 +22,13 @@ function notification_preferences(int $userId): array {
 function notification_visibility_sql(): string {
     return <<<'SQL'
         (
-            COALESCE(JSON_EXTRACT(h.data_json,'$.chat_id'),0)=0 OR EXISTS (
+            COALESCE(JSON_EXTRACT(h.data_json,'$.persistent_moderation'),0)=1 OR
+            (COALESCE(JSON_EXTRACT(h.data_json,'$.chat_id'),0)=0 OR EXISTS (
                 SELECT 1 FROM chat_members ncm WHERE ncm.chat_id=CAST(JSON_UNQUOTE(JSON_EXTRACT(h.data_json,'$.chat_id')) AS UNSIGNED)
                 AND ncm.user_id=h.user_id AND ncm.status='active'
-            )
+            ))
         ) AND (
+            COALESCE(JSON_EXTRACT(h.data_json,'$.persistent_moderation'),0)=1 OR
             COALESCE(JSON_EXTRACT(h.data_json,'$.message_id'),0)=0 OR EXISTS (
                 SELECT 1 FROM messages nm
                 INNER JOIN chat_members nmem ON nmem.chat_id=nm.chat_id AND nmem.user_id=h.user_id AND nmem.status='active'
