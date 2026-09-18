@@ -208,7 +208,7 @@ export default function PublicChatsList({ onOpenChat }) {
 }
 
 const styles = StyleSheet.create({
-  container: { position: 'absolute', top: -166, bottom: 0, left: 0, right: 0, zIndex: 20, elevation: 20, minHeight: 0, paddingHorizontal: 12, paddingTop: 8, backgroundColor: '#fff' },
+  container: { flex: 1, position: 'absolute', top: -166, bottom: 0, left: 0, right: 0, zIndex: 20, elevation: 20, minHeight: 0, paddingHorizontal: 12, paddingTop: 8, backgroundColor: '#fff' },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: '#68748a', fontSize: 12 },
   titleRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
