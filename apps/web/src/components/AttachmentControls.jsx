@@ -7,6 +7,10 @@ const ACCEPT = [
   'image/png',
   'image/webp',
   'image/gif',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/3gpp',
   'application/pdf',
   'text/plain',
   'application/msword',
@@ -76,8 +80,8 @@ export default function AttachmentControls({ selectedChat, apiBridge, onUploaded
         className="composer-addon-btn attachment-picker-btn"
         onClick={openPicker}
         disabled={!selectedChat || selectedChat.blocked || busy}
-        title={busy ? 'Uploading attachment...' : 'Attach image or document'}
-        aria-label={busy ? 'Uploading attachment' : 'Attach image or document'}
+        title={busy ? 'Uploading attachment...' : 'Attach image, video or document'}
+        aria-label={busy ? 'Uploading attachment' : 'Attach image, video or document'}
       >
         {busy ? '…' : '📎'}
       </button>
