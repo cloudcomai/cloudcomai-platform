@@ -583,7 +583,8 @@ VALUES
     ('015_notification_delivery_queue.sql', UTC_TIMESTAMP()),
     ('016_account_backup.sql', UTC_TIMESTAMP()),
     ('017_message_read_receipts.sql', UTC_TIMESTAMP()),
-    ('020_video_message_metadata.sql', UTC_TIMESTAMP())
+    ('020_video_message_metadata.sql', UTC_TIMESTAMP()),
+    ('021_public_chat_moderation.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
