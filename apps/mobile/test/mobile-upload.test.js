@@ -7,6 +7,12 @@ const ringBellsSource = await readFile(new URL('../src/components/RingBellsStatu
 const composerSource = await readFile(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
 
 
+test('profile and group image uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
+  assert.match(platformSource, /appendExpoFilePart/);
+  assert.match(platformSource, /multipartPartMode:\s*'expo-file'/);
+  assert.match(platformSource, /maxBytes:\s*12\s*\*\s*1024\s*\*\s*1024/);
+});
+
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
   assert.match(platformSource, /new FormDataCtor\(\)/);
   assert.match(platformSource, /isNativeFileUri\s*=\s*uri\s*=>\s*\/\^\(content\|file\)/);
