@@ -69,6 +69,7 @@ jobs:
       - run: php backend/tests/forward_message_test.php
       - run: php backend/tests/message_read_receipts_feature_test.php
       - run: php backend/tests/public_chat_rooms_test.php
+      - run: php backend/tests/public_chat_moderation_test.php
       - run: php backend/tests/friend_requests_feature_test.php
       - run: php backend/tests/ring_bells_feature_test.php
       - run: php backend/tests/message_profile_visibility_test.php
