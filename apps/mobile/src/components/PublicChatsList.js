@@ -10,6 +10,8 @@ export default function PublicChatsList({ onOpenChat }) {
   const [favorites, setFavorites] = useState([]);
   const [query, setQuery] = useState('');
   const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [publicRoomsOpen, setPublicRoomsOpen] = useState(true);
+  const [languageRoomsOpen, setLanguageRoomsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionRoomId, setActionRoomId] = useState(null);
@@ -80,6 +82,9 @@ export default function PublicChatsList({ onOpenChat }) {
     return rooms.filter(room => searchableRoomText(room).includes(term));
   }, [rooms, query]);
 
+  const cityRooms = useMemo(() => filteredRooms.filter(room => (room.room_type || 'city') === 'city'), [filteredRooms]);
+  const languageRooms = useMemo(() => filteredRooms.filter(room => room.room_type === 'language'), [filteredRooms]);
+
   const renderRoom = ({ item, favorite = false }) => (
     <Pressable style={styles.roomRow} onPress={() => openRoom(item)} disabled={Boolean(actionRoomId)} accessibilityRole="button">
       <View style={styles.roomIcon}><Text style={styles.roomIconText}>{item.name?.[0]?.toUpperCase() || 'P'}</Text></View>
@@ -111,7 +116,7 @@ export default function PublicChatsList({ onOpenChat }) {
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search room, city, category or keyword"
+          placeholder="Search room, city, language, category or keyword"
           placeholderTextColor="#7f8aa3"
           autoCapitalize="none"
           autoCorrect={false}
@@ -141,22 +146,59 @@ export default function PublicChatsList({ onOpenChat }) {
         </View>
       ) : null}
 
-      <View style={styles.roomsHeader}>
+      <Pressable
+        style={[styles.sectionHeader, publicRoomsOpen && styles.sectionHeaderOpen]}
+        onPress={() => setPublicRoomsOpen(value => !value)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: publicRoomsOpen }}
+      >
         <Text style={styles.roomsTitle}>Public Chat Rooms</Text>
-        <Text style={styles.roomsHint}>{filteredRooms.length ? 'Tap a room to open' : 'No matching rooms'}</Text>
-      </View>
+        <Text style={styles.sectionChevron}>{publicRoomsOpen ? '⌃' : '⌄'}</Text>
+      </Pressable>
 
-      <FlatList
-        data={filteredRooms}
-        keyExtractor={item => String(item.id)}
-        renderItem={renderRoom}
-        style={styles.roomList}
-        contentContainerStyle={styles.roomListContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-        ListEmptyComponent={<View style={styles.emptyCard}><Text style={styles.emptyTitle}>No rooms found</Text><Text style={styles.emptyText}>Try a different room name, city, category, or keyword.</Text></View>}
-      />
+      {publicRoomsOpen ? (
+        <View style={styles.sectionPanel}>
+          <Text style={styles.roomsHint}>{cityRooms.length ? 'Tap a room to open' : 'No matching city rooms'}</Text>
+          <FlatList
+            data={cityRooms}
+            keyExtractor={item => String(item.id)}
+            renderItem={renderRoom}
+            style={styles.roomList}
+            contentContainerStyle={styles.roomListContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+            ListEmptyComponent={<View style={styles.emptyCard}><Text style={styles.emptyTitle}>No city rooms found</Text><Text style={styles.emptyText}>Try a different room name, city, category, or keyword.</Text></View>}
+          />
+        </View>
+      ) : null}
+
+      <Pressable
+        style={[styles.sectionHeader, languageRoomsOpen && styles.sectionHeaderOpen, styles.languageSectionHeader]}
+        onPress={() => setLanguageRoomsOpen(value => !value)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: languageRoomsOpen }}
+      >
+        <Text style={styles.roomsTitle}>Language Chat Rooms</Text>
+        <Text style={styles.sectionChevron}>{languageRoomsOpen ? '⌃' : '⌄'}</Text>
+      </Pressable>
+
+      {languageRoomsOpen ? (
+        <View style={styles.sectionPanel}>
+          <FlatList
+            data={languageRooms}
+            keyExtractor={item => String(item.id)}
+            renderItem={renderRoom}
+            style={styles.languageRoomList}
+            contentContainerStyle={styles.roomListContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<View style={styles.emptyCard}><Text style={styles.emptyTitle}>No language rooms found</Text><Text style={styles.emptyText}>Try a language name such as Telugu or French.</Text></View>}
+          />
+        </View>
+      ) : null}
+
+      {!filteredRooms.length ? <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No rooms found</Text><Text style={styles.emptyText}>Try a different room name, city, language, category, or keyword.</Text></View> : null}
     </View>
   );
 }
@@ -169,6 +211,11 @@ const styles = StyleSheet.create({
   titleMeta: { flex: 1, minWidth: 0 },
   heading: { color: '#172033', fontSize: 20, fontWeight: '800' },
   description: { marginTop: 2, color: '#68748a', fontSize: 11 },
+  sectionHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: '#e1e6ef', borderRadius: 12, backgroundColor: '#fff' },
+  sectionHeaderOpen: { borderColor: '#cbd6f6', backgroundColor: '#f8faff' },
+  languageSectionHeader: { marginTop: 10 },
+  sectionChevron: { paddingHorizontal: 7, color: '#3157d5', fontSize: 22, fontWeight: '700' },
+  sectionPanel: { marginTop: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#e1e6ef', borderRadius: 12, backgroundColor: '#fff' },
   roomCount: { minWidth: 30, height: 30, paddingHorizontal: 8, borderRadius: 15, textAlign: 'center', textAlignVertical: 'center', color: '#3157d5', backgroundColor: '#eef2ff', fontSize: 11, fontWeight: '800' },
   searchWrap: { minHeight: 46, flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: '#d5dceb', borderRadius: 12, backgroundColor: '#f8faff' },
   searchIcon: { marginRight: 8, color: '#3157d5', fontSize: 22, fontWeight: '700' },
@@ -190,8 +237,9 @@ const styles = StyleSheet.create({
   roomsHeader: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   roomsTitle: { color: '#172033', fontSize: 14, fontWeight: '800' },
   roomsHint: { color: '#7a8497', fontSize: 10 },
-  roomList: { flex: 1, minHeight: 0 },
-  roomListContent: { paddingBottom: 84 },
+  roomList: { maxHeight: 330, minHeight: 0 },
+  languageRoomList: { maxHeight: 520, minHeight: 0 },
+  roomListContent: { paddingBottom: 12 },
   roomRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
   roomIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff' },
   roomIconText: { color: '#3157d5', fontSize: 15, fontWeight: '800' },
