@@ -16,5 +16,5 @@ test('language room list is backed by the shared public-room renderer', () => {
   assert.match(source,/data=\{languageRooms\}/);
   assert.match(source,/renderItem=\{renderRoom\}/);
   assert.match(source,/platformApi\.joinPublicChat/);
-  assert.match(source,/onOpenChat\?\.\(\{ \...data\.chat/);
+  assert.match(source,/onOpenChat\?\.\(\{ \.\.\.\(data\.chat/);
 });
