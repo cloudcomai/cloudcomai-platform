@@ -110,13 +110,22 @@ function users_block_state(int $viewerId, int $otherUserId): array {
     return ['blocked_by_me' => $blockedByMe, 'blocked_me' => $blockedMe, 'blocked' => $blockedByMe || $blockedMe];
 }
 function assert_chat_allows_messages(int $chatId, int $userId): void {
-    $st = db()->prepare('SELECT c.type,cm.user_id FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id<>? AND cm.status="active" WHERE c.id=? LIMIT 1');
-    $st->execute([$userId, $chatId]);
-    $chat = $st->fetch();
-    if (!$chat || $chat['type'] !== 'private') return;
-    if (users_block_state($userId, (int)$chat['user_id'])['blocked']) {
-        fail('Messages are unavailable because this contact is blocked', 403);
+    $st = db()->prepare('SELECT c.type,cm.user_id FROM chats c LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id<>? AND cm.status="active" WHERE c.id=? LIMIT 1');
+    $st->execute([$userId, $chatId]); $chat=$st->fetch();
+    if (!$chat) return;
+    if ($chat['type']==='public') {
+        $rs=db()->prepare("SELECT blocked_until,status FROM public_chat_restrictions WHERE chat_id=? AND user_id=? LIMIT 1");
+        $rs->execute([$chatId,$userId]); $restriction=$rs->fetch();
+        if ($restriction && in_array($restriction['status'],['active','extended'],true) && $restriction['blocked_until'] && strtotime($restriction['blocked_until'])>time()) {
+            fail('Your access to this public chat room is temporarily restricted until '.$restriction['blocked_until'].' UTC.',403);
+        }
+        if ($restriction && $restriction['blocked_until'] && strtotime($restriction['blocked_until'])<=time()) {
+            db()->prepare("UPDATE public_chat_restrictions SET status='expired',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=? AND status IN ('active','extended')")->execute([$chatId,$userId]);
+        }
+        return;
     }
+    if ($chat['type'] !== 'private') return;
+    if (users_block_state($userId, (int)$chat['user_id'])['blocked']) fail('Messages are unavailable because this contact is blocked',403);
 }
 function token_for(int $userId, int $sessionVersion = 0): string {
     global $config;

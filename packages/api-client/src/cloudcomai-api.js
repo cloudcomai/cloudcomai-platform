@@ -38,6 +38,9 @@ export class CloudComAiApi {
   listPublicChats(options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, options); }
   joinPublicChat(roomId, options = {}) { return this.client.post(ApiRoute.PUBLIC_CHATS, { room_id: roomId }, options); }
   leavePublicChat(roomId, options = {}) { return this.client.delete(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, id: roomId } }); }
+  getPublicChatManage(roomId, options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, action: 'manage', room_id: roomId } }); }
+  getPublicChatReports(roomId, options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, action: 'reports', room_id: roomId } }); }
+  reportPublicChatUser(roomId, input, options = {}) { return this.client.post(ApiRoute.PUBLIC_CHATS, { action: 'report', room_id: roomId, ...input }, options); }
   listGroups(options = {}) { return this.client.get(ApiRoute.GROUPS, options); }
   createGroup(input, options = {}) { return this.client.post(ApiRoute.GROUPS, input, options); }
   createGroupInvite(id, options = {}) { return this.client.post(ApiRoute.GROUPS, {}, { ...options, query: { ...options.query, action: 'invite', id } }); }
@@ -48,6 +51,7 @@ export class CloudComAiApi {
   listGroupMembers(chatId, options = {}) { return this.client.get(ApiRoute.GROUP_MEMBERS, { ...options, query: { ...options.query, chat_id: chatId } }); }
   updateGroupMember(chatId, userId, action, options = {}) { return this.client.post(ApiRoute.GROUP_MEMBERS, { chat_id: chatId, user_id: userId, action }, options); }
   listMessages(chatId, afterId = 0, options = {}) { return this.client.get(ApiRoute.MESSAGES, { ...options, query: { ...options.query, chat_id: chatId, after_id: afterId } }); }
+  getMessageContext(chatId, messageId, options = {}) { return this.client.get(ApiRoute.MESSAGES, { ...options, query: { ...options.query, chat_id: chatId, after_id: 0, around_id: messageId } }); }
   searchMessages(chatId, query, options = {}) { return this.client.get(ApiRoute.MESSAGES, { ...options, query: { ...options.query, chat_id: chatId, after_id: 0, q: query } }); }
   deleteMessage(id, scope = 'self', options = {}) { return this.client.delete(ApiRoute.MESSAGES, { ...options, query: { ...options.query, id, scope } }); }
   sendMessage(input, options = {}) { return this.client.post(ApiRoute.MESSAGES, input, options); }
