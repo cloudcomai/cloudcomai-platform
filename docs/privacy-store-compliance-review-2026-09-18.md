@@ -9,7 +9,7 @@ Reviewed 18 September 2026. Scope: web, Android/iOS shared app, PHP API, databas
 - Revised Privacy Policy and Terms of Service tied to the implemented features, including a US supplement, Google API Limited Use, contact uploads, location, public audiences, notification previews, server-readable messages, backups, retention exceptions, rights requests and safety reporting.
 - Standalone public HTML privacy, terms and account-deletion information pages, plus shared offline legal documents in mobile. Links appear at signup/login and settings, and in the web footer.
 - Registration notice and explicit mobile terms/age acknowledgment, matching the existing web acknowledgment. This is not consent to every optional data use.
-- A separate phone-contact upload disclosure and affirmative choice. Opening or refreshing People & Contacts no longer reads/uploads the phone address book. Google connection notices explain imports and subsequent refreshes.
+- A separate phone-contact upload disclosure and affirmative choice. Opening or refreshing People & Contacts no longer initiates phone-address-book sync. The permission call now uses Expo's module-level API; the old call incorrectly treated it as a Contact-class method. Google connection notices explain imports and subsequent refreshes.
 - A corrected web export description: account exports can embed media and contain readable personal information.
 - One canonical text source, generated public/mobile copies, and regression tests for parity and contact-consent ordering.
 

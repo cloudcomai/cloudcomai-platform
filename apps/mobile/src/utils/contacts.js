@@ -6,7 +6,7 @@ export async function syncPhoneContacts(api, contactsModule = null) {
     const module = contactsModule || await import('expo-contacts');
     const Contact = module.Contact;
     const ContactField = module.ContactField;
-    const permission = await Contact.requestPermissionsAsync();
+    const permission = await module.requestPermissionsAsync();
     if (!permission?.granted) return { granted: false, count: 0 };
     const result = await Contact.getAllDetails([ContactField.FULL_NAME, ContactField.EMAILS, ContactField.PHONES], { limit: 5000, offset: 0 });
     const contacts = (result || []).map(contact => ({

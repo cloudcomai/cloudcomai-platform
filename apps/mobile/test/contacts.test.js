@@ -25,7 +25,7 @@ const createApi = ({ connected = true, syncError = null, contacts = [], statusEr
 
 test('declining disclosure performs no permission request, contact read or upload', async () => {
   const api = { syncPhoneContacts() { assert.fail('must not upload'); } };
-  const module = { Contact: { requestPermissionsAsync() { assert.fail('must not request OS access'); } } };
+  const module = { requestPermissionsAsync() { assert.fail('must not request OS access'); } };
   assert.deepEqual(await requestPhoneContactSync(api, async () => false, module), { granted: false, count: 0, cancelled: true });
   assert.equal((await requestPhoneContactSync(api, null, module)).cancelled, true);
 });
@@ -33,8 +33,10 @@ test('declining disclosure performs no permission request, contact read or uploa
 test('affirmative disclosure precedes OS permission, read and upload; denial stops access', async () => {
   for (const granted of [true, false]) {
     const calls = [];
-    const module = { ContactField: { FULL_NAME: 'name', EMAILS: 'emails', PHONES: 'phones' }, Contact: {
+    // Expo exports permission functions at module level; Contact only handles data access.
+    const module = { ContactField: { FULL_NAME: 'name', EMAILS: 'emails', PHONES: 'phones' },
       async requestPermissionsAsync() { calls.push('permission'); return { granted }; },
+      Contact: {
       async getAllDetails() { calls.push('read'); return [{ fullName: 'Friend', emails: [{ email: 'friend@example.com' }], phones: [{ number: '+1234567890' }] }]; },
     } };
     const api = { async syncPhoneContacts(contacts) { calls.push('upload'); assert.deepEqual(contacts, [{ name: 'Friend', email: 'friend@example.com', phone: '+1234567890' }]); } };
