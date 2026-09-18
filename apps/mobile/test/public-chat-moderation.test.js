@@ -11,25 +11,25 @@ const component=fs.readFileSync(path.join(here,'../src/components/PublicChatMana
 
 test('reply previews navigate to and highlight the original message, loading older context when needed',()=>{
  assert.ok(app.includes('getMessageContext(chat.id,id'));
- assert.match(app,/scrollToIndex/);
- assert.match(app,/highlightedMessageId/);
- assert.match(app,/navigateToMessage(item.reply_to_message_id)/);
+ assert.ok(app.includes('scrollToIndex'));
+ assert.ok(app.includes('highlightedMessageId'));
+ assert.ok(app.includes('navigateToMessage(item.reply_to_message_id)'));
 });
 test('public chat management exposes online users, reporting and leave confirmation',()=>{
- assert.match(app,/PublicChatManagement/);
- assert.match(component,/Online Users/);
- assert.match(component,/Report User/);
- assert.match(component,/Leave Chat \/ Leave Room/);
+ assert.ok(app.includes('PublicChatManagement'));
+ assert.ok(component.includes('Online Users'));
+ assert.ok(component.includes('Report User'));
+ assert.ok(component.includes('Leave Chat / Leave Room'));
  assert.ok(component.includes('Number(selectedUser.id)') && component.includes('Number(user.id)'));
 });
 test('attachment plus button keeps camera, photo library and document flows with preview and retry',()=>{
- assert.match(app,/openAttachmentPicker/);
- assert.match(app,/Camera/);
- assert.match(app,/Photo library/);
- assert.match(app,/Document/);
- assert.match(app,/attachmentDraft/);
- assert.match(app,/Retry/);
- assert.match(app,/uploadAttachmentAsset/);
+ assert.ok(app.includes('openAttachmentPicker'));
+ assert.ok(app.includes('Camera'));
+ assert.ok(app.includes('Photo library'));
+ assert.ok(app.includes('Document'));
+ assert.ok(app.includes('attachmentDraft'));
+ assert.ok(app.includes('Retry'));
+ assert.ok(app.includes('uploadAttachmentAsset'));
 });
 test('API client exposes message context and public moderation endpoints',()=>{
  assert.ok(api.includes('getMessageContext(chatId, messageId'));
