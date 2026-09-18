@@ -40,6 +40,12 @@ test('Ring Bell media posting uses the shared upload route and exposes retry/suc
 });
 
 
+test('chat attachment preview uses the native Modal and dismisses after Send', () => {
+  assert.match(appSource, /  Modal,\\n/);
+  assert.match(appSource, /setAttachmentDraft\\(null\\);setReplyTo\\(null\\);setAttachmentProgress\\(1\\);/);
+  assert.match(appSource, /onRequestClose=\\{\\(\\) => \\{ if\\(!uploading\\)setAttachmentDraft\\(null\\); \\}\\}/);
+});
+
 test('chat photo/document Send uses the non-XHR upload path so the preview modal cannot remain stuck on the progress overlay', () => {
   const sendAttachment = appSource.match(/const sendAttachment = async \(\) => \{[\\s\\S]*?\n  \};/)?.[0] || '';
   assert.match(sendAttachment, /uploadAttachmentAsset\(attachmentDraft,\{chat_id:chat\.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo\?\.id\|\|undefined\}\)/);
