@@ -15,7 +15,8 @@ test('message actions stay hidden until the bubble is selected', () => {
 });
 
 test('selected message actions use compact accessible icons instead of large text labels', () => {
-  for (const label of ['Save message', 'Reply to message', 'Edit message', 'Delete message', 'Forward message']) {
+  assert.match(app, /accessibilityLabel=\{item\.saved \? 'Unsave message' : 'Save message'\}/);
+  for (const label of ['Reply to message', 'Edit message', 'Delete message', 'Forward message']) {
     assert.ok(app.includes(`accessibilityLabel="${label}"`) || media.includes(`accessibilityLabel="${label}"`), `missing accessible ${label} action`);
   }
   assert.match(app, /messageActionButton: \{ width: 30, height: 30/);
