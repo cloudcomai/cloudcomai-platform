@@ -11,6 +11,8 @@ assert(in_array('DELETE',$contract['routes']['v1/public-chats']['methods'],true)
 $handler=(string)file_get_contents(__DIR__.'/../api/public_chats.php');
 assert(str_contains($handler,"c.type='public'"));
 assert(str_contains($handler,"c.room_type IN ('city','language')"));
+assert(!str_contains($handler,"group_category='india-city'"));
+assert(str_contains($handler,"room_type IN ('city','language')"));
 assert(str_contains($handler,'language_code'));
 assert(str_contains($handler,'room_type'));
 assert(str_contains($handler,'LIMIT 100'));
@@ -48,3 +50,7 @@ foreach ([$fresh,$languageMigration] as $sql) {
     assert(str_contains($sql,"'Telugu','te'"));
     assert(str_contains($sql,"'Urdu','ur'"));
 }
+
+$languageNames=['French','Spanish','Arabic','Assamese','Bengali','Gujarati','Hindi','Kannada','Kashmiri','Konkani','Malayalam','Manipuri (Meitei)','Marathi','Nepali','Odia','Punjabi','Sanskrit','Sindhi','Tamil','Telugu','Urdu'];
+$previous=-1;
+foreach($languageNames as $languageName){$position=strpos($languageMigration,$languageName);assert($position!==false);assert($position>$previous);$previous=$position;}
