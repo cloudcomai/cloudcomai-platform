@@ -77,7 +77,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 2 * 1024 * 1024) { setError('Cropped image must be 2 MB or smaller.'); return; }
+      if (asset.fileSize && asset.fileSize > 12 * 1024 * 1024) { setError('Cropped image must be 12 MB or smaller.'); return; }
       setBusy(true);
       const { data } = await uploadMediaAsset(asset, { type: 'group', id: group.id });
       setImageVersion(data.updated_at || Date.now());
