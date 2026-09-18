@@ -13,7 +13,7 @@ assert(str_contains($handler,"c.type='public'"));
 assert(str_contains($handler,"c.room_type IN ('city','language')"));
 assert(str_contains($handler,'language_code'));
 assert(str_contains($handler,'room_type'));
-assert(str_contains($handler,'LIMIT 50'));
+assert(str_contains($handler,'LIMIT 100'));
 assert(str_contains($handler,'INSERT INTO chat_members'));
 assert(str_contains($handler,"AS joined_count"));
 assert(str_contains($handler,"AS online_count"));
