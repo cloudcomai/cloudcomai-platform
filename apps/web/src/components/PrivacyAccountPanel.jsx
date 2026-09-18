@@ -174,7 +174,7 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
 
         <section className="privacy-section">
           <h4><Download size={17} /> Account backup</h4>
-          <p className="privacy-footnote">Download your profile, preferences, contacts, chats, messages, and attachment metadata as JSON. Media files are not embedded.</p>
+          <p className="privacy-footnote">Download a readable JSON copy of your profile, preferences, contacts, available chats and messages. The export may embed attachment files. Keep it private and protect any device or service where you save it.</p>
           <button type="button" className="privacy-backup-button" onClick={downloadBackup} disabled={downloading}>{downloading ? 'Preparing backup…' : 'Download account backup'}</button>
         </section>
       </>}

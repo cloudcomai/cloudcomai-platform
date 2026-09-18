@@ -1,5 +1,7 @@
 import React, { useRef, useState } from 'react';
 import TermsModal from './TermsModal';
+import LegalLinks from './LegalLinks';
+import registrationNotice from '../content/registration-notice.txt?raw';
 import PrivacyPolicyModal from './PrivacyPolicyModal';
 import BrandLogo from './BrandLogo';
 import { Camera } from 'lucide-react';
@@ -33,7 +35,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
     e.preventDefault();
     if (loading) return;
     if (mode === 'register' && !acceptedTerms) {
-      setError('Please accept the Terms & Conditions and Privacy Policy.');
+      setError('Please agree to the Terms & Conditions and acknowledge the Privacy Policy.');
       return;
     }
     setError('');
@@ -147,9 +149,10 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
             <input required type="password" autoComplete="new-password" minLength="8" placeholder="Confirm new password" aria-label="Confirm new password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}/>
           </>}
 
+          {mode === 'register' && <p style={{ fontSize: '13px', lineHeight: 1.6 }}>{registrationNotice}</p>}
           {mode === 'register' && <div className="terms-checkbox"><label>
             <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}/>
-            <span>I agree to <button type="button" className="terms-link" onClick={() => setShowTerms(true)}>Terms & Conditions</button> and <button type="button" className="terms-link" onClick={() => setShowPrivacy(true)}>Privacy Policy</button></span>
+            <span>I am 18 or older and agree to the <button type="button" className="terms-link" onClick={() => setShowTerms(true)}>Terms & Conditions</button> and acknowledge the <button type="button" className="terms-link" onClick={() => setShowPrivacy(true)}>Privacy Policy</button></span>
           </label></div>}
 
           {error && <div className="error" role="alert">{error}</div>}
@@ -164,6 +167,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
         {mode === 'reset' && <button type="button" className="link" onClick={() => switchMode('forgot')}>Request a new reset link</button>}
         {mode !== 'forgot' && mode !== 'reset' && <button type="button" className="link" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}>{mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}</button>}
 
+        <LegalLinks />
         {showTerms && <TermsModal onClose={() => setShowTerms(false)}/>} 
         {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)}/>} 
       </div>

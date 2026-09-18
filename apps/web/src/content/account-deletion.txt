@@ -1,0 +1,25 @@
+CLOUDCOMAI ACCOUNT AND DATA DELETION
+
+Applications: CloudComAI / CloudComAI Chat
+Revision: 18 September 2026
+Status: Review draft; deletion operations and timing require owner confirmation before publication.
+
+1. Request deletion without the app
+
+Email support@cloudcomai.com with the subject Account deletion. Include your CloudComAI User ID or registered email/mobile identifier and state that you want your account and associated personal information deleted. You do not need to reinstall the app. Do not send your password, login token or identity documents with the initial request.
+
+We may reasonably verify control of the account before processing the request. If you cannot access your registered contact method, describe the problem so an appropriate verification route can be considered. A sent email is a request, not a confirmation that deletion has completed.
+
+2. What the request covers
+
+Request removal of your account/profile, sessions and push tokens, imported phone/Google contacts and Google connection credentials, messages and uploads, polls/votes and story/status records, settings and server account backups associated with the account. Necessary retention exceptions must be explained for the affected information, purpose and duration. We cannot remove independent copies already held by recipients or exported by you to another service.
+
+Disabling automatic backup, revoking Google access, signing out, uninstalling the app, hiding a message or removing a chat from your list does not erase all account data. Deletion of your CloudComAI account does not delete your Google Account or original Google contacts.
+
+3. Timing and confirmation
+
+The operator must confirm the deletion completion period and the backup/log retention schedule before this draft is published. You should receive a response about verification, applicable timing, any lawful exceptions, and confirmation when deletion is completed. Legal privacy-request deadlines still apply.
+
+4. Current availability
+
+The current app has no automated in-app account-deletion control. This support request channel is not a substitute for the in-app deletion functionality required for store approval. See the Privacy Policy for other rights or email support@cloudcomai.com with the subject Privacy request.

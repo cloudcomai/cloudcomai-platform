@@ -1,373 +1,96 @@
 CLOUDCOMAI TERMS OF SERVICE
 
-Website: CloudComAI.com
-Platform: CloudComAI / CloudComAI Chat
-Effective Date: 21 August 2026
-Last Updated: 21 August 2026
+Website: https://cloudcomai.com
+Applications: CloudComAI / CloudComAI Chat (web, Android and iOS)
+Revision: 18 September 2026
+Status: Review draft; operator details and release requirements must be completed before publication.
 
-1. Acceptance of Terms
+1. Operator, agreement and privacy
 
-These Terms of Service (“Terms”) govern your access to and use of CloudComAI.com, CloudComAI applications, CloudComAI Chat, messaging services, groups, communities, public rooms, audio/video calling, AI features and related services (“Services”).
+These Terms govern CloudComAI's messaging, groups, public rooms, shared media and related account features. CloudComAI is the service name.
 
-By creating an account, accessing or using CloudComAI, you agree to these Terms, our Privacy Policy and applicable Community Standards.
+Legal operator: [OWNER TO CONFIRM: legal individual or business name matching the developer account]
+Business/contact address: [OWNER TO CONFIRM: address for legal notices]
+Support, privacy, safety and legal contact: support@cloudcomai.com
+India Grievance Officer: [OWNER TO CONFIRM: appointed officer name and contact details]
 
-If you do not agree with these Terms, you must not use the Services.
+When registering, you must agree to these Terms and acknowledge the Privacy Policy. The Privacy Policy explains processing; accepting these Terms does not authorize every optional permission, marketing, tracking or a future AI feature. Mandatory rights are preserved even where another provision of these Terms conflicts with them.
 
-2. Eligibility
+2. Eligibility and accounts
 
-CloudComAI is intended for users who satisfy the minimum age requirements stated by CloudComAI and applicable law.
+You must be at least 18 years old and legally able to enter this agreement. Child accounts and parental-consent enrollment are not offered. Provide accurate account information and do not impersonate another person. Registration currently requires name, date of birth, gender, password and an account identifier; available forms explain their fields.
 
-Unless CloudComAI expressly provides otherwise, users must be at least 18 years old to create and operate an account.
+Keep credentials private, protect devices that remain signed in, and notify support promptly about suspected unauthorized access. Use Devices & sessions to revoke available sessions. Do not share your password or app-lock PIN. These obligations do not remove our duties to protect the service or your statutory rights.
 
-You must provide accurate information during registration.
+3. Your content and the service license
 
-You may not create an account using another person’s identity or impersonate another individual.
+You keep your rights in content you submit. You grant CloudComAI a non-exclusive license to store, copy, transmit, format and display that content as needed to provide the features and audiences you choose, maintain the service, investigate reports and comply with law. This is not ownership of your content or permission to use private messages for general-purpose AI training or advertising.
 
-3. Account Registration
+You must have the rights and lawful authority needed for content and contact information you submit. Do not disclose another person's private information without authority. The license continues only as needed for those purposes, including lawful retention; recipient copies and legally required preservation can outlast your removal of content.
 
-Depending on available features, registration may require:
+4. Community standards and prohibited conduct
 
-* Mobile number;
-* Email address;
-* User ID;
-* Password or authentication credentials;
-* OTP verification;
-* Other verification information.
+The following are prohibited in direct messages, groups, public rooms, profiles and media:
 
-You are responsible for maintaining the security of your account.
+* Child sexual abuse or exploitation material, grooming, sexual solicitation of minors, trafficking or other child endangerment.
+* Non-consensual intimate imagery, sexual deepfakes, threats to publish intimate images, or other sexual exploitation.
+* Harassment, stalking, credible threats, hate or discriminatory abuse, encouragement of violence or unlawful surveillance.
+* Impersonation, doxxing, fraud, scams, phishing, malware, unauthorized access, spam or manipulation of reports and moderation.
+* Copyright or other rights infringement; unlawful gambling or trade; content whose creation, possession or dissemination is prohibited by applicable law.
+* Deceptive synthetic media presented as authentic, or removal of legally required authenticity labels or provenance information.
 
-You must immediately notify CloudComAI if you believe that your account has been compromised.
+You must follow applicable laws and these standards. Violations may result in removal/restriction of content, suspension or termination of access, and legally required reporting or disclosure. Unlawful conduct can also expose the responsible user to civil or criminal consequences. Restrictions apply to uploaded material even when an external AI tool created it.
 
-You are responsible for activities performed through your account unless you can establish that the activity resulted from circumstances outside your reasonable control.
+5. Reports, moderation and appeals
 
-4. Account Security
+Use the available public-room reporting and block controls or email support@cloudcomai.com with the subject Safety report. Include enough information to locate the content, such as account, room/message reference, time and reason. Blocking a user is not a guarantee that their content disappears from every shared room. Public-room moderation may temporarily restrict participation after multiple reports and may be reviewed by authorized moderators. Do not coordinate false reports.
 
-You must:
+For non-consensual intimate images, use the subject Urgent intimate-image removal. Identify where the material appears, explain that you are the depicted person or an authorized representative, give a way to contact you, and include a signed good-faith statement that publication was not authorized. Provide references rather than redistributing the images. For suspected child exploitation, do not attach or forward illegal material. Use local emergency services for an immediate threat to life; CloudComAI support is not an emergency service.
 
-* Keep authentication credentials confidential;
-* Not share OTPs or passwords;
-* Not attempt to bypass authentication;
-* Not access another person’s account;
-* Not use another person’s credentials;
-* Not attempt to compromise CloudComAI’s infrastructure.
+Where the Indian intermediary rules apply, ordinary grievances require acknowledgment within 24 hours and resolution within seven days; specified removal complaints have a 36-hour deadline. Complaints covered by the intimate-content or impersonation provision require removal or disabling within two hours, and qualifying court/government orders have a three-hour deadline. Where the US TAKE IT DOWN Act applies, valid non-consensual intimate-image removal requests require action on the reported material and known identical copies within 48 hours. These distinct deadlines depend on the applicable provision; urgent reports must not wait for a community-report threshold. You can appeal an account/content decision using the subject Moderation appeal and the decision or account reference. Statutory complaint and appeal avenues remain available. We do not promise that every report will lead to removal or that software will detect every harmful item.
 
-CloudComAI may require additional security verification.
+6. Privacy, public audiences and permissions
 
-5. Permitted Use
+Choose audiences carefully. Public-room content is visible to participating users and may be copied or forwarded. Profile fields, presence, read state and screenshot events can be visible through their respective features and controls. Do not treat a public room as confidential.
 
-You may use CloudComAI only for lawful purposes.
+Contacts, Google connection, location, camera, microphone, file selection, cloud backup and notifications are separate choices. You can decline optional access. Revoking a permission or Google connection stops future authorized access but does not itself erase uploaded information. See the Privacy Policy for the data involved and deletion requests.
 
-You agree not to use CloudComAI to:
+7. Messages, retention, backups and account deletion
 
-1. Commit or facilitate crimes;
-2. Harass, threaten or intimidate others;
-3. Impersonate another person;
-4. Conduct fraud or scams;
-5. Distribute malware;
-6. Conduct phishing;
-7. Attempt unauthorised access;
-8. Interfere with the Services;
-9. Abuse automated systems;
-10. Scrape data without authorisation;
-11. Circumvent security controls;
-12. Violate privacy rights;
-13. Distribute child sexual abuse material;
-14. Distribute non-consensual intimate material;
-15. Promote terrorism or unlawful extremist activity;
-16. Promote violence;
-17. Engage in unlawful gambling where prohibited;
-18. Facilitate money laundering;
-19. Infringe copyright, trademark, patent or other intellectual-property rights;
-20. Publish content you do not have the right to publish;
-21. Send spam or bulk unsolicited communications;
-22. Distribute deceptive or materially misleading information;
-23. Conduct unauthorised surveillance;
-24. Manipulate or abuse platform functionality; or
-25. Violate applicable Indian law or another applicable law.
+Private/group messages normally default to 30-day expiry and public-room messages to four hours, subject to actual conversation/server settings and older records. Polls default to 30 days where no closing time is selected. Expiry, physical cleanup, hiding a message for yourself and deleting for everyone are different operations. We cannot erase recipients' independent exports, downloads, screenshots or other copies.
 
-6. User Content
+Cloud backup stores a separate snapshot when enabled/configured. Disabling automatic backup does not erase the latest snapshot. Keep downloaded exports secure. Retention limitations, including legal holds, are described in the Privacy Policy; they must not be used to justify indefinite retention of all data.
 
-You retain ownership of content that you lawfully own and upload, transmit or publish through CloudComAI.
+You can request account and associated-data deletion at support@cloudcomai.com, including after uninstalling the app. Reasonable verification may be required. Sign-out, uninstall, account suspension and deleting a chat are not account deletion. The current release does not provide automated in-app account deletion. Any required retention must be explained separately, with its purpose and duration.
 
-By submitting content to CloudComAI, you grant CloudComAI only the rights reasonably necessary to host, transmit, store, process, display and technically deliver that content as required to provide the Services.
+8. Security and service limitations
 
-This licence does not transfer ownership of your content to CloudComAI.
+CloudComAI messages are processed and stored on its servers and are not end-to-end encrypted. HTTPS, password hashing and other safeguards do not guarantee absolute security. App Lock protects local entry to the app. Screenshot alerts are limited by device/platform capabilities and cannot prevent copying by another camera or every capture method.
 
-You represent that you have the necessary rights and permissions to submit the content.
+Features depend on internet, devices, hosting and configured providers. Delivery, notification timing, availability and backups are not guaranteed to be uninterrupted. Voice/video messages are recordings that you choose to share. Do not rely on CloudComAI for emergency calling, emergency location or legally required record preservation.
 
-7. Prohibited Content
+9. External services and future features
 
-Users must not upload, transmit, store or publish content that violates applicable law or these Terms.
+Google Contacts, mobile push/update providers, external maps, device sharing and other integrations may also be subject to provider terms. This does not remove CloudComAI's responsibility for its own processing or providers acting on its behalf.
 
-Prohibited content includes, among other things:
+These Terms do not represent that payments, subscriptions or an AI assistant are currently available. Any paid service must show its price, renewal, cancellation and refund terms before purchase. Any AI processing of personal data requires a relevant disclosure and consent where required. Mandatory consumer remedies continue to apply.
 
-* Illegal content;
-* Content that infringes intellectual-property rights;
-* Child sexual abuse material;
-* Non-consensual intimate imagery;
-* Serious threats;
-* Malware;
-* Fraudulent schemes;
-* Phishing;
-* Unauthorised personal information;
-* Content designed to facilitate serious criminal activity;
-* Content that violates applicable court or governmental orders;
-* Content prohibited under applicable Indian law.
+10. Copyright and legal requests
 
-CloudComAI may remove, restrict or disable access to content where required or permitted by law or where necessary to protect users and the platform.
+Send copyright concerns to support@cloudcomai.com, identifying the work, the allegedly infringing material and how to locate it, your contact information, your authority, and a signed statement that the report is accurate and made in good faith. Do not submit knowingly false reports. Any applicable formal notice/counter-notice rights remain available. This address is not a claim that a US DMCA agent has been registered.
 
-8. Copyright and Intellectual Property
+CloudComAI may preserve, restrict or disclose information when required by a valid legal obligation, subject to applicable safeguards. A broad statement about legal compliance does not authorize unnecessary disclosure of private conversations.
 
-CloudComAI and its licensors own all rights in:
+11. Suspension, liability and disputes
 
-* CloudComAI branding;
-* CloudComAI trademarks;
-* Logos;
-* Software;
-* Website design;
-* Application design;
-* Platform architecture;
-* Original text;
-* Graphics;
-* Documentation;
-* Other proprietary material.
+We may take proportionate action to protect people, investigate abuse or security incidents, enforce these Terms or comply with law. Where lawful and appropriate, we will explain the action and available review process. You may stop using the service and request deletion.
 
-You may not copy, modify, reproduce, reverse engineer, distribute or commercially exploit CloudComAI intellectual property without written permission, except where permitted by law.
+To the extent allowed by applicable law, the service is provided without a guarantee of uninterrupted availability or fitness for every purpose, and liability for indirect or consequential loss is limited. Nothing excludes liability, privacy rights, consumer remedies or other protections that cannot lawfully be excluded, including those available to US users under applicable law.
 
-9. Trademark
+Indian law governs these Terms to the extent permitted by applicable law. Mandatory laws and competent consumer/regulatory forums in your jurisdiction remain available. These Terms do not impose mandatory arbitration, a class-action waiver or an unverified exclusive court location. If a provision cannot be enforced, the remaining provisions continue to the extent permitted by law.
 
-“CloudComAI”, the CloudComAI name, logos, designs and related branding may constitute trademarks or other protected intellectual property.
+12. Changes and contact
 
-Unauthorised use is prohibited.
+We will provide notice of material changes through the app or another appropriate direct channel, update the revision/effective date and seek renewed agreement or consent where required. Periodic reminders of platform rules do not replace specific consent for a new use of personal information.
 
-Nothing in these Terms grants you ownership of CloudComAI intellectual property.
-
-10. User Privacy
-
-Your use of CloudComAI is also governed by the CloudComAI Privacy Policy.
-
-The Privacy Policy explains how personal data is processed.
-
-11. Messaging
-
-CloudComAI may provide private messaging, group messaging, public rooms and community functionality.
-
-Users are responsible for the content they send.
-
-Users must not use messaging functionality for harassment, spam, fraud, unlawful solicitation or other prohibited activities.
-
-CloudComAI may take action when legally required or when necessary to enforce these Terms and protect the platform.
-
-12. Groups and Communities
-
-Administrators and moderators may receive additional controls.
-
-Group and community administrators are responsible for using administrative privileges lawfully.
-
-Administrators must not use CloudComAI administrative functionality to unlawfully obtain, disclose or misuse users’ personal information.
-
-CloudComAI may suspend or remove groups or communities that seriously violate applicable law or these Terms.
-
-13. Public Content
-
-Information posted in public areas may be accessible to other users.
-
-Users should assume that public content may be copied, shared or retained by others.
-
-Do not publish confidential information in public areas.
-
-14. Audio and Video Calls
-
-CloudComAI may provide audio and video calling.
-
-Call quality may depend on:
-
-* Internet connection;
-* Device;
-* Network;
-* Third-party infrastructure;
-* Geographic location;
-* System availability.
-
-CloudComAI does not guarantee uninterrupted calling.
-
-Unless expressly stated otherwise, CloudComAI does not represent that calls are recorded.
-
-15. Location Sharing
-
-Location-sharing features are optional.
-
-You are responsible for choosing who receives your location.
-
-CloudComAI is not responsible for physical harm resulting from a user’s voluntary decision to share location information, except to the extent liability cannot legally be excluded.
-
-Do not use location sharing for unlawful surveillance.
-
-16. AI Features
-
-CloudComAI may offer AI-assisted functionality.
-
-AI-generated information may be inaccurate, incomplete or unsuitable for a particular purpose.
-
-You should independently verify important information.
-
-AI features must not be used as a substitute for professional legal, medical, financial or other professional advice.
-
-Users remain responsible for information they submit to AI services and for decisions made using AI-generated outputs.
-
-17. Payments and Subscriptions
-
-If CloudComAI introduces paid Services, applicable pricing, subscription, billing, renewal, cancellation and refund conditions will be displayed before purchase.
-
-Additional payment terms may apply.
-
-Where a payment is processed by a third-party payment provider, that provider’s applicable terms may also apply.
-
-Where consumer-protection law requires a refund, cancellation or other consumer remedy, CloudComAI will comply with the applicable law.
-
-18. Third-Party Services
-
-CloudComAI may integrate third-party services.
-
-CloudComAI is not responsible for the independent operation, availability, security or policies of third-party services.
-
-Your use of a third-party service may be subject to that provider’s terms.
-
-19. Availability
-
-CloudComAI attempts to maintain reliable Services but does not guarantee that the Services will always be:
-
-* Available;
-* Uninterrupted;
-* Error-free;
-* Secure against every possible attack;
-* Compatible with every device;
-* Free of technical defects.
-
-CloudComAI may perform maintenance, updates or emergency security work.
-
-20. Suspension and Termination
-
-CloudComAI may suspend, restrict or terminate accounts where reasonably necessary to:
-
-* Enforce these Terms;
-* Prevent fraud;
-* Prevent abuse;
-* Protect users;
-* Protect CloudComAI;
-* Respond to security incidents;
-* Comply with law;
-* Respond to lawful governmental or judicial orders.
-
-Where appropriate and legally permissible, CloudComAI may provide notice or an opportunity to appeal.
-
-21. User-Initiated Account Deletion
-
-You may request deletion of your CloudComAI account through available account controls or by contacting CloudComAI.
-
-Certain information may be retained where required or permitted by law, for security, fraud prevention, dispute resolution, legal compliance, or other lawful purposes.
-
-22. Grievance Redressal
-
-CloudComAI will maintain an appropriate grievance mechanism where required by applicable law.
-
-Grievance Officer: [INSERT NAME]
-Email: support@cloudcomai.com
-Address: [INSERT ADDRESS]
-
-Complaints should include sufficient information for CloudComAI to identify the relevant account, content or issue.
-
-23. Copyright Complaints
-
-If you believe content available through CloudComAI infringes your copyright or other intellectual-property rights, you may contact:
-
-Copyright / IP Email: support@cloudcomai.com
-
-Your complaint should contain sufficient information to identify:
-
-* The protected work;
-* The allegedly infringing material;
-* Your ownership or authority;
-* Your contact details;
-* A statement that the information provided is accurate.
-
-CloudComAI may take action in accordance with applicable law.
-
-24. Legal Compliance
-
-CloudComAI may cooperate with lawful requests from:
-
-* Courts;
-* Law-enforcement authorities;
-* Government agencies;
-* Regulators;
-* Other competent authorities.
-
-CloudComAI may preserve or disclose information where required by applicable law.
-
-25. Indemnification
-
-To the extent permitted by applicable law, you agree to indemnify and hold harmless CloudComAI, its owners, officers, employees, contractors and service providers from claims, losses, liabilities and expenses arising from:
-
-* Your unlawful use of the Services;
-* Your violation of these Terms;
-* Your violation of another person’s rights;
-* Content you unlawfully submit or distribute;
-* Your misuse of the Services.
-
-This clause does not exclude rights or remedies that cannot legally be excluded.
-
-26. Limitation of Liability
-
-To the maximum extent permitted by applicable law, CloudComAI will not be liable for indirect, incidental, special or consequential losses arising from use of the Services.
-
-Nothing in these Terms excludes or limits liability that cannot legally be excluded or limited under applicable Indian law.
-
-CloudComAI does not guarantee that the Services will satisfy every user’s particular requirements.
-
-27. No Waiver
-
-Failure by CloudComAI to enforce any provision of these Terms does not constitute a waiver of that provision.
-
-28. Severability
-
-If any provision of these Terms is held invalid or unenforceable, the remaining provisions will continue to apply to the extent permitted by law.
-
-29. Changes to These Terms
-
-CloudComAI may modify these Terms when reasonably necessary.
-
-Material changes may be notified through the website, application, email or another appropriate method.
-
-Continued use of the Services after the effective date of updated Terms constitutes acceptance where legally permissible.
-
-30. Governing Law
-
-These Terms will be governed by the laws of India, subject to applicable mandatory consumer-protection and other statutory rights.
-
-31. Jurisdiction
-
-Subject to applicable law and the jurisdiction of competent courts and statutory authorities, disputes relating to these Terms may be subject to the jurisdiction of the competent courts at:
-
-[INSERT CITY / STATE, INDIA]
-
-CloudComAI should obtain legal advice before selecting the final exclusive jurisdiction clause.
-
-32. Entire Agreement
-
-These Terms, together with the Privacy Policy and any additional service-specific terms displayed to you, constitute the agreement governing your use of CloudComAI, subject to applicable law.
-
-33. Contact
-
-CloudComAI
-
-Website: CloudComAI.com
-Legal Email: support@cloudcomai.com
-Support Email: support@cloudcomai.com
-Privacy Email: support@cloudcomai.com
-Grievance Email: support@cloudcomai.com
-Registered Address: [INSERT REGISTERED ADDRESS]
-
-⸻
-
-BY CREATING AN ACCOUNT OR USING CLOUDCOMAI, YOU CONFIRM THAT YOU HAVE READ AND AGREE TO THESE TERMS OF SERVICE AND THE CLOUDCOMAI PRIVACY POLICY.
+For support, privacy requests, grievances, safety reports or appeals, contact support@cloudcomai.com. Please identify your account/request without including your password. These Terms and the Privacy Policy must be read together with applicable feature-specific notices and mandatory law.
