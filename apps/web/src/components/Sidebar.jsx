@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X } from 'lucide-react';
+import { Bell, MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X, Globe2, Radio } from 'lucide-react';
 import { mediaUrl } from '../services/platform';
 import BrandLogo from './BrandLogo';
 
@@ -59,8 +59,9 @@ export default function Sidebar({ user, setModal, notificationUnreadCount = 0, i
         {/* <button className="nav-item"><Phone size={20}/><span>Calls</span></button> */}
         {/* <button className="nav-item"><Camera size={20}/><span>Status</span></button> */}
         {/* <button className="nav-item"><Video size={20}/><span>Stories</span></button> */}
+        <button className="nav-item" onClick={() => setModal('public_chats')}><Globe2 size={20}/><span>Public Chats</span></button><button className="nav-item" onClick={() => setModal('ring_bells')}><Radio size={20}/><span>Ring Bells</span></button>
         <button className={`nav-item ${activeTab === 'people' ? 'active' : ''}`} onClick={() => nav('people')}><UserCheck size={20}/><span>People & Contacts</span></button>
-        <button className="nav-item"><Bookmark size={20}/><span>Saved Messages</span></button>
+        <button className="nav-item" onClick={() => setModal('saved_messages')}><Bookmark size={20}/><span>Saved Messages</span></button>
         <button className="nav-item" onClick={() => setScreen('interests')}><UserCheck size={20}/><span>Edit Preferences</span></button>
         <button className="nav-item" onClick={() => setModal('poll')}><BarChart3 size={20}/><span>Polls</span></button>
         <button className="nav-item" onClick={() => setModal('settings')}><Settings size={20}/><span>Settings</span></button>

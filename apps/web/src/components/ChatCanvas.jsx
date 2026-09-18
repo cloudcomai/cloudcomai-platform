@@ -9,6 +9,7 @@ import AttachmentControls from './AttachmentControls';
 import AttachmentActions from './AttachmentActions';
 import AttachmentPreview from './AttachmentPreview';
 import MediaMessageControls from './MediaMessageControls';
+import { ChatThemeControl, ForwardMessageDialog, MessageReadStatusDialog, UserProfileDialog } from './WebMobileParity';
 
 const pollCardStyle = { background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', minWidth: 0, width: 'min(360px, 100%)', maxWidth: '100%', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginBottom: '4px' };
 const pollHeaderStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' };
@@ -42,6 +43,9 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [chatMuted, setChatMuted] = useState(Boolean(selectedChat?.notifications_muted));
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [forwardTarget, setForwardTarget] = useState(null);
+  const [readStatusTarget, setReadStatusTarget] = useState(null);
+  const [profileUserId, setProfileUserId] = useState(null);
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
 
@@ -167,7 +171,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
             <div className="avatar-frame small">
               {selectedChat.image_url ? <img src={`${selectedChat.image_url}&v=${selectedChat.image_version || ''}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name[0] : '?'}</div>}
             </div>
-            <div className="interlocutor-details"><h4>{selectedChat.name}</h4><p className="presence-subtext">{isGroup ? 'Group' : selectedChat.online ? 'Online' : 'Offline'}</p></div>
+            <div className="interlocutor-details"><button type="button" className="profile-heading-button" onClick={() => !isGroup && setProfileUserId(Number(selectedChat.other_user_id || selectedChat.user_id || selectedChat.id))}><h4>{selectedChat.name}</h4></button><p className="presence-subtext">{isGroup ? 'Group' : selectedChat.online ? 'Online' : 'Offline'}</p></div>
           </div>
         ) : <div className="active-interlocutor-card"><h4>Select a conversation to begin</h4></div>}
 
@@ -192,7 +196,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
           </>}
 
           {selectedChat && <button className="action-utility-btn" onClick={async () => { const next = !chatMuted; try { await apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, muted: next }) }); setChatMuted(next); } catch (error) { alert(error.message || 'Unable to update mute setting.'); } }}><span>{chatMuted ? '🔕 Unmute' : '🔔 Mute'}</span></button>}
-          <div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
+          <ChatThemeControl chatId={selectedChat?.id} /><div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
         </div>
       </header>
       {searchOpen && <div className="chat-search-bar"><Search size={18} /><input autoFocus aria-label="Search this conversation" placeholder="Search messages and filenames…" maxLength={120} value={searchQuery} onChange={event => setSearchQuery(event.target.value)} /><span role="status">{searchActive ? searchStatus : 'Search this conversation'}</span><button aria-label="Close search" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}><X size={18} /></button></div>}
@@ -257,7 +261,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
                 </div>
               </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : messageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
-              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button onClick={() => { onBeginReply(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button>{isMine && msg.type === 'text' && Number(msg.edit_count || 0) === 0 && <button onClick={() => { onBeginEdit(msg); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
+              {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button onClick={() => { onBeginReply(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button><button onClick={() => { setForwardTarget(msg); setSelectedMessageId(null); }} title="Forward" aria-label="Forward message">Forward</button>{isMine && <button onClick={() => { setReadStatusTarget(msg); setSelectedMessageId(null); }} title="Message info" aria-label="Message info">Info</button>}{isMine && msg.type === 'text' && Number(msg.edit_count || 0) === 0 && <button onClick={() => { onBeginEdit(msg); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
             </div>}
           </div>;
         })}
@@ -283,6 +287,9 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
           <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={sending || !selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
+      {forwardTarget && <ForwardMessageDialog message={forwardTarget} onClose={() => setForwardTarget(null)} />}
+      {readStatusTarget && <MessageReadStatusDialog message={readStatusTarget} onClose={() => setReadStatusTarget(null)} />}
+      {profileUserId && <UserProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />}
       {deleteTarget && <div className="modal-overlay"><div className="modal-content-card message-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete message"><h3>Delete message?</h3><p>Delete for me removes it from your account. Only the sender can delete it for everyone.</p><button disabled={deleting} onClick={() => deleteMessage('self')}>Delete for me</button>{Number(deleteTarget.sender_id) === Number(user?.id) && <button className="danger" disabled={deleting} onClick={() => deleteMessage('everyone')}>Delete for everyone</button>}<button disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button></div></div>}
     </main>
   );
