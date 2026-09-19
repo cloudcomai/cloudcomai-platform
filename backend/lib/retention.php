@@ -1,9 +1,17 @@
 <?php
 declare(strict_types=1);
 
-function cleanup_expired_content(PDO $pdo, string $backendRoot, int $batchSize = 500, int $maxBatches = 100): array {
+function cleanup_expired_content(PDO $pdo, string $backendRoot, int $batchSize = 500, int $maxBatches = 100, bool $dryRun = false): array {
     $batchSize = max(1, min(1000, $batchSize));
-    $counts = ['messages'=>0, 'files'=>0, 'file_failures'=>0, 'skipped'=>false];
+    $counts = ['mode'=>$dryRun ? 'dry-run' : 'delete', 'messages'=>0, 'attachments'=>0, 'attachment_bytes'=>0, 'files'=>0, 'file_failures'=>0, 'queued_files'=>0, 'skipped'=>false];
+    if ($dryRun) {
+        $preview = $pdo->query("SELECT COUNT(DISTINCT m.id) AS messages, COUNT(ma.id) AS attachments, COALESCE(SUM(ma.file_size),0) AS attachment_bytes FROM messages m LEFT JOIN message_attachments ma ON ma.message_id=m.id WHERE m.expires_at IS NOT NULL AND m.expires_at<=UTC_TIMESTAMP()")->fetch();
+        $counts['messages'] = (int)($preview['messages'] ?? 0);
+        $counts['attachments'] = (int)($preview['attachments'] ?? 0);
+        $counts['attachment_bytes'] = (int)($preview['attachment_bytes'] ?? 0);
+        $counts['queued_files'] = (int)$pdo->query('SELECT COUNT(*) FROM file_cleanup_queue')->fetchColumn();
+        return $counts;
+    }
     $lockName = substr((string)$pdo->query('SELECT DATABASE()')->fetchColumn(), 0, 40) . ':retention';
     $lock = $pdo->prepare('SELECT GET_LOCK(?,0)');
     $lock->execute([$lockName]);
@@ -16,6 +24,9 @@ function cleanup_expired_content(PDO $pdo, string $backendRoot, int $batchSize =
             $ids = array_column($rows, 'id');
             $marks = implode(',', array_fill(0, count($ids), '?'));
             $execute = static function(string $sql, array $parameters) use ($pdo): void { $pdo->prepare($sql)->execute($parameters); };
+            $attachmentStats = $pdo->prepare("SELECT COUNT(*) AS attachments,COALESCE(SUM(file_size),0) AS attachment_bytes FROM message_attachments WHERE message_id IN ($marks)");
+            $attachmentStats->execute($ids); $stats = $attachmentStats->fetch();
+            $counts['attachments'] += (int)($stats['attachments'] ?? 0); $counts['attachment_bytes'] += (int)($stats['attachment_bytes'] ?? 0);
             $execute("INSERT IGNORE INTO file_cleanup_queue(storage_path) SELECT storage_path FROM message_attachments WHERE message_id IN ($marks)", $ids);
             $execute("DELETE FROM attachment_download_requests WHERE attachment_id IN (SELECT id FROM message_attachments WHERE message_id IN ($marks))", $ids);
             $execute("DELETE FROM message_attachments WHERE message_id IN ($marks)", $ids);
@@ -65,6 +76,7 @@ function cleanup_expired_content(PDO $pdo, string $backendRoot, int $batchSize =
         $pdo->commit();
         $pdo->exec('DELETE sd FROM user_session_devices sd INNER JOIN user_sessions s ON s.id=sd.session_id WHERE s.expires_at<UTC_TIMESTAMP()-INTERVAL 30 DAY');
         $pdo->exec('DELETE FROM user_sessions WHERE expires_at<UTC_TIMESTAMP()-INTERVAL 30 DAY');
+        $counts['queued_files'] = (int)$pdo->query('SELECT COUNT(*) FROM file_cleanup_queue')->fetchColumn();
         return $counts;
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
