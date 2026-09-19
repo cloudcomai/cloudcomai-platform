@@ -14,10 +14,11 @@ test('profile and group image uploads use Expo File multipart parts to avoid uns
 });
 
 
-test('chat attachment uploads use Expo File multipart parts instead of unsupported legacy FormData objects', () => {
+test('chat voice/video attachment uploads use React Native native multipart file parts', () => {
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
-  assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
+  assert.match(attachmentUpload, /multipartPartMode:\s*'native'/);
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
+  assert.match(platformSource, /form\.append\(fieldName,\s*\{\s*uri:\s*normalized\.uri,\s*name:\s*normalized\.name,\s*type:\s*normalized\.mimeType\s*\}\)/);
 });
 
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
@@ -118,4 +119,10 @@ test('chat composer remains a bottom footer while messages load', () => {
   assert.match(composer, /placeholder="Type a message\.\.\."/);
   assert.match(composer, />Send<\/Text>/);
   assert.match(composer, /styles\.emojiToggle/);
+});
+
+
+test('voice/video upload does not require expo-file-system File construction to succeed for Android content URIs', () => {
+  assert.match(platformSource, /try\{file=new File\(normalized\.uri\);\}catch\{\}/);
+  assert.match(platformSource, /file\?\.size\?\?normalized\.size/);
 });
