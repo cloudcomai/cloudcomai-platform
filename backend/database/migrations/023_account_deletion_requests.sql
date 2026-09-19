@@ -5,6 +5,6 @@ CREATE TABLE IF NOT EXISTS account_deletion_requests (
   requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME NULL,
   notes VARCHAR(500) NULL,
-  UNIQUE KEY uq_account_deletion_active_user (user_id,status),
+  INDEX idx_account_deletion_user_status (user_id,status),
   INDEX idx_account_deletion_status_requested (status,requested_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
