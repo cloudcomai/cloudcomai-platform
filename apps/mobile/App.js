@@ -28,6 +28,8 @@ import * as ScreenCapture from 'expo-screen-capture';
 import MediaMessage from './src/components/MediaMessage';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
+import LegalLinks from './src/components/LegalLinks';
+import { registrationNotice } from './src/content/legalDocuments';
 import AccountTools from './src/components/AccountTools';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, uploadAttachmentAsset } from './src/services/platform';
@@ -62,6 +64,7 @@ function AuthScreen({ onAuthenticated }) {
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Male');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -89,6 +92,7 @@ function AuthScreen({ onAuthenticated }) {
 
   const register = async () => {
     if (busy) return;
+    if (!acceptedTerms) { setError('Agree to the Terms & Conditions and acknowledge the Privacy Policy before registering.'); return; }
     if (!name.trim()) { setError('Full name is required.'); return; }
     if (!email.trim() && !mobile.trim() && !userId.trim()) { setError('Email, mobile number or CloudComAI User ID is required.'); return; }
     if (!dob.trim()) { setError('Date of birth is required in YYYY-MM-DD format.'); return; }
@@ -138,6 +142,7 @@ function AuthScreen({ onAuthenticated }) {
     setSuccess('');
     setPassword('');
     setConfirmPassword('');
+    setAcceptedTerms(false);
   };
 
   return (
@@ -159,6 +164,7 @@ function AuthScreen({ onAuthenticated }) {
                 : 'Create your CloudComAI account to start secure conversations.'}
             </Text>
 
+            {mode === 'register' && <Text style={styles.subtitle}>{registrationNotice}</Text>}
             {mode === 'login' ? (
               <>
                 <TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} placeholder="Email, phone or username" placeholderTextColor="#7f8aa3" />
@@ -189,6 +195,8 @@ function AuthScreen({ onAuthenticated }) {
               </>
             )}
 
+            {mode === 'register' && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => setAcceptedTerms(value => !value)} disabled={busy} style={styles.rememberRow}><Text style={styles.rememberCheck}>{acceptedTerms ? '☑' : '☐'}</Text><Text style={[styles.rememberText, { flex: 1 }]}>I am 18 or older, agree to the Terms & Conditions, and acknowledge the Privacy Policy.</Text></Pressable>}
+            <LegalLinks />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {success ? <Text style={styles.success} accessibilityLiveRegion="polite">{success}</Text> : null}
             <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={mode === 'login' ? login : mode === 'forgot' ? forgotPassword : register} disabled={busy}>

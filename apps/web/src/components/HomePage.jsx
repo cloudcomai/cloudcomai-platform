@@ -1,3 +1,4 @@
+import LegalLinks from './LegalLinks';
 import React, { useState } from 'react';
 import {
   ArrowRight,
@@ -19,8 +20,6 @@ import {
   X,
 } from 'lucide-react';
 import BrandLogo from './BrandLogo';
-import PrivacyPolicyModal from './PrivacyPolicyModal';
-import TermsModal from './TermsModal';
 import './home.css';
 
 const availableFeatures = [
@@ -94,7 +93,6 @@ function SectionHeading({ id, eyebrow, title, description, inverse = false }) {
 
 export default function HomePage({ user, onLogin, onRegister, onOpenApp, onLogout }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [legalDocument, setLegalDocument] = useState(null);
 
   const closeMenu = () => setMobileMenuOpen(false);
 
@@ -343,8 +341,7 @@ export default function HomePage({ user, onLogin, onRegister, onOpenApp, onLogou
           </div>
           <div>
             <h3>Legal</h3>
-            <button type="button" onClick={() => setLegalDocument('privacy')}>Privacy Policy</button>
-            <button type="button" onClick={() => setLegalDocument('terms')}>Terms & Conditions</button>
+            <LegalLinks />
           </div>
           <div>
             <h3>Account</h3>
@@ -365,8 +362,6 @@ export default function HomePage({ user, onLogin, onRegister, onOpenApp, onLogou
         </div>
       </footer>
 
-      {legalDocument === 'terms' && <TermsModal onClose={() => setLegalDocument(null)} />}
-      {legalDocument === 'privacy' && <PrivacyPolicyModal onClose={() => setLegalDocument(null)} />}
     </div>
   );
 }

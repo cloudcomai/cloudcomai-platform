@@ -6,7 +6,7 @@ export async function syncPhoneContacts(api, contactsModule = null) {
     const module = contactsModule || await import('expo-contacts');
     const Contact = module.Contact;
     const ContactField = module.ContactField;
-    const permission = await Contact.requestPermissionsAsync();
+    const permission = await module.requestPermissionsAsync();
     if (!permission?.granted) return { granted: false, count: 0 };
     const result = await Contact.getAllDetails([ContactField.FULL_NAME, ContactField.EMAILS, ContactField.PHONES], { limit: 5000, offset: 0 });
     const contacts = (result || []).map(contact => ({
@@ -19,8 +19,16 @@ export async function syncPhoneContacts(api, contactsModule = null) {
   } catch { return { granted: false, count: 0 }; }
 }
 
-export async function loadMobileContacts(api, page = 1, pageSize = 500, { syncDeviceContacts = true } = {}) {
-  if (syncDeviceContacts) await syncPhoneContacts(api);
+export async function requestPhoneContactSync(api, confirmDisclosure, contactsModule = null) {
+  if (typeof confirmDisclosure !== 'function' || await confirmDisclosure() !== true) {
+    return { granted: false, count: 0, cancelled: true };
+  }
+  return syncPhoneContacts(api, contactsModule);
+}
+
+export async function loadMobileContacts(api, page = 1, pageSize = 500) {
+  // Opening/refreshing the list must not request permission or upload the phone address book.
+  // Phone upload is available only through the explicit disclosure action above.
   try { const { data } = await api.getGoogleStatus(); if (data?.connected) await api.syncGoogleContacts(); } catch {}
   const { data } = await api.listContacts(page, pageSize);
   return data?.contacts || [];

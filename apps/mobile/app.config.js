@@ -17,7 +17,6 @@ module.exports = ({ config }) => {
     },
     plugins: [
       ...(config.plugins || []),
-      ['expo-contacts', { contactsPermission: 'Allow CloudComAI to access your contacts so you can find registered friends.' }],
       './plugins/with-gradle-signing.cjs',
     ],
   };
