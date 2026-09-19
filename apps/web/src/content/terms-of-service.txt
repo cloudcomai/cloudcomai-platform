@@ -61,7 +61,7 @@ Private/group messages normally default to 30-day expiry and public-room message
 
 Cloud backup stores a separate snapshot when enabled/configured. Disabling automatic backup does not erase the latest snapshot. Keep downloaded exports secure. Retention limitations, including legal holds, are described in the Privacy Policy; they must not be used to justify indefinite retention of all data.
 
-You can request account and associated-data deletion at support@cloudcomai.com, including after uninstalling the app. Reasonable verification may be required. Sign-out, uninstall, account suspension and deleting a chat are not account deletion. The current release does not provide automated in-app account deletion. Any required retention must be explained separately, with its purpose and duration.
+You can initiate account and associated-data deletion from Privacy & Account inside the app, or request it at support@cloudcomai.com after uninstalling the app. Reasonable verification may be required. Sign-out, uninstall, account suspension and deleting a chat are not account deletion. The in-app control records the deletion request for processing; it does not represent that all data is erased instantly. Any required retention must be explained separately, with its purpose and duration.
 
 8. Security and service limitations
 
