@@ -1,4 +1,13 @@
-# Install on the backend host with `crontab -e` or Hosting > Cron Jobs.
-# Set the host's cron timezone to UTC. Replace paths for your account.
-# Run daily at 02:15 UTC; keep the log outside the public web directory.
+# CloudComAI message/content retention cleanup for GoDaddy shared hosting.
+# Configure this in GoDaddy > Web Hosting > Manage > Cron Jobs.
+# Replace ACCOUNT and the PHP binary path with values shown by your hosting account.
+# Keep cleanup logs outside public_html when the hosting plan provides a writable log directory.
+#
+# Production cleanup: once daily at 02:15 UTC.
 15 2 * * * /usr/local/bin/php /home/ACCOUNT/public_html/apiapp/cron_cleanup.php >> /home/ACCOUNT/logs/cloudcomai-cleanup.log 2>&1
+#
+# SAFE FIRST-RUN PREVIEW (does not delete DB rows or files):
+# /usr/local/bin/php /home/ACCOUNT/public_html/apiapp/cron_cleanup.php --dry-run
+#
+# Dry-run JSON reports expired message count, attachment count/bytes, and already queued files.
+# Expired messages are already excluded by the API at expires_at; this daily job performs physical cleanup.
