@@ -8,6 +8,8 @@ $example = file_get_contents(__DIR__ . '/../cron/daily-cleanup.cron.example');
 $checks = [
     'CLI accepts --dry-run' => str_contains($cron, "'--dry-run'"),
     'dry-run reaches cleanup service' => str_contains($cron, '$dryRun'),
+    'cleanup logs human-readable attachment MB' => str_contains($cron, "['attachment_mb']"),
+    'cleanup logs execution duration' => str_contains($cron, "['duration_ms']"),
     'retention exposes dry-run mode' => str_contains($retention, 'bool $dryRun = false'),
     'dry-run counts expired messages' => str_contains($retention, 'COUNT(DISTINCT m.id)'),
     'dry-run reports attachment bytes' => str_contains($retention, "'attachment_bytes'"),
