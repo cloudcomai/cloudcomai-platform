@@ -31,6 +31,7 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
   const [searching, setSearching] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -129,6 +130,16 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
     }
   };
 
+  const requestAccountDeletion = async () => {
+    if (!window.confirm('Request deletion of your CloudComAI account and associated personal data?')) return;
+    const confirmation = window.prompt('Type DELETE to confirm this request.');
+    if (confirmation !== 'DELETE') return;
+    setDeleting(true); setError('');
+    try { await privacyApi.requestAccountDeletion('DELETE'); window.alert('Account deletion request received.'); }
+    catch (deleteError) { setError(deleteError.message || 'Unable to request account deletion.'); }
+    finally { setDeleting(false); }
+  };
+
   return (
     <div className="modal-content-card privacy-account-panel">
       <div className="privacy-panel-heading">
@@ -170,6 +181,12 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
           <div className="storage-summary"><strong>{formatBytes(storage.total_bytes)}</strong><span>{storage.total_files} uploaded files</span></div>
           <div className="storage-grid">{Object.entries(storage.categories || {}).map(([key, value]) => <div key={key}><span>{key}</span><strong>{formatBytes(value.bytes)}</strong><small>{value.count} files</small></div>)}</div>
           <p className="privacy-footnote">Storage totals are specific to this account and count media you uploaded.</p>
+        </section>
+
+        <section className="privacy-section">
+          <h4><UserX size={17} /> Delete account</h4>
+          <p className="privacy-footnote">Request deletion of your CloudComAI account and associated personal data. Signing out or uninstalling the app does not delete your account.</p>
+          <button type="button" className="privacy-backup-button" onClick={requestAccountDeletion} disabled={deleting}>{deleting ? 'Submitting request…' : 'Request account deletion'}</button>
         </section>
 
         <section className="privacy-section">
