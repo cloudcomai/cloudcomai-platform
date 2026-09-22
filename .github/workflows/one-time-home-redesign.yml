@@ -5,6 +5,10 @@ on:
     paths:
       - scripts/one-time-home-redesign.patch
       - .github/workflows/one-time-home-redesign.yml
+  pull_request:
+    paths:
+      - scripts/one-time-home-redesign.patch
+      - .github/workflows/one-time-home-redesign.yml
 
 permissions:
   contents: write
@@ -16,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
       - name: Apply patch
         run: git apply --check scripts/one-time-home-redesign.patch && git apply scripts/one-time-home-redesign.patch
@@ -29,4 +33,4 @@ jobs:
           git add apps/mobile/App.js apps/mobile/src/components/MobileDashboardLists.js apps/mobile/src/components/RingBellsScreen.js
           git add -u .github/workflows/one-time-home-redesign.yml scripts/one-time-home-redesign.patch
           git commit -m "feat(mobile): redesign home and relocate Ring Bells"
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
