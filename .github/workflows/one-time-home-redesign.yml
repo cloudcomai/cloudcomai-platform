@@ -1,0 +1,32 @@
+name: Apply staged home redesign
+
+on:
+  push:
+    paths:
+      - scripts/one-time-home-redesign.patch
+      - .github/workflows/one-time-home-redesign.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ hashFiles('scripts/one-time-home-redesign.patch') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Apply patch
+        run: git apply --check scripts/one-time-home-redesign.patch && git apply scripts/one-time-home-redesign.patch
+      - name: Remove one-time staging files
+        run: rm scripts/one-time-home-redesign.patch .github/workflows/one-time-home-redesign.yml
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/App.js apps/mobile/src/components/MobileDashboardLists.js apps/mobile/src/components/RingBellsScreen.js
+          git add -u .github/workflows/one-time-home-redesign.yml scripts/one-time-home-redesign.patch
+          git commit -m "feat(mobile): redesign home and relocate Ring Bells"
+          git push origin HEAD:${{ github.ref_name }}
