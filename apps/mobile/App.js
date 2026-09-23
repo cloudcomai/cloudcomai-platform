@@ -795,8 +795,8 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
       </ScrollView>
 
       <View style={[styles.mobileContent,{backgroundColor:appTheme.colors.background}]}>
-        {section === 'contacts' ? <ContactsList onOpenChat={chat => { setSection('private'); setSelectedChat(chat); }} />
-          : section === 'notifications' ? <NotificationsList onOpenChat={openChatFromNotification} />
+        {section === 'contacts' ? <ContactsList themeSettings={themeSettings} onOpenChat={chat => { setSection('private'); setSelectedChat(chat); }} />
+          : section === 'notifications' ? <NotificationsList themeSettings={themeSettings} onOpenChat={openChatFromNotification} />
           : section === 'public' ? <PublicChatsList onOpenChat={chat => { setSection('public'); setSelectedChat(chat); }} />
           : <>
             {error ? <Text style={styles.listError}>{error}</Text> : null}
@@ -829,6 +829,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
       </View>
 
       <MobileMenu
+        themeSettings={themeSettings}
         visible={menuVisible}
         initialScreen={menuInitialScreen}
         user={session.user}

@@ -21,6 +21,7 @@ import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { buildProfileImageCacheKey } from '../utils/profileImage';
+import { resolveChatTheme } from '../services/chatThemeDefinitions';
 
 const GROUP_TYPES = [
   'Family Group','Friend Group','Fan Group','Study Group','College Group','Class Group',
@@ -28,8 +29,8 @@ const GROUP_TYPES = [
   'Neighborhood Group','Event Group','Staff Group'
 ];
 
-const ScreenHeader = ({ title, onBack, onClose }) => (
-  <View style={styles.header}>
+const ScreenHeader = ({ title, onBack, onClose, theme }) => (
+  <View style={[styles.header, { backgroundColor: theme?.colors.header || '#2563EB' }]}>
     {onBack ? <Pressable onPress={onBack}><Text style={styles.headerAction}>‹ Back</Text></Pressable> : <View style={styles.headerSpacer} />}
     <Text style={styles.headerTitle}>{title}</Text>
     <Pressable onPress={onClose}><Text style={styles.headerAction}>Close</Text></Pressable>
@@ -46,7 +47,9 @@ export default function MobileMenu({
   onOpenNotificationSettings,
   onProfileUpdated,
   onLogout,
+  themeSettings,
 }) {
+  const theme = resolveChatTheme(themeSettings);
   const [screen, setScreen] = useState('menu');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -369,15 +372,15 @@ export default function MobileMenu({
   const body = () => {
     if (screen === 'private') return (
       <>
-        <ScreenHeader title="Start private chat" onBack={() => go('menu')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="Start private chat" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <TextInput style={styles.input} value={userQuery} onChangeText={setUserQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={searchUsers} />
-          <Pressable style={styles.primary} onPress={searchUsers}><Text style={styles.primaryText}>Search</Text></Pressable>
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={userQuery} onChangeText={setUserQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={searchUsers} />
+          <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={searchUsers}><Text style={styles.primaryText}>Search</Text></Pressable>
           <ScrollView style={styles.results}>
             {userResults.map(user => (
-              <Pressable key={user.id} style={styles.resultRow} onPress={() => startPrivateChat(user)}>
-                <Text style={styles.resultTitle}>{user.name}</Text>
-                <Text style={styles.resultSub}>{user.user_id ? `@${user.user_id}` : 'CloudComAI user'}</Text>
+              <Pressable key={user.id} style={[styles.resultRow,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]} onPress={() => startPrivateChat(user)}>
+                <Text style={[styles.resultTitle,{color:theme.colors.text}]}>{user.name}</Text>
+                <Text style={[styles.resultSub,{color:theme.colors.secondary}]}>{user.user_id ? `@${user.user_id}` : 'CloudComAI user'}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -387,10 +390,10 @@ export default function MobileMenu({
 
     if (screen === 'group') return (
       <>
-        <ScreenHeader title="Create group" onBack={() => go('menu')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="Create group" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <TextInput style={styles.input} value={groupName} onChangeText={setGroupName} placeholder="Group name" />
-          <Text style={styles.label}>Group category</Text>
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={groupName} onChangeText={setGroupName} placeholder="Group name" />
+          <Text style={[styles.label,{color:theme.colors.text}]}>Group category</Text>
           <View style={styles.chips}>
             {GROUP_TYPES.map(type => (
               <Pressable key={type} style={[styles.chip, groupType === type && styles.chipActive]} onPress={() => setGroupType(type)}>
@@ -398,27 +401,27 @@ export default function MobileMenu({
               </Pressable>
             ))}
           </View>
-          <Pressable style={styles.primary} onPress={createGroup}><Text style={styles.primaryText}>Create group</Text></Pressable>
+          <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={createGroup}><Text style={styles.primaryText}>Create group</Text></Pressable>
         </ScrollView>
       </>
     );
 
     if (screen === 'preferences') return (
       <>
-        <ScreenHeader title="Preferences" onBack={() => go('menu')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="Preferences" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.help}>Enter interests separated by commas.</Text>
+          <Text style={[styles.help,{color:theme.colors.secondary}]}>Enter interests separated by commas.</Text>
           <TextInput style={[styles.input, styles.multiline]} value={preferencesText} onChangeText={setPreferencesText} multiline placeholder="Technology, Private Chats, Family Group" />
-          <Pressable style={styles.primary} onPress={savePreferences}><Text style={styles.primaryText}>Save preferences</Text></Pressable>
+          <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={savePreferences}><Text style={styles.primaryText}>Save preferences</Text></Pressable>
         </ScrollView>
       </>
     );
 
     if (screen === 'poll') return (
       <>
-        <ScreenHeader title="Create poll" onBack={() => go('menu')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="Create poll" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.label}>Conversation</Text>
+          <Text style={[styles.label,{color:theme.colors.text}]}>Conversation</Text>
           <View style={styles.chips}>
             {pollChats.map(chat => (
               <Pressable key={chat.id} style={[styles.chip, pollChatId === chat.id && styles.chipActive]} onPress={() => setPollChatId(chat.id)}>
@@ -426,33 +429,33 @@ export default function MobileMenu({
               </Pressable>
             ))}
           </View>
-          <TextInput style={styles.input} value={pollQuestion} onChangeText={setPollQuestion} placeholder="Poll question" />
-          <TextInput style={styles.input} value={pollOptionA} onChangeText={setPollOptionA} placeholder="Option 1" />
-          <TextInput style={styles.input} value={pollOptionB} onChangeText={setPollOptionB} placeholder="Option 2" />
-          <Text style={styles.label}>Expiry date (optional, YYYY-MM-DD)</Text>
-          <TextInput style={styles.input} value={pollExpiry} onChangeText={setPollExpiry} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" accessibilityLabel="Poll expiry date" />
-          <Text style={styles.menuSub}>Leave blank for 30 days. A chosen date expires at the end of your local day.</Text>
-          <Pressable disabled={busy} style={styles.primary} onPress={createPoll}><Text style={styles.primaryText}>Create poll</Text></Pressable>
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={pollQuestion} onChangeText={setPollQuestion} placeholder="Poll question" />
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={pollOptionA} onChangeText={setPollOptionA} placeholder="Option 1" />
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={pollOptionB} onChangeText={setPollOptionB} placeholder="Option 2" />
+          <Text style={[styles.label,{color:theme.colors.text}]}>Expiry date (optional, YYYY-MM-DD)</Text>
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={pollExpiry} onChangeText={setPollExpiry} placeholder="YYYY-MM-DD" maxLength={10} autoCapitalize="none" accessibilityLabel="Poll expiry date" />
+          <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Leave blank for 30 days. A chosen date expires at the end of your local day.</Text>
+          <Pressable disabled={busy} style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={createPoll}><Text style={styles.primaryText}>Create poll</Text></Pressable>
         </ScrollView>
       </>
     );
 
     if (screen === 'contacts') return (
       <>
-        <ScreenHeader title="Sync contacts" onBack={() => go('menu')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="Sync contacts" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {googleStatus?.connected ? (
             <>
-              <Text style={styles.resultTitle}>Google connected</Text>
-              <Text style={styles.help}>{googleStatus.email || ''}</Text>
-              <Text style={styles.help}>{googleStatus.contact_count || 0} contacts stored</Text>
-              <Text style={styles.help}>Last sync: {googleStatus.last_contacts_sync_at || 'Not synced yet'}</Text>
-              <Pressable style={styles.primary} onPress={syncContacts}><Text style={styles.primaryText}>Sync Google Contacts</Text></Pressable>
+              <Text style={[styles.resultTitle,{color:theme.colors.text}]}>Google connected</Text>
+              <Text style={[styles.help,{color:theme.colors.secondary}]}>{googleStatus.email || ''}</Text>
+              <Text style={[styles.help,{color:theme.colors.secondary}]}>{googleStatus.contact_count || 0} contacts stored</Text>
+              <Text style={[styles.help,{color:theme.colors.secondary}]}>Last sync: {googleStatus.last_contacts_sync_at || 'Not synced yet'}</Text>
+              <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={syncContacts}><Text style={styles.primaryText}>Sync Google Contacts</Text></Pressable>
             </>
           ) : (
             <>
-              <Text style={styles.help}>Google Contacts is not connected on this account.</Text>
-              <Pressable style={styles.primary} onPress={connectGoogle}><Text style={styles.primaryText}>Connect Google Contacts</Text></Pressable>
+              <Text style={[styles.help,{color:theme.colors.secondary}]}>Google Contacts is not connected on this account.</Text>
+              <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={connectGoogle}><Text style={styles.primaryText}>Connect Google Contacts</Text></Pressable>
             </>
           )}
         </ScrollView>
@@ -461,17 +464,17 @@ export default function MobileMenu({
 
     if (screen === 'app_lock') return (
       <>
-        <ScreenHeader title="App Lock" onBack={() => go('settings')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="App Lock" onBack={() => go('settings')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.resultTitle}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text>
-          <Text style={styles.help}>
+          <Text style={[styles.resultTitle,{color:theme.colors.text}]}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text>
+          <Text style={[styles.help,{color:theme.colors.secondary}]}>
             {appLockEnabled
               ? 'Your PIN is required when CloudComAI is reopened or resumed from the background.'
               : 'Set a 4 to 6 digit PIN. This PIN is stored only in secure device storage.'}
           </Text>
           {!appLockEnabled ? <>
             <TextInput
-              style={styles.input}
+              style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]}
               value={appLockPin}
               onChangeText={value => setAppLockPinValue(value.replace(/\D/g, '').slice(0, 6))}
               keyboardType="number-pad"
@@ -480,7 +483,7 @@ export default function MobileMenu({
               maxLength={6}
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]}
               value={appLockConfirm}
               onChangeText={value => setAppLockConfirm(value.replace(/\D/g, '').slice(0, 6))}
               keyboardType="number-pad"
@@ -488,7 +491,7 @@ export default function MobileMenu({
               placeholder="Confirm PIN"
               maxLength={6}
             />
-            <Pressable style={styles.primary} onPress={saveAppLock}><Text style={styles.primaryText}>Enable App Lock</Text></Pressable>
+            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={saveAppLock}><Text style={styles.primaryText}>Enable App Lock</Text></Pressable>
           </> : <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={turnOffAppLock}><Text style={styles.dangerText}>Disable App Lock</Text></Pressable>}
         </ScrollView>
       </>
@@ -496,7 +499,7 @@ export default function MobileMenu({
 
     if (screen === 'profile') return (
       <>
-        <ScreenHeader title="Profile" onBack={() => go('menu')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="Profile" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.profilePhotoWrap}>
             <View style={styles.profilePhotoFrame}>
@@ -504,19 +507,19 @@ export default function MobileMenu({
               <Text style={styles.profilePhotoFallback}>{profileName[0]?.toUpperCase() || 'U'}</Text>
             </View>
             <Pressable style={styles.photoButton} onPress={chooseProfilePhoto}><Text style={styles.photoButtonText}>Change & crop photo</Text></Pressable>
-            <Text style={styles.help}>JPG, PNG or WebP · max 12 MB · square crop</Text>
+            <Text style={[styles.help,{color:theme.colors.secondary}]}>JPG, PNG or WebP · max 12 MB · square crop</Text>
           </View>
-          <Text style={styles.label}>Full name</Text>
-          <TextInput style={styles.input} value={profileName} onChangeText={setProfileName} placeholder="Full name" />
-          <Text style={styles.label}>CloudComAI User ID</Text>
-          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.user_id ? `@${user.user_id}` : 'Not set'}</Text></View>
-          <Text style={styles.label}>Email</Text>
-          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.email || 'Not set'}</Text></View>
-          <Text style={styles.label}>Mobile</Text>
-          <View style={styles.readOnlyBox}><Text style={styles.readOnlyText}>{user?.mobile || 'Not set'}</Text></View>
-          <Text style={styles.label}>Date of birth</Text>
-          <TextInput style={styles.input} value={profileDob} onChangeText={setProfileDob} placeholder="YYYY-MM-DD" autoCapitalize="none" />
-          <Text style={styles.label}>Gender</Text>
+          <Text style={[styles.label,{color:theme.colors.text}]}>Full name</Text>
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={profileName} onChangeText={setProfileName} placeholder="Full name" />
+          <Text style={[styles.label,{color:theme.colors.text}]}>CloudComAI User ID</Text>
+          <View style={[styles.readOnlyBox,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}><Text style={[styles.readOnlyText,{color:theme.colors.secondary}]}>{user?.user_id ? `@${user.user_id}` : 'Not set'}</Text></View>
+          <Text style={[styles.label,{color:theme.colors.text}]}>Email</Text>
+          <View style={[styles.readOnlyBox,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}><Text style={[styles.readOnlyText,{color:theme.colors.secondary}]}>{user?.email || 'Not set'}</Text></View>
+          <Text style={[styles.label,{color:theme.colors.text}]}>Mobile</Text>
+          <View style={[styles.readOnlyBox,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}><Text style={[styles.readOnlyText,{color:theme.colors.secondary}]}>{user?.mobile || 'Not set'}</Text></View>
+          <Text style={[styles.label,{color:theme.colors.text}]}>Date of birth</Text>
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={profileDob} onChangeText={setProfileDob} placeholder="YYYY-MM-DD" autoCapitalize="none" />
+          <Text style={[styles.label,{color:theme.colors.text}]}>Gender</Text>
           <View style={styles.chips}>
             {['Male', 'Female'].map(value => (
               <Pressable key={value} style={[styles.chip, profileGender === value && styles.chipActive]} onPress={() => setProfileGender(value)}>
@@ -524,30 +527,30 @@ export default function MobileMenu({
               </Pressable>
             ))}
           </View>
-          <Pressable style={styles.primary} onPress={saveProfile}><Text style={styles.primaryText}>Save profile</Text></Pressable>
+          <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={saveProfile}><Text style={styles.primaryText}>Save profile</Text></Pressable>
         </ScrollView>
       </>
     );
 
     if (screen === 'settings') return (
       <>
-        <ScreenHeader title="Settings" onBack={() => go('menu')} onClose={onClose} />
+        <ScreenHeader theme={theme} title="Settings" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Pressable style={styles.menuItem} onPress={() => go('profile')}>
-            <Text style={styles.menuTitle}>Profile</Text>
-            <Text style={styles.menuSub}>Name, date of birth and account information</Text>
+          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => go('profile')}>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>Profile</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Name, date of birth and account information</Text>
           </Pressable>
-          <Pressable style={styles.menuItem} onPress={() => go('app_lock')}>
-            <Text style={styles.menuTitle}>App Lock</Text>
-            <Text style={styles.menuSub}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'Protect the app with a 4-6 digit PIN'}</Text>
+          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => go('app_lock')}>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>App Lock</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'Protect the app with a 4-6 digit PIN'}</Text>
           </Pressable>
-          <Pressable style={styles.menuItem} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
-            <Text style={styles.menuTitle}>Privacy, account & notifications</Text>
-            <Text style={styles.menuSub}>Push notification preferences</Text>
+          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>Privacy, account & notifications</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Push notification preferences</Text>
           </Pressable>
-          <Pressable style={styles.menuItem} onPress={openSyncContacts}>
-            <Text style={styles.menuTitle}>Google Contacts</Text>
-            <Text style={styles.menuSub}>Connection and sync status</Text>
+          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={openSyncContacts}>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>Google Contacts</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Connection and sync status</Text>
           </Pressable>
           <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={() => { onClose(); onLogout?.(); }}>
             <Text style={styles.dangerText}>Sign out</Text>
@@ -558,7 +561,7 @@ export default function MobileMenu({
 
     return (
       <>
-        <ScreenHeader title="CloudComAI Menu" onClose={onClose} />
+        <ScreenHeader theme={theme} title="CloudComAI Menu" onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {[
             ['Profile', 'View and edit your CloudComAI profile', () => go('profile')],
@@ -569,9 +572,9 @@ export default function MobileMenu({
             ['Settings', 'Notifications, account and integrations', () => go('settings')],
             ['Sync contacts', 'Connect or sync Google Contacts', openSyncContacts],
           ].map(([title, sub, action]) => (
-            <Pressable key={title} style={styles.menuItem} onPress={action}>
-              <Text style={styles.menuTitle}>{title}</Text>
-              <Text style={styles.menuSub}>{sub}</Text>
+            <Pressable key={title} style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={action}>
+              <Text style={[styles.menuTitle,{color:theme.colors.text}]}>{title}</Text>
+              <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>{sub}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -582,7 +585,7 @@ export default function MobileMenu({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={screen === 'menu' ? onClose : () => go('menu')}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeAreaView style={[styles.page,{backgroundColor:theme.colors.background}]} edges={['top', 'bottom', 'left', 'right']}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>{body()}</KeyboardAvoidingView>
           {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
