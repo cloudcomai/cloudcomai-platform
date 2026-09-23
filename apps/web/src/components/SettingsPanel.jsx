@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import ThemePicker from './ThemePicker';
 import { User, Shield, SlidersHorizontal, LogOut, X, ChevronRight, Contact } from 'lucide-react';
 import { mediaUrl } from '../services/platform';
 
-export default function SettingsPanel({ user, setModal, onLogout, close, setScreen }) {
+export default function SettingsPanel({ user, setModal, onLogout, close, setScreen, appTheme, onThemeChange }) {
   const displayName = user?.name || 'Authorized User';
   const username = user?.user_id || user?.username || '';
   const email = user?.email || '';
@@ -47,6 +48,8 @@ export default function SettingsPanel({ user, setModal, onLogout, close, setScre
           <div style={detailCardStyle}><span style={detailLabelStyle}>Gender</span><strong style={detailValueStyle}>{detailValue(gender)}</strong></div>
           <div style={detailCardStyle}><span style={detailLabelStyle}>Phone Number</span><strong style={detailValueStyle}>{detailValue(phoneNumber)}</strong></div>
         </div>
+
+        <ThemePicker value={appTheme} onChange={onThemeChange} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button type="button" onClick={() => setModal('profile')} style={rowStyle}>

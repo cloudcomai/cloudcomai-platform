@@ -642,6 +642,7 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppe
 }
 
 function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+  const appTheme = resolveChatTheme(themeSettings);
   const [section, setSection] = useState('all');
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -770,30 +771,30 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
   const topTabs = [['all','All Chats'],['private','Private'],['groups','Groups'],['public','Public Chats'],['contacts','Contacts']];
 
   return (
-    <SafeAreaView style={styles.mobileHome} edges={['top', 'bottom', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      <View style={styles.mobileTopBar}>
-        <Pressable style={styles.topIconButton} onPress={() => openMenu('menu')}><Text style={styles.topIconText}>☰</Text></Pressable>
-        <View style={styles.mobileBrand}><Image source={require('./assets/app-icon.png')} style={styles.mobileBrandIcon} resizeMode="contain" /><Text style={styles.mobileBrandText}>CloudComAI</Text></View>
+    <SafeAreaView style={[styles.mobileHome,{backgroundColor:appTheme.colors.background}]} edges={['top', 'bottom', 'left', 'right']}>
+      <StatusBar barStyle="light-content" backgroundColor={appTheme.colors.background} />
+      <View style={[styles.mobileTopBar,{backgroundColor:appTheme.colors.background,borderBottomColor:appTheme.colors.border}]}>
+        <Pressable style={styles.topIconButton} onPress={() => openMenu('menu')}><Text style={[styles.topIconText,{color:appTheme.colors.text}]}>☰</Text></Pressable>
+        <View style={styles.mobileBrand}><Image source={require('./assets/app-icon.png')} style={styles.mobileBrandIcon} resizeMode="contain" /><Text style={[styles.mobileBrandText,{color:appTheme.colors.text}]}>CloudComAI</Text></View>
         <View style={styles.mobileTopActions}>
           <Pressable style={styles.topIconButton} onPress={() => { setSearchOpen(value => !value); setSearchText(''); }}><Text style={styles.topIconText}>⌕</Text></Pressable>
         </View>
       </View>
       {searchOpen ? <View style={styles.mobileSearchWrap}><TextInput style={styles.mobileSearchInput} value={searchText} onChangeText={setSearchText} autoFocus placeholder="Search conversations" placeholderTextColor="#8a94a6" /></View> : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalStrip} contentContainerStyle={styles.quickActions}>
-        <Pressable style={styles.quickAction} onPress={() => openMenu('private')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>＋</Text></View><Text style={styles.quickLabel}>New Chat</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => openMenu('group')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👪</Text></View><Text style={styles.quickLabel}>New Group</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👥</Text></View><Text style={styles.quickLabel}>Contacts</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => openMenu('menu')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>▥</Text></View><Text style={styles.quickLabel}>Polls</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={onSettings}><View style={styles.quickCircle}><Text style={styles.quickIcon}>⚙</Text></View><Text style={styles.quickLabel}>Settings</Text></Pressable>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.horizontalStrip,{backgroundColor:appTheme.colors.background}]} contentContainerStyle={styles.quickActions}>
+        <Pressable style={styles.quickAction} onPress={() => openMenu('private')}><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>＋</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>New Chat</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => openMenu('group')}><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>👪</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>New Group</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>👥</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Contacts</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => openMenu('menu')}><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>▥</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Polls</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={onSettings}><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>⚙</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Settings</Text></Pressable>
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryStrip} contentContainerStyle={styles.categoryTabs}>
-        {topTabs.map(([value,label]) => <Pressable key={value} style={[styles.categoryTab, section === value && styles.categoryTabActive]} onPress={() => { setSection(value); setSearchText(''); }}><Text style={[styles.categoryTabText, section === value && styles.categoryTabTextActive]}>{label}</Text></Pressable>)}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.categoryStrip,{backgroundColor:appTheme.colors.background}]} contentContainerStyle={styles.categoryTabs}>
+        {topTabs.map(([value,label]) => <Pressable key={value} style={[styles.categoryTab, section === value && styles.categoryTabActive, section === value && {backgroundColor:appTheme.colors.panel}]} onPress={() => { setSection(value); setSearchText(''); }}><Text style={[styles.categoryTabText,{color:appTheme.colors.text},section === value && styles.categoryTabTextActive]}>{label}</Text></Pressable>)}
       </ScrollView>
 
-      <View style={styles.mobileContent}>
+      <View style={[styles.mobileContent,{backgroundColor:appTheme.colors.background}]}>
         {section === 'contacts' ? <ContactsList onOpenChat={chat => { setSection('private'); setSelectedChat(chat); }} />
           : section === 'notifications' ? <NotificationsList onOpenChat={openChatFromNotification} />
           : section === 'public' ? <PublicChatsList onOpenChat={chat => { setSection('public'); setSelectedChat(chat); }} />
@@ -808,22 +809,22 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
               renderItem={({ item }) => {
                 const imageId = item.isGroup ? item.id : (item.other_user_id || item.id);
                 const title = item.name || 'Conversation';
-                return <Pressable onPress={() => setSelectedChat(item)} style={styles.mobileChatRow}>
+                return <Pressable onPress={() => setSelectedChat(item)} style={[styles.mobileChatRow,{backgroundColor:appTheme.colors.background,borderBottomColor:appTheme.colors.border}]}>
                   <View style={styles.mobileAvatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId, item.image_version) }} style={styles.mobileAvatarImage} /><View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View></View>
-                  <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={styles.mobileChatName}>{title}</Text><Text numberOfLines={1} style={styles.mobilePreview}>{localMessages?.drafts?.[String(item.id)] ? `Draft: ${localMessages.drafts[String(item.id)]}` : item.preview || (item.isGroup ? 'Group conversation' : 'No messages yet')}</Text></View>
-                  <View style={styles.mobileChatRight}><Text style={styles.mobileTime}>{compactTime(item.last_message_at || item.created_at)}</Text>{Number(item.unread || 0) > 0 ? <View style={styles.mobileUnread}><Text style={styles.mobileUnreadText}>{Number(item.unread) > 99 ? '99+' : item.unread}</Text></View> : null}</View>
+                  <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={[styles.mobileChatName,{color:appTheme.colors.text}]}>{title}</Text><Text numberOfLines={1} style={[styles.mobilePreview,{color:appTheme.colors.secondary}]}>{localMessages?.drafts?.[String(item.id)] ? `Draft: ${localMessages.drafts[String(item.id)]}` : item.preview || (item.isGroup ? 'Group conversation' : 'No messages yet')}</Text></View>
+                  <View style={styles.mobileChatRight}><Text style={[styles.mobileTime,{color:appTheme.colors.secondary}]}>{compactTime(item.last_message_at || item.created_at)}</Text>{Number(item.unread || 0) > 0 ? <View style={[styles.mobileUnread,{backgroundColor:appTheme.colors.accent}]}><Text style={styles.mobileUnreadText}>{Number(item.unread) > 99 ? '99+' : item.unread}</Text></View> : null}</View>
                 </Pressable>;
               }}
             />}
           </>}
       </View>
 
-      {section !== 'notifications' && section !== 'contacts' && section !== 'public' ? <Pressable style={styles.floatingChatButton} onPress={() => openMenu(section === 'groups' ? 'group' : 'private')}><Text style={styles.floatingChatIcon}>💬</Text></Pressable> : null}
+      {section !== 'notifications' && section !== 'contacts' && section !== 'public' ? <Pressable style={[styles.floatingChatButton,{backgroundColor:appTheme.colors.accent}]} onPress={() => openMenu(section === 'groups' ? 'group' : 'private')}><Text style={styles.floatingChatIcon}>💬</Text></Pressable> : null}
 
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav,{backgroundColor:appTheme.colors.background,borderTopColor:appTheme.colors.border}]}>
         {navItems.map(([value,label,icon]) => {
           const active = (value === 'all' && (section === 'all' || section === 'private')) || section === value;
-          return <Pressable key={value} style={styles.bottomNavItem} onPress={() => setSection(value)}><Text style={[styles.bottomNavIcon, active && styles.bottomNavIconActive]}>{icon}</Text><Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>{label}</Text></Pressable>;
+          return <Pressable key={value} style={styles.bottomNavItem} onPress={() => setSection(value)}><Text style={[styles.bottomNavIcon,{color:active?appTheme.colors.accent:appTheme.colors.text}]}>{icon}</Text><Text style={[styles.bottomNavLabel,{color:active?appTheme.colors.accent:appTheme.colors.text},active&&styles.bottomNavLabelActive]}>{label}</Text></Pressable>;
         })}
       </View>
 
@@ -897,7 +898,7 @@ function AppContent() {
   const [showPrivacySettings, setShowPrivacySettings] = useState(false);
   const [showChatThemeSettings, setShowChatThemeSettings] = useState(false);
   const [accountTool, setAccountTool] = useState(null);
-  const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'system', accentColor: null, wallpaperUri: null, wallpaperOpacity: 0.35, textScale: 1 });
+  const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'modern-blue', selected: false });
   const [initialChatId, setInitialChatId] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
   const [deliveredMessage, setDeliveredMessage] = useState(null);
@@ -1004,6 +1005,7 @@ function AppContent() {
   }} />;
   if (appLocked) return <AppLockScreen onUnlocked={() => setAppLocked(false)} />;
   if (accountTool) return <AccountTools key={accountTool} mode={accountTool} onBack={() => setAccountTool(null)} onLogout={logout} onSessionRotated={acceptRotatedSession} onOpenChat={id => { setInitialChatId(id); setAccountTool(null); setShowNotificationSettings(false); }} />;
+  if (session && !chatThemeSettings?.selected) return <ChatThemeSettings required value={chatThemeSettings} onChange={setChatThemeSettings} />;
   if (showChatThemeSettings) return <ChatThemeSettings value={chatThemeSettings} onChange={setChatThemeSettings} onBack={() => setShowChatThemeSettings(false)} />;
   if (showPrivacySettings) return <PrivacySettings onBack={() => setShowPrivacySettings(false)} />;
   if (showNotificationSettings) return <NotificationSettings onAccountTool={setAccountTool} preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onAppearance={() => setShowChatThemeSettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;

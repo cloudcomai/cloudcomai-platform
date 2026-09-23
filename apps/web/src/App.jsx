@@ -12,6 +12,8 @@ import GroupCreationModal from './components/GroupCreationModal';
 import GroupEditModal from './components/GroupEditModal';
 import ProfileEditModal from './components/ProfileEditModal';
 import SettingsPanel from './components/SettingsPanel';
+import ThemePicker from './components/ThemePicker';
+import { applyAppTheme, DEFAULT_APP_THEME_ID, getStoredAppTheme, saveAppTheme } from './services/appTheme';
 import AccountToolsPanel from './components/AccountToolsPanel';
 import GoogleContactsPanel from './components/GoogleContactsPanel';
 import InterestsScreen from './components/InterestsScreen';
@@ -82,6 +84,7 @@ export default function App() {
     const [modal, setModal] = useState(null);
     const [chatFilter, setChatFilter] = useState('all');
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [appTheme, setAppTheme] = useState(() => getStoredAppTheme());
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('chats');
     const [topInterests, setTopInterests] = useState(defaultInterests);
@@ -202,6 +205,10 @@ export default function App() {
         };
         document.title = pageTitles[screen] || pageTitles.home;
     }, [screen]);
+
+    useEffect(() => { applyAppTheme(appTheme || DEFAULT_APP_THEME_ID); }, [appTheme]);
+
+    const chooseAppTheme = id => { const saved = saveAppTheme(id); setAppTheme(saved); };
 
     const auth = async (u, t) => {
         await saveWebSession({ user: u, token: t });
@@ -503,6 +510,8 @@ export default function App() {
         if (chatFilter === 'unread') return matchesSearch && c.unread > 0;
         return matchesSearch;
     });
+
+    if (token && !appTheme) return <div className="theme-onboarding"><ThemePicker required value={DEFAULT_APP_THEME_ID} onChange={chooseAppTheme} /></div>;
 
     if (!authReady) return <div className="auth-page"><div className="auth-card">Loading CloudComAI...</div></div>;
     if (screen === 'home') {
