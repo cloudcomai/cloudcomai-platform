@@ -897,7 +897,7 @@ function AppContent() {
   const [showPrivacySettings, setShowPrivacySettings] = useState(false);
   const [showChatThemeSettings, setShowChatThemeSettings] = useState(false);
   const [accountTool, setAccountTool] = useState(null);
-  const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'system', accentColor: null, wallpaperUri: null, wallpaperOpacity: 0.35, textScale: 1 });
+  const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'modern-blue', selected: false });
   const [initialChatId, setInitialChatId] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
   const [deliveredMessage, setDeliveredMessage] = useState(null);
@@ -1004,6 +1004,7 @@ function AppContent() {
   }} />;
   if (appLocked) return <AppLockScreen onUnlocked={() => setAppLocked(false)} />;
   if (accountTool) return <AccountTools key={accountTool} mode={accountTool} onBack={() => setAccountTool(null)} onLogout={logout} onSessionRotated={acceptRotatedSession} onOpenChat={id => { setInitialChatId(id); setAccountTool(null); setShowNotificationSettings(false); }} />;
+  if (session && !chatThemeSettings?.selected) return <ChatThemeSettings required value={chatThemeSettings} onChange={setChatThemeSettings} />;
   if (showChatThemeSettings) return <ChatThemeSettings value={chatThemeSettings} onChange={setChatThemeSettings} onBack={() => setShowChatThemeSettings(false)} />;
   if (showPrivacySettings) return <PrivacySettings onBack={() => setShowPrivacySettings(false)} />;
   if (showNotificationSettings) return <NotificationSettings onAccountTool={setAccountTool} preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onAppearance={() => setShowChatThemeSettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;
