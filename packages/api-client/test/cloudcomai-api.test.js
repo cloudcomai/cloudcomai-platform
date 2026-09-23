@@ -125,3 +125,15 @@ test('maps cloud backup settings, backup, and restore separately from local expo
     { method: 'post', args: ['v1/users/backup', { action: 'restore' }, {}] },
   ]);
 });
+
+
+test('maps account deletion request to the authenticated account route', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.getAccountDeletionRequest();
+  await api.requestAccountDeletion('DELETE');
+  assert.deepEqual(calls, [
+    { method: 'get', args: ['v1/users/account-deletion', {}] },
+    { method: 'post', args: ['v1/users/account-deletion', { confirmation: 'DELETE' }, {}] },
+  ]);
+});

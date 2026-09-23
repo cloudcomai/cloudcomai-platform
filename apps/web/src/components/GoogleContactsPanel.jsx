@@ -90,7 +90,7 @@ export default function GoogleContactsPanel({ apiBridge, close }) {
         <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', padding: '22px', textAlign: 'center' }}>
           <div style={{ width: 48, height: 48, borderRadius: '12px', margin: '0 auto 12px', display: 'grid', placeItems: 'center', background: 'var(--bg-directory)', color: 'var(--primary-color)' }}><Contact size={24} /></div>
           <strong style={{ display: 'block', marginBottom: '6px' }}>Connect your Google Contacts</strong>
-          <p style={{ margin: '0 auto 16px', maxWidth: 430, fontSize: '12px', lineHeight: 1.5, color: 'var(--text-muted)' }}>CloudComAI will only request read-only access to your Google Contacts. Your Gmail messages are not requested.</p>
+          <p style={{ margin: '0 auto 16px', maxWidth: 430, fontSize: '12px', lineHeight: 1.5, color: 'var(--text-muted)' }}>CloudComAI requests read-only Google Contacts access and imports names, email addresses and phone numbers to our server to display and match your contacts. We store an encrypted connection credential and may refresh contacts when you open People & Contacts. Gmail messages are not requested. Revoke access in your Google Account connections; request deletion of imported copies at support@cloudcomai.com.</p>
           <button type="button" onClick={connectGoogle} disabled={connecting} style={primaryButtonStyle}>{connecting ? 'Opening Google…' : 'Connect Google'}</button>
         </div>
       ) : (

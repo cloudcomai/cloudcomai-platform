@@ -6,6 +6,8 @@ export class CloudComAiApi {
   register(input, options = {}) { return this.client.post(ApiRoute.REGISTER, input, { ...options, auth: false }); }
   forgotPassword(identifier, options = {}) { return this.client.post(ApiRoute.FORGOT_PASSWORD, { identifier }, { ...options, auth: false }); }
   resetPassword(token, password, options = {}) { return this.client.post(ApiRoute.RESET_PASSWORD, { token, password }, { ...options, auth: false }); }
+  getAccountDeletionRequest(options = {}) { return this.client.get(ApiRoute.ACCOUNT_DELETION, options); }
+  requestAccountDeletion(confirmation = 'DELETE', options = {}) { return this.client.post(ApiRoute.ACCOUNT_DELETION, { confirmation }, options); }
   listSessions(options = {}) { return this.client.get(ApiRoute.SESSIONS, options); }
   revokeSession(id, options = {}) { return this.client.delete(ApiRoute.SESSIONS, { ...options, query: { ...options.query, id } }); }
   revokeOtherSessions(options = {}) { return this.client.post(ApiRoute.SESSIONS, { revoke_others: true }, options); }

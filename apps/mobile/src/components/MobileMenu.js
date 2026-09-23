@@ -20,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { disableAppLock, isAppLockEnabled, setAppLockPin } from '../services/appLock';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
+import LegalLinks from './LegalLinks';
 import { buildProfileImageCacheKey } from '../utils/profileImage';
 
 const GROUP_TYPES = [
@@ -441,6 +442,8 @@ export default function MobileMenu({
       <>
         <ScreenHeader title="Sync contacts" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Text style={styles.help}>Connecting Google imports contact names, email addresses and phone numbers to CloudComAI for matching and displaying contacts. The server stores an encrypted Google access credential and may refresh connected contacts when you open People & Contacts. Gmail messages are not accessed. You can revoke access in your Google Account; imported copies require a separate deletion request to support@cloudcomai.com.</Text>
+          <LegalLinks />
           {googleStatus?.connected ? (
             <>
               <Text style={styles.resultTitle}>Google connected</Text>
@@ -549,6 +552,7 @@ export default function MobileMenu({
             <Text style={styles.menuTitle}>Google Contacts</Text>
             <Text style={styles.menuSub}>Connection and sync status</Text>
           </Pressable>
+          <LegalLinks />
           <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={() => { onClose(); onLogout?.(); }}>
             <Text style={styles.dangerText}>Sign out</Text>
           </Pressable>

@@ -1,20 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, InteractionManager, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, InteractionManager, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { platformApi } from '../services/platform';
 import { setApplicationBadge } from '../services/notifications';
 import { getNotificationChatId } from '../utils/notificationNavigation';
-import { loadMobileContacts } from '../utils/contacts';
+import { loadMobileContacts, requestPhoneContactSync } from '../utils/contacts';
 import UserProfileModal from './UserProfileModal';
 
 export function ContactsList({ onOpenChat }) {
+  const [syncingContacts, setSyncingContacts] = useState(false);
   const [items, setItems] = useState([]); const [requests, setRequests] = useState([]); const [loading, setLoading] = useState(true); const [refreshing, setRefreshing] = useState(false); const [actionId, setActionId] = useState(null); const [selectedContact, setSelectedContact] = useState(null); const [onlineExpanded, setOnlineExpanded] = useState(true); const [error, setError] = useState('');
   const load = useCallback(async (refresh = false) => { refresh ? setRefreshing(true) : setLoading(true); setError(''); try { const [contacts, friendRequests] = await Promise.all([loadMobileContacts(platformApi,1,500),platformApi.listFriendRequests()]); setItems(contacts); setRequests(friendRequests.data?.incoming || []); } catch(e) { setError(e.message || 'Unable to load People & Contacts.'); } finally { setLoading(false); setRefreshing(false); } }, []);
   useEffect(() => { load(); const timer=setInterval(()=>load(true),30000); return ()=>clearInterval(timer); }, [load]);
+  const syncContacts = async () => {
+    if (syncingContacts) return;
+    setSyncingContacts(true);
+    setError('');
+    try {
+      const result = await requestPhoneContactSync(platformApi, () => new Promise(resolve => Alert.alert(
+        'Upload phone contacts?',
+        'CloudComAI will access the contacts you allow and upload their names, first available email addresses and phone numbers to its server to find registered friends and display your contacts. This is optional. Declining keeps your saved contacts available. Removing device permission stops future access but does not delete uploaded copies; request deletion at support@cloudcomai.com.',
+        [{ text: 'Not now', style: 'cancel', onPress: () => resolve(false) }, { text: 'Agree and sync', onPress: () => resolve(true) }],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      )));
+      if (result.cancelled) return;
+      if (!result.granted) { setError('Contacts were not synced. Check permission and connection, then try again.'); return; }
+      await load(true);
+    } finally { setSyncingContacts(false); }
+  };
   const respond = async (request, action) => { if (!request?.id || actionId !== null) return; setActionId(Number(request.id)); setError(''); try { await platformApi.respondToFriendRequest(Number(request.id),action); setRequests(current=>current.filter(item=>Number(item.id)!==Number(request.id))); await load(true); } catch(e) { setError(e.message || 'Unable to update friend request.'); } finally { setActionId(null); } };
   const onlineItems = useMemo(()=>items.filter(item=>item.presence_status==='ONLINE'),[items]);
   const renderContact = ({item}) => { const title=item.registered_name || item.display_name || item.email || item.phone || 'CloudComAI contact'; const status=item.presence_status || (item.online ? 'ONLINE':'OFFLINE'); return <Pressable style={styles.row} onPress={()=>setSelectedContact(item)}><View style={styles.avatar}>{item.photo_url ? <Image source={{uri:item.photo_url}} style={styles.avatarImage}/> : null}<Text style={styles.avatarText}>{title[0]?.toUpperCase()||'C'}</Text></View><View style={styles.meta}><Text style={styles.title}>{title}</Text><Text style={styles.sub}>{status==='ONLINE'?'Online':status==='AWAY'?'Away':'Offline'}</Text></View><View style={[styles.statusDot,status==='ONLINE'?styles.onlineDot:status==='AWAY'?styles.awayDot:styles.offlineDot]}/></Pressable>; };
   if (loading) return <ActivityIndicator style={styles.loader} color="#3157d5" />;
   return <>
+    <Pressable disabled={syncingContacts} accessibilityRole="button" onPress={syncContacts} style={styles.onlineHeader}><Text style={styles.onlineTitle}>{syncingContacts ? 'Syncing contacts…' : 'Sync phone contacts (optional)'}</Text></Pressable>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     {requests.length ? <View style={styles.requestsCard}><View style={styles.requestsHeader}><Text style={styles.requestsTitle}>Friend requests</Text><Text style={styles.requestsCount}>{requests.length}</Text></View>{requests.map(request=>{const busy=Number(request.id)===actionId;const title=request.name||request.username||'CloudComAI user';return <View key={request.id} style={styles.requestRow}><View style={styles.avatar}><Text style={styles.avatarText}>{title[0]?.toUpperCase()||'U'}</Text></View><View style={styles.meta}><Text style={styles.title}>{title}</Text><Text style={styles.sub}>{request.username?`@${request.username}`:'Wants to add you as a friend/contact'}</Text></View><View style={styles.requestActions}><Pressable disabled={actionId!==null} onPress={()=>respond(request,'accept')} style={styles.acceptButton}><Text style={styles.acceptText}>{busy?'…':'Accept'}</Text></Pressable><Pressable disabled={actionId!==null} onPress={()=>respond(request,'decline')} style={styles.declineButton}><Text style={styles.declineText}>Decline</Text></Pressable><Pressable disabled={actionId!==null} onPress={()=>respond(request,'block')} style={styles.blockButton}><Text style={styles.blockText}>Block</Text></Pressable></View></View>;})}</View>:null}
     <Pressable style={styles.onlineHeader} onPress={()=>setOnlineExpanded(value=>!value)}><View><Text style={styles.onlineTitle}>Online Users</Text><Text style={styles.onlineCount}>{onlineItems.length} online</Text></View><Text style={styles.chevron}>{onlineExpanded?'⌃':'⌄'}</Text></Pressable>
