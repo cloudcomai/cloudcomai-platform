@@ -1,0 +1,133 @@
+diff --git a/apps/mobile/App.js b/apps/mobile/App.js
+--- a/apps/mobile/App.js
++++ b/apps/mobile/App.js
+@@ -25,6 +25,7 @@ import PublicChatManagement from './src/components/PublicChatManagement';
+ import UserProfileModal from './src/components/UserProfileModal';
+ import ChatThemeSettings from './src/components/ChatThemeSettings';
++import RingBellsScreen from './src/components/RingBellsScreen';
+ import { getChatThemeSettings, resolveChatTheme } from './src/services/chatTheme';
+ import { readableMessageColor } from './src/services/chatThemeDefinitions';
+@@ -491,6 +492,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+   const [searchOpen, setSearchOpen] = useState(false);
+   const [searchText, setSearchText] = useState('');
++  const [showRingBells, setShowRingBells] = useState(false);
+   const lastBackPressRef = useRef(0);
+@@ -544,6 +546,10 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
++      if (showRingBells) {
++        setShowRingBells(false);
++        return true;
++      }
+       if (selectedChat) {
+@@ -562,6 +568,8 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+     return () => subscription.remove();
+-  }, [selectedChat, section]);
++  }, [selectedChat, section, showRingBells]);
+@@ -585,6 +593,8 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+     } catch (e) {
+       setError(e.message || 'Unable to open notification chat.');
+     }
+   };
++
++  if (showRingBells) return <RingBellsScreen onBack={() => setShowRingBells(false)} />;
+ 
+   if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+@@ -602,10 +612,16 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+   return (
+-    <SafeAreaView style={styles.mobileHome} edges={['top', 'bottom', 'left', 'right']}>
+-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
++    <SafeAreaView style={styles.mobileHome} edges={['top', 'bottom', 'left', 'right']}>
++      <StatusBar barStyle="light-content" backgroundColor="#0B1B33" />
+       <View style={styles.mobileTopBar}>
+         <Pressable style={styles.topIconButton} onPress={() => openMenu('menu')}><Text style={styles.topIconText}>☰</Text></Pressable>
+         <View style={styles.mobileBrand}><Image source={require('./assets/app-icon.png')} style={styles.mobileBrandIcon} resizeMode="contain" /><Text style={styles.mobileBrandText}>CloudComAI</Text></View>
+         <View style={styles.mobileTopActions}>
+           <Pressable style={styles.topIconButton} onPress={() => { setSearchOpen(value => !value); setSearchText(''); }}><Text style={styles.topIconText}>⌕</Text></Pressable>
++          <Pressable style={styles.profileButton} onPress={() => openMenu('menu')} accessibilityRole="button" accessibilityLabel="Open profile menu">
++            <View style={styles.profileAvatar}><Image source={{ uri: session.user?.photo_url || session.user?.avatar_url || session.user?.image_url || mediaUrl('user', session.user?.id, session.user?.image_version) }} style={styles.profileAvatarImage} /><Text style={styles.profileAvatarText}>{String(session.user?.name || session.user?.user_id || 'C')[0]?.toUpperCase()}</Text></View>
++          </Pressable>
+         </View>
+       </View>
+@@ -616,7 +632,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+         <Pressable style={styles.quickAction} onPress={() => setSection('contacts')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>👥</Text></View><Text style={styles.quickLabel}>Contacts</Text></Pressable>
+-        <Pressable style={styles.quickAction} onPress={() => openMenu('menu')}><View style={styles.quickCircle}><Text style={styles.quickIcon}>▥</Text></View><Text style={styles.quickLabel}>Polls</Text></Pressable>
++        <Pressable style={styles.quickAction} onPress={() => setShowRingBells(true)}><View style={[styles.quickCircle, styles.quickCircleRingBells]}><Text style={styles.quickIcon}>✦</Text></View><Text style={styles.quickLabel}>Ring Bells</Text></Pressable>
+         <Pressable style={styles.quickAction} onPress={onSettings}><View style={styles.quickCircle}><Text style={styles.quickIcon}>⚙</Text></View><Text style={styles.quickLabel}>Settings</Text></Pressable>
+@@ -730,16 +746,21 @@ const styles = StyleSheet.create({
+-  mobileHome: { flex: 1, backgroundColor: '#fff' },
+-  mobileTopBar: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
++  mobileHome: { flex: 1, backgroundColor: '#0F172A' },
++  mobileTopBar: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#1e3a5f', backgroundColor: '#0B1B33' },
+   topIconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+-  topIconText: { color: '#172033', fontSize: 24, fontWeight: '700' },
++  topIconText: { color: '#F8FAFC', fontSize: 24, fontWeight: '700' },
+   mobileBrand: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 4 },
+   mobileBrandIcon: { width: 34, height: 34, marginRight: 8 },
+-  mobileBrandText: { color: '#172033', fontSize: 21, fontWeight: '900' },
++  mobileBrandText: { color: '#F8FAFC', fontSize: 21, fontWeight: '900' },
+   mobileTopActions: { flexDirection: 'row', gap: 2 },
+-  mobileSearchWrap: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' },
+-  mobileSearchInput: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#f2f5fa', color: '#172033' },
+-  horizontalStrip: { flexGrow: 0, flexShrink: 0, height: 112, backgroundColor: '#fff' },
+-  quickActions: { height: 112, paddingHorizontal: 12, paddingVertical: 12, gap: 14, alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
++  profileButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
++  profileAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#2563EB' },
++  profileAvatarImage: { ...StyleSheet.absoluteFillObject, width: 34, height: 34 },
++  profileAvatarText: { color: '#fff', fontSize: 14, fontWeight: '900' },
++  mobileSearchWrap: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#0B1B33' },
++  mobileSearchInput: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#16243A', color: '#F8FAFC' },
++  horizontalStrip: { flexGrow: 0, flexShrink: 0, height: 112, backgroundColor: '#0F172A' },
++  quickActions: { height: 112, paddingHorizontal: 12, paddingVertical: 12, gap: 14, alignItems: 'flex-start', borderBottomWidth: 1, borderBottomColor: '#1e3a5f' },
+   quickAction: { width: 68, alignItems: 'center' },
+-  quickCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#dbe4ff', backgroundColor: '#f8faff' },
+-  quickIcon: { fontSize: 21, color: '#3157d5', fontWeight: '800' },
+-  quickLabel: { marginTop: 5, color: '#4b5563', fontSize: 11, fontWeight: '600', textAlign: 'center' },
+-  categoryStrip: { flexGrow: 0, flexShrink: 0, height: 54, backgroundColor: '#fff' },
+-  categoryTabs: { height: 54, paddingHorizontal: 10, alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+-  categoryTab: { minHeight: 38, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+-  categoryTabActive: { backgroundColor: '#eef2ff' },
+-  categoryTabText: { color: '#596579', fontSize: 12, fontWeight: '700' },
+-  categoryTabTextActive: { color: '#3157d5' },
+-  mobileContent: { flex: 1, backgroundColor: '#fff' },
++  quickCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#2563EB', backgroundColor: '#16243A' },
++  quickCircleRingBells: { borderColor: '#F59E0B', backgroundColor: '#3a2a0b' },
++  quickIcon: { fontSize: 21, color: '#3B82F6', fontWeight: '800' },
++  quickLabel: { marginTop: 5, color: '#A9BCE0', fontSize: 11, fontWeight: '700', textAlign: 'center' },
++  categoryStrip: { flexGrow: 0, flexShrink: 0, height: 54, backgroundColor: '#0B1B33' },
++  categoryTabs: { height: 54, paddingHorizontal: 10, alignItems: 'center', gap: 6, borderBottomWidth: 1, borderBottomColor: '#1e3a5f' },
++  categoryTab: { minHeight: 38, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#16243A' },
++  categoryTabActive: { backgroundColor: '#2563EB' },
++  categoryTabText: { color: '#A9BCE0', fontSize: 12, fontWeight: '700' },
++  categoryTabTextActive: { color: '#fff' },
++  mobileContent: { flex: 1, backgroundColor: '#0F172A' },
+   mobileChatList: { paddingBottom: 96 },
+-  mobileChatRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
+-  mobileAvatar: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff' },
++  mobileChatRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginHorizontal: 10, marginVertical: 4, borderRadius: 14, backgroundColor: '#16243A' },
++  mobileAvatar: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1e3a5f' },
+   mobileAvatarImage: { ...StyleSheet.absoluteFillObject, width: 50, height: 50, zIndex: 2 },
+   mobileAvatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+-  mobileAvatarText: { color: '#3157d5', fontSize: 18, fontWeight: '800' },
++  mobileAvatarText: { color: '#3B82F6', fontSize: 18, fontWeight: '800' },
+   mobileChatMeta: { flex: 1, minWidth: 0, marginLeft: 12 },
+-  mobileChatName: { color: '#111827', fontSize: 16, fontWeight: '800' },
+-  mobilePreview: { marginTop: 4, color: '#667085', fontSize: 13 },
++  mobileChatName: { color: '#F8FAFC', fontSize: 16, fontWeight: '800' },
++  mobilePreview: { marginTop: 4, color: '#A9BCE0', fontSize: 13 },
+   mobileChatRight: { minWidth: 58, alignItems: 'flex-end', justifyContent: 'center', marginLeft: 8 },
+-  mobileTime: { color: '#667085', fontSize: 10 },
++  mobileTime: { color: '#A9BCE0', fontSize: 10 },
+   mobileUnread: { minWidth: 23, height: 23, paddingHorizontal: 6, marginTop: 7, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' },
+@@ -751,11 +772,11 @@ const styles = StyleSheet.create({
+-  bottomNav: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#e5e7eb', backgroundColor: '#fff' },
++  bottomNav: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#1e3a5f', backgroundColor: '#0B1B33' },
+   bottomNavItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
+-  bottomNavIcon: { color: '#4b5563', fontSize: 18, fontWeight: '700' },
+-  bottomNavIconActive: { color: '#3157d5' },
+-  bottomNavLabel: { marginTop: 3, color: '#4b5563', fontSize: 10, fontWeight: '600' },
+-  bottomNavLabelActive: { color: '#3157d5', fontWeight: '800' },
++  bottomNavIcon: { color: '#A9BCE0', fontSize: 18, fontWeight: '700' },
++  bottomNavIconActive: { color: '#3B82F6' },
++  bottomNavLabel: { marginTop: 3, color: '#A9BCE0', fontSize: 10, fontWeight: '600' },
++  bottomNavLabelActive: { color: '#3B82F6', fontWeight: '800' },
+*** End Patch
