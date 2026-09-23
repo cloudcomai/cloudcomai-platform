@@ -1,7 +1,12 @@
 :root {
+  --app-bg: #0F172A;
+  --app-panel: #2563EB;
+  --app-accent: #3B82F6;
+  --app-text: #E0E7FF;
+  --app-highlight: #10B981;
   font-family: Inter, system-ui, Arial, sans-serif;
-  color: #e5e7eb;
-  background: #08111f;
+  color: var(--app-text);
+  background: var(--app-bg);
   --accent: #6d7cff;
   --panel: #0f1b2d;
   --panel2: #15233a;
@@ -2367,3 +2372,6 @@ select {
 .canvas-action-utilities select{max-width:130px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-primary);color:var(--text-main);padding:6px}
 
 .parity-community-panel{width:min(720px,92vw);max-height:85vh;overflow:auto}.parity-community-panel>input,.ring-bells-composer input{width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);color:var(--text-main)}.parity-room{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px;border:1px solid var(--border-color);border-radius:10px}.parity-room>div:first-child{display:flex;flex-direction:column;gap:4px}.parity-room small{color:var(--text-muted)}.parity-room p{margin:4px 0}.ring-bells-composer{display:flex;gap:8px;margin:12px 0}
+
+
+.theme-onboarding{min-height:100vh;display:grid;place-items:center;background:var(--app-bg);color:var(--app-text);padding:24px}.theme-picker{padding:16px;border:1px solid var(--app-accent);border-radius:16px;background:var(--app-bg);color:var(--app-text);margin-bottom:14px}.theme-picker-required{width:min(620px,100%);padding:24px}.theme-picker p{color:var(--app-text);opacity:.82}.theme-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.theme-option{border:1px solid var(--app-accent);border-radius:12px;background:var(--app-bg);color:var(--app-text);padding:12px;text-align:left}.theme-option.selected{outline:3px solid var(--app-highlight)}.theme-swatches{display:flex;gap:4px;margin-bottom:9px}.theme-swatches i{width:22px;height:22px;border-radius:50%;display:block}@media(max-width:640px){.theme-options{grid-template-columns:1fr}}
