@@ -7,5 +7,5 @@ const source = fs.readFileSync(new URL('../src/components/PublicChatsList.js', i
 test('public chat dropdown sections are closed by default', () => {
   assert.match(source, /\[publicRoomsOpen, setPublicRoomsOpen\] = useState\(false\)/);
   assert.match(source, /\[languageRoomsOpen, setLanguageRoomsOpen\] = useState\(false\)/);
-  assert.match(source, /\[favoritesOpen, setFavoritesOpen\] = useState\(false\)/);
+  assert.match(source, /\[favoritesOpen, setFavoritesOpen\] = useState\(true\)/);
 });
