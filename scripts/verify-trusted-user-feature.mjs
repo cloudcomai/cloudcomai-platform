@@ -18,7 +18,7 @@ assert.equal(contract.routes['v1/users/trusted-user'].handler, 'trusted_user.php
 assert.deepEqual(contract.routes['v1/users/trusted-user'].methods.sort(), ['DELETE', 'GET', 'POST', 'PUT']);
 
 assert.match(trustedApi, /\$viewer = auth_user\(\)/);
-assert.match(trustedApi, /owner_user_id=\?,trusted_user_id=\?/);
+assert.match(trustedApi, /INSERT INTO trusted_users\(owner_user_id,trusted_user_id/);
 assert.match(trustedApi, /users_block_state\(\(int\)\$viewer\['id'\], \$targetUserId\)/);
 assert.doesNotMatch(trustedApi, /\$d\[['"]isTrusted['"]\]/i);
 
@@ -36,6 +36,6 @@ assert.match(profileUi, /Allow attachments from this user without requesting app
 assert.match(profileUi, /Trust this user\?/);
 assert.match(profileUi, /v1\/users\/trusted-user/);
 assert.match(payload, /sender_trusted/);
-assert.match(payload, /is_trusted_user\(\(int\)\$viewer\['id'\], \(int\)\$message\['sender_id'\]\)/);
+assert.match(payload, /download_policy' => \$trustedSender \? 'ALLOW'/);
 
 console.log('Trusted User feature checks: PASS');
