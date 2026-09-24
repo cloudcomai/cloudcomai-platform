@@ -60,9 +60,6 @@ export default function MobileMenu({
   const [groupName, setGroupName] = useState('');
   const [groupType, setGroupType] = useState(GROUP_TYPES[0]);
 
-  const [preferencesText, setPreferencesText] = useState('');
-  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
-
   const [pollChats, setPollChats] = useState([]);
   const [pollChatId, setPollChatId] = useState(null);
   const [pollExpiry, setPollExpiry] = useState('');
@@ -148,36 +145,6 @@ export default function MobileMenu({
       onClose();
     } catch (e) {
       setError(e.message || 'Unable to create group.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const loadPreferences = async () => {
-    go('preferences');
-    if (preferencesLoaded) return;
-    setBusy(true);
-    try {
-      const { data } = await platformApi.getPreferences();
-      setPreferencesText((data.preferences || []).join(', '));
-      setPreferencesLoaded(true);
-    } catch (e) {
-      setError(e.message || 'Unable to load preferences.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const savePreferences = async () => {
-    const interests = preferencesText.split(',').map(v => v.trim()).filter(Boolean);
-    if (!interests.length) { setError('Enter at least one preference.'); return; }
-    setBusy(true); setError('');
-    try {
-      await platformApi.updatePreferences(interests);
-      Alert.alert('Preferences saved', 'Your CloudComAI preferences have been updated.');
-      setScreen('menu');
-    } catch (e) {
-      setError(e.message || 'Unable to save preferences.');
     } finally {
       setBusy(false);
     }
@@ -406,17 +373,6 @@ export default function MobileMenu({
       </>
     );
 
-    if (screen === 'preferences') return (
-      <>
-        <ScreenHeader theme={theme} title="Preferences" onBack={() => go('menu')} onClose={onClose} />
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={[styles.help,{color:theme.colors.secondary}]}>Enter interests separated by commas.</Text>
-          <TextInput style={[styles.input, styles.multiline]} value={preferencesText} onChangeText={setPreferencesText} multiline placeholder="Technology, Private Chats, Family Group" />
-          <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={savePreferences}><Text style={styles.primaryText}>Save preferences</Text></Pressable>
-        </ScrollView>
-      </>
-    );
-
     if (screen === 'poll') return (
       <>
         <ScreenHeader theme={theme} title="Create poll" onBack={() => go('menu')} onClose={onClose} />
@@ -567,7 +523,6 @@ export default function MobileMenu({
             ['Profile', 'View and edit your CloudComAI profile', () => go('profile')],
             ['Start private chat', 'Search users and begin a direct conversation', () => go('private')],
             ['Create group', 'Create a new CloudComAI group', () => go('group')],
-            ['Preferences', 'Edit your interests and preferences', loadPreferences],
             ['Create poll', 'Post a poll to a chat or group', loadPoll],
             ['Settings', 'Notifications, account and integrations', () => go('settings')],
             ['Sync contacts', 'Connect or sync Google Contacts', openSyncContacts],
