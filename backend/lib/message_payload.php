@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 function hydrate_message_attachments(array &$messages): void {
     if (!$messages) return;
+    $viewer = auth_user();
     $ids = array_values(array_filter(array_map(fn($message) => (int)($message['id'] ?? 0), $messages)));
     if (!$ids) return;
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -24,20 +25,14 @@ function hydrate_message_attachments(array &$messages): void {
     }
     foreach ($messages as &$message) {
         $messageAttachments = $attachments[(int)$message['id']] ?? [];
+        foreach ($messageAttachments as &$attachment) {
+            $attachment['sender_trusted'] = (int)($message['sender_id'] ?? 0) !== (int)$viewer['id']
+                && is_trusted_user((int)$viewer['id'], (int)$message['sender_id']);
+        }
+        unset($attachment);
         $message['attachments'] = $messageAttachments;
         $message['attachment'] = $messageAttachments[0] ?? null;
     }
-    unset($message);
-}
-
-function hydrate_message_trust(array &$messages, int $viewerId): void {
-    if (!$messages) return;
-    $senderIds = array_values(array_unique(array_filter(array_map(static fn($message) => (int)($message['sender_id'] ?? 0), $messages))));
-    $trusted = [];
-    foreach ($senderIds as $senderId) {
-        if ($senderId !== $viewerId && is_trusted_user($viewerId, $senderId)) $trusted[$senderId] = true;
-    }
-    foreach ($messages as &$message) $message['sender_trusted'] = !empty($trusted[(int)$message['sender_id']]);
     unset($message);
 }
 
@@ -80,7 +75,7 @@ function hydrate_message_state(array &$messages, int $userId): void {
     $groupProfile->execute(array_merge($ids,[$userId,$userId,$userId]));
     $groupProfileIds=array_flip(array_map('intval',$groupProfile->fetchAll(PDO::FETCH_COLUMN)));
     foreach ($messages as &$message) {
-        if (isset($groupProfileIds[(int)$message['id']])) $message['show_profile']=1;
+        if (isset($groupProfileIds[(int)$message['id'])) $message['show_profile']=1;
         elseif (!array_key_exists('show_profile', $message)) $message['show_profile']=0;
     }
     unset($message);
