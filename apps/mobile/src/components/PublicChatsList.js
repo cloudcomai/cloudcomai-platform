@@ -9,7 +9,7 @@ export default function PublicChatsList({ onOpenChat }) {
   const [rooms, setRooms] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [query, setQuery] = useState('');
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [publicRoomsOpen, setPublicRoomsOpen] = useState(false);
   const [languageRoomsOpen, setLanguageRoomsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
