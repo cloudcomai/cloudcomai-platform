@@ -809,7 +809,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
               renderItem={({ item }) => {
                 const imageId = item.isGroup ? item.id : (item.other_user_id || item.id);
                 const title = item.name || 'Conversation';
-                return <Pressable onPress={() => setSelectedChat(item)} style={[styles.mobileChatRow,{backgroundColor:appTheme.colors.background,borderBottomColor:appTheme.colors.border}]}>
+                return <Pressable onPress={() => setSelectedChat(item)} style={[styles.mobileChatRow,{backgroundColor:appTheme.colors.surface || appTheme.colors.background,borderColor:appTheme.colors.border}]}>
                   <View style={styles.mobileAvatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId, item.image_version) }} style={styles.mobileAvatarImage} /><View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View></View>
                   <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={[styles.mobileChatName,{color:appTheme.colors.text}]}>{title}</Text><Text numberOfLines={1} style={[styles.mobilePreview,{color:appTheme.colors.secondary}]}>{localMessages?.drafts?.[String(item.id)] ? `Draft: ${localMessages.drafts[String(item.id)]}` : item.preview || (item.isGroup ? 'Group conversation' : 'No messages yet')}</Text></View>
                   <View style={styles.mobileChatRight}><Text style={[styles.mobileTime,{color:appTheme.colors.secondary}]}>{compactTime(item.last_message_at || item.created_at)}</Text>{Number(item.unread || 0) > 0 ? <View style={[styles.mobileUnread,{backgroundColor:appTheme.colors.accent}]}><Text style={styles.mobileUnreadText}>{Number(item.unread) > 99 ? '99+' : item.unread}</Text></View> : null}</View>
@@ -1065,8 +1065,8 @@ const styles = StyleSheet.create({
   categoryTabText: { color: '#596579', fontSize: 12, fontWeight: '700' },
   categoryTabTextActive: { color: '#3157d5' },
   mobileContent: { flex: 1, backgroundColor: '#fff' },
-  mobileChatList: { paddingBottom: 96 },
-  mobileChatRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
+  mobileChatList: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 96 },
+  mobileChatRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 8, borderWidth: 1, borderRadius: 16, overflow: 'hidden', borderColor: '#edf0f5', backgroundColor: '#fff' },
   mobileAvatar: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff' },
   mobileAvatarImage: { ...StyleSheet.absoluteFillObject, width: 50, height: 50, zIndex: 2 },
   mobileAvatarFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
