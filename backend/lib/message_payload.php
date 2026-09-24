@@ -30,6 +30,17 @@ function hydrate_message_attachments(array &$messages): void {
     unset($message);
 }
 
+function hydrate_message_trust(array &$messages, int $viewerId): void {
+    if (!$messages) return;
+    $senderIds = array_values(array_unique(array_filter(array_map(static fn($message) => (int)($message['sender_id'] ?? 0), $messages))));
+    $trusted = [];
+    foreach ($senderIds as $senderId) {
+        if ($senderId !== $viewerId && is_trusted_user($viewerId, $senderId)) $trusted[$senderId] = true;
+    }
+    foreach ($messages as &$message) $message['sender_trusted'] = !empty($trusted[(int)$message['sender_id']]);
+    unset($message);
+}
+
 function hydrate_message_polls(array &$messages, int $userId): void {
     $pollQuery = db()->prepare('SELECT p.id,p.question,p.closes_at,po.id AS option_id,po.option_text,po.display_order,COUNT(pv.user_id) AS votes,MAX(CASE WHEN pv.user_id=? THEN 1 ELSE 0 END) AS selected FROM polls p INNER JOIN poll_options po ON po.poll_id=p.id LEFT JOIN poll_votes pv ON pv.option_id=po.id AND pv.poll_id=p.id WHERE p.id=? GROUP BY p.id,p.question,p.closes_at,po.id,po.option_text,po.display_order ORDER BY po.display_order ASC,po.id ASC');
     foreach ($messages as &$message) {
