@@ -41,7 +41,13 @@ assert.ok(notificationIndex > insertIndex, 'approval notification must only be q
 assert.match(profileApi, /'trusted_user' => !\$self && is_trusted_user/);
 assert.match(profileUi, /Trusted User/);
 assert.match(profileUi, /Allow this user to receive, download, save, and forward attachments you send without approval/);
-assert.match(profileUi, /Trust this user\?/);
+assert.match(profileUi, /Enable Trusted User\?/);
+assert.match(profileUi, /You will allow \{name\} to receive, download, save and forward attachments you send without approval/);
+assert.match(profileUi, /You can turn this off anytime from their profile/);
+assert.match(profileUi, />Cancel<\/Text>/);
+assert.match(profileUi, />Enable<\/Text>/);
+assert.match(profileUi, /trustBackdrop/);
+assert.doesNotMatch(profileUi, /Alert\.alert\('Trust this user\?'/);
 assert.match(endpoints, /TRUSTED_USER: 'v1\/users\/trusted-user'/);
 assert.match(clientApi, /trustUser\(userId/);
 assert.match(clientApi, /untrustUser\(userId/);
