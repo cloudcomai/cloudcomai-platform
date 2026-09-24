@@ -75,7 +75,7 @@ function hydrate_message_state(array &$messages, int $userId): void {
     $groupProfile->execute(array_merge($ids,[$userId,$userId,$userId]));
     $groupProfileIds=array_flip(array_map('intval',$groupProfile->fetchAll(PDO::FETCH_COLUMN)));
     foreach ($messages as &$message) {
-        if (isset($groupProfileIds[(int)$message['id'])) $message['show_profile']=1;
+        if (isset($groupProfileIds[(int)$message['id']])) $message['show_profile']=1;
         elseif (!array_key_exists('show_profile', $message)) $message['show_profile']=0;
     }
     unset($message);
