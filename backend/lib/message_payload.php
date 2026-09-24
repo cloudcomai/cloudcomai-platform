@@ -15,8 +15,11 @@ function hydrate_message_attachments(array &$messages): void {
     }
     foreach ($messages as &$message) {
         $messageAttachments = [];
+        // Trusted User is sender-controlled: sender -> this viewer.
+        // If the sender has trusted this viewer, the viewer gets direct
+        // download/save/forward access without an approval request.
         $trustedSender = (int)($message['sender_id'] ?? 0) !== (int)$viewer['id']
-            && is_trusted_user((int)$viewer['id'], (int)$message['sender_id']);
+            && is_trusted_user((int)$message['sender_id'], (int)$viewer['id']);
         foreach ($attachments[(int)$message['id']] ?? [] as $attachment) {
             $messageAttachments[] = [
                 'id' => (int)$attachment['id'],
