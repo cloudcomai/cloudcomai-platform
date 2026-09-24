@@ -3,8 +3,10 @@ import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatMessageTimestamp } from '@cloudcomai/chat-core';
 import { platformApi } from '../services/platform';
+import { resolveChatTheme } from '../services/chatThemeDefinitions';
 
-export default function AccountTools({ mode, onBack, onOpenChat, onSessionRotated, onLogout }) {
+export default function AccountTools({ mode, onBack, onOpenChat, onSessionRotated, onLogout, themeSettings }) {
+  const theme=resolveChatTheme(themeSettings);
   const saved = mode === 'saved_messages';
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
@@ -37,8 +39,8 @@ export default function AccountTools({ mode, onBack, onOpenChat, onSessionRotate
       setItems(current => current.filter(entry => entry.id !== item.id));
     }) },
   ]);
-  return <SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}>
-    <View style={styles.header}><Pressable onPress={onBack}><Text style={styles.back}>‹ Back</Text></Pressable><Text style={styles.title}>{saved ? 'Saved messages' : 'Devices & sessions'}</Text></View>
+  return <SafeAreaView style={[styles.page,{backgroundColor:theme.colors.background}]} edges={['top', 'bottom', 'left', 'right']}>
+    <View style={[styles.header,{backgroundColor:theme.colors.header}]}><Pressable onPress={onBack}><Text style={[styles.back,{color:theme.colors.text}]}>‹ Back</Text></Pressable><Text style={[styles.title,{color:theme.colors.text}]}>{saved ? 'Saved messages' : 'Devices & sessions'}</Text></View>
     {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
     <FlatList
       data={items}
@@ -46,20 +48,20 @@ export default function AccountTools({ mode, onBack, onOpenChat, onSessionRotate
       refreshing={loading}
       onRefresh={() => { if (!busy) load(); }}
       contentContainerStyle={styles.content}
-      ListHeaderComponent={<Text style={styles.note}>{saved ? 'Save messages from their actions to find them here. Expired or deleted messages are removed.' : 'Review active sign-ins. Sign out other devices to require them to sign in again.'}</Text>}
-      ListEmptyComponent={!loading ? <Text style={styles.note}>{saved ? 'No saved messages yet.' : 'No active sessions found.'}</Text> : <ActivityIndicator color="#3157d5" />}
-      renderItem={({ item }) => <View style={styles.card}>
-        <Text style={styles.name}>{saved ? item.chat_name || item.sender_name || 'Conversation' : item.current ? 'This device' : 'Signed-in device'}</Text>
-        <Text style={styles.body} numberOfLines={saved ? 4 : 3}>{saved ? item.type === 'text' ? item.body : item.poll?.question || `[${item.type} message]` : item.device_label || 'Device details unavailable'}</Text>
-        <Text style={styles.note}>{saved ? `Saved ${formatMessageTimestamp(item.saved_at)}` : `Last active ${formatMessageTimestamp(item.last_seen_at)}`}</Text>
-        <View style={styles.actions}>{saved ? <><Pressable disabled={busy} onPress={() => perform(() => onOpenChat(Number(item.chat_id)))}><Text style={styles.link}>Open chat</Text></Pressable><Pressable disabled={busy} onPress={() => perform(async () => { await platformApi.unsaveMessage(item.id); setItems(current => current.filter(entry => entry.id !== item.id)); })}><Text style={styles.link}>Unsave</Text></Pressable></> : <Pressable disabled={busy} onPress={() => revoke(item)}><Text style={styles.link}>Sign out</Text></Pressable>}</View>
+      ListHeaderComponent={<Text style={[styles.note,{color:theme.colors.secondary}]}>{saved ? 'Save messages from their actions to find them here. Expired or deleted messages are removed.' : 'Review active sign-ins. Sign out other devices to require them to sign in again.'}</Text>}
+      ListEmptyComponent={!loading ? <Text style={[styles.note,{color:theme.colors.secondary}]}>{saved ? 'No saved messages yet.' : 'No active sessions found.'}</Text> : <ActivityIndicator color={theme.colors.accent} />}
+      renderItem={({ item }) => <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
+        <Text style={[styles.name,{color:theme.colors.text}]}>{saved ? item.chat_name || item.sender_name || 'Conversation' : item.current ? 'This device' : 'Signed-in device'}</Text>
+        <Text style={[styles.body,{color:theme.colors.text}]} numberOfLines={saved ? 4 : 3}>{saved ? item.type === 'text' ? item.body : item.poll?.question || `[${item.type} message]` : item.device_label || 'Device details unavailable'}</Text>
+        <Text style={[styles.note,{color:theme.colors.secondary}]}>{saved ? `Saved ${formatMessageTimestamp(item.saved_at)}` : `Last active ${formatMessageTimestamp(item.last_seen_at)}`}</Text>
+        <View style={styles.actions}>{saved ? <><Pressable disabled={busy} onPress={() => perform(() => onOpenChat(Number(item.chat_id)))}><Text style={[styles.link,{color:theme.colors.accent}]}>Open chat</Text></Pressable><Pressable disabled={busy} onPress={() => perform(async () => { await platformApi.unsaveMessage(item.id); setItems(current => current.filter(entry => entry.id !== item.id)); })}><Text style={[styles.link,{color:theme.colors.accent}]}>Unsave</Text></Pressable></> : <Pressable disabled={busy} onPress={() => revoke(item)}><Text style={[styles.link,{color:theme.colors.accent}]}>Sign out</Text></Pressable>}</View>
       </View>}
-      ListFooterComponent={saved ? cursor ? <Pressable disabled={loading || busy} onPress={() => load(cursor)}><Text style={styles.link}>Load more</Text></Pressable> : null : <Pressable disabled={loading || busy} onPress={() => Alert.alert('Sign out other devices?', 'You will stay signed in here. Older sign-ins will also be invalidated.', [
+      ListFooterComponent={saved ? cursor ? <Pressable disabled={loading || busy} onPress={() => load(cursor)}><Text style={[styles.link,{color:theme.colors.accent}]}>Load more</Text></Pressable> : null : <Pressable disabled={loading || busy} onPress={() => Alert.alert('Sign out other devices?', 'You will stay signed in here. Older sign-ins will also be invalidated.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Sign out others', style: 'destructive', onPress: () => perform(async () => { const { data } = await platformApi.revokeOtherSessions(); await onSessionRotated(data); await load(); }) },
-      ])}><Text style={styles.link}>Sign out all other devices</Text></Pressable>}
+      ])}><Text style={[styles.link,{color:theme.colors.accent}]}>Sign out all other devices</Text></Pressable>}
     />
-    {busy ? <ActivityIndicator color="#3157d5" /> : null}
+    {busy ? <ActivityIndicator color={theme.colors.accent} /> : null}
   </SafeAreaView>;
 }
 
