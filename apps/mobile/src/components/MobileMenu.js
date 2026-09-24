@@ -423,7 +423,7 @@ export default function MobileMenu({
         <ScreenHeader theme={theme} title="App Lock" onBack={() => go('settings')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={[styles.resultTitle,{color:theme.colors.text}]}>{appLockEnabled ? 'App Lock is enabled' : 'Protect CloudComAI with a PIN'}</Text>
-          <Text style={[styles.help,{color:theme.colors.secondary}]}> 
+          <Text style={[styles.help,{color:theme.colors.secondary}]}>
             {appLockEnabled
               ? 'Your PIN is required when CloudComAI is reopened or resumed from the background.'
               : 'Set a 4 to 6 digit PIN. This PIN is stored only in secure device storage.'}
