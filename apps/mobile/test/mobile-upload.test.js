@@ -14,11 +14,12 @@ test('profile and group image uploads use Expo File multipart parts to avoid uns
 });
 
 
-test('chat voice/video attachment uploads use React Native native multipart file parts', () => {
+test('chat attachment uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
-  assert.match(attachmentUpload, /multipartPartMode:\s*'native'/);
+  assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
-  assert.match(platformSource, /form\.append\(fieldName,\s*\{\s*uri:\s*normalized\.uri,\s*name:\s*normalized\.name,\s*type:\s*normalized\.mimeType\s*\}\)/);
+  assert.match(platformSource, /File\.fromUri\(normalized\.uri\)/);
+  assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
 });
 
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
