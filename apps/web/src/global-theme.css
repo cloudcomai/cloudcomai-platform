@@ -1,0 +1,195 @@
+/* CloudComAI global theme layer. This file intentionally uses high-specificity, token-driven overrides so legacy screens inherit the selected theme without changing their behavior. */
+:root {
+  --app-primary: #0877D1;
+  --app-primary-dark: #075FA8;
+  --app-primary-light: #EAF5FF;
+  --app-background: #F7FAFC;
+  --app-surface: #FFFFFF;
+  --app-surface-secondary: #F0F6FB;
+  --app-text-primary: #102A43;
+  --app-text-secondary: #52667A;
+  --app-text-muted: #718096;
+  --app-text-on-primary: #FFFFFF;
+  --app-placeholder: #718096;
+  --app-disabled: #A0AEC0;
+  --app-border: #D7E3EF;
+  --app-divider: #E7EEF5;
+  --app-incoming-bubble: #FFFFFF;
+  --app-incoming-bubble-text: #102A43;
+  --app-outgoing-bubble: #0877D1;
+  --app-outgoing-bubble-text: #FFFFFF;
+  --app-success: #137333;
+  --app-warning: #A15C00;
+  --app-error: #B42318;
+  --app-icon-primary: #0877D1;
+  --app-icon-secondary: #52667A;
+  --app-header-background: #0877D1;
+  --app-header-text: #FFFFFF;
+  --app-navigation-background: #FFFFFF;
+  --app-navigation-text: #52667A;
+  --app-navigation-active: #0877D1;
+  --app-modal-background: #FFFFFF;
+  --app-modal-text: #102A43;
+  --app-accent: #0877D1;
+  --app-highlight: #138A5B;
+}
+
+html, body, #root { min-height: 100%; }
+html { background: var(--app-background) !important; }
+body { margin: 0; background: var(--app-background) !important; color: var(--app-text-primary) !important; }
+#root { background: var(--app-background); color: var(--app-text-primary); }
+
+[data-app-theme] button,
+[data-app-theme] input,
+[data-app-theme] textarea,
+[data-app-theme] select { font: inherit; }
+
+[data-app-theme] input,
+[data-app-theme] textarea,
+[data-app-theme] select {
+  color: var(--app-text-primary) !important;
+  background: var(--app-surface) !important;
+  border-color: var(--app-border) !important;
+}
+[data-app-theme] input::placeholder,
+[data-app-theme] textarea::placeholder { color: var(--app-placeholder) !important; opacity: 1; }
+
+[data-app-theme] button {
+  color: var(--app-text-primary);
+  border-color: var(--app-border);
+}
+[data-app-theme] button[class*="primary"],
+[data-app-theme] button[class*="send"],
+[data-app-theme] button[class*="submit"],
+[data-app-theme] .primary-button,
+[data-app-theme] .send-button {
+  background: var(--app-primary) !important;
+  color: var(--app-text-on-primary) !important;
+  border-color: var(--app-primary) !important;
+}
+
+[data-app-theme] a { color: var(--app-primary) !important; }
+[data-app-theme] hr { border-color: var(--app-divider) !important; }
+
+/* Broad component families cover legacy screens, nested settings, dialogs and menus. */
+[data-app-theme] [class*="header"],
+[data-app-theme] [class*="topbar"],
+[data-app-theme] [class*="top-bar"] {
+  color: var(--app-header-text) !important;
+  background-color: var(--app-header-background) !important;
+  border-color: var(--app-border) !important;
+}
+[data-app-theme] [class*="header"] *,
+[data-app-theme] [class*="topbar"] *,
+[data-app-theme] [class*="top-bar"] * { color: inherit; }
+
+[data-app-theme] [class*="sidebar"],
+[data-app-theme] [class*="bottom-nav"],
+[data-app-theme] [class*="navigation"],
+[data-app-theme] [class*="nav-"] {
+  background-color: var(--app-navigation-background) !important;
+  color: var(--app-navigation-text) !important;
+  border-color: var(--app-border) !important;
+}
+[data-app-theme] [class*="sidebar"] a,
+[data-app-theme] [class*="sidebar"] button,
+[data-app-theme] [class*="navigation"] a,
+[data-app-theme] [class*="navigation"] button { color: var(--app-navigation-text) !important; }
+
+[data-app-theme] [class*="card"],
+[data-app-theme] [class*="panel"],
+[data-app-theme] [class*="surface"],
+[data-app-theme] [class*="list-item"],
+[data-app-theme] [class*="contact"],
+[data-app-theme] [class*="profile"],
+[data-app-theme] [class*="settings"],
+[data-app-theme] [class*="menu"] {
+  background-color: var(--app-surface) !important;
+  color: var(--app-text-primary) !important;
+  border-color: var(--app-border) !important;
+}
+
+[data-app-theme] [class*="modal"],
+[data-app-theme] [role="dialog"],
+[data-app-theme] [class*="dialog"],
+[data-app-theme] [class*="popover"],
+[data-app-theme] [class*="dropdown"],
+[data-app-theme] [class*="bottom-sheet"] {
+  background-color: var(--app-modal-background) !important;
+  color: var(--app-modal-text) !important;
+  border-color: var(--app-border) !important;
+}
+[data-app-theme] [class*="modal"] input,
+[data-app-theme] [class*="modal"] textarea,
+[data-app-theme] [class*="modal"] select,
+[data-app-theme] [role="dialog"] input,
+[data-app-theme] [role="dialog"] textarea,
+[data-app-theme] [role="dialog"] select { background: var(--app-surface-secondary) !important; }
+
+[data-app-theme] [class*="chat"] [class*="bubble"],
+[data-app-theme] [class*="message"] [class*="bubble"],
+[data-app-theme] [class*="incoming"] {
+  background: var(--app-incoming-bubble) !important;
+  color: var(--app-incoming-bubble-text) !important;
+  border-color: var(--app-border) !important;
+}
+[data-app-theme] [class*="outgoing"],
+[data-app-theme] [class*="sent"],
+[data-app-theme] [class*="my-message"] {
+  background: var(--app-outgoing-bubble) !important;
+  color: var(--app-outgoing-bubble-text) !important;
+  border-color: var(--app-outgoing-bubble) !important;
+}
+[data-app-theme] [class*="composer"],
+[data-app-theme] [class*="message-input"] {
+  background: var(--app-surface) !important;
+  border-color: var(--app-border) !important;
+}
+
+[data-app-theme] [class*="search"] input,
+[data-app-theme] [class*="search-bar"] {
+  background: var(--app-surface-secondary) !important;
+  color: var(--app-text-primary) !important;
+  border-color: var(--app-border) !important;
+}
+[data-app-theme] [class*="search"] input::placeholder { color: var(--app-placeholder) !important; }
+
+[data-app-theme] [class*="badge"],
+[data-app-theme] [class*="active"],
+[data-app-theme] [aria-selected="true"] {
+  border-color: var(--app-primary) !important;
+}
+[data-app-theme] [class*="active"],
+[data-app-theme] [aria-selected="true"] { color: var(--app-navigation-active) !important; }
+
+[data-app-theme] [class*="success"],
+[data-app-theme] [role="status"] { color: var(--app-success) !important; }
+[data-app-theme] [class*="warning"] { color: var(--app-warning) !important; }
+[data-app-theme] [class*="error"] { color: var(--app-error) !important; }
+
+[data-app-theme] .theme-picker,
+[data-app-theme] .theme-option { background: var(--app-surface) !important; color: var(--app-text-primary) !important; border-color: var(--app-border) !important; }
+[data-app-theme] .theme-option.selected { border-color: var(--app-primary) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 18%, transparent) !important; }
+[data-app-theme] .theme-preview { display: block; overflow: hidden; border: 1px solid var(--app-border); border-radius: 12px; background: var(--app-background); }
+[data-app-theme] .theme-preview-header { display: block; height: 18px; }
+[data-app-theme] .theme-preview-body { display: flex; align-items: center; gap: 8px; min-height: 54px; padding: 8px; }
+[data-app-theme] .theme-preview-body i { display: block; width: 34px; height: 18px; border: 1px solid transparent; border-radius: 9px; }
+[data-app-theme] .theme-preview-body b { display: block; width: 18px; height: 18px; border-radius: 50%; }
+[data-app-theme] .theme-swatches { display: flex; gap: 5px; margin-top: 8px; }
+[data-app-theme] .theme-swatches i { display: block; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--app-border); }
+
+[data-app-theme="midnight"] body,
+[data-app-theme="midnight"] #root { color-scheme: dark; }
+[data-app-theme="midnight"] [class*="card"],
+[data-app-theme="midnight"] [class*="panel"],
+[data-app-theme="midnight"] [class*="settings"],
+[data-app-theme="midnight"] [class*="profile"],
+[data-app-theme="midnight"] [class*="menu"] { box-shadow: 0 8px 24px rgba(0,0,0,.22); }
+
+@media (max-width: 720px) {
+  [data-app-theme] [class*="card"],
+  [data-app-theme] [class*="panel"],
+  [data-app-theme] [class*="modal"],
+  [data-app-theme] [class*="dialog"] { max-width: calc(100vw - 24px); }
+  [data-app-theme] button { min-height: 40px; }
+}
