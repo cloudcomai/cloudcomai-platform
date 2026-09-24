@@ -9,9 +9,9 @@ export default function PublicChatsList({ onOpenChat }) {
   const [rooms, setRooms] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [query, setQuery] = useState('');
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const [publicRoomsOpen, setPublicRoomsOpen] = useState(true);
-  const [languageRoomsOpen, setLanguageRoomsOpen] = useState(true);
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [publicRoomsOpen, setPublicRoomsOpen] = useState(false);
+  const [languageRoomsOpen, setLanguageRoomsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionRoomId, setActionRoomId] = useState(null);
