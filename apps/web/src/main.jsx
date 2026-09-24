@@ -1,7 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.jsx'; // Imports your new orchestrated entry file
-import './styles.css';       // Loads your global visual layouts
+import App from './App.jsx';
+import './styles.css';
+import './global-theme.css';
 
 const rootElement = document.getElementById('root');
 const root = createRoot(rootElement);
