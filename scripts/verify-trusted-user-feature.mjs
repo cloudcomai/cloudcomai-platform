@@ -10,6 +10,8 @@ const profileApi = read('backend/api/user_profile.php');
 const payload = read('backend/lib/message_payload.php');
 const profileUi = read('apps/mobile/src/components/UserProfileModal.js');
 const contract = JSON.parse(read('backend/api-contract.json'));
+const clientApi = read('packages/api-client/src/cloudcomai-api.js');
+const endpoints = read('packages/api-client/src/endpoints.js');
 
 assert.match(migration, /PRIMARY KEY \(owner_user_id, trusted_user_id\)/);
 assert.match(migration, /owner_user_id <> trusted_user_id/);
@@ -40,7 +42,12 @@ assert.match(profileApi, /'trusted_user' => !\$self && is_trusted_user/);
 assert.match(profileUi, /Trusted User/);
 assert.match(profileUi, /Allow this user to receive, download, save, and forward attachments you send without approval/);
 assert.match(profileUi, /Trust this user\?/);
-assert.match(profileUi, /v1\/users\/trusted-user/);
+assert.match(endpoints, /TRUSTED_USER: 'v1\/users\/trusted-user'/);
+assert.match(clientApi, /trustUser\(userId/);
+assert.match(clientApi, /untrustUser\(userId/);
+assert.match(profileUi, /platformApi\.trustUser\(profile\.id\)/);
+assert.match(profileUi, /platformApi\.untrustUser\(profile\.id\)/);
+assert.doesNotMatch(profileUi, /platformApi\.(post|delete)\(/);
 assert.match(payload, /sender_trusted/);
 assert.match(payload, /download_policy' => \$trustedSender \? 'ALLOW'/);
 
