@@ -6,7 +6,7 @@ const approved = {
   'modern-blue': ['#0877D1','#075FA8','#EAF5FF','#F7FAFC','#FFFFFF','#F0F6FB','#102A43','#52667A','#718096','#D7E3EF','#E7EEF5','#138A5B'],
   'teal-green': ['#0F8F83','#0B6B63','#E6FFFB','#F5FBFA','#FFFFFF','#EDF8F6','#12302C','#4E6B66','#718783','#CFE5E1','#E0EFEC','#0C7A4D'],
   'purple-accent': ['#6D3FD1','#5730AE','#F3EEFF','#FAF8FE','#FFFFFF','#F5F1FC','#241A3A','#675C78','#827895','#DDD3EE','#ECE6F5','#15835E'],
-  midnight: ['#4DA3FF','#2D7DCC','#173A5F','#0B1220','#111B2E','#16233A','#F3F7FC','#B6C3D6','#8C9BB2','#2B3B54','#22314A','#35C98A'],
+  midnight: ['#4DA3FF','#2D7DCC','#173A5F','#0B1220','#111B2E','#16233A','#F3F7FC','#B6C3D6','#8C9BB2','#2B3B54','#22314A','#102E50','#35C98A'],
 };
 
 test('all supported global themes are exposed in the intended order', () => assert.deepEqual(CHAT_THEME_IDS, Object.keys(approved)));
