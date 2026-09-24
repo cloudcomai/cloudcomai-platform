@@ -104,4 +104,5 @@ out(['user' => [
     'image_version' => $imageVersion,
     'online' => $online,
     'relationship' => $relationship,
+    'trusted_user' => !$self && is_trusted_user((int)$viewer['id'], $targetUserId),
 ]]);
