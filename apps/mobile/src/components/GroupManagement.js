@@ -16,8 +16,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
+import { resolveChatTheme } from '../services/chatThemeDefinitions';
 
-export default function GroupManagement({ visible, group, user, onClose, onGroupUpdated, onGroupDeleted }) {
+export default function GroupManagement({ visible, group, user, onClose, onGroupUpdated, onGroupDeleted, themeSettings }) {
+  const theme = resolveChatTheme(themeSettings);
   const [members, setMembers] = useState([]);
   const [name, setName] = useState(group?.name || '');
   const [busy, setBusy] = useState(false);
@@ -187,33 +189,33 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   if (!visible) return null;
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.page} edges={['top', 'bottom', 'left', 'right']}>
-        <View style={styles.header}><Pressable onPress={onClose}><Text style={styles.headerLink}>‹ Back</Text></Pressable><Text style={styles.headerTitle}>Manage group</Text><Pressable onPress={invite}><Text style={styles.headerLink}>Invite</Text></Pressable></View>
+      <SafeAreaView style={[styles.page,{backgroundColor:theme.colors.background}]} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={[styles.header,{backgroundColor:theme.colors.header}]}><Pressable onPress={onClose}><Text style={[styles.headerLink,{color:theme.colors.text}]}>‹ Back</Text></Pressable><Text style={[styles.headerTitle,{color:theme.colors.text}]}>Manage group</Text><Pressable onPress={invite}><Text style={[styles.headerLink,{color:theme.colors.text}]}>Invite</Text></Pressable></View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.card}>
-            <Text style={styles.heading}>Group details</Text>
+          <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
+            <Text style={[styles.heading,{color:theme.colors.text}]}>Group details</Text>
             <View style={styles.photoWrap}>
               <Image source={{ uri: `${mediaUrl('group', group.id)}&v=${imageVersion}` }} style={styles.groupPhoto} />
-              <Pressable style={styles.linkButton} onPress={chooseGroupPhoto}><Text style={styles.link}>Change & crop group photo</Text></Pressable>
+              <Pressable style={styles.linkButton} onPress={chooseGroupPhoto}><Text style={[styles.link,{color:theme.colors.accent}]}>Change & crop group photo</Text></Pressable>
             </View>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Group name" />
-            <Text style={styles.note}>{group.group_category || 'Group'}</Text>
-            <Pressable style={styles.primary} onPress={save}><Text style={styles.primaryText}>Save group</Text></Pressable>
+            <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background}]} value={name} onChangeText={setName} placeholder="Group name" />
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>{group.group_category || 'Group'}</Text>
+            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save}><Text style={styles.primaryText}>Save group</Text></Pressable>
           </View>
-          <View style={styles.card}>
-            <Text style={styles.heading}>Add member</Text>
-            <TextInput style={styles.input} value={query} onChangeText={setQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={search} />
-            <Pressable style={styles.linkButton} onPress={search}><Text style={styles.link}>Search</Text></Pressable>
-            {results.map(item => <View key={item.id} style={styles.row}><View style={styles.meta}><Text style={styles.name}>{item.name}</Text><Text style={styles.note}>{item.user_id ? `@${item.user_id}` : ''}</Text></View><Pressable onPress={() => add(item)}><Text style={styles.link}>Add</Text></Pressable></View>)}
+          <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
+            <Text style={[styles.heading,{color:theme.colors.text}]}>Add member</Text>
+            <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background}]} value={query} onChangeText={setQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={search} />
+            <Pressable style={styles.linkButton} onPress={search}><Text style={[styles.link,{color:theme.colors.accent}]}>Search</Text></Pressable>
+            {results.map(item => <View key={item.id} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{item.name}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{item.user_id ? `@${item.user_id}` : ''}</Text></View><Pressable onPress={() => add(item)}><Text style={[styles.link,{color:theme.colors.accent}]}>Add</Text></Pressable></View>)}
           </View>
-          <View style={styles.card}>
-            <Text style={styles.heading}>Members · {members.length}</Text>
-            {members.map(member => <View key={`${member.user_id}-${member.role}`} style={styles.row}><View style={styles.meta}><Text style={styles.name}>{member.name || member.username || 'Member'}</Text><Text style={styles.note}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={styles.link}>Make owner</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={styles.note}>Owner</Text>}</View></View>)}
+          <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
+            <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
+            {members.map(member => <View key={`${member.user_id}-${member.role}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={[styles.link,{color:theme.colors.accent}]}>Make owner</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}</View></View>)}
           </View>
           {ownsGroup ? <Pressable style={styles.deleteButton} onPress={deleteGroup}><Text style={styles.deleteText}>Delete group</Text></Pressable> : null}
         </ScrollView>
-        {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
+        {busy ? <View style={styles.busy}><ActivityIndicator color={theme.colors.accent} /></View> : null}
       </SafeAreaView>
     </Modal>
   );
