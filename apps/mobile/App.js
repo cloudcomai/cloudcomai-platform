@@ -438,7 +438,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const validateAttachment = asset => {
     const size = Number(asset?.fileSize ?? asset?.size ?? 0);
     if (!asset?.uri) throw new Error('The selected file is unavailable. Please choose it again.');
-    if (!Number.isFinite(size) || size <= 0) throw new Error('The selected file is empty or its size could not be determined.');
+    if (Number.isFinite(size) && size < 0) throw new Error('The selected file size is invalid.');
     if (size > 25 * 1024 * 1024) throw new Error('Attachments must be 25 MB or smaller.');
     return asset;
   };
