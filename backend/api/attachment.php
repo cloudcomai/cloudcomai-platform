@@ -62,7 +62,7 @@ if ($preview) {
     if (!$isImage && !$isAudio && !$isVideo) fail('Preview is not available for this file type', 400);
     $authorizedPreview = true;
 } else {
-    $authorizedPreview = (int)$a['sender_id'] === (int)$user['id'] || $a['download_policy'] === 'ALLOW';
+    $authorizedPreview = (int)$a['sender_id'] === (int)$user['id'] || $a['download_policy'] === 'ALLOW' || is_trusted_user((int)$user['id'], (int)$a['sender_id']);
     if (!$authorizedPreview && $a['download_policy'] === 'APPROVAL_REQUIRED') {
         $q = db()->prepare('SELECT 1 FROM attachment_download_requests WHERE attachment_id=? AND requester_id=? AND status="APPROVED"');
         $q->execute([$id, $user['id']]);
