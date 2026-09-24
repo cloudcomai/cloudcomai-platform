@@ -103,6 +103,48 @@ After pushing changes, verify the GitHub Actions workflow/check named **`Validat
 
 Normal repository-controlled problems that must be investigated/fixed rather than treated as blockers include compilation errors, test failures, lint failures, dependency/lockfile problems, merge conflicts, workflow YAML errors, application/repository configuration errors, and `Validate monorepo` failures.
 
+
+## Media / File Upload Safety
+
+Treat image, video, audio, document, camera, gallery, attachment, avatar, and other file-upload changes as cross-layer compatibility work. Do not patch only the visible failing line and assume upload behavior is fixed.
+
+Before modifying media/file upload code:
+
+1. Trace the complete path end-to-end: picker/camera result -> asset normalization -> URI scheme -> local file access -> multipart construction -> transport (fetch/XHR) -> API route -> backend multipart parser -> storage -> response -> preview/download.
+2. Inspect the exact installed Expo/React Native versions and APIs supported by those versions. Do not assume examples from another Expo SDK or React Native version are compatible.
+3. Inspect existing upload helpers before adding another multipart implementation. Prefer one tested upload abstraction instead of separate ad-hoc image/video/document implementations.
+4. Identify URI variants produced by each supported source/platform, including Android content://, file://, camera output, gallery output, document-provider URIs, and iOS equivalents where applicable.
+5. Never assume picker metadata such as fileSize, MIME type, or filename is always present. Missing optional metadata must not cause a valid selected asset to be rejected; validate size when it can actually be determined.
+
+### Expo / React Native multipart rules
+
+- Do not mix incompatible multipart representations in the same transport path.
+- Expo fetch/FormData and React Native XHR/FormData may accept different file-part representations. Verify the chosen representation against the repository's installed Expo SDK before changing it.
+- Do not blindly use React Native legacy { uri, name, type } objects with Expo fetch when the installed Expo implementation expects an Expo File/Blob part; this can cause Unsupported FormDataPart implementation.
+- Do not construct an expo-file-system File using an argument form that is not supported by the installed SDK. Verify constructor/factory semantics for the installed version and URI type. Incorrect native object construction can cause FileSystemFile.text argument-cast failures or Cannot use shared object that was already released.
+- Do not reuse/release native shared file objects across asynchronous operations unless the installed API explicitly supports it.
+- Do not manually set the multipart Content-Type boundary when FormData/fetch/XHR is responsible for generating it.
+- Preserve authentication headers, API route, field names, original filename, MIME type, size limits, progress callbacks, timeout behavior, and backend contract while changing transport internals.
+
+### Required media regression coverage
+
+For any media/file-upload change, inspect and test every applicable path rather than only the path mentioned in the bug report: gallery image, camera image, gallery video, recorded video, voice/audio, documents/attachments, profile/avatar media, Android picker/provider URIs, iOS shared code, missing metadata, maximum-size rejection, progress and non-progress paths, server errors, and resulting preview/download.
+
+If automated tests cannot exercise native picker/file-system behavior, add unit coverage for normalization/multipart decisions where possible and explicitly inspect the native integration path. Do not claim the upload issue is verified solely because JavaScript unit tests pass.
+
+### Media change completion gate
+
+Before reporting a media/upload fix complete, confirm:
+
+1. The implementation matches the repository's installed Expo/React Native versions.
+2. No known incompatible multipart part shapes are mixed.
+3. Android content:// and supported local URI handling are accounted for.
+4. Missing optional picker metadata does not reject otherwise valid files.
+5. Image and video paths are both reviewed when they share upload infrastructure.
+6. Other consumers of the changed shared helper (audio/documents/profile media) were regression-reviewed.
+7. Relevant automated tests/build/Validate monorepo pass.
+8. If native-device behavior cannot be executed in the current environment, report that device verification is still required instead of claiming the runtime error is proven fixed.
+
 ## Database Changes
 
 If database/schema changes are required:
