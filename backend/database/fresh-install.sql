@@ -544,7 +544,6 @@ CREATE TABLE IF NOT EXISTS user_session_devices (
     INDEX idx_session_devices_session (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Persist device phone contacts for unified contact matching.
 CREATE TABLE IF NOT EXISTS phone_contacts (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -600,6 +599,16 @@ CREATE TABLE IF NOT EXISTS message_read_receipts (
     INDEX idx_message_read_receipts_message_read_at (message_id, read_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS trusted_users (
+    owner_user_id BIGINT UNSIGNED NOT NULL,
+    trusted_user_id BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (owner_user_id, trusted_user_id),
+    INDEX idx_trusted_users_trusted_user (trusted_user_id, owner_user_id),
+    CONSTRAINT chk_trusted_users_not_self CHECK (owner_user_id <> trusted_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT INTO schema_migrations (version, executed_at)
 VALUES
     ('003_chat_attachments.sql', UTC_TIMESTAMP()),
@@ -618,13 +627,12 @@ VALUES
     ('017_message_read_receipts.sql', UTC_TIMESTAMP()),
     ('020_video_message_metadata.sql', UTC_TIMESTAMP()),
     ('021_public_chat_moderation.sql', UTC_TIMESTAMP()),
-    ('022_public_language_chat_rooms.sql', UTC_TIMESTAMP())
+    ('022_public_language_chat_rooms.sql', UTC_TIMESTAMP()),
+    ('023_trusted_users.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
-
--- Public-chat moderation: per-room reports and 7-day restrictions.
 CREATE TABLE IF NOT EXISTS public_chat_reports (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     chat_id BIGINT UNSIGNED NOT NULL,

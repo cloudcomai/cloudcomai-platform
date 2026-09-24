@@ -10,6 +10,7 @@
     "build:mobile": "pnpm --filter @cloudcomai/mobile build",
     "test": "pnpm --recursive --if-present test",
     "verify:api": "node scripts/verify-api-contract.mjs",
-    "check": "pnpm test && pnpm verify:api && pnpm build:web"
+    "verify:trusted-user": "node scripts/verify-trusted-user-feature.mjs",
+    "check": "pnpm test && pnpm verify:api && pnpm verify:trusted-user && pnpm build:web"
   }
 }

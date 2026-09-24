@@ -31,6 +31,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm verify:api
+      - run: pnpm verify:trusted-user
       - run: pnpm build:web
       - run: pnpm build:mobile
         env:

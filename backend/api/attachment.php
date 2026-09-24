@@ -62,7 +62,10 @@ if ($preview) {
     if (!$isImage && !$isAudio && !$isVideo) fail('Preview is not available for this file type', 400);
     $authorizedPreview = true;
 } else {
-    $authorizedPreview = (int)$a['sender_id'] === (int)$user['id'] || $a['download_policy'] === 'ALLOW';
+    // Trusted User is directional: the sender explicitly trusts this recipient.
+    // Therefore the receiver is authorized when sender -> receiver is trusted.
+    $trustedSender = is_trusted_user((int)$a['sender_id'], (int)$user['id']);
+    $authorizedPreview = (int)$a['sender_id'] === (int)$user['id'] || $a['download_policy'] === 'ALLOW' || $trustedSender;
     if (!$authorizedPreview && $a['download_policy'] === 'APPROVAL_REQUIRED') {
         $q = db()->prepare('SELECT 1 FROM attachment_download_requests WHERE attachment_id=? AND requester_id=? AND status="APPROVED"');
         $q->execute([$id, $user['id']]);

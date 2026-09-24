@@ -109,6 +109,13 @@ function users_block_state(int $viewerId, int $otherUserId): array {
     }
     return ['blocked_by_me' => $blockedByMe, 'blocked_me' => $blockedMe, 'blocked' => $blockedByMe || $blockedMe];
 }
+function is_trusted_user(int $ownerUserId, int $trustedUserId): bool {
+    if ($ownerUserId <= 0 || $trustedUserId <= 0 || $ownerUserId === $trustedUserId) return false;
+    if (users_block_state($ownerUserId, $trustedUserId)['blocked']) return false;
+    $st = db()->prepare('SELECT 1 FROM trusted_users WHERE owner_user_id=? AND trusted_user_id=? LIMIT 1');
+    $st->execute([$ownerUserId, $trustedUserId]);
+    return (bool)$st->fetchColumn();
+}
 function assert_chat_allows_messages(int $chatId, int $userId): void {
     $st = db()->prepare('SELECT c.type,cm.user_id FROM chats c LEFT JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id<>? AND cm.status="active" WHERE c.id=? LIMIT 1');
     $st->execute([$userId, $chatId]); $chat=$st->fetch();

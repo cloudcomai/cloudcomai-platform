@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 function hydrate_message_attachments(array &$messages): void {
     if (!$messages) return;
+    $viewer = auth_user();
     $ids = array_values(array_filter(array_map(fn($message) => (int)($message['id'] ?? 0), $messages)));
     if (!$ids) return;
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -10,20 +11,29 @@ function hydrate_message_attachments(array &$messages): void {
     $st->execute($ids);
     $attachments = [];
     foreach ($st->fetchAll() as $attachment) {
-        $attachments[(int)$attachment['message_id']][] = [
-            'id' => (int)$attachment['id'],
-            'name' => $attachment['original_filename'],
-            'mime_type' => $attachment['mime_type'],
-            'file_size' => (int)$attachment['file_size'],
-            'thumbnail_available' => !empty($attachment['thumbnail_path']),
-            'width' => $attachment['width'] !== null ? (int)$attachment['width'] : null,
-            'height' => $attachment['height'] !== null ? (int)$attachment['height'] : null,
-            'duration_seconds' => $attachment['duration_seconds'] !== null ? (float)$attachment['duration_seconds'] : null,
-            'download_policy' => $attachment['download_policy'],
-        ];
+        $attachments[(int)$attachment['message_id']][] = $attachment;
     }
     foreach ($messages as &$message) {
-        $messageAttachments = $attachments[(int)$message['id']] ?? [];
+        $messageAttachments = [];
+        // Trusted User is sender-controlled: sender -> this viewer.
+        // If the sender has trusted this viewer, the viewer gets direct
+        // download/save/forward access without an approval request.
+        $trustedSender = (int)($message['sender_id'] ?? 0) !== (int)$viewer['id']
+            && is_trusted_user((int)$message['sender_id'], (int)$viewer['id']);
+        foreach ($attachments[(int)$message['id']] ?? [] as $attachment) {
+            $messageAttachments[] = [
+                'id' => (int)$attachment['id'],
+                'name' => $attachment['original_filename'],
+                'mime_type' => $attachment['mime_type'],
+                'file_size' => (int)$attachment['file_size'],
+                'thumbnail_available' => !empty($attachment['thumbnail_path']),
+                'width' => $attachment['width'] !== null ? (int)$attachment['width'] : null,
+                'height' => $attachment['height'] !== null ? (int)$attachment['height'] : null,
+                'duration_seconds' => $attachment['duration_seconds'] !== null ? (float)$attachment['duration_seconds'] : null,
+                'download_policy' => $trustedSender ? 'ALLOW' : $attachment['download_policy'],
+                'sender_trusted' => $trustedSender,
+            ];
+        }
         $message['attachments'] = $messageAttachments;
         $message['attachment'] = $messageAttachments[0] ?? null;
     }
