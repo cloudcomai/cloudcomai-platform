@@ -7,12 +7,14 @@ import * as Network from 'expo-network';
 import { parseMessageTimestamp } from '@cloudcomai/chat-core';
 import { assertBackupConnection } from '../utils/accountBackup';
 import { platformApi } from '../services/platform';
+import { resolveChatTheme } from '../services/chatThemeDefinitions';
 
 const bytes = value => `${(Number(value || 0) / 1024 / 1024).toFixed(2)} MB`;
 const prettyDate = value => value ? parseMessageTimestamp(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Never';
 const frequencies = [['off', 'Off'], ['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']];
 
-export default function PrivacySettings({ onBack }) {
+export default function PrivacySettings({ onBack, themeSettings }) {
+  const theme=resolveChatTheme(themeSettings);
   const [data, setData] = useState(null);
   const [backup, setBackup] = useState({});
   const [busy, setBusy] = useState(false);
@@ -77,45 +79,45 @@ export default function PrivacySettings({ onBack }) {
     finally { if (file.exists) file.delete(); }
   });
   const automaticLabel = useMemo(() => frequencies.find(([key]) => key === backup?.automatic_frequency)?.[1] || 'Off', [backup?.automatic_frequency]);
-  return <SafeAreaView style={styles.page}>
-    <View style={styles.header}><Pressable onPress={onBack}><Text style={styles.back}>‹ Back</Text></Pressable><Text style={styles.title}>Privacy & Account</Text></View>
+  return <SafeAreaView style={[styles.page,{backgroundColor:theme.colors.background}]}>
+    <View style={[styles.header,{backgroundColor:theme.colors.header}]}><Pressable onPress={onBack}><Text style={[styles.back,{color:theme.colors.text}]}>‹ Back</Text></Pressable><Text style={[styles.title,{color:theme.colors.text}]}>Privacy & Account</Text></View>
     {error ? <Text style={styles.error}>{error}</Text> : null}
-    {progress ? <View style={styles.progress}>{busy ? <ActivityIndicator color="#3157d5" /> : null}<Text style={styles.progressText}>{progress}</Text></View> : null}
-    {!data ? <><ActivityIndicator style={{ margin: 30 }} /><Pressable onPress={load}><Text style={styles.link}>Retry</Text></Pressable></> : <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.card}><Text style={styles.heading}>Privacy controls</Text>
-        {[['hide_online_status', 'Hide online status'], ['media_auto_download', 'Automatically load chat media'], ['screenshot_alerts', 'Receive screenshot alerts']].map(([key, label]) => <View key={key} style={styles.row}><Text style={styles.label}>{label}</Text><Switch disabled={busy} value={Boolean(data.settings?.[key])} onValueChange={value => update(key, value)} /></View>)}
-        <Text style={styles.note}>Media loads on request when automatic loading is off. Screenshot alerts work on iOS and Android 14 or newer while a chat is open.</Text>
+    {progress ? <View style={styles.progress}>{busy ? <ActivityIndicator color={theme.colors.accent} /> : null}<Text style={styles.progressText}>{progress}</Text></View> : null}
+    {!data ? <><ActivityIndicator style={{ margin: 30 }} /><Pressable onPress={load}><Text style={[styles.link,{color:theme.colors.accent}]}>Retry</Text></Pressable></> : <ScrollView contentContainerStyle={styles.content}>
+      <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}><Text style={[styles.heading,{color:theme.colors.text}]}>Privacy controls</Text>
+        {[['hide_online_status', 'Hide online status'], ['media_auto_download', 'Automatically load chat media'], ['screenshot_alerts', 'Receive screenshot alerts']].map(([key, label]) => <View key={key} style={[styles.row,{borderBottomColor:theme.colors.border}]}><Text style={[styles.label,{color:theme.colors.text}]}>{label}</Text><Switch disabled={busy} value={Boolean(data.settings?.[key])} onValueChange={value => update(key, value)} /></View>)}
+        <Text style={[styles.note,{color:theme.colors.secondary}]}>Media loads on request when automatic loading is off. Screenshot alerts work on iOS and Android 14 or newer while a chat is open.</Text>
       </View>
-      <View style={styles.card}><Text style={styles.heading}>Profile visibility</Text>
-        {[['share_email', 'Show email address'], ['share_mobile', 'Show phone number'], ['share_age', 'Show age'], ['share_gender', 'Show gender']].map(([key, label]) => <View key={key} style={styles.row}><Text style={styles.label}>{label}</Text><Switch accessibilityLabel={label} disabled={busy} value={Boolean(data.settings?.[key])} onValueChange={value => update(key, value)} /></View>)}
+      <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}><Text style={[styles.heading,{color:theme.colors.text}]}>Profile visibility</Text>
+        {[['share_email', 'Show email address'], ['share_mobile', 'Show phone number'], ['share_age', 'Show age'], ['share_gender', 'Show gender']].map(([key, label]) => <View key={key} style={[styles.row,{borderBottomColor:theme.colors.border}]}><Text style={[styles.label,{color:theme.colors.text}]}>{label}</Text><Switch accessibilityLabel={label} disabled={busy} value={Boolean(data.settings?.[key])} onValueChange={value => update(key, value)} /></View>)}
       </View>
-      <View style={styles.card}>
-        <Text style={styles.heading}>Chat Backup</Text>
+      <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
+        <Text style={[styles.heading,{color:theme.colors.text}]}>Chat Backup</Text>
         <Text style={styles.statLabel}>Last backup</Text><Text style={styles.stat}>{prettyDate(backup.last_backup_at)}</Text>
         <Text style={styles.statLabel}>Backup size</Text><Text style={styles.stat}>{bytes(backup.backup_size)}</Text>
         <Text style={styles.statLabel}>Backup account</Text><Text style={styles.email}>{backup.backup_account_email || 'No verified email'}</Text>
         {!backup.configured ? <Text style={styles.warning}>Cloud backup is currently unavailable. Your privacy controls and account export remain available.</Text> : null}
-        {backup.unavailable ? <Pressable onPress={load}><Text style={styles.link}>Retry backup status</Text></Pressable> : null}
+        {backup.unavailable ? <Pressable onPress={load}><Text style={[styles.link,{color:theme.colors.accent}]}>Retry backup status</Text></Pressable> : null}
         {!backup.email_verified ? <Text style={styles.warning}>Verify your registered email address to enable cloud backup and restore.</Text> : null}
-        <Pressable disabled={busy || !backup.email_verified || !backup.configured} onPress={createBackup} style={styles.primary}><Text style={styles.primaryText}>BACK UP NOW</Text></Pressable>
-        <View style={styles.row}><Text style={styles.label}>Automatic backup: {automaticLabel}</Text></View>
+        <Pressable disabled={busy || !backup.email_verified || !backup.configured} onPress={createBackup} style={[styles.primary,{backgroundColor:theme.colors.accent}]}><Text style={styles.primaryText}>BACK UP NOW</Text></Pressable>
+        <View style={[styles.row,{borderBottomColor:theme.colors.border}]}><Text style={[styles.label,{color:theme.colors.text}]}>Automatic backup: {automaticLabel}</Text></View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.frequencyRow}>
           {frequencies.map(([key,label]) => <Pressable key={key} disabled={busy || !backup.email_verified || !backup.configured} onPress={() => perform(() => updateBackupSettings({ automatic_frequency: key }))} style={[styles.frequency, backup.automatic_frequency === key && styles.frequencyActive]}><Text style={[styles.frequencyText, backup.automatic_frequency === key && styles.frequencyTextActive]}>{label}</Text></Pressable>)}
         </ScrollView>
-        <View style={styles.row}><Text style={styles.label}>Include videos</Text><Switch disabled={busy || !backup.email_verified || !backup.configured} value={Boolean(backup.include_videos)} onValueChange={value => perform(() => updateBackupSettings({ include_videos: value }))} /></View>
-        <View style={styles.row}><Text style={styles.label}>Backup over Wi-Fi only</Text><Switch disabled={busy || !backup.email_verified || !backup.configured} value={backup.wifi_only !== false} onValueChange={value => perform(() => updateBackupSettings({ wifi_only: value }))} /></View>
+        <View style={[styles.row,{borderBottomColor:theme.colors.border}]}><Text style={[styles.label,{color:theme.colors.text}]}>Include videos</Text><Switch disabled={busy || !backup.email_verified || !backup.configured} value={Boolean(backup.include_videos)} onValueChange={value => perform(() => updateBackupSettings({ include_videos: value }))} /></View>
+        <View style={[styles.row,{borderBottomColor:theme.colors.border}]}><Text style={[styles.label,{color:theme.colors.text}]}>Backup over Wi-Fi only</Text><Switch disabled={busy || !backup.email_verified || !backup.configured} value={backup.wifi_only !== false} onValueChange={value => perform(() => updateBackupSettings({ wifi_only: value }))} /></View>
         {backup.restore_available ? <Pressable disabled={busy} onPress={restoreBackup}><Text style={styles.restoreLink}>Restore backup</Text></Pressable> : null}
-        <Text style={styles.note}>Backups are encrypted before they are stored in private CloudComAI server storage. Each account can only read its own backup. The Wi-Fi setting applies to manual backups from this device; scheduled backups run on the server.</Text>
+        <Text style={[styles.note,{color:theme.colors.secondary}]}>Backups are encrypted before they are stored in private CloudComAI server storage. Each account can only read its own backup. The Wi-Fi setting applies to manual backups from this device; scheduled backups run on the server.</Text>
       </View>
-      <View style={styles.card}><Text style={styles.heading}>Export account data</Text><Text style={styles.note}>This is a separate local JSON export. Keep a readable copy for your records. In-app restore uses your latest encrypted cloud backup.</Text><Pressable disabled={busy} onPress={exportAccountData}><Text style={styles.link}>{busy ? 'Please wait…' : 'Export account data'}</Text></Pressable></View>
-      <View style={styles.card}><Text style={styles.heading}>Blocked contacts</Text>
-        <TextInput style={styles.input} placeholder="Search name or user ID" value={query} onChangeText={setQuery} autoCapitalize="none" />
-        <Pressable disabled={busy || !query.trim()} onPress={() => perform(async () => { const response = await platformApi.searchUsers(query.trim()); setResults(response.data.users || []); })}><Text style={styles.link}>Search contacts</Text></Pressable>
-        {results.map(contact => <View key={contact.id} style={styles.row}><Text style={styles.label}>{contact.name}</Text><Pressable disabled={busy} onPress={() => perform(async () => { await platformApi.blockContact(contact.id); setResults(current => current.filter(item => item.id !== contact.id)); await load(); })}><Text style={styles.link}>Block</Text></Pressable></View>)}
-        {(data.blocked_users || []).map(contact => <View key={contact.id} style={styles.row}><Text style={styles.label}>{contact.name}</Text><Pressable disabled={busy} onPress={() => perform(async () => { await platformApi.unblockContact(contact.id); await load(); })}><Text style={styles.link}>Unblock</Text></Pressable></View>)}
-        {!data.blocked_users?.length && !results.length && <Text style={styles.note}>No blocked contacts.</Text>}
+      <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}><Text style={[styles.heading,{color:theme.colors.text}]}>Export account data</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>This is a separate local JSON export. Keep a readable copy for your records. In-app restore uses your latest encrypted cloud backup.</Text><Pressable disabled={busy} onPress={exportAccountData}><Text style={[styles.link,{color:theme.colors.accent}]}>{busy ? 'Please wait…' : 'Export account data'}</Text></Pressable></View>
+      <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}><Text style={[styles.heading,{color:theme.colors.text}]}>Blocked contacts</Text>
+        <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background}]} placeholder="Search name or user ID" value={query} onChangeText={setQuery} autoCapitalize="none" />
+        <Pressable disabled={busy || !query.trim()} onPress={() => perform(async () => { const response = await platformApi.searchUsers(query.trim()); setResults(response.data.users || []); })}><Text style={[styles.link,{color:theme.colors.accent}]}>Search contacts</Text></Pressable>
+        {results.map(contact => <View key={contact.id} style={[styles.row,{borderBottomColor:theme.colors.border}]}><Text style={[styles.label,{color:theme.colors.text}]}>{contact.name}</Text><Pressable disabled={busy} onPress={() => perform(async () => { await platformApi.blockContact(contact.id); setResults(current => current.filter(item => item.id !== contact.id)); await load(); })}><Text style={[styles.link,{color:theme.colors.accent}]}>Block</Text></Pressable></View>)}
+        {(data.blocked_users || []).map(contact => <View key={contact.id} style={[styles.row,{borderBottomColor:theme.colors.border}]}><Text style={[styles.label,{color:theme.colors.text}]}>{contact.name}</Text><Pressable disabled={busy} onPress={() => perform(async () => { await platformApi.unblockContact(contact.id); await load(); })}><Text style={[styles.link,{color:theme.colors.accent}]}>Unblock</Text></Pressable></View>)}
+        {!data.blocked_users?.length && !results.length && <Text style={[styles.note,{color:theme.colors.secondary}]}>No blocked contacts.</Text>}
       </View>
-      <View style={styles.card}><Text style={styles.heading}>Storage & media</Text><Text style={styles.storage}>{bytes(data.storage?.total_bytes)}</Text><Text style={styles.note}>{data.storage?.total_files || 0} files uploaded by this account.</Text></View>
+      <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}><Text style={[styles.heading,{color:theme.colors.text}]}>Storage & media</Text><Text style={styles.storage}>{bytes(data.storage?.total_bytes)}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{data.storage?.total_files || 0} files uploaded by this account.</Text></View>
     </ScrollView>}
   </SafeAreaView>;
 }
