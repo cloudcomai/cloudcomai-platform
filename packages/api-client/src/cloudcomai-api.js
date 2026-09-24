@@ -15,6 +15,8 @@ export class CloudComAiApi {
   transferGroupOwnership(id, userId, options = {}) { return this.client.post(ApiRoute.GROUPS, { user_id: userId }, { ...options, query: { ...options.query, action: 'transfer', id } }); }
   updateProfile(input, options = {}) { return this.client.put(ApiRoute.PROFILE, input, options); }
   getUserProfile(userId, options = {}) { return this.client.get(ApiRoute.USER_PROFILE, { ...options, query: { ...options.query, id: userId } }); }
+  trustUser(userId, options = {}) { return this.client.post(ApiRoute.TRUSTED_USER, { user_id: userId }, options); }
+  untrustUser(userId, options = {}) { return this.client.delete(ApiRoute.TRUSTED_USER, { ...options, query: { ...options.query, user_id: userId } }); }
   getFriendRelationship(userId, options = {}) { return this.client.get(ApiRoute.FRIEND_REQUESTS, { ...options, query: { ...options.query, user_id: userId } }); }
   listFriendRequests(options = {}) { return this.client.get(ApiRoute.FRIEND_REQUESTS, options); }
   sendFriendRequest(userId, options = {}) { return this.client.post(ApiRoute.FRIEND_REQUESTS, { action: 'send', user_id: userId }, options); }
