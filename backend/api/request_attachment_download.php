@@ -14,7 +14,10 @@ assert_chat_allows_messages((int)$a['chat_id'], (int)$user['id']);
 $member = db()->prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status="active"');
 $member->execute([(int)$a['chat_id'], $user['id']]);
 if (!$member->fetch()) fail('Not a member', 403);
-if ((int)$a['sender_id'] === (int)$user['id'] || $a['download_policy'] === 'ALLOW' || is_trusted_user((int)$user['id'], (int)$a['sender_id'])) out(['status'=>'APPROVED','request_type'=>$type,'trusted'=>is_trusted_user((int)$user['id'], (int)$a['sender_id'])]);
+// Trusted User is sender-controlled: sender -> recipient. A trusted recipient
+// gets download/forward access without creating an approval request.
+$trustedSender = is_trusted_user((int)$a['sender_id'], (int)$user['id']);
+if ((int)$a['sender_id'] === (int)$user['id'] || $a['download_policy'] === 'ALLOW' || $trustedSender) out(['status'=>'APPROVED','request_type'=>$type,'trusted'=>$trustedSender]);
 if ($a['download_policy'] === 'VIEW_ONLY') fail('This attachment cannot be saved or forwarded', 403);
 $existing = db()->prepare('SELECT id,status FROM attachment_download_requests WHERE attachment_id=? AND requester_id=? AND request_type=? LIMIT 1');
 $existing->execute([$id, $user['id'], $type]); $row = $existing->fetch();
