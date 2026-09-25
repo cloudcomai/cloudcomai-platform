@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const platformSource = await readFile(new URL('../src/services/platform.js', import.meta.url), 'utf8');
 const ringBellsSource = await readFile(new URL('../src/components/RingBellsStatus.js', import.meta.url), 'utf8');
 const composerSource = await readFile(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
+const appSource = await readFile(new URL('../App.js', import.meta.url), 'utf8');
 
 
 test('profile and group image uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
@@ -18,8 +19,40 @@ test('chat attachment uploads use Expo File multipart parts to avoid unsupported
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
   assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
-  assert.match(platformSource, /File\.fromUri\(normalized\.uri\)/);
+  assert.doesNotMatch(platformSource, /File\.fromUri\(/);
+  assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
+  assert.match(platformSource, /if \(!file\.exists\) return false/);
   assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
+});
+
+test('shared multipart contract covers image, voice, video and document attachments without unsupported Expo parts', () => {
+  const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
+  assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
+  assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
+  assert.doesNotMatch(platformSource, /File\.fromUri\(/);
+  assert.doesNotMatch(platformSource, /UploadType\.MULTIPART/);
+  assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
+  assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
+  assert.match(composerSource, /uploadAttachmentAsset/);
+  assert.match(composerSource, /type:\s*'voice'/);
+  assert.match(composerSource, /type:\s*'video'/);
+  assert.match(appSource, /uploadAttachmentAsset\(attachmentDraft/);
+});
+
+test('profile image upload uses the same supported Expo File multipart contract', () => {
+  const mediaUpload = platformSource.match(/export const uploadMediaAsset=[^\n]+/)?.[0] || '';
+  assert.match(mediaUpload, /ApiRoute\.MEDIA_UPLOAD/);
+  assert.match(mediaUpload, /fieldName:\s*'image'/);
+  assert.match(mediaUpload, /multipartPartMode:\s*'expo-file'/);
+  assert.match(mediaUpload, /fallbackMime:\s*'image\/jpeg'/);
+  assert.doesNotMatch(platformSource, /File\.fromUri\(/);
+});
+
+test('multipart fallback preserves MIME type and filename instead of unsupported data formats', () => {
+  assert.match(platformSource, /blob\.slice\(0,\s*blob\.size,\s*normalized\.mimeType\)/);
+  assert.match(platformSource, /form\.append\(fieldName,\s*typedBlob,\s*normalized\.name\)/);
+  assert.match(platformSource, /fileBlob\.slice\(0,\s*fileBlob\.size,\s*file\.mimeType\)/);
+  assert.match(platformSource, /form\.append\(key,fileBlob\.type===file\.mimeType\?fileBlob:fileBlob\.slice\(0,fileBlob\.size,file\.mimeType\),file\.name\)/);
 });
 
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
@@ -53,7 +86,6 @@ test('Ring Bell media posting uses the shared upload route and exposes retry/suc
   assert.match(ringBellsSource, /upload\?\.data\?\.filename/);
 });
 
-const appSource = await readFile(new URL('../App.js', import.meta.url), 'utf8');
 
 test('chat attachment preview uses the native Modal and dismisses after Send', () => {
   assert.ok(appSource.includes('  Modal,\n'));
