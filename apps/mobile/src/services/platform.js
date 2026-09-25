@@ -32,6 +32,9 @@ export const platformApi=createCloudComAiApi(apiClient);
 
 const parseUploadResult=async(result,requestToken)=>{let data=null;try{data=result.body?JSON.parse(result.body):null;}catch{if(result.status>=200&&result.status<300)throw new ApiError('The server returned an invalid upload response.',{status:result.status});}if(result.status===401&&requestToken===await sessionManager.getToken())await expireSession();if(result.status<200||result.status>=300)throw new ApiError(data?.error||data?.message||`Upload failed with status ${result.status}`,{status:result.status,code:data?.code||null,details:data});return{data,status:result.status,headers:result.headers};};
 
+// React Native's XMLHttpRequest/FormData stack can upload Android content:// URIs
+// directly as native file parts. Converting those URIs to Blob objects first can
+// fail for gallery providers and can also lose the original MIME metadata.
 const isNativeFileUri = uri => /^(content|file):\/\//i.test(String(uri || ''));
 const appendNativeFilePart = (form, fieldName, asset) => {
   const normalized = normalizeUploadAsset(asset,{fallbackName:'attachment'});
@@ -42,51 +45,22 @@ const appendNativeFilePart = (form, fieldName, asset) => {
   return false;
 };
 
-// Expo SDK 57 exposes the File constructor as the supported way to create a
-// File instance from a URI. File.fromUri() is not part of the installed API.
-// Keeping this conversion in one shared helper prevents image/video/audio/file
-// uploads from drifting into different URI handling implementations.
+// expo/fetch is the global fetch implementation in Expo apps. Its multipart
+// encoder accepts real expo-file-system File parts, but rejects React Native's
+// legacy { uri, name, type } object shape with "Unsupported FormDataPart implementation".
 const appendExpoFilePart = (form, fieldName, asset) => {
   const normalized = normalizeUploadAsset(asset,{fallbackName:'attachment'});
   if (!isNativeFileUri(normalized.uri)) return false;
-  const file = new File(normalized.uri);
+  const file = File.fromUri(normalized.uri);
   form.append(fieldName, file);
   return true;
 };
 
-const mediaSendDiagnostic = (stage, normalized, context = {}) => {
-  if (typeof __DEV__ === 'undefined' || !__DEV__) return;
-  const mediaType = String(normalized?.mimeType || '').split('/')[0] || 'unknown';
-  console.debug('[MEDIA_SEND]', {
-    type: mediaType,
-    stage,
-    chatType: context.chatType || 'unknown',
-    source: normalized?.uri ? String(normalized.uri).split(':')[0] || 'unknown' : 'unknown',
-    hasMimeType: Boolean(normalized?.mimeType),
-    hasFileName: Boolean(normalized?.name),
-    hasFileSize: Number(normalized?.size || 0) > 0,
-  });
-};
-
-const mediaSendErrorDiagnostic = (error, stage, normalized, context = {}) => {
-  if (typeof __DEV__ === 'undefined' || !__DEV__) return;
-  const mediaType = String(normalized?.mimeType || '').split('/')[0] || 'unknown';
-  console.debug('[MEDIA_SEND]', {
-    type: mediaType,
-    stage,
-    chatType: context.chatType || 'unknown',
-    errorName: error?.name || 'Error',
-    errorMessage: String(error?.message || error || 'Unknown error').slice(0, 240),
-  });
-};
-
-export async function createMobileMultipartBody(asset,{fieldName='file',parameters={},extraFiles={},multipartPartMode='native',diagnosticContext={}}={},FormDataCtor=globalThis.FormData){
+export async function createMobileMultipartBody(asset,{fieldName='file',parameters={},extraFiles={},multipartPartMode='native'}={},FormDataCtor=globalThis.FormData){
   if(typeof FormDataCtor!=='function')throw new ApiError('Multipart upload is unavailable on this device.');
   const normalized=normalizeUploadAsset(asset,{fallbackName:'attachment'});
-  mediaSendDiagnostic('asset_normalized',normalized,diagnosticContext);
   const form=new FormDataCtor();
   const appendFilePart = multipartPartMode === 'expo-file' ? appendExpoFilePart : appendNativeFilePart;
-  mediaSendDiagnostic('upload_prepare',normalized,diagnosticContext);
   if(!appendFilePart(form,fieldName,normalized)){
     const response=await fetch(normalized.uri);
     if(!response.ok)throw new ApiError(`Unable to read the selected file (status ${response.status}).`);
@@ -107,11 +81,10 @@ export async function createMobileMultipartBody(asset,{fieldName='file',paramete
   return form;
 }
 
-export async function uploadMobileFile(route,asset,{fieldName='file',parameters={},extraFiles={},fallbackName='upload',fallbackMime='application/octet-stream',maxBytes=25*1024*1024,multipartPartMode='native',onProgress,diagnosticContext={}}={}){
+export async function uploadMobileFile(route,asset,{fieldName='file',parameters={},extraFiles={},fallbackName='upload',fallbackMime='application/octet-stream',maxBytes=25*1024*1024,multipartPartMode='native',onProgress}={}){
   const normalized=normalizeUploadAsset(asset,{fallbackName,fallbackMime});
-  mediaSendDiagnostic('asset_normalized',normalized,diagnosticContext);
   let file=null;
-  try{file=new File(normalized.uri);}catch(error){mediaSendErrorDiagnostic(error,'file_metadata',normalized,diagnosticContext);}
+  try{file=new File(normalized.uri);}catch{}
   if(file && !file.exists && !isNativeFileUri(normalized.uri))throw new ApiError('The selected file is no longer available.');
   const size=Number(file?.size??normalized.size??0);
   if(Number.isFinite(size)&&size>maxBytes)throw new ApiError(`The selected file must be ${Math.floor(maxBytes/1024/1024)} MB or smaller.`);
@@ -119,48 +92,27 @@ export async function uploadMobileFile(route,asset,{fieldName='file',parameters=
     if(!normalized.size || normalized.size<=0)throw new ApiError('The selected file is empty or its size could not be determined.');
   }
   const token=await sessionManager.getToken();
-  const formData=await createMobileMultipartBody(normalized,{fieldName,parameters:{...parameters,original_filename:parameters.original_filename||normalized.name},extraFiles,multipartPartMode,diagnosticContext});
-  mediaSendDiagnostic('upload_started',normalized,diagnosticContext);
-  try {
-    if(typeof onProgress!=='function'){
-      const response=await fetch(buildApiUrl(API_BASE_URL,route),{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{},body:formData});
-      const body=await response.text();
-      const result=await parseUploadResult({status:response.status,body,headers:Object.fromEntries(response.headers.entries())},token);
-      mediaSendDiagnostic('upload_finished',normalized,diagnosticContext);
-      return result;
-    }
-    const result=await new Promise((resolve,reject)=>{
-      const xhr=new XMLHttpRequest();
-      xhr.open('POST',buildApiUrl(API_BASE_URL,route));
-      if(token)xhr.setRequestHeader('Authorization',`Bearer ${token}`);
-      xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress(Math.min(1,event.loaded/event.total));};
-      xhr.onload=()=>resolve({status:xhr.status,body:xhr.responseText,headers:{}});
-      xhr.onerror=()=>reject(new ApiError('Unable to reach the media upload server. Check your internet connection and API address.'));
-      xhr.ontimeout=()=>reject(new ApiError('The media upload timed out. Please try again.'));
-      xhr.onabort=()=>reject(new ApiError('The media upload was cancelled.'));
-      xhr.timeout=120000;
-      xhr.send(formData);
-    });
-    const parsed=await parseUploadResult(result,token);
-    mediaSendDiagnostic('upload_finished',normalized,diagnosticContext);
-    return parsed;
-  } catch(error) {
-    mediaSendErrorDiagnostic(error,'upload_failed',normalized,diagnosticContext);
-    throw error;
+  const formData=await createMobileMultipartBody(normalized,{fieldName,parameters:{...parameters,original_filename:parameters.original_filename||normalized.name},extraFiles,multipartPartMode});
+  if(typeof onProgress!=='function'){
+    const response=await fetch(buildApiUrl(API_BASE_URL,route),{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{},body:formData});
+    const body=await response.text();
+    return parseUploadResult({status:response.status,body,headers:Object.fromEntries(response.headers.entries())},token);
   }
+  const result=await new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST',buildApiUrl(API_BASE_URL,route));
+    if(token)xhr.setRequestHeader('Authorization',`Bearer ${token}`);
+    xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress(Math.min(1,event.loaded/event.total));};
+    xhr.onload=()=>resolve({status:xhr.status,body:xhr.responseText,headers:{}});
+    xhr.onerror=()=>reject(new ApiError('Unable to reach the media upload server. Check your internet connection and API address.'));
+    xhr.ontimeout=()=>reject(new ApiError('The media upload timed out. Please try again.'));
+    xhr.onabort=()=>reject(new ApiError('The media upload was cancelled.'));
+    xhr.timeout=120000;
+    xhr.send(formData);
+  });
+  return parseUploadResult(result,token);
 }
-
-const inFlightAttachmentUploads = new WeakMap();
-export const uploadAttachmentAsset=(asset,parameters={})=>{
-  if (!asset || typeof asset !== 'object') return uploadMobileFile(ApiRoute.UPLOAD_ATTACHMENT,asset,{fieldName:'file',fallbackName:'attachment',parameters});
-  const existing = inFlightAttachmentUploads.get(asset);
-  if (existing) return existing;
-  const {onProgress,extraFiles,diagnosticContext,...formParameters}=parameters;
-  const promise=uploadMobileFile(ApiRoute.UPLOAD_ATTACHMENT,asset,{fieldName:'file',fallbackName:'attachment',parameters:{...formParameters,original_filename:normalizeUploadAsset(asset,{fallbackName:'attachment'}).name},multipartPartMode:'expo-file',onProgress,extraFiles,diagnosticContext});
-  inFlightAttachmentUploads.set(asset,promise);
-  promise.finally(()=>{if(inFlightAttachmentUploads.get(asset)===promise)inFlightAttachmentUploads.delete(asset);}).catch(()=>{});
-  return promise;
-};
+export const uploadAttachmentAsset=(asset,parameters={})=>{const {onProgress,extraFiles,...formParameters}=parameters;return uploadMobileFile(ApiRoute.UPLOAD_ATTACHMENT,asset,{fieldName:'file',fallbackName:'attachment',parameters:{...formParameters,original_filename:normalizeUploadAsset(asset,{fallbackName:'attachment'}).name},multipartPartMode:'expo-file',onProgress,extraFiles});};
 export const uploadMediaAsset=(asset,parameters={})=>uploadMobileFile(ApiRoute.MEDIA_UPLOAD,asset,{fieldName:'image',fallbackName:'profile.jpg',fallbackMime:'image/jpeg',maxBytes:12*1024*1024,multipartPartMode:'expo-file',parameters});
 export async function downloadAttachmentPreview(attachment){if(!attachment?.id)throw new ApiError('Attachment preview is unavailable.');const token=await sessionManager.getToken();if(!token)throw new ApiError('Authentication is required to preview this attachment.',{status:401});const directory=new Directory(Paths.cache,'cloudcomai-attachment-previews');directory.create({intermediates:true,idempotent:true});const version=String(attachment.updated_at||attachment.created_at||attachment.file_size||'1').replace(/[^a-z0-9._-]/gi,'_');const file=new File(directory,`${Number(attachment.id)}-${version}.${attachmentPreviewExtension(attachment)}`);if(file.exists&&Number(file.size||0)>0)return file;try{return await File.downloadFileAsync(buildApiUrl(API_BASE_URL,ApiRoute.ATTACHMENT,{id:attachment.id,preview:1}),file,{headers:{Authorization:`Bearer ${token}`}});}catch(error){if(file.exists){try{file.delete();}catch{}}throw error;}}
 export async function downloadVideoThumbnail(attachment){if(!attachment?.id)throw new ApiError('Video thumbnail is unavailable.');const token=await sessionManager.getToken();if(!token)throw new ApiError('Authentication is required to preview this video.',{status:401});const directory=new Directory(Paths.cache,'cloudcomai-video-thumbnails');directory.create({intermediates:true,idempotent:true});const file=new File(directory,`${Number(attachment.id)}.jpg`);try{return await File.downloadFileAsync(buildApiUrl(API_BASE_URL,ApiRoute.ATTACHMENT,{id:attachment.id,thumbnail:1}),file,{headers:{Authorization:`Bearer ${token}`}});}catch(error){if(file.exists){try{file.delete();}catch{}}throw error;}}
