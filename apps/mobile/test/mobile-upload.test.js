@@ -17,7 +17,7 @@ test('profile and group image uploads use Expo File multipart parts to avoid uns
 
 test('chat attachment uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
-  assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
+  assert.match(attachmentUpload, /multipartPartMode='expo-file'/);
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
   assert.doesNotMatch(platformSource, /File\.fromUri\(/);
   assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
@@ -28,7 +28,7 @@ test('chat attachment uploads use Expo File multipart parts to avoid unsupported
 test('shared multipart contract covers image, voice, video and document attachments without unsupported Expo parts', () => {
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
-  assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
+  assert.match(attachmentUpload, /multipartPartMode='expo-file'/);
   assert.doesNotMatch(platformSource, /File\.fromUri\(/);
   assert.doesNotMatch(platformSource, /UploadType\.MULTIPART/);
   assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
