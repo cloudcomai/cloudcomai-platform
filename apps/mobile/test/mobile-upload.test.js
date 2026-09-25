@@ -18,7 +18,9 @@ test('chat attachment uploads use Expo File multipart parts to avoid unsupported
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
   assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
-  assert.match(platformSource, /File\.fromUri\(normalized\.uri\)/);
+  assert.doesNotMatch(platformSource, /File\.fromUri\(/);
+  assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
+  assert.match(platformSource, /if \(!file\.exists\) return false/);
   assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
 });
 
