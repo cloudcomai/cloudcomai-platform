@@ -51,7 +51,8 @@ const appendNativeFilePart = (form, fieldName, asset) => {
 const appendExpoFilePart = (form, fieldName, asset) => {
   const normalized = normalizeUploadAsset(asset,{fallbackName:'attachment'});
   if (!isNativeFileUri(normalized.uri)) return false;
-  const file = File.fromUri(normalized.uri);
+  const file = new File(normalized.uri);
+  if (!file.exists) return false;
   form.append(fieldName, file);
   return true;
 };
