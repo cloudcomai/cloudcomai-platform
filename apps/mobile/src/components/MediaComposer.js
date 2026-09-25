@@ -72,6 +72,7 @@ export default function MediaComposer({ chat, onMessage }) {
         video_height: draft.height || undefined,
         video_duration_seconds: draft.durationSeconds || undefined,
         onProgress: setUploadProgress,
+        multipartPartMode: 'native',
       });
       if (active.current) { setUploadProgress(1); onMessage(data.message); setDraft(null); removeRecording(); }
     } catch (error) {
