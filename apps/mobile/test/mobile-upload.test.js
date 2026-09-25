@@ -33,8 +33,8 @@ test('shared multipart contract covers image, voice, video and document attachme
   assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
   assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
   assert.match(composerSource, /uploadAttachmentAsset/);
-  assert.match(composerSource, /kind:\s*'voice'/);
-  assert.match(composerSource, /kind:\s*'video'/);
+  assert.match(composerSource, /type:\s*'voice'/);
+  assert.match(composerSource, /type:\s*'video'/);
   assert.match(appSource, /uploadAttachmentAsset\(attachmentDraft/);
 });
 
