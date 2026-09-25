@@ -39,6 +39,16 @@ test('shared multipart contract covers image, voice, video and document attachme
   assert.match(appSource, /uploadAttachmentAsset\(attachmentDraft/);
 });
 
+test('voice and video uploads use React Native native file parts with progress XHR', () => {
+  assert.match(composerSource, /multipartPartMode:\s*'native'/);
+  assert.match(composerSource, /type:\s*'voice'/);
+  assert.match(composerSource, /type:\s*'video'/);
+  assert.match(platformSource, /multipartPartMode='expo-file'/);
+  assert.match(platformSource, /multipartPartMode,onProgress,extraFiles/);
+  assert.match(platformSource, /form\.append\(fieldName,\s*\{\s*uri:\s*normalized\.uri,\s*name:\s*normalized\.name,\s*type:\s*normalized\.mimeType\s*\}\)/);
+  assert.match(platformSource, /xhr\.send\(formData\)/);
+});
+
 test('profile image upload uses the same supported Expo File multipart contract', () => {
   const mediaUpload = platformSource.match(/export const uploadMediaAsset=[^\n]+/)?.[0] || '';
   assert.match(mediaUpload, /ApiRoute\.MEDIA_UPLOAD/);
