@@ -84,7 +84,7 @@ try {
 
     $fresh = request('POST', 'v1/messages', 1, ['chat_id'=>1,'body'=>'expired original'], 201)['message'];
     $expiredId = (int)$fresh['id'];
-    $admin->exec("UPDATE messages SET created_at=UTC_TIMESTAMP()-INTERVAL 3 HOUR-1 SECOND WHERE id=$expiredId");
+    $admin->exec("UPDATE messages SET created_at=UTC_TIMESTAMP() - INTERVAL 10801 SECOND WHERE id=$expiredId");
     request('POST', 'v1/messages/edit', 1, ['message_id'=>$expiredId,'body'=>'too late'], 409);
     $expiredRow = $admin->query("SELECT body,edit_count,edited_at FROM messages WHERE id=$expiredId")->fetch(PDO::FETCH_ASSOC);
     check($expiredRow['body'] === 'expired original' && (int)$expiredRow['edit_count'] === 0 && $expiredRow['edited_at'] === null, 'Expired message was modified');
