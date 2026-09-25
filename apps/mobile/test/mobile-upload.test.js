@@ -47,10 +47,10 @@ test('media upload reports progress, real server errors and retry without creati
 
 test('shared media upload has development-only stage diagnostics and sanitized failures', () => {
   assert.match(platformSource, /\[MEDIA_SEND\]/);
-  assert.match(platformSource, /stage: 'asset_normalized'/);
-  assert.match(platformSource, /stage: 'upload_prepare'/);
-  assert.match(platformSource, /stage: 'upload_started'/);
-  assert.match(platformSource, /stage: 'upload_failed'/);
+  assert.match(platformSource, /mediaSendDiagnostic\('asset_normalized'/);
+  assert.match(platformSource, /mediaSendDiagnostic\('upload_prepare'/);
+  assert.match(platformSource, /mediaSendDiagnostic\('upload_started'/);
+  assert.match(platformSource, /mediaSendErrorDiagnostic\(error,'upload_failed'/);
   assert.match(platformSource, /errorMessage: String\(error\?\.message/);
   assert.match(platformSource, /chatType: context\.chatType \|\| 'unknown'/);
   assert.doesNotMatch(platformSource, /console\.log\(.*token/i);
