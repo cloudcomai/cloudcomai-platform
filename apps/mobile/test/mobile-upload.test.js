@@ -14,12 +14,13 @@ test('profile and group image uploads use Expo File multipart parts to avoid uns
 });
 
 
-test('chat attachment uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
-  const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
-  assert.match(attachmentUpload, /multipartPartMode:\s*'expo-file'/);
+test('chat attachment uploads use the installed Expo File constructor for all media types', () => {
+  const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=\(asset,parameters=\{\}\)=>\{[\s\S]*?return promise;\n\};/)?.[0] || '';
+  assert.match(attachmentUpload, /multipartPartMode:'expo-file'/);
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
-  assert.match(platformSource, /File\.fromUri\(normalized\.uri\)/);
-  assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
+  assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
+  assert.doesNotMatch(platformSource, /File\.fromUri\(/);
+  assert.match(platformSource, /form\.append\(fieldName, file\)/);
 });
 
 test('mobile uploads use native FormData file parts for Android content/file URIs', () => {
@@ -42,6 +43,25 @@ test('media upload reports progress, real server errors and retry without creati
   assert.match(composerSource, /setUploadError/);
   assert.match(composerSource, /Retry/);
   assert.match(composerSource, /onMessage\(data\.message\)/);
+});
+
+test('shared media upload has development-only stage diagnostics and sanitized failures', () => {
+  assert.match(platformSource, /\[MEDIA_SEND\]/);
+  assert.match(platformSource, /stage: 'asset_normalized'/);
+  assert.match(platformSource, /stage: 'upload_prepare'/);
+  assert.match(platformSource, /stage: 'upload_started'/);
+  assert.match(platformSource, /stage: 'upload_failed'/);
+  assert.match(platformSource, /errorMessage: String\(error\?\.message/);
+  assert.match(platformSource, /chatType: context\.chatType \|\| 'unknown'/);
+  assert.doesNotMatch(platformSource, /console\.log\(.*token/i);
+  assert.doesNotMatch(platformSource, /console\.log\(.*Authorization/i);
+});
+
+test('attachment uploads deduplicate concurrent sends for the same asset object', () => {
+  assert.match(platformSource, /const inFlightAttachmentUploads = new WeakMap\(\)/);
+  assert.match(platformSource, /const existing = inFlightAttachmentUploads\.get\(asset\)/);
+  assert.match(platformSource, /if \(existing\) return existing/);
+  assert.match(platformSource, /inFlightAttachmentUploads\.delete\(asset\)/);
 });
 
 test('Ring Bell media posting uses the shared upload route and exposes retry/success states', () => {
@@ -124,6 +144,6 @@ test('chat composer remains a bottom footer while messages load', () => {
 
 
 test('voice/video upload does not require expo-file-system File construction to succeed for Android content URIs', () => {
-  assert.match(platformSource, /try\{file=new File\(normalized\.uri\);\}catch\{\}/);
+  assert.match(platformSource, /try\{file=new File\(normalized\.uri\);\}catch\{/);
   assert.match(platformSource, /file\?\.size\?\?normalized\.size/);
 });
