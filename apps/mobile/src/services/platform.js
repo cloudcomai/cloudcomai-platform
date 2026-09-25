@@ -125,7 +125,7 @@ export async function uploadMobileFile(route,asset,{fieldName='file',parameters=
     if(typeof onProgress!=='function'){
       const response=await fetch(buildApiUrl(API_BASE_URL,route),{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{},body:formData});
       const body=await response.text();
-      const result=parseUploadResult({status:response.status,body,headers:Object.fromEntries(response.headers.entries())},token);
+      const result=await parseUploadResult({status:response.status,body,headers:Object.fromEntries(response.headers.entries())},token);
       mediaSendDiagnostic('upload_finished',normalized,diagnosticContext);
       return result;
     }
@@ -141,7 +141,7 @@ export async function uploadMobileFile(route,asset,{fieldName='file',parameters=
       xhr.timeout=120000;
       xhr.send(formData);
     });
-    const parsed=parseUploadResult(result,token);
+    const parsed=await parseUploadResult(result,token);
     mediaSendDiagnostic('upload_finished',normalized,diagnosticContext);
     return parsed;
   } catch(error) {
