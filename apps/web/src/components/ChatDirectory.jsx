@@ -99,9 +99,10 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
 
         {preferenceStrip}
 
-        <div className="filter-pill-row" role="group" aria-label="Contact view">
-          <button className={`filter-pill ${contactsView === 'online' ? 'active' : ''}`} onClick={() => setContactsView('online')}>Online Users</button>
-          <button className={`filter-pill ${contactsView === 'all' ? 'active' : ''}`} onClick={() => setContactsView('all')}>All Contacts</button>
+        <div style={{ margin: '10px 12px 0' }}>
+          <button type="button" aria-expanded={contactsView === 'online'} onClick={() => setContactsView('online')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'var(--bg-primary)', color: 'var(--text-main)', fontWeight: 700 }}>
+            <span>{contactsView === 'online' ? '▼' : '▶'} Online Users</span><span>{contacts.filter(contact => Boolean(contact.online) || contact.presence_status === 'ONLINE').length}</span>
+          </button>
         </div>
 
         {contactsError && (
@@ -163,6 +164,11 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
             );
           })}
           {contactsLoading && contacts.length > 0 && <div className="empty-state">Loading more contacts...</div>}
+        </div>
+        <div style={{ margin: '0 12px 10px' }}>
+          <button type="button" aria-expanded={contactsView === 'all'} onClick={() => setContactsView('all')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'var(--bg-primary)', color: 'var(--text-main)', fontWeight: 700 }}>
+            <span>{contactsView === 'all' ? '▼' : '▶'} All Contacts</span><span>{contactsTotal}</span>
+          </button>
         </div>
       </section>
     );
