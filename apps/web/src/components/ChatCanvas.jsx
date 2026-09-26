@@ -245,7 +245,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
               </div>}
               {isAttachment ? <div style={attachmentMessageStyle}>
                 <div style={attachmentActionRowStyle}>
-                  <AttachmentActions attachment={msg.attachment} message={msg} user={user} apiBridge={apiBridge} />
+                  <AttachmentActions attachment={msg.attachment} message={msg} user={user} apiBridge={apiBridge} onForward={() => setForwardTarget(msg)} />
                 </div>
 
                 <AttachmentPreview attachment={msg.attachment} messageType={msg.type} autoDownload={mediaAutoDownload} />
