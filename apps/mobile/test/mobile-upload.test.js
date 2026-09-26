@@ -105,7 +105,7 @@ test('chat attachment preview uses the native Modal and dismisses after Send', (
 
 test('chat photo/document Send uses the non-XHR upload path so the preview modal cannot remain stuck on the progress overlay', () => {
   const sendAttachment = appSource.match(/const sendAttachment = async \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
-  assert.match(sendAttachment, /uploadAttachmentAsset\(attachmentDraft,\{chat_id:chat\.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo\?\.id\|\|undefined\}\)/);
+  assert.match(sendAttachment, /uploadAttachmentAsset\(attachmentDraft,\{chat_id:chat\.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo\?\.id\|\|undefined,multipartPartMode:attachmentDraft\.multipartPartMode\|\|'expo-file'\}\)/);
   assert.doesNotMatch(sendAttachment, /onProgress/);
   assert.match(appSource, /Sending attachment… Please wait\./);
   assert.match(appSource, /ActivityIndicator color="#3157d5"/);
@@ -119,6 +119,7 @@ test('chat attachment chooser provides working camera, photo library and documen
   assert.match(appSource, /launchCameraAsync/);
   assert.match(appSource, /launchImageLibraryAsync/);
   assert.match(appSource, /DocumentPicker\.getDocumentAsync/);
+  assert.match(appSource, /multipartPartMode:\s*'native'/);
   assert.match(appSource, /accessibilityLabel="Close attachment menu"/);
   assert.match(appSource, />Cancel<\/Text>/);
   assert.match(appSource, /onRequestClose=\{\(\) => setAttachmentMenuOpen\(false\)\}/);
