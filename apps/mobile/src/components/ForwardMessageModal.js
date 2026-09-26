@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { platformApi } from '../services/platform';
 
 export default function ForwardMessageModal({ visible, message, onClose }) {
@@ -19,7 +19,7 @@ export default function ForwardMessageModal({ visible, message, onClose }) {
   }, [visible, retryToken]);
   const filtered = useMemo(() => { const term = query.trim().toLowerCase(); return term ? chats.filter(chat => `${chat.name || ''} ${chat.user_id || ''} ${chat.kind || ''}`.toLowerCase().includes(term)) : chats; }, [chats, query]);
   const toggle = chat => setSelected(current => current.some(item => item.id === chat.id) ? current.filter(item => item.id !== chat.id) : [...current, chat]);
-  const forward = async () => { if (!message?.id || !selected.length || busy) return; setBusy(true); setError(''); try { await platformApi.forwardMessage(Number(message.id), selected.map(chat => Number(chat.id))); onClose?.(); } catch (e) { setError(e.message || 'Unable to forward message.'); } finally { setBusy(false); } };
+  const forward = async () => { if (!message?.id || !selected.length || busy) return; setBusy(true); setError(''); try { const result = await platformApi.forwardMessage(Number(message.id), selected.map(chat => Number(chat.id))); if (!Number(result?.data?.forwarded || 0)) throw new Error('The server did not confirm that the message was forwarded.'); onClose?.(); } catch (e) { const detail = e?.details?.message || e?.details?.error || e?.message || 'Unable to forward message.'; setError(detail); Alert.alert('Forward failed', detail); } finally { setBusy(false); } };
   return <Modal visible={Boolean(visible)} animationType="slide" onRequestClose={onClose}><View style={styles.page}>
     <View style={styles.header}><Pressable disabled={busy} onPress={onClose}><Text style={styles.back}>‹ Back</Text></Pressable><Text style={styles.title}>Forward message</Text><View style={styles.spacer} /></View>
     <View style={styles.preview}><Text style={styles.previewLabel}>Message</Text><Text numberOfLines={3} style={styles.previewText}>{message?.body || ''}</Text></View>
