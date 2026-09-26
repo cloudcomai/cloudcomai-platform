@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { fetchApiBlob } from '../services/platform';
 
-export default function AttachmentActions({ attachment, message, user, apiBridge }) {
+export default function AttachmentActions({ attachment, message, user, apiBridge, onForward }) {
   const [status, setStatus] = useState(attachment?.download_status || '');
   const [requestId, setRequestId] = useState(attachment?.download_request_id || null);
   const [busy, setBusy] = useState(false);
@@ -53,11 +53,17 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
     }
   };
 
-  const requestDownload = async () => {
+  const requestAccess = async requestType => {
     setBusy(true);
     try {
-      const result = await apiBridge(ApiRoute.REQUEST_ATTACHMENT_DOWNLOAD, { method: 'POST', body: JSON.stringify({ attachment_id: Number(attachment.id) }) });
-      setStatus(result?.status || 'PENDING');
+      const result = await apiBridge(ApiRoute.REQUEST_ATTACHMENT_DOWNLOAD, { method: 'POST', body: JSON.stringify({ attachment_id: Number(attachment.id), request_type: requestType }) });
+      const nextStatus = result?.status || 'PENDING';
+      if (nextStatus === 'APPROVED') {
+        if (requestType === 'DOWNLOAD') await download();
+        else onForward?.();
+        return;
+      }
+      setStatus(nextStatus);
     } catch (err) {
       alert(err.message || 'Unable to request download.');
     } finally {
@@ -83,7 +89,7 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
   if (isSender && requestId && status === 'PENDING') return <span style={{ display: 'inline-flex', gap: '5px' }}><button type="button" className="composer-addon-btn" onClick={() => respond('APPROVED')} disabled={busy}>Approve</button><button type="button" className="composer-addon-btn" onClick={() => respond('DENIED')} disabled={busy}>Deny</button></span>;
   if (isSender || policy === 'ALLOW') return <button type="button" className="composer-addon-btn" onClick={download} disabled={busy}>Download</button>;
   if (policy === 'VIEW_ONLY') return <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>View only</span>;
-  if (status === 'APPROVED') return <button type="button" className="composer-addon-btn" onClick={download} disabled={busy}>Download</button>;
-  if (status === 'PENDING') return <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Download request pending</span>;
-  return <button type="button" className="composer-addon-btn" onClick={requestDownload} disabled={busy}>Request download</button>;
+  if (status === 'APPROVED') return <span style={{ display: 'inline-flex', gap: '5px' }}><button type="button" className="composer-addon-btn" onClick={download} disabled={busy}>Download</button><button type="button" className="composer-addon-btn" onClick={onForward} disabled={busy || !onForward}>Forward</button></span>;
+  if (status === 'PENDING') return <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Access request pending</span>;
+  return <span style={{ display: 'inline-flex', gap: '5px' }}><button type="button" className="composer-addon-btn" onClick={() => requestAccess('DOWNLOAD')} disabled={busy}>Download</button><button type="button" className="composer-addon-btn" onClick={() => requestAccess('FORWARD')} disabled={busy || !onForward}>Forward</button></span>;
 }
