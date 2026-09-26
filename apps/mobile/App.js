@@ -428,7 +428,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     if(!attachmentDraft || uploading || chat.blocked)return;
     setUploading(true);setAttachmentError('');setAttachmentProgress(0);
     try{
-      const {data}=await uploadAttachmentAsset(attachmentDraft,{chat_id:chat.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo?.id||undefined});
+      const {data}=await uploadAttachmentAsset(attachmentDraft,{chat_id:chat.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo?.id||undefined,multipartPartMode:attachmentDraft.multipartPartMode||'expo-file'});
       if(data.message)setMessages(current=>mergeMessageBatch(current,[data.message]).messages);
       setAttachmentDraft(null);setReplyTo(null);setAttachmentProgress(1);
     }catch(e){setAttachmentError(e.message||'Unable to upload attachment. Please try again.');}
@@ -482,7 +482,10 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
         ],
         copyToCacheDirectory: true,
       }));
-      if (!picked.canceled && picked.assets?.[0]) await uploadAttachment(validateAttachment(picked.assets[0]));
+      if (!picked.canceled && picked.assets?.[0]) {
+        const documentAsset = validateAttachment(picked.assets[0]);
+        await uploadAttachment({ ...documentAsset, multipartPartMode: 'native' });
+      }
     } catch (pickerError) {
       setError(pickerError.message || 'Unable to open the document picker.');
     }
