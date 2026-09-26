@@ -81,6 +81,7 @@ try {
     $admin->exec('USE ' . $database);
     $admin->exec(file_get_contents(__DIR__ . '/../database/fresh-install.sql'));
     check((int)$admin->query("SELECT COUNT(*) FROM schema_migrations WHERE version='007_password_recovery_sessions.sql'")->fetchColumn() === 1, 'Fresh installation must record migration 007');
+    check((int)$admin->query("SELECT COUNT(*) FROM schema_migrations WHERE version='024_password_recovery_schema.sql'")->fetchColumn() === 1, 'Fresh installation must record migration 024');
     $admin->exec('DROP TABLE user_session_versions');
     $migration = file_get_contents(__DIR__ . '/../database/migrations/007_password_recovery_sessions.sql');
     $admin->exec($migration);
