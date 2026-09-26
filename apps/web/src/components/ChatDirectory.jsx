@@ -13,6 +13,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState('');
   const [contactsTotal, setContactsTotal] = useState(0);
+  const [contactsView, setContactsView] = useState('online');
 
   const markImageFailed = id => setFailedImages(prev => ({ ...prev, [id]: true }));
 
@@ -52,8 +53,9 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
 
   const visibleContacts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return contacts;
-    return contacts.filter(contact => [
+    const scopedContacts = contactsView === 'online' ? contacts.filter(contact => Boolean(contact.online) || contact.presence_status === 'ONLINE') : contacts;
+    if (!query) return scopedContacts;
+    return scopedContacts.filter(contact => [
       contact.display_name,
       contact.given_name,
       contact.family_name,
@@ -62,7 +64,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
       contact.registered_name,
       contact.registered_user_id_text
     ].filter(Boolean).some(value => String(value).toLowerCase().includes(query)));
-  }, [contacts, searchQuery]);
+  }, [contacts, searchQuery, contactsView]);
 
   const preferenceStrip = (
     <div className="directory-preferences">
@@ -97,6 +99,11 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
 
         {preferenceStrip}
 
+        <div className="filter-pill-row" role="group" aria-label="Contact view">
+          <button className={`filter-pill ${contactsView === 'online' ? 'active' : ''}`} onClick={() => setContactsView('online')}>Online Users</button>
+          <button className={`filter-pill ${contactsView === 'all' ? 'active' : ''}`} onClick={() => setContactsView('all')}>All Contacts</button>
+        </div>
+
         {contactsError && (
           <div className="empty-state" style={{ margin: '12px 16px', padding: '14px', textAlign: 'left' }}>
             <strong>Unable to load contacts</strong>
@@ -109,7 +116,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
             <div className="empty-state">Loading contacts...</div>
           ) : visibleContacts.length === 0 && !contactsError ? (
             <div className="empty-state">
-              {contactsTotal === 0 ? 'None of your synced contacts are registered on CloudComAI yet.' : 'No registered contacts match your search.'}
+              {contactsTotal === 0 ? 'None of your synced contacts are registered on CloudComAI yet.' : contactsView === 'online' ? 'No contacts are online right now.' : 'No registered contacts match your search.'}
             </div>
           ) : visibleContacts.map(contact => {
             const registeredUserId = Number(contact.registered_user_id);
