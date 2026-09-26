@@ -19,6 +19,8 @@ test('attachment save and forward controls are compact icons and selection gated
   assert.match(media, /if \(nextStatus === 'APPROVED'\)/);
   assert.match(media, /requestType === 'DOWNLOAD'/);
   assert.match(media, /onForward\?\.\(\)/);
+  const attachmentBranch = media.slice(media.indexOf('return <View>{error && kind'));
+  assert.match(attachmentBranch, /<ForwardMessageModal visible=\{forwardOpen\} message=\{message\} onClose=\{\(\) => setForwardOpen\(false\)\} \/>/);
   assert.doesNotMatch(media, />Save \/ Download<\/Text>/);
   assert.doesNotMatch(media, />Forward<\/Text>/);
   assert.match(media, /approvalIconButton: \{ width: 30, height: 30/);
