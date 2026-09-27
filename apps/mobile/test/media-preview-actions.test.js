@@ -12,7 +12,7 @@ test('image attachments can open in a full-screen contain viewer', () => {
 });
 
 test('attachment save and forward controls use labeled touch targets and remain selection gated', () => {
-  assert.match(media, /function AttachmentApproval\(\{ attachment, message, showActions = false, onForward \}\)/);
+  assert.match(media, /function AttachmentApproval\(\{ attachment, message, showActions = false, onForward, colors = \{\} \}\)/);
   assert.match(media, /if \(!showActions && !senderRequests\.length/);
   assert.match(media, /accessibilityLabel=\{type === 'DOWNLOAD' \? 'Download attachment' : 'Forward attachment'\}/);
   assert.match(media, /type === 'DOWNLOAD' \? '↓' : '↗'/);
