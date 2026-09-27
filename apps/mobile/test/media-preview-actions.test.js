@@ -11,17 +11,16 @@ test('image attachments can open in a full-screen contain viewer', () => {
   assert.match(media, /accessibilityLabel="Close image"/);
 });
 
-test('attachment save and forward controls are compact icons and selection gated', () => {
-  assert.match(media, /function AttachmentApproval\(\{ attachment, message, showActions = false, onForward \}\)/);
+test('attachment save and forward controls use labeled touch targets and remain selection gated', () => {
+  assert.match(media, /function AttachmentApproval\(\{ attachment, message, showActions = false, onForward, colors = \{\} \}\)/);
   assert.match(media, /if \(!showActions && !senderRequests\.length/);
-  assert.match(media, /accessibilityLabel=\{type === 'DOWNLOAD' \? 'Request save or download' : 'Request forward'\}/);
-  assert.match(media, /type === 'DOWNLOAD' \? '⇩' : '↗'/);
+  assert.match(media, /accessibilityLabel=\{type === 'DOWNLOAD' \? 'Download attachment' : 'Forward attachment'\}/);
+  assert.match(media, /type === 'DOWNLOAD' \? '↓' : '↗'/);
+  assert.match(media, /type === 'DOWNLOAD' \? 'Download' : 'Forward'/);
   assert.match(media, /if \(nextStatus === 'APPROVED'\)/);
   assert.match(media, /requestType === 'DOWNLOAD'/);
   assert.match(media, /onForward\?\.\(\)/);
   const attachmentBranch = media.slice(media.indexOf('return <View>{error && kind'));
   assert.match(attachmentBranch, /<ForwardMessageModal visible=\{forwardOpen\} message=\{message\} onClose=\{\(\) => setForwardOpen\(false\)\} \/>/);
-  assert.doesNotMatch(media, />Save \/ Download<\/Text>/);
-  assert.doesNotMatch(media, />Forward<\/Text>/);
-  assert.match(media, /approvalIconButton: \{ width: 30, height: 30/);
+  assert.match(media, /approvalIconButton: \{ minWidth: 64, minHeight: 48/);
 });

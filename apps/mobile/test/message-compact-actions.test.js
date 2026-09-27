@@ -8,18 +8,19 @@ const receipt = fs.readFileSync(new URL('../src/components/ReadReceipt.js', impo
 
 test('message actions stay hidden until the bubble is selected', () => {
   assert.match(app, /showActions=\{selected\}/);
-  assert.match(app, /\{selected \? <View style=\{styles\.messageActions\}>/);
-  assert.doesNotMatch(media, />↗ Forward<\/Text>/);
+  assert.match(app, /\{selected \? <View style=\{\[styles\.messageActions,/);
   assert.match(media, /showActions && Number\(message\.show_profile\)/);
   assert.match(media, /showActions \? <View style=\{styles\.inlineActions\}>/);
 });
 
-test('selected message actions use compact accessible icons instead of large text labels', () => {
+test('selected message actions use modern labeled touch targets', () => {
   assert.match(app, /accessibilityLabel=\{item\.saved \? 'Unsave message' : 'Save message'\}/);
   for (const label of ['Reply to message', 'Edit message', 'Delete message', 'Forward message']) {
     assert.ok(app.includes(`accessibilityLabel="${label}"`) || media.includes(`accessibilityLabel="${label}"`), `missing accessible ${label} action`);
   }
-  assert.match(app, /messageActionButton: \{ width: 30, height: 30/);
+  assert.match(app, /messageActionButton: \{ flex: 1, minWidth: 50, minHeight: 48/);
+  assert.match(app, />Reply<\/Text>/);
+  assert.match(app, />Delete<\/Text>/);
   assert.match(media, /compactAction: \{ width: 30, height: 30/);
 });
 
