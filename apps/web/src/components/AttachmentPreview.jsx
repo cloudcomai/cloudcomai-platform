@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { fetchApiBlob } from '../services/platform';
 
+let activeAudioElement = null;
+
 export default function AttachmentPreview({ attachment, messageType, autoDownload = false }) {
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
@@ -22,6 +24,6 @@ export default function AttachmentPreview({ attachment, messageType, autoDownloa
   }, [attachment?.id, kind, requested, autoDownload]);
   if (!kind) return null;
   return <div className="attachment-preview-wrap">
-    {previewUrl ? kind === 'image' ? <img src={previewUrl} alt={attachment.name || 'Attachment'} /> : kind === 'audio' ? <audio src={previewUrl} controls controlsList="nodownload" /> : <video src={previewUrl} controls playsInline controlsList="nodownload" /> : error ? <span role="alert">{error}</span> : requested || autoDownload ? <span>Loading media…</span> : <button onClick={() => setRequested(true)}>Load {kind === 'audio' ? 'voice/audio' : kind} · {Math.ceil(Number(attachment.file_size || 0) / 1024)} KB</button>}
+    {previewUrl ? kind === 'image' ? <img src={previewUrl} alt={attachment.name || 'Attachment'} /> : kind === 'audio' ? <audio src={previewUrl} controls controlsList="nodownload" onPlay={event => { if (activeAudioElement && activeAudioElement !== event.currentTarget) activeAudioElement.pause(); activeAudioElement = event.currentTarget; }} onPause={event => { if (activeAudioElement === event.currentTarget && event.currentTarget.ended) activeAudioElement = null; }} onEnded={event => { if (activeAudioElement === event.currentTarget) activeAudioElement = null; }} /> : <video src={previewUrl} controls playsInline controlsList="nodownload" /> : error ? <span role="alert">{error}</span> : requested || autoDownload ? <span>Loading media…</span> : <button onClick={() => setRequested(true)}>Load {kind === 'audio' ? 'voice/audio' : kind} · {Math.ceil(Number(attachment.file_size || 0) / 1024)} KB</button>}
   </div>;
 }
