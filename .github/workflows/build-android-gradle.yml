@@ -45,6 +45,31 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+      - name: Install required Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          for attempt in 1 2 3; do
+            if "$SDKMANAGER" "ndk;27.1.12297006"; then
+              break
+            fi
+            rm -rf "${ANDROID_SDK_ROOT}/ndk/27.1.12297006"
+            if [ "$attempt" -eq 3 ]; then
+              echo '::error::Failed to install Android NDK 27.1.12297006 after 3 attempts.'
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          if [ ! -f "${ANDROID_SDK_ROOT}/ndk/27.1.12297006/source.properties" ]; then
+            echo '::error::Android NDK 27.1.12297006 installation is incomplete.'
+            exit 1
+          fi
       - uses: gradle/actions/setup-gradle@v4
       - run: pnpm install --frozen-lockfile
       - name: Prepare release signing and Firebase configuration
