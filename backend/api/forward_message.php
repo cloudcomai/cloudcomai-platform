@@ -48,7 +48,22 @@ try {
             if (!is_dir($storageRoot) || !is_writable($storageRoot)) throw new RuntimeException('Attachment storage is not writable');
             $forwardedStoredName = bin2hex(random_bytes(24)) . '.' . pathinfo((string)$source['stored_filename'], PATHINFO_EXTENSION);
             $forwardPath = $storageRoot . '/' . $forwardedStoredName;
-            if (!copy($sourcePath, $forwardPath)) throw new RuntimeException('Unable to copy forwarded attachment');
+            $sourceHandle = @fopen($sourcePath, 'rb');
+            $destinationHandle = @fopen($forwardPath, 'xb');
+            if ($sourceHandle === false || $destinationHandle === false) {
+                if (is_resource($sourceHandle)) fclose($sourceHandle);
+                if (is_resource($destinationHandle)) fclose($destinationHandle);
+                @unlink($forwardPath);
+                throw new RuntimeException('Unable to open attachment storage for forwarding');
+            }
+            $copiedBytes = stream_copy_to_stream($sourceHandle, $destinationHandle);
+            fclose($sourceHandle);
+            fclose($destinationHandle);
+            clearstatcache(true, $forwardPath);
+            if ($copiedBytes === false || $copiedBytes <= 0 || !is_file($forwardPath) || (int)filesize($forwardPath) !== (int)$source['file_size']) {
+                @unlink($forwardPath);
+                throw new RuntimeException('Unable to persist forwarded attachment');
+            }
             $forwardedThumbnailName = null;
             $forwardedThumbnailPath = null;
             if (!empty($source['thumbnail_filename'])) {
@@ -56,8 +71,20 @@ try {
                 if (is_file($sourceThumbnailPath) && is_readable($sourceThumbnailPath)) {
                     $forwardedThumbnailName = bin2hex(random_bytes(24)) . '.jpg';
                     $forwardedThumbnailAbsolutePath = $storageRoot . '/' . $forwardedThumbnailName;
-                    if (copy($sourceThumbnailPath, $forwardedThumbnailAbsolutePath)) $forwardedThumbnailPath = 'storage/attachments/' . $forwardedThumbnailName;
-                    else $forwardedThumbnailName = null;
+                    $thumbnailSourceHandle = @fopen($sourceThumbnailPath, 'rb');
+                    $thumbnailDestinationHandle = @fopen($forwardedThumbnailAbsolutePath, 'xb');
+                    if ($thumbnailSourceHandle !== false && $thumbnailDestinationHandle !== false) {
+                        $thumbnailBytes = stream_copy_to_stream($thumbnailSourceHandle, $thumbnailDestinationHandle);
+                        fclose($thumbnailSourceHandle);
+                        fclose($thumbnailDestinationHandle);
+                        if ($thumbnailBytes !== false && $thumbnailBytes > 0) $forwardedThumbnailPath = 'storage/attachments/' . $forwardedThumbnailName;
+                        else { @unlink($forwardedThumbnailAbsolutePath); $forwardedThumbnailName = null; }
+                    } else {
+                        if (is_resource($thumbnailSourceHandle)) fclose($thumbnailSourceHandle);
+                        if (is_resource($thumbnailDestinationHandle)) fclose($thumbnailDestinationHandle);
+                        @unlink($forwardedThumbnailAbsolutePath);
+                        $forwardedThumbnailName = null;
+                    }
                 }
             }
             $copyAttachment = $pdo->prepare('INSERT INTO message_attachments(message_id,original_filename,stored_filename,storage_path,thumbnail_filename,thumbnail_path,mime_type,file_size,width,height,duration_seconds,download_policy,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())');
