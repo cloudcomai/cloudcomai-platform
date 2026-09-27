@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -10,12 +10,19 @@ import ForwardMessageModal from './ForwardMessageModal';
 import UserProfileModal from './UserProfileModal';
 import ReadReceipt from './ReadReceipt';
 
+let activeAudioPlayer = null;
+
 export function AudioPreview({ source }) {
   const player = useAudioPlayer(source);
   const status = useAudioPlayerStatus(player);
+  const playerRef = useRef(player);
+  playerRef.current = player;
+  useEffect(() => () => { if (activeAudioPlayer === playerRef.current) activeAudioPlayer = null; }, []);
   const play = async () => {
-    if (status.playing) player.pause();
+    if (status.playing) { player.pause(); if (activeAudioPlayer === player) activeAudioPlayer = null; }
     else {
+      if (activeAudioPlayer && activeAudioPlayer !== player) activeAudioPlayer.pause();
+      activeAudioPlayer = player;
       await setAudioModeAsync({ playsInSilentMode: true });
       if (status.didJustFinish || (status.duration > 0 && status.currentTime >= status.duration)) await player.seekTo(0);
       player.play();
