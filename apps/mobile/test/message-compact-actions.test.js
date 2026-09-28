@@ -14,20 +14,23 @@ test('message actions stay hidden until the bubble is selected', () => {
 
 test('selected attachment actions match the approved single-row reference', () => {
   const attachmentActions = media.slice(media.indexOf('{showActions ? <View style={[styles.messageActions'));
-  const labels = ['Download', 'Reply', 'Forward', 'Delete'];
-  let previous = -1;
-  for (const label of labels) {
-    const index = attachmentActions.indexOf(`label="${label}"`);
-    assert.ok(index > previous, `${label} must be present in approved order`);
-    previous = index;
-  }
+  const downloadIndex = attachmentActions.indexOf("label={statusLabel(statuses.DOWNLOAD) || 'Download'}");
+  const replyIndex = attachmentActions.indexOf('label="Reply"');
+  const forwardIndex = attachmentActions.indexOf("label={statusLabel(statuses.FORWARD) || 'Forward'}");
   const saveIndex = attachmentActions.indexOf("label={message.saved ? 'Saved' : 'Save'}");
-  assert.ok(saveIndex > attachmentActions.indexOf('label="Forward"'), 'Save must follow Forward');
-  assert.ok(saveIndex < attachmentActions.indexOf('label="Delete"'), 'Save must precede Delete');
+  const deleteIndex = attachmentActions.indexOf('label="Delete"');
+  assert.ok(downloadIndex >= 0, 'Download action must be present');
+  assert.ok(replyIndex > downloadIndex, 'Reply must follow Download');
+  assert.ok(forwardIndex > replyIndex, 'Forward must follow Reply');
+  assert.ok(saveIndex > forwardIndex, 'Save must follow Forward');
+  assert.ok(deleteIndex > saveIndex, 'Delete must follow Save');
   assert.match(media, /messageActions: \{ flexDirection: 'row', flexWrap: 'nowrap'/);
   assert.match(media, /messageActionButton: \{ flex: 1, minWidth: 0/);
   assert.doesNotMatch(media, /type === 'DOWNLOAD' \? '↓' : '↗'/);
   assert.match(media, /type === 'save'.*bookmarkIcon/);
+  assert.match(media, /status === 'PENDING' \? 'Request Pending'/);
+  assert.match(media, /statuses\.FORWARD === 'PENDING' \? undefined/);
+  assert.match(media, /statuses\.DOWNLOAD === 'PENDING' \? undefined/);
 });
 
 test('text messages expose reply forward save delete without download', () => {
@@ -35,6 +38,7 @@ test('text messages expose reply forward save delete without download', () => {
   for (const label of ['Reply', 'Forward', 'Delete']) assert.ok(textBranch.includes(`label="${label}"`));
   assert.ok(textBranch.includes("label={message.saved ? 'Saved' : 'Save'}"));
   assert.ok(!textBranch.includes('label="Download"'));
+  assert.match(textBranch, /width: mediaWidth, maxWidth: '100%'/);
 });
 
 test('read status is compact and only shown for a selected message', () => {
