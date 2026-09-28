@@ -28,6 +28,9 @@ test('selected attachment actions match the approved single-row reference', () =
   assert.match(media, /messageActionButton: \{ flex: 1, minWidth: 0/);
   assert.doesNotMatch(media, /type === 'DOWNLOAD' \? '↓' : '↗'/);
   assert.match(media, /type === 'save'.*bookmarkIcon/);
+  assert.match(media, /status === 'PENDING' \? 'Request Pending'/);
+  assert.match(media, /statuses\.FORWARD === 'PENDING' \? undefined/);
+  assert.match(media, /statuses\.DOWNLOAD === 'PENDING' \? undefined/);
 });
 
 test('text messages expose reply forward save delete without download', () => {
@@ -35,6 +38,7 @@ test('text messages expose reply forward save delete without download', () => {
   for (const label of ['Reply', 'Forward', 'Delete']) assert.ok(textBranch.includes(`label="${label}"`));
   assert.ok(textBranch.includes("label={message.saved ? 'Saved' : 'Save'}"));
   assert.ok(!textBranch.includes('label="Download"'));
+  assert.match(textBranch, /width: mediaWidth, maxWidth: '100%'/);
 });
 
 test('read status is compact and only shown for a selected message', () => {
