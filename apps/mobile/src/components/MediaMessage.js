@@ -163,6 +163,16 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
     try {
       const result = await apiClient.post('v1/attachment-requests/request', { attachment_id: attachment.id, request_type: requestType });
       const nextStatus = result.data?.status || 'PENDING';
+      // The sender owns the attachment and does not need to request permission
+      // from themselves before forwarding or downloading it.
+      if (Number(message?.sender_id) === Number(message?.current_user_id)) {
+        if (requestType === 'DOWNLOAD') {
+          const file = await downloadAttachmentPreview(attachment, { download: true });
+          if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(file.uri, { dialogTitle: `Save ${attachment.name || 'attachment'}` });
+          else Alert.alert('Download completed', `Saved ${attachment.name || 'attachment'} to the app download cache.`);
+        } else if (requestType === 'FORWARD') onForward?.();
+        return;
+      }
       if (nextStatus === 'APPROVED') {
         if (requestType === 'DOWNLOAD') {
           const file = await downloadAttachmentPreview(attachment, { download: true });
