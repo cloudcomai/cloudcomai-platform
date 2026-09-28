@@ -11,16 +11,16 @@ test('image attachments can open in a full-screen contain viewer', () => {
   assert.match(media, /accessibilityLabel="Close image"/);
 });
 
-test('attachment save and forward controls use labeled touch targets and remain selection gated', () => {
-  assert.match(media, /function AttachmentApproval\(\{ attachment, message, showActions = false, onForward, colors = \{\} \}\)/);
-  assert.match(media, /if \(!showActions && !senderRequests\.length/);
-  assert.match(media, /accessibilityLabel=\{type === 'DOWNLOAD' \? 'Download attachment' : 'Forward attachment'\}/);
-  assert.match(media, /type === 'DOWNLOAD' \? '↓' : '↗'/);
-  assert.match(media, /type === 'DOWNLOAD' \? 'Download' : 'Forward'/);
+test('attachment controls are unified, labeled and selection gated', () => {
+  assert.match(media, /function AttachmentApproval\(\{ attachment, message, showActions = false, onForward, onReply, onSave, onDelete, colors = \{\} \}\)/);
+  assert.match(media, /showActions \? <View style=\{\[styles\.messageActions/);
+  for (const label of ['Download attachment', 'Reply to message', 'Forward attachment', 'Save message', 'Delete message']) {
+    assert.ok(media.includes(`accessibilityLabel="${label}"`) || media.includes(`accessibilityLabel={message.saved ? 'Unsave message' : 'Save message'}`), `missing ${label}`);
+  }
+  assert.match(media, /request\('DOWNLOAD'\)/);
+  assert.match(media, /request\('FORWARD'\)/);
   assert.match(media, /if \(nextStatus === 'APPROVED'\)/);
-  assert.match(media, /requestType === 'DOWNLOAD'/);
   assert.match(media, /onForward\?\.\(\)/);
-  const attachmentBranch = media.slice(media.indexOf('return <View>{error && kind'));
-  assert.match(attachmentBranch, /<ForwardMessageModal visible=\{forwardOpen\} message=\{message\} onClose=\{\(\) => setForwardOpen\(false\)\} \/>/);
-  assert.match(media, /approvalIconButton: \{ minWidth: 64, minHeight: 48/);
+  assert.match(media, /messageActions: \{ flexDirection: 'row', flexWrap: 'nowrap'/);
+  assert.match(media, /messageActionButton: \{ flex: 1, minWidth: 0/);
 });
