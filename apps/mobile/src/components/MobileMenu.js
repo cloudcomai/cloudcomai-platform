@@ -492,24 +492,23 @@ export default function MobileMenu({
       <>
         <ScreenHeader theme={theme} title="Settings" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => go('profile')}>
-            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>Profile</Text>
-            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Name, date of birth and account information</Text>
-          </Pressable>
+          <Text style={[styles.sectionLabel,{color:theme.colors.secondary}]}>GENERAL</Text>
           <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => go('app_lock')}>
-            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>App Lock</Text>
-            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'Protect the app with a 4-6 digit PIN'}</Text>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>🔒  App Lock</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>{appLockEnabled ? 'Enabled — PIN required to reopen CloudComAI' : 'PIN and device security'}</Text>
           </Pressable>
-          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => { onClose(); onOpenNotificationSettings?.(); }}>
-            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>Privacy, account & notifications</Text>
-            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Push notification preferences</Text>
+          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => { onClose(); onOpenNotificationSettings?.('notifications'); }}>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>🔔  Notifications</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Messages, groups and notification preferences</Text>
           </Pressable>
-          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={openSyncContacts}>
-            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>Google Contacts</Text>
-            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Connection and sync status</Text>
+          <Text style={[styles.sectionLabel,{color:theme.colors.secondary}]}>PRIVACY & SECURITY</Text>
+          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => { onClose(); onOpenNotificationSettings?.('privacy'); }}>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>🛡  Privacy</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Visibility, blocked contacts and media privacy</Text>
           </Pressable>
-          <Pressable style={[styles.menuItem, styles.dangerItem]} onPress={() => { onClose(); onLogout?.(); }}>
-            <Text style={styles.dangerText}>Sign out</Text>
+          <Pressable style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={() => { onClose(); onOpenNotificationSettings?.('account'); }}>
+            <Text style={[styles.menuTitle,{color:theme.colors.text}]}>🔐  Account</Text>
+            <Text style={[styles.menuSub,{color:theme.colors.secondary}]}>Saved messages, devices, backup and account tools</Text>
           </Pressable>
         </ScrollView>
       </>
@@ -520,12 +519,9 @@ export default function MobileMenu({
         <ScreenHeader theme={theme} title="CloudComAI Menu" onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {[
-            ['Profile', 'View and edit your CloudComAI profile', () => go('profile')],
-            ['Start private chat', 'Search users and begin a direct conversation', () => go('private')],
-            ['Create group', 'Create a new CloudComAI group', () => go('group')],
-            ['Create poll', 'Post a poll to a chat or group', loadPoll],
-            ['Settings', 'Notifications, account and integrations', () => go('settings')],
-            ['Sync contacts', 'Connect or sync Google Contacts', openSyncContacts],
+            ['👤  Profile', 'View and edit your CloudComAI profile', () => go('profile')],
+            ['⚙️  Settings', 'App Lock, privacy, account and notifications', () => go('settings')],
+            ['🔄  Sync Contacts', 'Connect or sync Google Contacts', openSyncContacts],
           ].map(([title, sub, action]) => (
             <Pressable key={title} style={[styles.menuItem,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]} onPress={action}>
               <Text style={[styles.menuTitle,{color:theme.colors.text}]}>{title}</Text>
@@ -542,7 +538,7 @@ export default function MobileMenu({
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <SafeAreaView style={[styles.page,{backgroundColor:theme.colors.background}]} edges={['top', 'bottom', 'left', 'right']}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>{body()}</KeyboardAvoidingView>
-          {busy ? <View style={styles.busy}><ActivityIndicator color="#3157d5" /></View> : null}
+          {busy ? <View style={styles.busy}><ActivityIndicator color={theme.colors.accent} /></View> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </SafeAreaView>
       </SafeAreaProvider>
@@ -558,6 +554,7 @@ const styles = StyleSheet.create({
   headerSpacer: { width: 54 },
   content: { padding: 16, gap: 12 },
   menuItem: { padding: 16, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e8f0' },
+  sectionLabel: { marginTop: 8, marginBottom: -4, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
   menuTitle: { color: '#172033', fontSize: 16, fontWeight: '800' },
   menuSub: { marginTop: 4, color: '#6b7280', fontSize: 12 },
   input: { minHeight: 48, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fff', color: '#172033' },

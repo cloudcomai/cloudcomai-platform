@@ -16,7 +16,13 @@ test('mobile menu does not expose the removed Preference option', () => {
   assert.doesNotMatch(source, /preferencesText/);
   assert.doesNotMatch(source, /preferencesLoaded/);
 
-  for (const menuLabel of ['Profile', 'Start private chat', 'Create group', 'Create poll', 'Settings', 'Sync contacts']) {
-    assert.match(source, new RegExp(`\\['${menuLabel.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}',`));
+  for (const menuLabel of ['👤  Profile', '⚙️  Settings', '🔄  Sync Contacts']) {
+    assert.ok(source.includes(`['${menuLabel}',`), `missing ${menuLabel} menu item`);
+  }
+  for (const removedLabel of ['Start private chat', 'Create group', 'Create poll']) {
+    assert.doesNotMatch(source, new RegExp(`\\['${removedLabel}',`));
+  }
+  for (const settingLabel of ['App Lock', 'Notifications', 'Privacy', 'Account']) {
+    assert.ok(source.includes(settingLabel), `missing ${settingLabel} settings item`);
   }
 });

@@ -620,7 +620,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   );
 }
 
-function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppearance, onAccountTool }) {
+function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppearance, onAccountTool, initialSection = 'notifications' }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const update = async changes => { if (busy) return; setBusy(true); setError(''); try { await onChange(changes); } catch (e) { setError(e.message); } finally { setBusy(false); } };
@@ -632,6 +632,7 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppe
         <Text style={styles.headerTitle}>Settings</Text><View style={{ width: 54 }} />
       </View>
       <ScrollView contentContainerStyle={styles.settingsCard}>
+        {initialSection === 'account' ? <Text style={styles.settingsIntro}>Account tools</Text> : null}
         <Pressable onPress={onAppearance} style={styles.settingRow}><Text style={styles.settingLabel}>Appearance & Chat Theme</Text><Text>›</Text></Pressable>
         {[['saved_messages', 'Saved messages'], ['sessions', 'Devices & sessions']].map(([id, label]) => <Pressable key={id} onPress={() => onAccountTool(id)} style={styles.settingRow}><Text style={styles.settingLabel}>{label}</Text><Text>›</Text></Pressable>)}
         <Pressable onPress={onPrivacy} style={styles.settingRow}><Text style={styles.settingLabel}>Privacy & Account</Text><Text>›</Text></Pressable>
@@ -901,6 +902,7 @@ function AppContent() {
   const [session, setSession] = useState(null);
   const [notificationPreferences, setNotificationPreferencesState] = useState(null);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState('notifications');
   const [showPrivacySettings, setShowPrivacySettings] = useState(false);
   const [showChatThemeSettings, setShowChatThemeSettings] = useState(false);
   const [accountTool, setAccountTool] = useState(null);
@@ -1014,12 +1016,12 @@ function AppContent() {
   if (session && !chatThemeSettings?.selected) return <ChatThemeSettings required value={chatThemeSettings} onChange={setChatThemeSettings} />;
   if (showChatThemeSettings) return <ChatThemeSettings value={chatThemeSettings} onChange={setChatThemeSettings} onBack={() => setShowChatThemeSettings(false)} />;
   if (showPrivacySettings) return <PrivacySettings themeSettings={chatThemeSettings} onBack={() => setShowPrivacySettings(false)} />;
-  if (showNotificationSettings) return <NotificationSettings onAccountTool={setAccountTool} preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onAppearance={() => setShowChatThemeSettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;
+  if (showNotificationSettings) return <NotificationSettings initialSection={settingsInitialSection} onAccountTool={setAccountTool} preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onAppearance={() => setShowChatThemeSettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;
   return <ChatsScreen
     messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage}
     session={session}
     onLogout={logout}
-    onSettings={() => setShowNotificationSettings(true)}
+    onSettings={section => { setSettingsInitialSection(section || 'notifications'); if (section === 'privacy') setShowPrivacySettings(true); else setShowNotificationSettings(true); }}
     initialChatId={initialChatId}
     themeSettings={chatThemeSettings}
     onInitialChatConsumed={() => setInitialChatId(null)}
