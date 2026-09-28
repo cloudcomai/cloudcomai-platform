@@ -145,7 +145,7 @@ export function VideoPreview({ source, attachment = null, local = false }) {
 function ActionGlyph({ type, color }) {
   if (type === 'save') return <View style={[styles.bookmarkIcon, { borderColor: color }]}><View style={[styles.bookmarkNotch, { backgroundColor: color }]} /></View>;
   if (type === 'delete') return <View style={styles.trashIcon}><View style={[styles.trashLid, { backgroundColor: color }]} /><View style={[styles.trashBody, { borderColor: color }]} /></View>;
-  const glyph = type === 'download' ? '⇩' : type === 'reply' ? '↩' : '↪';
+  const glyph = type === 'download' ? '⇩' : type === 'reply' ? '⇦' : '⇨';
   return <Text style={[styles.actionGlyphText, { color }]}>{glyph}</Text>;
 }
 
