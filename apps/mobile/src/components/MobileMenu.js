@@ -79,7 +79,9 @@ export default function MobileMenu({
 
   useEffect(() => {
     if (visible) {
-      setScreen(initialScreen || 'menu');
+      const requestedScreen = initialScreen || 'menu';
+      setScreen(requestedScreen);
+      if (requestedScreen === 'poll') loadPollConversations();
       setProfileName(user?.name || '');
       setProfileDob(user?.dob || '');
       setProfileGender(user?.gender || 'Male');
@@ -150,9 +152,9 @@ export default function MobileMenu({
     }
   };
 
-  const loadPoll = async () => {
-    go('poll');
+  const loadPollConversations = async () => {
     setBusy(true);
+    setError('');
     try {
       const [{ data: privateData }, { data: groupData }] = await Promise.all([
         platformApi.listChats('private'),
@@ -169,6 +171,11 @@ export default function MobileMenu({
     } finally {
       setBusy(false);
     }
+  };
+
+  const loadPoll = async () => {
+    go('poll');
+    await loadPollConversations();
   };
 
   const createPoll = async () => {
