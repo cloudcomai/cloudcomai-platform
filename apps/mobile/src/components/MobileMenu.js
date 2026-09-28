@@ -56,6 +56,7 @@ export default function MobileMenu({
 
   const [userQuery, setUserQuery] = useState('');
   const [userResults, setUserResults] = useState([]);
+  const [userSearchCompleted, setUserSearchCompleted] = useState(false);
 
   const [groupName, setGroupName] = useState('');
   const [groupType, setGroupType] = useState(GROUP_TYPES[0]);
@@ -92,6 +93,7 @@ export default function MobileMenu({
       setBusy(false);
       setUserQuery('');
       setUserResults([]);
+      setUserSearchCompleted(false);
       setPollChats([]);
       setPollChatId(null);
       setGoogleStatus(null);
@@ -107,9 +109,11 @@ export default function MobileMenu({
     const query = userQuery.trim();
     if (!query || busy) return;
     setBusy(true); setError('');
+    setUserSearchCompleted(false);
     try {
       const { data } = await platformApi.searchUsers(query);
       setUserResults(data.users || []);
+      setUserSearchCompleted(true);
     } catch (e) {
       setError(e.message || 'Unable to search users.');
     } finally {
@@ -341,9 +345,10 @@ export default function MobileMenu({
       <>
         <ScreenHeader theme={theme} title="Start private chat" onBack={() => go('menu')} onClose={onClose} />
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={userQuery} onChangeText={setUserQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={searchUsers} />
+          <TextInput style={[styles.input,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,color:theme.colors.text}]} value={userQuery} onChangeText={setUserQuery} placeholder="Search name, full email, 10-digit mobile or User ID" autoCapitalize="none" onSubmitEditing={searchUsers} />
           <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={searchUsers}><Text style={styles.primaryText}>Search</Text></Pressable>
           <ScrollView style={styles.results}>
+            {userSearchCompleted && userResults.length === 0 ? <Text style={[styles.emptyResult,{color:theme.colors.secondary}]}>No results found.</Text> : null}
             {userResults.map(user => (
               <Pressable key={user.id} style={[styles.resultRow,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]} onPress={() => startPrivateChat(user)}>
                 <Text style={[styles.resultTitle,{color:theme.colors.text}]}>{user.name}</Text>
@@ -565,6 +570,7 @@ const styles = StyleSheet.create({
   resultRow: { padding: 14, marginBottom: 8, borderRadius: 12, backgroundColor: '#fff' },
   resultTitle: { color: '#172033', fontWeight: '800' },
   resultSub: { marginTop: 3, color: '#6b7280', fontSize: 12 },
+  emptyResult: { paddingVertical: 24, textAlign: 'center', fontSize: 14, fontWeight: '700' },
   label: { color: '#172033', fontWeight: '700', marginBottom: -4 },
   help: { color: '#6b7280', lineHeight: 19 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
