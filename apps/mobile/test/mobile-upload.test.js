@@ -104,7 +104,6 @@ test('chat attachment preview uses the native Modal and dismisses after Send', (
 });
 
 test('chat attachment upload is owned by useAttachmentUpload with progress and cancellation wired into the preview modal', () => {
-  const hookSource = appSource.match(/useAttachmentUpload\(\{[\s\S]*?\n  \}\);/)?.[0] || '';
   assert.match(appSource, /import \{ useAttachmentUpload \} from ['"]\.\/src\/hooks\/useAttachmentUpload['"]/);
   assert.match(hookSource, /chatId: chat\.id/);
   assert.match(hookSource, /onMessage: onMediaMessage/);
