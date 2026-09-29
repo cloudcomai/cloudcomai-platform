@@ -103,12 +103,34 @@ test('chat attachment preview uses the native Modal and dismisses after Send', (
   assert.ok(appSource.includes('onRequestClose={() => { if(!uploading)setAttachmentDraft(null); }}'));
 });
 
-test('chat photo/document Send uses the non-XHR upload path so the preview modal cannot remain stuck on the progress overlay', () => {
-  const sendAttachment = appSource.match(/const sendAttachment = async \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
-  assert.match(sendAttachment, /uploadAttachmentAsset\(attachmentDraft,\{chat_id:chat\.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo\?\.id\|\|undefined,multipartPartMode:attachmentDraft\.multipartPartMode\|\|'expo-file'\}\)/);
-  assert.doesNotMatch(sendAttachment, /onProgress/);
+test('chat attachment upload is owned by useAttachmentUpload with progress and cancellation wired into the preview modal', () => {
+  const hookSource = appSource.match(/useAttachmentUpload\(\{[\s\S]*?\n  \}\);/)?.[0] || '';
+  assert.match(appSource, /import \{ useAttachmentUpload \} from ['"]\.\/src\/hooks\/useAttachmentUpload['"]/);
+  assert.match(hookSource, /chatId: chat\.id/);
+  assert.match(hookSource, /onMessage: onMediaMessage/);
+  assert.match(appSource, /onProgress: progress => setAttachmentProgress\(progress\)/);
+  assert.match(appSource, /onCancelAvailable: cancel =>/);
+  assert.match(appSource, /onRequestClose=\{\(\) => \{ if\(uploading\) cancelUpload\(\); else setAttachmentDraft\(null\); \}\}/);
+  assert.match(appSource, /if\(uploading\)\{ cancelUpload\(\); \} else \{ setAttachmentDraft\(null\); setAttachmentError\(''\); \}/);
+  assert.match(appSource, /disabled=\{uploading\}/);
   assert.match(appSource, /Sending attachment… Please wait\./);
   assert.match(appSource, /ActivityIndicator color="#3157d5"/);
+});
+
+test('mobile attachment service exposes an active XHR cancellation handle and normalizes cancelled uploads', () => {
+  assert.match(platformSource, /activeAttachmentUploadCancel/);
+  assert.match(platformSource, /onCancelAvailable/);
+  assert.match(platformSource, /xhr\.abort\(\)/);
+  assert.match(platformSource, /code:'UPLOAD_CANCELLED'/);
+  assert.match(platformSource, /finally\{activeAttachmentUploadCancel=null;onCancelAvailable\?\.\(null\);\}/);
+});
+
+test('mobile attachment hook clears the draft after UPLOAD_CANCELLED and does not report a cancellation as an upload error', () => {
+  const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
+  assert.match(hookSource, /error\?\.code === 'UPLOAD_CANCELLED'/);
+  assert.match(hookSource, /clearDraft\?\.\(\)/);
+  assert.match(hookSource, /setAttachmentError\(''\)/);
+  assert.match(hookSource, /cancelActiveAttachmentUpload\(\)/);
 });
 
 
