@@ -47,3 +47,14 @@ test('read status is compact and only shown for a selected message', () => {
   assert.match(receipt, />✓✓<\/Text>/);
   assert.doesNotMatch(receipt, /<Text style=\{styles\.label\}>/);
 });
+
+test('text message edit action follows the three-hour two-edit UI policy', () => {
+  assert.match(app, /const canEditMessage = message =>/);
+  assert.match(app, /Number\(message\?\.edit_count \|\| 0\) >= 2/);
+  assert.match(app, /Date\.parse\(message\?\.created_at/);
+  assert.match(app, /3 \* 60 \* 60 \* 1000/);
+  assert.match(media, /canEdit \? <MessageAction type="edit" label="Edit"/);
+  assert.match(media, /accessibilityLabel="Edit message"/);
+  assert.match(app, /canEdit=\{canEditMessage\(item\)\}/);
+  assert.match(app, /edit_count: Number\(updated\?\.edit_count/);
+});

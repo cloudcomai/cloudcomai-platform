@@ -352,14 +352,25 @@ export default function App() {
         return () => transport.stop();
     }, [selectedChat?.id, selectedChat?.isContact, token, screen]);
 
+    const canEditMessage = message => {
+        if (Number(message?.sender_id) !== Number(user?.id) || message?.type !== 'text' || Number(message?.edit_count || 0) >= 2) return false;
+        const createdAt = Date.parse(message?.created_at || message?.timestamp || message?.time || '');
+        return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000;
+    };
+
     const handleSendMessage = async () => {
         if (!composer.trim() || !selectedChat || selectedChat.blocked || sendInProgress.current) return;
         sendInProgress.current = true; setSending(true);
         const chatId = selectedChat.id;
         try {
             if (editing) {
-                await platformApi.editMessage(editing.id, composer);
-                setMessages(prev => prev.map(m => Number(m.id) === Number(editing.id) ? { ...m, body: composer, edit_count: 1, edited: true } : m));
+                if (!canEditMessage(editing)) {
+                    setEditing(null);
+                    throw new Error('This message can no longer be edited. Messages can be edited only within 3 hours and up to 2 times.');
+                }
+                const response = await platformApi.editMessage(editing.id, composer);
+                const updated = response?.data?.message;
+                setMessages(prev => prev.map(m => Number(m.id) === Number(editing.id) ? { ...m, body: composer, edit_count: Number(updated?.edit_count ?? Number(m.edit_count || 0) + 1), edited: true, edited_at: updated?.edited_at || new Date().toISOString() } : m));
                 if (Number(activeChatRef.current?.id) === Number(chatId)) { setEditing(null); setComposer(messaging?.snapshot().drafts[String(chatId)] || ''); }
             } else {
                 if (!messaging) throw new Error('Local messages are still loading. Please try again.');
