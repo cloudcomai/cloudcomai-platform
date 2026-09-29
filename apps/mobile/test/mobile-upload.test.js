@@ -125,6 +125,15 @@ test('mobile attachment service exposes an active XHR cancellation handle and no
   assert.match(platformSource, /finally\{activeAttachmentUploadCancel=null;onCancelAvailable\?\.\(null\);\}/);
 });
 
+test('video media preview keeps Cancel enabled during upload and wires cancellation to the active upload', () => {
+  assert.match(composerSource, /cancelActiveAttachmentUpload/);
+  assert.match(composerSource, /onCancelAvailable/);
+  assert.match(composerSource, /accessibilityLabel=\{busy === 'upload' \? 'Cancel media upload' : 'Cancel media'\}/);
+  assert.match(composerSource, /accessibilityState=\{\{ disabled: false \}\}/);
+  assert.match(composerSource, /if \(busy === 'upload'\) \{ cancelRequested\.current = true; cancelActiveAttachmentUpload\(\); \}/);
+  assert.match(composerSource, /error\?\.code === 'UPLOAD_CANCELLED'/);
+});
+
 test('attachment cancel action stays enabled and visibly active while uploading', () => {
   assert.match(appSource, /accessibilityLabel=\{uploading \? 'Cancel attachment upload' : 'Cancel attachment'\}/);
   assert.match(appSource, /accessibilityState=\{\{ disabled: false \}\}/);

@@ -4,7 +4,7 @@ import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, use
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { File } from 'expo-file-system';
-import { platformApi, uploadAttachmentAsset } from '../services/platform';
+import { platformApi, uploadAttachmentAsset, cancelActiveAttachmentUpload } from '../services/platform';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { AudioPreview, VideoPreview } from './MediaMessage';
 
@@ -15,6 +15,7 @@ export default function MediaComposer({ chat, onMessage }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [draft, setDraft] = useState(null);
+  const cancelRequested = useRef(false);
   const active = useRef(true);
   const stopping = useRef(false);
   const recordingUri = useRef(null);
@@ -61,6 +62,7 @@ export default function MediaComposer({ chat, onMessage }) {
   const send = async () => {
     if (!draft || busy) return;
     setBusy('upload');
+    cancelRequested.current = false;
     setUploadError('');
     setUploadProgress(0);
     try {
@@ -72,11 +74,23 @@ export default function MediaComposer({ chat, onMessage }) {
         video_height: draft.height || undefined,
         video_duration_seconds: draft.durationSeconds || undefined,
         onProgress: setUploadProgress,
+        onCancelAvailable: cancel => {
+          if (cancelRequested.current && cancel) cancel();
+        },
         multipartPartMode: 'native',
       });
       if (active.current) { setUploadProgress(1); onMessage(data.message); setDraft(null); removeRecording(); }
     } catch (error) {
-      if (active.current) setUploadError(error?.message || 'The media upload failed. Please try again.');
+      if (active.current) {
+        if (error?.code === 'UPLOAD_CANCELLED') {
+          setUploadProgress(0);
+          setUploadError('');
+          setDraft(null);
+          removeRecording();
+        } else {
+          setUploadError(error?.message || 'The media upload failed. Please try again.');
+        }
+      }
     } finally { if (active.current) setBusy(''); }
   };
 
@@ -99,9 +113,9 @@ export default function MediaComposer({ chat, onMessage }) {
         {draft && (draft.type === 'voice' ? <AudioPreview source={draft.uri} /> : <VideoPreview source={draft.uri} local />)}
         {busy === 'upload' ? <View style={styles.progressBox}><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(uploadProgress * 100)}%` }]} /></View><Text style={styles.progressText}>Sending media… {Math.round(uploadProgress * 100)}%</Text></View> : null}
         {uploadError ? <View style={styles.errorBox}><Text style={styles.errorText}>{uploadError}</Text><Pressable onPress={send} disabled={Boolean(busy)} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable></View> : null}
-        <View style={styles.row}><Pressable disabled={Boolean(busy)} onPress={send} style={styles.button}><Text style={styles.link}>{busy === 'upload' ? 'Sending…' : 'Send'}</Text></Pressable><Pressable disabled={Boolean(busy)} onPress={() => { setDraft(null); setUploadError(''); removeRecording(); }} style={styles.button}><Text style={styles.link}>Cancel</Text></Pressable></View>
+        <View style={styles.row}><Pressable disabled={Boolean(busy)} onPress={send} style={styles.button}><Text style={styles.link}>{busy === 'upload' ? 'Sending…' : 'Send'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={busy === 'upload' ? 'Cancel media upload' : 'Cancel media'} accessibilityState={{ disabled: false }} hitSlop={8} onPress={() => { if (busy === 'upload') { cancelRequested.current = true; cancelActiveAttachmentUpload(); } else { setDraft(null); setUploadError(''); removeRecording(); } }} style={styles.button}><Text style={[styles.link, busy === 'upload' && styles.cancelActive]}>Cancel</Text></Pressable></View>
       </View></View>
     </Modal>
   </View>;
 }
-const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: 10, justifyContent: 'center', backgroundColor: '#fff' }, button: { padding: 12 }, link: { color: '#3157d5', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center' }, card: { backgroundColor: '#fff', padding: 24, borderRadius: 18, maxWidth: '95%' }, title: { fontSize: 18, fontWeight: '700', color: '#172033', marginBottom: 12 }, progressBox: { marginTop: 12, width: '100%' }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#e5e7eb', overflow: 'hidden' }, progressFill: { height: 7, borderRadius: 4, backgroundColor: '#3157d5' }, progressText: { marginTop: 6, color: '#68748a', fontSize: 12 }, errorBox: { marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: '#fff1f2' }, errorText: { color: '#9f1239', fontSize: 13 }, retryButton: { marginTop: 8, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12 }, retryText: { color: '#3157d5', fontWeight: '700' } });
+const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: 10, justifyContent: 'center', backgroundColor: '#fff' }, button: { padding: 12 }, link: { color: '#3157d5', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center' }, card: { backgroundColor: '#fff', padding: 24, borderRadius: 18, maxWidth: '95%' }, title: { fontSize: 18, fontWeight: '700', color: '#172033', marginBottom: 12 }, progressBox: { marginTop: 12, width: '100%' }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#e5e7eb', overflow: 'hidden' }, progressFill: { height: 7, borderRadius: 4, backgroundColor: '#3157d5' }, progressText: { marginTop: 6, color: '#68748a', fontSize: 12 }, errorBox: { marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: '#fff1f2' }, errorText: { color: '#9f1239', fontSize: 13 }, retryButton: { marginTop: 8, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12 }, retryText: { color: '#3157d5', fontWeight: '700' }, cancelActive: { fontWeight: '900' } });
