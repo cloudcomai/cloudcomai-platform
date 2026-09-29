@@ -103,7 +103,8 @@ test('chat attachment preview uses the native Modal and dismisses after Send', (
   assert.match(appSource, /sendAttachment\(attachmentDraft/);
 });
 
-test('chat attachment upload is owned by useAttachmentUpload with progress and cancellation wired into the preview modal', () => {
+test('chat attachment upload is owned by useAttachmentUpload with progress and cancellation wired into the preview modal', async () => {
+  const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
   assert.match(appSource, /import \{ useAttachmentUpload \} from ['"]\.\/src\/hooks\/useAttachmentUpload['"]/);
   assert.match(hookSource, /chatId: chat\.id/);
   assert.match(hookSource, /onMessage: onMediaMessage/);
