@@ -125,6 +125,13 @@ test('mobile attachment service exposes an active XHR cancellation handle and no
   assert.match(platformSource, /finally\{activeAttachmentUploadCancel=null;onCancelAvailable\?\.\(null\);\}/);
 });
 
+test('attachment cancel action stays enabled and visibly active while uploading', () => {
+  assert.match(appSource, /accessibilityLabel=\{uploading \? 'Cancel attachment upload' : 'Cancel attachment'\}/);
+  assert.match(appSource, /accessibilityState=\{\{ disabled: false \}\}/);
+  assert.match(appSource, /uploading && styles\.cancelTextActive/);
+  assert.match(appSource, /if\(uploading\)\{ cancelUpload\(\); \}/);
+});
+
 test('mobile attachment hook clears the draft after UPLOAD_CANCELLED and does not report a cancellation as an upload error', async () => {
   const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
   assert.match(hookSource, /error\?\.code === 'UPLOAD_CANCELLED'/);
