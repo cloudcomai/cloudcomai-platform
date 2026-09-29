@@ -125,7 +125,7 @@ test('mobile attachment service exposes an active XHR cancellation handle and no
   assert.match(platformSource, /finally\{activeAttachmentUploadCancel=null;onCancelAvailable\?\.\(null\);\}/);
 });
 
-test('mobile attachment hook clears the draft after UPLOAD_CANCELLED and does not report a cancellation as an upload error', () => {
+test('mobile attachment hook clears the draft after UPLOAD_CANCELLED and does not report a cancellation as an upload error', async () => {
   const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
   assert.match(hookSource, /error\?\.code === 'UPLOAD_CANCELLED'/);
   assert.match(hookSource, /clearDraft\?\.\(\)/);
