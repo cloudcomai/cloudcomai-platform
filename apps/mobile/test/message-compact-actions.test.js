@@ -58,3 +58,10 @@ test('text message edit action follows the three-hour two-edit UI policy', () =>
   assert.match(app, /canEdit=\{canEditMessage\(item\)\}/);
   assert.match(app, /edit_count: Number\(updated\?\.edit_count/);
 });
+
+
+test('edit timestamp parser treats database timestamps as UTC', () => {
+  assert.match(app, /const parseEditTimestamp = value =>/);
+  assert.match(app, /Date\.parse\(\/\[zZ\]\|\[\+\-\]\\\\d\{2\}:\?\\\\d\{2\}\$\/\.test\(normalized\) \? normalized : `\\\$\{normalized\}Z`\)/);
+  assert.match(app, /const createdAt = parseEditTimestamp\(message\?\.created_at/);
+});
