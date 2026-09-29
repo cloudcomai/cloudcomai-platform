@@ -211,6 +211,13 @@ function AuthScreen({ onAuthenticated }) {
   );
 }
 
+const parseEditTimestamp = value => {
+  const raw = String(value || '').trim();
+  if (!raw) return NaN;
+  const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+  return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
+};
+
 function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
@@ -394,7 +401,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   });
   const canEditMessage = message => {
     if (Number(message?.sender_id) !== Number(user.id) || message?.type !== 'text' || Number(message?.edit_count || 0) >= 2) return false;
-    const createdAt = Date.parse(message?.created_at || message?.timestamp || message?.time || '');
+    const createdAt = parseEditTimestamp(message?.created_at || message?.timestamp || message?.time || '');
     return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000;
   };
 
