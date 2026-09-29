@@ -65,6 +65,13 @@ const screenHashes = {
     app: '#app',
 };
 
+const parseEditTimestamp = value => {
+    const raw = String(value || '').trim();
+    if (!raw) return NaN;
+    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
+    return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
+};
+
 export default function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [screen, setScreen] = useState(screenFromLocation);
@@ -354,7 +361,7 @@ export default function App() {
 
     const canEditMessage = message => {
         if (Number(message?.sender_id) !== Number(user?.id) || message?.type !== 'text' || Number(message?.edit_count || 0) >= 2) return false;
-        const createdAt = Date.parse(message?.created_at || message?.timestamp || message?.time || '');
+        const createdAt = parseEditTimestamp(message?.created_at || message?.timestamp || message?.time || '');
         return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000;
     };
 
