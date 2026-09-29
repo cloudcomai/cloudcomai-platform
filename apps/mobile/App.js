@@ -392,6 +392,12 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     onMessage: onMediaMessage,
     onReplyConsumed: () => setReplyTo(null),
   });
+  const canEditMessage = message => {
+    if (Number(message?.sender_id) !== Number(user.id) || message?.type !== 'text' || Number(message?.edit_count || 0) >= 2) return false;
+    const createdAt = Date.parse(message?.created_at || message?.timestamp || message?.time || '');
+    return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000;
+  };
+
   const deleteMessage = message => {
     const remove = async scope => {
       try {
@@ -414,8 +420,13 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     setError('');
     try {
       if (editing) {
-        await platformApi.editMessage(editing.id, body);
-        setMessages(current => current.map(item => Number(item.id) === Number(editing.id) ? { ...item, body, edit_count: 1, edited: true } : item));
+        if (!canEditMessage(editing)) {
+          setEditing(null);
+          throw new Error('This message can no longer be edited. Messages can be edited only within 3 hours and up to 2 times.');
+        }
+        const response = await platformApi.editMessage(editing.id, body);
+        const updated = response?.data?.message;
+        setMessages(current => current.map(item => Number(item.id) === Number(editing.id) ? { ...item, body, edit_count: Number(updated?.edit_count ?? Number(item.edit_count || 0) + 1), edited: true, edited_at: updated?.edited_at || new Date().toISOString() } : item));
         setEditing(null);
       } else {
         if (!messaging) throw new Error('Local messages are still loading. Please try again.');
@@ -589,6 +600,8 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
                 onReply={() => { setReplyTo(item); if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setEditing(null); setSelectedMessage(null); }}
                 onSave={() => toggleSaved(item)}
                 onDelete={() => { setSelectedMessage(null); deleteMessage(item); }}
+                canEdit={canEditMessage(item)}
+                onEdit={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}
               />
               <Text style={[styles.messageTime, { color: messageColors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
 
