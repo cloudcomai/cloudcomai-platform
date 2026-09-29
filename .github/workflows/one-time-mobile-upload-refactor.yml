@@ -1,0 +1,70 @@
+name: One-time mobile upload refactor
+
+on:
+  push:
+    branches:
+      - fix/mobile-cancel-video-upload
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+
+      - name: Patch App.js and remove one-time workflow
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/mobile/App.js')
+          s = p.read_text()
+
+          s = s.replace(
+              "import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, uploadAttachmentAsset } from './src/services/platform';",
+              "import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration } from './src/services/platform';\nimport { useAttachmentUpload } from './src/hooks/useAttachmentUpload';"
+          )
+          s = s.replace("  const [uploading, setUploading] = useState(false);\n", "")
+          s = s.replace("  const [attachmentError, setAttachmentError] = useState('');\n", "")
+          s = s.replace("  const [attachmentProgress, setAttachmentProgress] = useState(0);\n", "")
+
+          old = '''  const uploadAttachment = async asset => {\n    if (!asset || uploading || chat.blocked) return;\n    const size=Number(asset.fileSize ?? asset.size ?? 0);\n    if(size>25*1024*1024){setError('Files must be 25 MB or smaller.');return;}\n    setAttachmentError(''); setAttachmentProgress(0);\n    setAttachmentDraft(asset);\n  };\n  const sendAttachment = async () => {\n    if(!attachmentDraft || uploading || chat.blocked)return;\n    setUploading(true);setAttachmentError('');setAttachmentProgress(0);\n    try{\n      const {data}=await uploadAttachmentAsset(attachmentDraft,{chat_id:chat.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo?.id||undefined,multipartPartMode:attachmentDraft.multipartPartMode||'expo-file'});\n      if(data.message)setMessages(current=>mergeMessageBatch(current,[data.message]).messages);\n      setAttachmentDraft(null);setReplyTo(null);setAttachmentProgress(1);\n    }catch(e){setAttachmentError(e.message||'Unable to upload attachment. Please try again.');}\n    finally{setUploading(false);}\n  };\n'''
+          if old not in s:
+              raise SystemExit('Expected upload functions were not found; refusing to modify App.js')
+          s = s.replace(old, '')
+
+          marker = '''  const onMediaMessage = message => {\n    if (!message) return;\n    setMessages(current => {\n      const result = mergeMessageBatch(current, [message]);\n      return result.messages;\n    });\n  };\n'''
+          hook = marker + '''  const {\n    uploading,\n    attachmentProgress,\n    attachmentError,\n    setAttachmentError,\n    uploadAttachment,\n    sendAttachment,\n    cancelUpload,\n  } = useAttachmentUpload({\n    chatId: chat.id,\n    blocked: chat.blocked,\n    replyToMessageId: replyTo?.id,\n    onMessage: onMediaMessage,\n    onReplyConsumed: () => setReplyTo(null),\n  });\n'''
+          if marker not in s:
+              raise SystemExit('Media message marker not found; refusing to modify App.js')
+          s = s.replace(marker, hook, 1)
+
+          s = s.replace(
+              "<Modal visible transparent animationType='slide' onRequestClose={() => { if(!uploading)setAttachmentDraft(null); }}>",
+              "<Modal visible transparent animationType='slide' onRequestClose={() => { if(uploading) cancelUpload(); else setAttachmentDraft(null); }} >"
+          )
+          s = s.replace(
+              "<Pressable onPress={sendAttachment} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable>",
+              "<Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable>"
+          )
+          s = s.replace(
+              "<Pressable onPress={sendAttachment} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable onPress={() => { if(!uploading){setAttachmentDraft(null);setAttachmentError('');} }} disabled={uploading}><Text style={styles.cancelText}>Cancel</Text></Pressable>",
+              "<Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable onPress={() => { if(uploading){ cancelUpload(); } else { setAttachmentDraft(null); setAttachmentError(''); } }}><Text style={styles.cancelText}>Cancel</Text></Pressable>"
+          )
+
+          p.write_text(s)
+          PY
+
+          rm -f .github/workflows/one-time-mobile-upload-refactor.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/App.js apps/mobile/src/hooks/useAttachmentUpload.js .github/workflows/one-time-mobile-upload-refactor.yml
+          git commit -m "refactor(mobile): wire cancellable attachment uploads"
+          git push origin "$BRANCH"
