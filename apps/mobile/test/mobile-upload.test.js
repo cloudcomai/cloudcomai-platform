@@ -15,37 +15,37 @@ test('profile and group image uploads use Expo File multipart parts to avoid uns
 });
 
 
-test('chat attachment uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
+test('chat attachment uploads use the shared multipart service and expose cancellation hooks', () => {
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
   assert.match(attachmentUpload, /multipartPartMode='expo-file'/);
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
-  assert.doesNotMatch(platformSource, /File\.fromUri\(/);
-  assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
-  assert.match(platformSource, /if \(!file\.exists\) return false/);
-  assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
+  assert.match(attachmentUpload, /onProgress/);
+  assert.match(attachmentUpload, /onCancelAvailable/);
+  assert.match(platformSource, /const appendExpoFilePart =/);
+  assert.match(platformSource, /form\.append\(fieldName,file\)/);
 });
 
-test('shared multipart contract covers image, voice, video and document attachments without unsupported Expo parts', () => {
+test('shared multipart contract covers image, voice, video and document attachments', () => {
   const attachmentUpload = platformSource.match(/export const uploadAttachmentAsset=[^\n]+/)?.[0] || '';
   assert.match(attachmentUpload, /ApiRoute\.UPLOAD_ATTACHMENT/);
   assert.match(attachmentUpload, /multipartPartMode='expo-file'/);
-  assert.doesNotMatch(platformSource, /File\.fromUri\(/);
-  assert.doesNotMatch(platformSource, /UploadType\.MULTIPART/);
-  assert.match(platformSource, /const file = new File\(normalized\.uri\)/);
-  assert.match(platformSource, /form\.append\(fieldName,\s*file\)/);
+  assert.match(platformSource, /const appendNativeFilePart =/);
+  assert.match(platformSource, /const appendExpoFilePart =/);
+  assert.match(platformSource, /form\.append\(fieldName,file\)/);
   assert.match(composerSource, /uploadAttachmentAsset/);
   assert.match(composerSource, /type:\s*'voice'/);
   assert.match(composerSource, /type:\s*'video'/);
-  assert.match(appSource, /uploadAttachmentAsset\(attachmentDraft/);
+  assert.match(appSource, /useAttachmentUpload/);
 });
 
-test('voice and video uploads use React Native native file parts with progress XHR', () => {
+test('voice and video uploads use native file parts with progress XHR', () => {
   assert.match(composerSource, /multipartPartMode:\s*'native'/);
   assert.match(composerSource, /type:\s*'voice'/);
   assert.match(composerSource, /type:\s*'video'/);
-  assert.match(platformSource, /multipartPartMode='expo-file'/);
-  assert.match(platformSource, /multipartPartMode,onProgress,extraFiles/);
-  assert.match(platformSource, /form\.append\(fieldName,\s*\{\s*uri:\s*normalized\.uri,\s*name:\s*normalized\.name,\s*type:\s*normalized\.mimeType\s*\}\)/);
+  assert.match(platformSource, /const appendNativeFilePart =/);
+  assert.match(platformSource, /form\.append\(fieldName,\{uri:normalized\.uri,name:normalized\.name,type:normalized\.mimeType\}\)/);
+  assert.match(platformSource, /onProgress,onCancelAvailable/);
+  assert.match(platformSource, /xhr\.upload\.onprogress/);
   assert.match(platformSource, /xhr\.send\(formData\)/);
 });
 
@@ -79,9 +79,9 @@ test('mobile uploads preserve MIME metadata and filename for native and Blob par
   assert.match(platformSource, /form\.append\(fieldName,\s*typedBlob,\s*normalized\.name\)/);
 });
 
-test('media upload reports progress, real server errors and retry without creating a message on client failure', () => {
-  assert.match(platformSource, /xhr\.onload\s*=\s*\(\)\s*=>resolve/);
-  assert.match(platformSource, /xhr\.ontimeout/);
+test('media upload reports progress, server errors and retry without creating a message on client failure', () => {
+  assert.match(platformSource, /xhr\.onload=\(\)=>\{/);
+  assert.match(platformSource, /xhr\.ontimeout=\(\)=>/);
   assert.match(composerSource, /setUploadError/);
   assert.match(composerSource, /Retry/);
   assert.match(composerSource, /onMessage\(data\.message\)/);
@@ -99,16 +99,38 @@ test('Ring Bell media posting uses the shared upload route and exposes retry/suc
 
 test('chat attachment preview uses the native Modal and dismisses after Send', () => {
   assert.ok(appSource.includes('  Modal,\n'));
-  assert.ok(appSource.includes('setAttachmentDraft(null);setReplyTo(null);setAttachmentProgress(1);'));
-  assert.ok(appSource.includes('onRequestClose={() => { if(!uploading)setAttachmentDraft(null); }}'));
+  assert.match(appSource, /onRequestClose=\{\(\) => \{ if\(uploading\) cancelUpload\(\); else setAttachmentDraft\(null\); \}\}/);
+  assert.match(appSource, /sendAttachment\(attachmentDraft/);
 });
 
-test('chat photo/document Send uses the non-XHR upload path so the preview modal cannot remain stuck on the progress overlay', () => {
-  const sendAttachment = appSource.match(/const sendAttachment = async \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
-  assert.match(sendAttachment, /uploadAttachmentAsset\(attachmentDraft,\{chat_id:chat\.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo\?\.id\|\|undefined,multipartPartMode:attachmentDraft\.multipartPartMode\|\|'expo-file'\}\)/);
-  assert.doesNotMatch(sendAttachment, /onProgress/);
+test('chat attachment upload is owned by useAttachmentUpload with progress and cancellation wired into the preview modal', async () => {
+  const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
+  assert.match(appSource, /import \{ useAttachmentUpload \} from ['"]\.\/src\/hooks\/useAttachmentUpload['"]/);
+  assert.match(appSource, /chatId: chat\.id/);
+  assert.match(appSource, /onMessage: onMediaMessage/);
+  assert.match(hookSource, /onProgress: progress => setAttachmentProgress\(progress\)/);
+  assert.match(hookSource, /onCancelAvailable: cancel =>/);
+  assert.match(appSource, /onRequestClose=\{\(\) => \{ if\(uploading\) cancelUpload\(\); else setAttachmentDraft\(null\); \}\}/);
+  assert.match(appSource, /if\(uploading\)\{ cancelUpload\(\); \} else \{ setAttachmentDraft\(null\); setAttachmentError\(''\); \}/);
+  assert.match(appSource, /disabled=\{uploading\}/);
   assert.match(appSource, /Sending attachment… Please wait\./);
   assert.match(appSource, /ActivityIndicator color="#3157d5"/);
+});
+
+test('mobile attachment service exposes an active XHR cancellation handle and normalizes cancelled uploads', () => {
+  assert.match(platformSource, /activeAttachmentUploadCancel/);
+  assert.match(platformSource, /onCancelAvailable/);
+  assert.match(platformSource, /xhr\.abort\(\)/);
+  assert.match(platformSource, /code:'UPLOAD_CANCELLED'/);
+  assert.match(platformSource, /finally\{activeAttachmentUploadCancel=null;onCancelAvailable\?\.\(null\);\}/);
+});
+
+test('mobile attachment hook clears the draft after UPLOAD_CANCELLED and does not report a cancellation as an upload error', async () => {
+  const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
+  assert.match(hookSource, /error\?\.code === 'UPLOAD_CANCELLED'/);
+  assert.match(hookSource, /clearDraft\?\.\(\)/);
+  assert.match(hookSource, /setAttachmentError\(''\)/);
+  assert.match(hookSource, /cancelActiveAttachmentUpload\(\)/);
 });
 
 

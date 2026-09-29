@@ -29,7 +29,7 @@ test('attachment plus button keeps camera, photo library and document flows with
  assert.ok(app.includes('Document'));
  assert.ok(app.includes('attachmentDraft'));
  assert.ok(app.includes('Retry'));
- assert.ok(app.includes('uploadAttachmentAsset'));
+ assert.ok(app.includes('useAttachmentUpload'));
 });
 test('API client exposes message context and public moderation endpoints',()=>{
  assert.ok(api.includes('getMessageContext(chatId, messageId'));

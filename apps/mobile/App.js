@@ -30,7 +30,8 @@ import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import AccountTools from './src/components/AccountTools';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
-import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, uploadAttachmentAsset } from './src/services/platform';
+import { mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration } from './src/services/platform';
+import { useAttachmentUpload } from './src/hooks/useAttachmentUpload';
 import { isAppLockEnabled, verifyAppLockPin } from './src/services/appLock';
 import { isAppLockResumeSuppressed, withAppLockExternalActivity } from './src/utils/appLockActivity';
 import { getLastNotificationResponse, getNotificationPreferences, rememberDeviceToken, forgetDeviceToken, setApplicationBadge, requestNotificationPermission, setNotificationPreferences, subscribeToNotificationResponses } from './src/services/notifications';
@@ -216,7 +217,6 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const sendInProgress = useRef(false);
-  const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const cursorRef = useRef(0);
@@ -246,8 +246,6 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [publicManageOpen, setPublicManageOpen] = useState(false);
   const [attachmentDraft, setAttachmentDraft] = useState(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
-  const [attachmentError, setAttachmentError] = useState('');
-  const [attachmentProgress, setAttachmentProgress] = useState(0);
   const searchActive = searchOpen && query.trim().length > 0;
   const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
   const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
@@ -379,6 +377,21 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       return result.messages;
     });
   };
+  const {
+    uploading,
+    attachmentProgress,
+    attachmentError,
+    setAttachmentError,
+    uploadAttachment,
+    sendAttachment,
+    cancelUpload,
+  } = useAttachmentUpload({
+    chatId: chat.id,
+    blocked: chat.blocked,
+    replyToMessageId: replyTo?.id,
+    onMessage: onMediaMessage,
+    onReplyConsumed: () => setReplyTo(null),
+  });
   const deleteMessage = message => {
     const remove = async scope => {
       try {
@@ -418,23 +431,6 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     }
   };
 
-  const uploadAttachment = async asset => {
-    if (!asset || uploading || chat.blocked) return;
-    const size=Number(asset.fileSize ?? asset.size ?? 0);
-    if(size>25*1024*1024){setError('Files must be 25 MB or smaller.');return;}
-    setAttachmentError(''); setAttachmentProgress(0);
-    setAttachmentDraft(asset);
-  };
-  const sendAttachment = async () => {
-    if(!attachmentDraft || uploading || chat.blocked)return;
-    setUploading(true);setAttachmentError('');setAttachmentProgress(0);
-    try{
-      const {data}=await uploadAttachmentAsset(attachmentDraft,{chat_id:chat.id,download_policy:'APPROVAL_REQUIRED',reply_to_message_id:replyTo?.id||undefined,multipartPartMode:attachmentDraft.multipartPartMode||'expo-file'});
-      if(data.message)setMessages(current=>mergeMessageBatch(current,[data.message]).messages);
-      setAttachmentDraft(null);setReplyTo(null);setAttachmentProgress(1);
-    }catch(e){setAttachmentError(e.message||'Unable to upload attachment. Please try again.');}
-    finally{setUploading(false);}
-  };
 
   const validateAttachment = asset => {
     const size = Number(asset?.fileSize ?? asset?.size ?? 0);
@@ -620,7 +616,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             {chat.isPublic ? <PublicChatManagement themeSettings={themeSettings} visible={publicManageOpen} chat={chat} user={user} onClose={() => setPublicManageOpen(false)} onLeave={async () => { try { await platformApi.leavePublicChat(Number(chat.id)); setPublicManageOpen(false); onBack(); } catch (e) { setError(e.message || 'Unable to leave public chat room.'); } }} /> : null}
 {attachmentMenuOpen ? <Modal visible transparent animationType='fade' onRequestClose={() => setAttachmentMenuOpen(false)}><Pressable accessibilityRole="button" accessibilityLabel="Close attachment menu backdrop" style={styles.attachmentMenuOverlay} onPress={() => setAttachmentMenuOpen(false)}><Pressable style={styles.attachmentMenuCard} onPress={event => event.stopPropagation()}><View style={styles.attachmentMenuHeader}><Text style={styles.attachmentTitle}>Add attachment</Text><Pressable accessibilityRole="button" accessibilityLabel="Close attachment menu" hitSlop={8} onPress={() => setAttachmentMenuOpen(false)} style={styles.attachmentMenuClose}><Text style={styles.attachmentMenuCloseText}>×</Text></Pressable></View><Text style={styles.attachmentMenuHint}>Choose where the attachment should come from.</Text><View style={styles.attachmentMenuActions}><Pressable style={styles.attachmentMenuOption} onPress={() => pickImage(true)}><Text style={styles.attachmentMenuOptionText}>CAMERA</Text></Pressable><Pressable style={styles.attachmentMenuOption} onPress={() => pickImage(false)}><Text style={styles.attachmentMenuOptionText}>PHOTO LIBRARY</Text></Pressable><Pressable style={styles.attachmentMenuOption} onPress={pickDocument}><Text style={styles.attachmentMenuOptionText}>DOCUMENT</Text></Pressable></View></Pressable></Pressable></Modal> : null}
       <MediaComposer chat={chat} onMessage={onMediaMessage} />
-      {attachmentDraft ? <Modal visible transparent animationType='slide' onRequestClose={() => { if(!uploading)setAttachmentDraft(null); }}><View style={styles.overlay}><View style={styles.attachmentCard}><Text style={styles.attachmentTitle}>Preview attachment</Text>{String(attachmentDraft.mimeType||'').startsWith('image/') ? <Image source={{uri:attachmentDraft.uri}} style={styles.attachmentPreview} resizeMode='contain'/> : <View style={styles.documentPreview}><Text style={styles.documentIcon}>📄</Text><Text style={styles.documentName} numberOfLines={2}>{attachmentDraft.name || 'Selected file'}</Text><Text style={styles.documentSize}>{Number(attachmentDraft.fileSize ?? attachmentDraft.size ?? 0) ? Math.round(Number(attachmentDraft.fileSize ?? attachmentDraft.size)/1024)+' KB' : 'File selected'}</Text></View>}{uploading?<View style={styles.attachmentSending}><ActivityIndicator color="#3157d5" /><Text style={styles.attachmentProgress}>Sending attachment… Please wait.</Text></View>:null}{attachmentError?<View style={styles.attachmentError}><Text style={styles.attachmentErrorText}>{attachmentError}</Text><Pressable onPress={sendAttachment} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable></View>:null}<View style={styles.attachmentActions}><Pressable onPress={sendAttachment} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable onPress={() => { if(!uploading){setAttachmentDraft(null);setAttachmentError('');} }} disabled={uploading}><Text style={styles.cancelText}>Cancel</Text></Pressable></View></View></View></Modal> : null}
+      {attachmentDraft ? <Modal visible transparent animationType='slide' onRequestClose={() => { if(uploading) cancelUpload(); else setAttachmentDraft(null); }} ><View style={styles.overlay}><View style={styles.attachmentCard}><Text style={styles.attachmentTitle}>Preview attachment</Text>{String(attachmentDraft.mimeType||'').startsWith('image/') ? <Image source={{uri:attachmentDraft.uri}} style={styles.attachmentPreview} resizeMode='contain'/> : <View style={styles.documentPreview}><Text style={styles.documentIcon}>📄</Text><Text style={styles.documentName} numberOfLines={2}>{attachmentDraft.name || 'Selected file'}</Text><Text style={styles.documentSize}>{Number(attachmentDraft.fileSize ?? attachmentDraft.size ?? 0) ? Math.round(Number(attachmentDraft.fileSize ?? attachmentDraft.size)/1024)+' KB' : 'File selected'}</Text></View>}{uploading?<View style={styles.attachmentSending}><ActivityIndicator color="#3157d5" /><Text style={styles.attachmentProgress}>Sending attachment… Please wait.</Text></View>:null}{attachmentError?<View style={styles.attachmentError}><Text style={styles.attachmentErrorText}>{attachmentError}</Text><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable></View>:null}<View style={styles.attachmentActions}><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable onPress={() => { if(uploading){ cancelUpload(); } else { setAttachmentDraft(null); setAttachmentError(''); } }}><Text style={styles.cancelText}>Cancel</Text></Pressable></View></View></View></Modal> : null}
       {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.emojiStrip, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]} contentContainerStyle={styles.emojiStripContent}>
         <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
       </ScrollView> : null}
