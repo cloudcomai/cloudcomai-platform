@@ -55,7 +55,7 @@ test('text message edit action follows the three-hour two-edit UI policy', () =>
   assert.match(app, /3 \* 60 \* 60 \* 1000/);
   assert.match(media, /canEdit \? <MessageAction type="edit" label="Edit"/);
   assert.match(media, /accessibilityLabel="Edit message"/);
-  assert.match(app, /canEdit=\{canEditMessage\(safeItem\)\}/);
+  assert.match(app, /canEdit=\{canEditMessage\(item\)\}/);
   assert.match(app, /edit_count: Number\(updated\?\.edit_count/);
 });
 
