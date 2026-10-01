@@ -9,6 +9,7 @@ const requestApi = read('backend/api/request_attachment_download.php');
 const profileApi = read('backend/api/user_profile.php');
 const payload = read('backend/lib/message_payload.php');
 const profileUi = read('apps/mobile/src/components/UserProfileModal.js');
+const mediaComposer = read('apps/mobile/src/components/MediaComposer.js');
 const contract = JSON.parse(read('backend/api-contract.json'));
 const clientApi = read('packages/api-client/src/cloudcomai-api.js');
 const endpoints = read('packages/api-client/src/endpoints.js');
@@ -22,6 +23,8 @@ assert.deepEqual(contract.routes['v1/users/trusted-user'].methods.sort(), ['DELE
 assert.match(trustedApi, /\$viewer = auth_user\(\)/);
 assert.match(trustedApi, /INSERT INTO trusted_users\(owner_user_id,trusted_user_id/);
 assert.match(trustedApi, /users_block_state\(\(int\)\$viewer\['id'\], \$targetUserId\)/);
+assert.match(trustedApi, /UPDATE attachment_download_requests SET status="APPROVED"/);
+assert.match(trustedApi, /sender_id=\? AND requester_id=\? AND status="PENDING"/);
 assert.doesNotMatch(trustedApi, /\$d\[['"]isTrusted['"]\]/i);
 
 // Direction is sender -> recipient. The authenticated receiver must NOT be
@@ -56,5 +59,15 @@ assert.match(profileUi, /platformApi\.untrustUser\(profile\.id\)/);
 assert.doesNotMatch(profileUi, /platformApi\.(post|delete)\(/);
 assert.match(payload, /sender_trusted/);
 assert.match(payload, /download_policy' => \$trustedSender \? 'ALLOW'/);
+
+// Chat screens must use the native screen-capture prevention API. On Android
+// expo-screen-capture applies FLAG_SECURE; on iOS it uses Apple's supported
+// capture prevention and app-switcher protection APIs.
+assert.match(mediaComposer, /expo-screen-capture/);
+assert.match(mediaComposer, /preventScreenCaptureAsync\(CHAT_SCREEN_CAPTURE_KEY\)/);
+assert.match(mediaComposer, /allowScreenCaptureAsync\(CHAT_SCREEN_CAPTURE_KEY\)/);
+assert.match(mediaComposer, /enableAppSwitcherProtectionAsync/);
+assert.match(mediaComposer, /disableAppSwitcherProtectionAsync/);
+assert.match(mediaComposer, /Platform\.OS === 'ios'/);
 
 console.log('Trusted User feature checks: PASS');
