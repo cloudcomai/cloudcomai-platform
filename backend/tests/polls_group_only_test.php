@@ -4,9 +4,9 @@ declare(strict_types=1);
 $handler=(string)file_get_contents(__DIR__.'/../api/polls.php');
 foreach([
     '$d[\'chat_ids\']',
-    'array_unique',
+    'if ($id > 0 && !in_array($id, $normalizedChatIds, true))',
     'Polls can only be created for groups',
-    'chatRow[\'type\'] !== \'group\'',
+    '$chatRow[\'type\'] !== \'group\'',
     'count($cleanOptions) < 3',
     'Please enter at least 3 poll options.',
     'foreach ($destinations as $destination)',
