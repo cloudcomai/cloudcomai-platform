@@ -27,6 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ScreenCapture from 'expo-screen-capture';
 import MediaMessage from './src/components/MediaMessage';
 import MessageRenderErrorBoundary from './src/components/MessageRenderErrorBoundary';
+import ConversationErrorBoundary from './src/components/ConversationErrorBoundary';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import AccountTools from './src/components/AccountTools';
@@ -218,6 +219,88 @@ const parseEditTimestamp = value => {
   const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T');
   return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
+
+function ChatMessageRow({ item, user, chat, theme, privacy, themeSettings, visibleMessageIds, groupManagementOpen, profileOpen, selectedMessage, highlightedMessageId, setSelectedMessage, navigateToMessage, setReplyTo, setComposer, messaging, setEditing, toggleSaved, deleteMessage, canEditMessage }) {
+  const safeItem = item && typeof item === 'object' ? item : { id: 0, type: 'text', body: '' };
+  const mine = Number(safeItem.sender_id) === Number(user?.id);
+  const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
+  const messageColors = {
+    ...theme.colors,
+    text: readableMessageColor(bubbleColor, theme.colors.text),
+    secondary: readableMessageColor(bubbleColor, theme.colors.secondary),
+  };
+  const selected = Number(selectedMessage?.id) === Number(safeItem.id);
+  // Polls are supported in group/public conversations, but legacy poll records can
+  // still exist in private chats. Do not send those records through the poll renderer;
+  // render a harmless text placeholder instead so an old poll cannot break ChatDetail.
+  const isPrivateChat = !chat?.isGroup && !chat?.isPublic;
+  const displayMessage = isPrivateChat && safeItem.type === 'poll'
+    ? { ...safeItem, type: 'text', body: 'Poll', attachment: null }
+    : safeItem;
+
+  if (safeItem.type === 'moderation') {
+    return (
+      <View style={[styles.moderationMessage, highlightedMessageId === Number(safeItem.id) && styles.highlightedMessage]}>
+        <Text style={styles.moderationTitle}>Community moderation</Text>
+        <Text style={styles.moderationText}>{String(safeItem.body || '')}</Text>
+        <Text style={styles.moderationTime}>{formatMessageTimestamp(safeItem.created_at || safeItem.timestamp || safeItem.time)}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={() => setSelectedMessageState(current => Number(current?.id) === Number(safeItem.id) ? null : safeItem)}
+      onLongPress={() => setSelectedMessageState(safeItem)}
+      style={[
+        styles.messageBubble,
+        mine && styles.myMessage,
+        { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border },
+        selected && styles.selectedMessage,
+        highlightedMessageId === Number(safeItem.id) && styles.highlightedMessage,
+      ]}
+    >
+      {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (safeItem.sender_name || 'Member')}</Text>}
+      {safeItem.reply_to_text ? (
+        <Pressable onPress={() => navigateToMessage(safeItem.reply_to_message_id)} accessibilityRole="button" accessibilityLabel="Jump to original message">
+          <View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}>
+            <Text style={[styles.replySender, { color: theme.colors.text }]}>{safeItem.reply_to_sender_name || 'Member'}</Text>
+            <Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{String(safeItem.reply_to_text)}</Text>
+          </View>
+        </Pressable>
+      ) : null}
+      <MediaMessage
+        message={displayMessage}
+        autoDownload={Boolean(privacy?.media_auto_download)}
+        colors={messageColors}
+        textScale={Number(themeSettings?.textScale || 1)}
+        isVisible={visibleMessageIds.has(Number(safeItem.id)) && !groupManagementOpen && !profileOpen}
+        showActions={selected}
+        onReply={() => {
+          setReplyTo(safeItem);
+          if (setEditing && messaging && messaging.snapshot) {
+            setComposer(messaging.snapshot().drafts[String(chat.id)] || '');
+          }
+          setEditing(null);
+          setSelectedMessage(null);
+        }}
+        onSave={() => toggleSaved(safeItem)}
+        onDelete={() => { setSelectedMessage(null); deleteMessage(safeItem); }}
+        canEdit={canEditMessage(safeItem)}
+        onEdit={() => {
+          setEditing(safeItem);
+          setReplyTo(null);
+          setComposer(safeItem.body || safeItem.text || '');
+          setSelectedMessage(null);
+        }}
+      />
+      <Text style={[styles.messageTime, { color: messageColors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>
+        {formatMessageTimestamp(safeItem.created_at || safeItem.timestamp || safeItem.time)}
+        {Number(safeItem.edit_count) > 0 ? ' · Edited' : ''}
+      </Text>
+    </Pressable>
+  );
+}
 
 function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const [messages, setMessages] = useState([]);
@@ -589,34 +672,32 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           scrollEventThrottle={100}
           onContentSizeChange={() => { if (atBottomRef.current && !searchActive) requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: false })); }}
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
-          renderItem={({ item }) => {
-            const mine = Number(item.sender_id) === Number(user.id);
-            const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
-            const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, theme.colors.text), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
-            const selected = Number(selectedMessage?.id) === Number(item.id);
-            if (item.type === 'moderation') return <View style={[styles.moderationMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}><Text style={styles.moderationTitle}>Community moderation</Text><Text style={styles.moderationText}>{item.body}</Text><Text style={styles.moderationTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}</Text></View>;
-            return <MessageRenderErrorBoundary messageId={item.id}>
-              <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
-              {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
-              {item.reply_to_text ? <Pressable onPress={() => navigateToMessage(item.reply_to_message_id)} accessibilityRole='button' accessibilityLabel='Jump to original message'><View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View></Pressable> : null}
-              <MediaMessage
-                message={item}
-                autoDownload={privacy.media_auto_download}
-                colors={messageColors}
-                textScale={Number(themeSettings?.textScale || 1)}
-                isVisible={visibleMessageIds.has(Number(item.id)) && !groupManagementOpen && !profileOpen}
-                showActions={selected}
-                onReply={() => { setReplyTo(item); if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setEditing(null); setSelectedMessage(null); }}
-                onSave={() => toggleSaved(item)}
-                onDelete={() => { setSelectedMessage(null); deleteMessage(item); }}
-                canEdit={canEditMessage(item)}
-                onEdit={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}
+          renderItem={({ item }) => (
+            <MessageRenderErrorBoundary messageId={item?.id ?? 'invalid'}>
+              <ChatMessageRow
+                item={item}
+                user={user}
+                chat={chat}
+                theme={theme}
+                privacy={privacy}
+                themeSettings={themeSettings}
+                visibleMessageIds={visibleMessageIds}
+                groupManagementOpen={groupManagementOpen}
+                profileOpen={profileOpen}
+                selectedMessage={selectedMessage}
+                highlightedMessageId={highlightedMessageId}
+                setSelectedMessageState={setSelectedMessage}
+                navigateToMessage={navigateToMessage}
+                setReplyTo={setReplyTo}
+                setComposer={setComposer}
+                messaging={messaging}
+                setEditing={setEditing}
+                toggleSaved={toggleSaved}
+                deleteMessage={deleteMessage}
+                canEditMessage={canEditMessage}
               />
-              <Text style={[styles.messageTime, { color: messageColors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
-
-              </Pressable>
-            </MessageRenderErrorBoundary>;
-          }}
+            </MessageRenderErrorBoundary>
+          )}
         />
       )}
       {showScrollToBottom && !searchActive ? <Pressable
@@ -811,7 +892,27 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return (
+    <ConversationErrorBoundary
+      onBackToChats={() => { setSelectedChat(null); loadChats(false, true); }}
+      onError={(error, info) => {
+        console.error('CHAT_DETAIL_RENDER_FAILURE', { chatId: selectedChat.id, error, info });
+      }}
+    >
+      <ChatDetail
+        messaging={messaging}
+        localMessages={localMessages}
+        localMessageError={localMessageError}
+        deliveredMessage={deliveredMessage}
+        key={selectedChat.id}
+        chat={selectedChat}
+        user={session.user}
+        themeSettings={themeSettings}
+        onBack={() => { setSelectedChat(null); loadChats(false, true); }}
+        onDeleted={() => { setSelectedChat(null); loadChats(true); }}
+      />
+    </ConversationErrorBoundary>
+  );
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))

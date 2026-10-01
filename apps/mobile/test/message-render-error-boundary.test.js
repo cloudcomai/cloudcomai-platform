@@ -6,7 +6,7 @@ const boundary = fs.readFileSync(new URL('../src/components/MessageRenderErrorBo
 const media = fs.readFileSync(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
 
 assert.ok(app.includes("import MessageRenderErrorBoundary from './src/components/MessageRenderErrorBoundary';"), 'chat detail must import the per-message render boundary');
-assert.ok(app.includes('<MessageRenderErrorBoundary messageId={item.id}>'), 'each rendered message must be isolated from sibling render failures');
+assert.ok(app.includes("<MessageRenderErrorBoundary messageId={item?.id ?? 'invalid'}>"), 'each rendered message must be isolated from sibling render failures');
 assert.ok(app.includes('</MessageRenderErrorBoundary>'), 'per-message render boundary must close around MediaMessage');
 assert.ok(boundary.includes('getDerivedStateFromError'), 'message boundary must catch render failures');
 assert.ok(boundary.includes('MESSAGE_RENDER_FAILURE'), 'message boundary must emit a sanitized failure event');
