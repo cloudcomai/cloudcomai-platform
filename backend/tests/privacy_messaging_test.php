@@ -140,7 +140,7 @@ try {
     request('POST','v1/messages',1,['chat_id'=>1,'body'=>'blocked'],403);
     request('POST','v1/messages',2,['chat_id'=>1,'body'=>'also blocked'],403);
     request('POST','v1/messages',1,['chat_id'=>1,'type'=>'location','latitude'=>0,'longitude'=>0],403);
-    request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Blocked?','options'=>['Yes','No']],403);
+    request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Blocked?','options'=>['Yes','No','Maybe']],403);
     request('DELETE','v1/users/privacy?user_id=1',2);
 
     $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
@@ -167,7 +167,7 @@ try {
     $multipart = '';
     foreach (['chat_id'=>'1','message_type'=>'voice','download_policy'=>'APPROVAL_REQUIRED'] as $key=>$value) $multipart .= "--$boundary\r\nContent-Disposition: form-data; name=\"$key\"\r\n\r\n$value\r\n";
     $multipart .= "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"voice.wav\"\r\nContent-Type: audio/wav\r\n\r\n$wav\r\n--$boundary--\r\n";
-    $voice = request('POST','v1/attachments/upload',1,$multipart,201,['Content-Type: multipart/form-data; boundary='.$boundary])['data']['message'];
+    $voice = request('POST','v1/attachments/upload',1,$multipart,201,['Content-Type'=>'multipart/form-data; boundary='.$boundary])['data']['message'];
     check($voice['type']==='voice','Voice upload lost message type');
     $attachmentId = $voice['attachment']['id'];
     request('GET',"v1/attachments?id=$attachmentId&preview=1",3,null,404);
