@@ -5,8 +5,8 @@ import path from 'node:path';
 
 const source = fs.readFileSync(path.resolve('src/components/MobileMenu.js'), 'utf8');
 
-test('mobile poll shortcut uses group-only multi-group creation with four default options', () => {
-  assert.match(source, /openMenu\('poll'\)/);
+test('mobile poll creation uses group-only multi-group creation with four default options', () => {
+  assert.match(source, /requestedScreen === 'poll'/);
   assert.match(source, /platformApi\.listChats\('group'\)/);
   assert.doesNotMatch(source, /platformApi\.listChats\('private'\)/);
   assert.match(source, /MIN_POLL_OPTIONS = 3/);
