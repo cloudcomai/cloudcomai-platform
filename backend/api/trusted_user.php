@@ -22,7 +22,18 @@ if ($method === 'GET') {
 
 if ($method === 'POST' || $method === 'PUT') {
     $pdo = db();
-    $pdo->prepare('INSERT INTO trusted_users(owner_user_id,trusted_user_id,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE updated_at=UTC_TIMESTAMP()')->execute([(int)$viewer['id'], $targetUserId]);
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT INTO trusted_users(owner_user_id,trusted_user_id,created_at,updated_at) VALUES(?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE updated_at=UTC_TIMESTAMP()')->execute([(int)$viewer['id'], $targetUserId]);
+        // A trust relationship makes the sender -> recipient approval-free. Any
+        // request that was already pending for that same direction is obsolete
+        // and must not remain stuck as "Request Pending" in the recipient UI.
+        $pdo->prepare('UPDATE attachment_download_requests SET status="APPROVED",responded_at=UTC_TIMESTAMP() WHERE sender_id=? AND requester_id=? AND status="PENDING"')->execute([(int)$viewer['id'], $targetUserId]);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
     out(['trusted' => true, 'owner_user_id' => (int)$viewer['id'], 'trusted_user_id' => $targetUserId]);
 }
 
