@@ -54,7 +54,23 @@ jobs:
             SDKMANAGER="$(command -v sdkmanager)"
           fi
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
+          rm -rf "${ANDROID_SDK_ROOT}/cmake/3.22.1"
+          for attempt in 1 2 3; do
+            if "$SDKMANAGER" "cmake;3.22.1"; then
+              break
+            fi
+            rm -rf "${ANDROID_SDK_ROOT}/cmake/3.22.1"
+            if [ "$attempt" -eq 3 ]; then
+              echo '::error::Failed to install CMake 3.22.1 after 3 attempts.'
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          if [ ! -x "${ANDROID_SDK_ROOT}/cmake/3.22.1/bin/cmake" ]; then
+            echo '::error::CMake 3.22.1 installation is incomplete.'
+            exit 1
+          fi
           for attempt in 1 2 3; do
             if "$SDKMANAGER" "ndk;27.1.12297006"; then
               break
@@ -117,50 +133,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ -z "${RCLONE_CONFIG_CONTENT:-}" ]; then
-            echo "::error::Missing GitHub secret RCLONE_CONFIG."
-            exit 1
-          fi
-
-          if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
-            echo "::error::Missing Google Drive artifact folder ID."
-            exit 1
-          fi
-
+          if [ -z "${RCLONE_CONFIG_CONTENT:-}" ]; then echo "::error::Missing GitHub secret RCLONE_CONFIG."; exit 1; fi
+          if [ -z "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then echo "::error::Missing Google Drive artifact folder ID."; exit 1; fi
           sudo apt-get update -y
           sudo apt-get install -y rclone
-
           mkdir -p "$HOME/.config/rclone"
           printf '%s' "$RCLONE_CONFIG_CONTENT" > "$HOME/.config/rclone/rclone.conf"
           chmod 600 "$HOME/.config/rclone/rclone.conf"
-
           RCLONE_CONFIG_FILE="$HOME/.config/rclone/rclone.conf"
-
-          if ! rclone --config "$RCLONE_CONFIG_FILE" listremotes | grep -qx 'gdrive:'; then
-            echo "::error::RCLONE_CONFIG secret must define a Google Drive remote named gdrive."
-            exit 1
-          fi
-
+          if ! rclone --config "$RCLONE_CONFIG_FILE" listremotes | grep -qx 'gdrive:'; then echo "::error::RCLONE_CONFIG secret must define a Google Drive remote named gdrive."; exit 1; fi
           mkdir -p mobile-builds/android
           find apps/mobile/android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -exec cp {} mobile-builds/android/ \;
           find apps/mobile/android/app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -exec cp {} mobile-builds/android/ \; 2>/dev/null || true
-
-          if ! find mobile-builds/android -maxdepth 1 -type f | grep -q .; then
-            echo "::error::No Android APK/AAB artifacts found for Google Drive upload."
-            exit 1
-          fi
-
+          if ! find mobile-builds/android -maxdepth 1 -type f | grep -q .; then echo "::error::No Android APK/AAB artifacts found for Google Drive upload."; exit 1; fi
           DRIVE_PATH="${BUILD_VARIANT}/run-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}/android"
           DRIVE_TARGET="gdrive:"
-          if [ -n "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then
-            DRIVE_TARGET="gdrive,root_folder_id=${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID}:"
-          fi
-
+          if [ -n "${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID:-}" ]; then DRIVE_TARGET="gdrive,root_folder_id=${GOOGLE_DRIVE_ARTIFACT_FOLDER_ID}:"; fi
           echo "Uploading Android build artifacts to Google Drive folder: ${DRIVE_PATH}"
           rclone --config "$RCLONE_CONFIG_FILE" copy mobile-builds/android/ "${DRIVE_TARGET}${DRIVE_PATH}" --checksum --progress
           rclone --config "$RCLONE_CONFIG_FILE" lsf "${DRIVE_TARGET}${DRIVE_PATH}"
-
       - name: Remove temporary signing files
         if: always()
         shell: bash
