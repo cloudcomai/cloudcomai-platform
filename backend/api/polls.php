@@ -63,6 +63,24 @@ foreach ($chatIds as $chatId) {
 }
 if (!$normalizedChatIds) fail('At least one group is required');
 
+$destinations = [];
+$membership = $pdo->prepare('
+    SELECT c.id, c.type, c.retention_seconds
+    FROM chats c
+    INNER JOIN chat_members cm ON cm.chat_id=c.id
+    WHERE c.id=? AND cm.user_id=? AND cm.status="active"
+    LIMIT 1
+');
+
+foreach ($normalizedChatIds as $chatId) {
+    $membership->execute([$chatId, $user['id']]);
+    $chatRow = $membership->fetch();
+    if (!$chatRow) fail('Group not found or access denied', 403);
+    if ($chatRow['type'] !== 'group') fail('Polls can only be created for groups', 403);
+    assert_chat_allows_messages($chatId, (int)$user['id']);
+    $destinations[] = ['id' => $chatId, 'retention_seconds' => $chatRow['retention_seconds']];
+}
+
 $question = trim((string)($d['question'] ?? ''));
 $options = $d['options'] ?? $d['choices'] ?? [];
 if ((!is_array($options) || count($options) < 3) && isset($d['option_a'], $d['option_b'], $d['option_c'])) {
@@ -80,24 +98,6 @@ if (count($cleanOptions) < 3) fail('Please enter at least 3 poll options.');
 require_once __DIR__ . '/../lib/poll_expiry.php';
 try { $expiresAt = poll_expiry($d['expires_at'] ?? null); }
 catch (InvalidArgumentException $error) { fail($error->getMessage(), 422); }
-
-$destinations = [];
-$membership = $pdo->prepare('
-    SELECT c.id, c.type, c.retention_seconds
-    FROM chats c
-    INNER JOIN chat_members cm ON cm.chat_id=c.id
-    WHERE c.id=? AND cm.user_id=? AND cm.status="active"
-    LIMIT 1
-');
-
-foreach ($normalizedChatIds as $chatId) {
-    $membership->execute([$chatId, $user['id']]);
-    $chatRow = $membership->fetch();
-    if (!$chatRow) fail('Group not found or access denied', 403);
-    if ($chatRow['type'] !== 'group') fail('Polls can only be created for groups', 422);
-    assert_chat_allows_messages($chatId, (int)$user['id']);
-    $destinations[] = ['id' => $chatId, 'retention_seconds' => $chatRow['retention_seconds']];
-}
 
 $createdMessages = [];
 $createdPollIds = [];
