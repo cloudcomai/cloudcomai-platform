@@ -1,0 +1,114 @@
+name: Mobile Android runtime smoke test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - '.github/workflows/mobile-android-runtime-smoke.yml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-runtime:
+    name: Android APK launch smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_API_BASE_URL: https://www.cloudcomai.com/apiapp/api
+      CLOUDCOMAI_NATIVE_BUILD: preview
+      ANDROID_VERSION_CODE: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(command -v sdkmanager)"; fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "ndk;27.1.12297006"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Android native project
+        working-directory: apps/mobile
+        run: pnpm exec expo prebuild --platform android --clean --no-install
+
+      - name: Build x86_64 APK for emulator
+        working-directory: apps/mobile/android
+        env:
+          NODE_ENV: production
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=x86_64
+
+      - name: Launch APK on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          APK_PATH: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -e
+            adb install -r "$APK_PATH"
+            adb shell am force-stop com.cloudcomai.mobile.preview
+            adb shell monkey -p com.cloudcomai.mobile.preview 1
+            sleep 8
+            echo "=== Android process state ==="
+            adb shell pidof com.cloudcomai.mobile.preview || true
+            echo "=== React/Android startup errors ==="
+            adb logcat -d -v time | grep -E 'AndroidRuntime|ReactNativeJS|FATAL EXCEPTION|CloudComAI|expo|SoLoader' | tail -n 250 || true
+            if ! adb shell pidof com.cloudcomai.mobile.preview >/dev/null; then
+              echo "::error::CloudComAI Android process exited during startup."
+              exit 1
+            fi
+
+      - name: Capture emulator log on failure
+        if: failure()
+        run: |
+          adb logcat -d -v threadtime > android-runtime.log || true
+
+      - name: Upload Android runtime log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudcomai-android-runtime-log
+          path: android-runtime.log
+          if-no-files-found: ignore
+          retention-days: 7
