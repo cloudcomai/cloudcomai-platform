@@ -31,11 +31,11 @@ test('polling uses the current cursor and does not overlap requests', async () =
 
   transport.start();
   assert.deepEqual(calls, [7]);
-  assert.equal(scheduled.length, 0);
+  assert.equal(scheduled.length, 1);
   resolveFetch([{ id: 8 }]);
   await Promise.resolve();
   await Promise.resolve();
-  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled.length, 2);
   transport.stop();
 });
 
@@ -55,6 +55,61 @@ test('polling skips network work while the page is hidden', async () => {
   assert.equal(calls, 0);
   assert.equal(scheduled.length, 1);
   transport.stop();
+});
+
+test('polling reports a controlled timeout instead of waiting forever', async () => {
+  const scheduled = [];
+  const errors = [];
+  const scheduler = {
+    setTimeout(callback) { scheduled.push(callback); return scheduled.length; },
+    clearTimeout() {},
+  };
+  const transport = createPollingMessageTransport({
+    fetchMessages: (_cursor, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => {
+        const error = new Error('aborted by timeout');
+        error.name = 'AbortError';
+        reject(error);
+      });
+    }),
+    getCursor: () => 0,
+    onMessages() {},
+    onError: error => errors.push(error),
+    timeoutMs: 1000,
+    scheduler,
+    visibilitySource: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} },
+  });
+
+  transport.start();
+  assert.equal(scheduled.length, 1);
+  scheduled[0]();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].name, 'TimeoutError');
+  transport.stop();
+});
+
+test('polling stop aborts an in-flight request without reporting a false failure', async () => {
+  const errors = [];
+  let aborted = false;
+  const transport = createPollingMessageTransport({
+    fetchMessages: (_cursor, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => { aborted = true; const error = new Error('aborted'); error.name = 'AbortError'; reject(error); });
+    }),
+    getCursor: () => 0,
+    onMessages() {},
+    onError: error => errors.push(error),
+    scheduler: { setTimeout() { return 1; }, clearTimeout() {} },
+    visibilitySource: null,
+  });
+
+  transport.start();
+  transport.stop();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(aborted, true);
+  assert.equal(errors.length, 0);
 });
 
 test('treats database timestamps without offsets as UTC', () => {
