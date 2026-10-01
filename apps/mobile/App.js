@@ -230,6 +230,13 @@ function ChatMessageRow({ item, user, chat, theme, privacy, themeSettings, visib
     secondary: readableMessageColor(bubbleColor, theme.colors.secondary),
   };
   const selected = Number(selectedMessage?.id) === Number(safeItem.id);
+  // Polls are supported in group/public conversations, but legacy poll records can
+  // still exist in private chats. Do not send those records through the poll renderer;
+  // render a harmless text placeholder instead so an old poll cannot break ChatDetail.
+  const isPrivateChat = !chat?.isGroup && !chat?.isPublic;
+  const displayMessage = isPrivateChat && safeItem.type === 'poll'
+    ? { ...safeItem, type: 'text', body: 'Poll', attachment: null }
+    : safeItem;
 
   if (safeItem.type === 'moderation') {
     return (
@@ -263,7 +270,7 @@ function ChatMessageRow({ item, user, chat, theme, privacy, themeSettings, visib
         </Pressable>
       ) : null}
       <MediaMessage
-        message={safeItem}
+        message={displayMessage}
         autoDownload={Boolean(privacy?.media_auto_download)}
         colors={messageColors}
         textScale={Number(themeSettings?.textScale || 1)}
