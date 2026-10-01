@@ -9,6 +9,7 @@ const requestApi = read('backend/api/request_attachment_download.php');
 const profileApi = read('backend/api/user_profile.php');
 const payload = read('backend/lib/message_payload.php');
 const profileUi = read('apps/mobile/src/components/UserProfileModal.js');
+const mediaMessage = read('apps/mobile/src/components/MediaMessage.js');
 const mediaComposer = read('apps/mobile/src/components/MediaComposer.js');
 const contract = JSON.parse(read('backend/api-contract.json'));
 const clientApi = read('packages/api-client/src/cloudcomai-api.js');
@@ -59,6 +60,13 @@ assert.match(profileUi, /platformApi\.untrustUser\(profile\.id\)/);
 assert.doesNotMatch(profileUi, /platformApi\.(post|delete)\(/);
 assert.match(payload, /sender_trusted/);
 assert.match(payload, /download_policy' => \$trustedSender \? 'ALLOW'/);
+
+// A previously pending recipient-side request is rechecked against the
+// authoritative server state until trust changes it from PENDING to APPROVED.
+assert.match(mediaMessage, /refreshPending/);
+assert.match(mediaMessage, /apiClient\.post\('v1\/attachment-requests\/request'/);
+assert.match(mediaMessage, /nextStatus === 'APPROVED'/);
+assert.match(mediaMessage, /setStatuses\(current => \(\{ \.\.\.current, \[requestType\]: null \}\)\)/);
 
 // Chat screens must use the native screen-capture prevention API. On Android
 // expo-screen-capture applies FLAG_SECURE; on iOS it uses Apple's supported
