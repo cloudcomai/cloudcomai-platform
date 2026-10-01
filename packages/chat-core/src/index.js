@@ -88,6 +88,7 @@ export const createPollingMessageTransport = ({
   onMessages,
   onError = () => {},
   intervalMs = 3000,
+  timeoutMs = 15000,
   visibilitySource = globalThis.document,
   scheduler = globalThis,
 }) => {
@@ -96,6 +97,7 @@ export const createPollingMessageTransport = ({
   }
 
   const delay = Math.max(1000, Number(intervalMs) || 3000);
+  const requestTimeout = Math.max(1000, Number(timeoutMs) || 15000);
   let running = false;
   let inFlight = false;
   let timerId = null;
@@ -122,12 +124,20 @@ export const createPollingMessageTransport = ({
 
     inFlight = true;
     controller = new AbortController();
+    let timeoutId = null;
+    let timedOut = false;
     try {
+      timeoutId = scheduler.setTimeout(() => {
+        timedOut = true;
+        controller?.abort();
+      }, requestTimeout);
       const messages = await fetchMessages(getCursor(), { signal: controller.signal });
       if (running && (Array.isArray(messages) || Array.isArray(messages?.messages))) onMessages(messages);
     } catch (error) {
       if (running && error?.name !== 'AbortError') onError(error);
+      else if (running && timedOut) onError(Object.assign(new Error('Conversation synchronization timed out.'), { name: 'TimeoutError' }));
     } finally {
+      if (timeoutId !== null) scheduler.clearTimeout(timeoutId);
       inFlight = false;
       controller = null;
       schedule();
