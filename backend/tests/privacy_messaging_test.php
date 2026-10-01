@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 
-// This suite creates an isolated database and backend copy on localhost only.
 if (getenv('CLOUDCOMAI_RUN_DB_TESTS') !== '1') {
     fwrite(STDERR, "Set CLOUDCOMAI_RUN_DB_TESTS=1 to run the local MySQL integration suite.\n");
     exit(1);
@@ -31,6 +30,7 @@ function test_token(int $id): string {
 function request(string $method, string $path, int $user, mixed $body = null, int $expected = 200, array $headers = []): array {
     $headers[] = 'Authorization: Bearer ' . test_token($user);
     if (is_array($body)) { $body = json_encode($body); $headers[] = 'Content-Type: application/json'; }
+    elseif (is_string($body) && $body !== '') { $headers[] = 'Content-Length: ' . strlen($body); }
     $context = stream_context_create(['http' => ['method' => $method, 'header' => implode("\r\n", $headers), 'content' => $body ?? '', 'ignore_errors' => true, 'timeout' => 10]]);
     $raw = file_get_contents('http://127.0.0.1:18765/' . $path, false, $context);
     preg_match('/\s(\d{3})\s/', $http_response_header[0] ?? '', $match);
@@ -43,12 +43,8 @@ try {
     $admin->exec("CREATE DATABASE `$database` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
     $admin->exec("USE `$database`");
     $admin->exec(file_get_contents(__DIR__ . '/../database/fresh-install.sql'));
-    // Public-room seed data intentionally occupies chat AUTO_INCREMENT IDs in fresh installs.
-    // This suite uses fixed chat IDs for privacy/messaging fixtures, so remove only the
-    // seeded public rooms before creating those isolated fixtures.
     $admin->exec("DELETE FROM chats WHERE type='public' AND group_category='india-city'");
     $admin->exec("ALTER TABLE chats AUTO_INCREMENT=1");
-    // Incremental migration is idempotent and agrees with the fresh-install schema.
     $admin->exec('DROP TABLE user_blocks, user_privacy_settings');
     $migration = file_get_contents(__DIR__ . '/../database/migrations/006_privacy_and_security.sql');
     $admin->exec($migration); $admin->exec($migration);
@@ -84,7 +80,6 @@ try {
     check(!array_key_exists('dob',$profile),'Profile exposed date of birth instead of derived age');
     request('GET','v1/users/profile?id=1',3,null,403);
 
-    // Group authorization must never compare a numeric member ID to a username.
     $admin->exec("UPDATE users SET user_id='1intruder' WHERE id=3");
     $admin->exec("INSERT INTO chats(id,type,name,owner_id) VALUES(3,'group','Audit group',1)");
     $admin->exec("INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(3,1,'owner','active'),(3,2,'admin','active')");
@@ -150,7 +145,7 @@ try {
     $imageMultipart = '';
     foreach (['chat_id'=>'1','original_filename'=>'camera-photo.png','download_policy'=>'APPROVAL_REQUIRED'] as $key=>$value) $imageMultipart .= "--$imageBoundary\r\nContent-Disposition: form-data; name=\"$key\"\r\n\r\n$value\r\n";
     $imageMultipart .= "--$imageBoundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"upload.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n$png\r\n--$imageBoundary--\r\n";
-    $imageMessage = request('POST','v1/attachments/upload',1,$imageMultipart,201,['Content-Type: multipart/form-data; boundary='.$imageBoundary])['data']['message'];
+    $imageMessage = request('POST','v1/attachments/upload',1,$imageMultipart,201,['Content-Type'=>'multipart/form-data; boundary='.$imageBoundary])['data']['message'];
     check($imageMessage['attachment']['name']==='camera-photo.png','Native upload filename was not preserved');
     $imageAttachmentId = (int)$imageMessage['attachment']['id'];
     $admin->exec("UPDATE message_attachments SET mime_type='application/octet-stream' WHERE id=$imageAttachmentId");
