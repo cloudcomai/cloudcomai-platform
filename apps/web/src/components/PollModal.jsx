@@ -169,7 +169,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
 
         <label style={{ display: 'block', marginBottom: 14 }}>Expiry date (optional)
           <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)} style={{ width: '100%' }} />
-          <small>Leave blank for 30 days. A chosen date expires at the end of that day in your time zone.</small>
+          <small>Leave blank for 30 days. A chosen date expires at the end of your local day.</small>
         </label>
 
         <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Question / Topic</label>
