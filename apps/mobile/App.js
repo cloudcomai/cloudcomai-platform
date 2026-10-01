@@ -27,6 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ScreenCapture from 'expo-screen-capture';
 import MediaMessage from './src/components/MediaMessage';
 import MessageRenderErrorBoundary from './src/components/MessageRenderErrorBoundary';
+import ConversationErrorBoundary from './src/components/ConversationErrorBoundary';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import AccountTools from './src/components/AccountTools';
@@ -594,7 +595,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
             const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, theme.colors.text), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
             const selected = Number(selectedMessage?.id) === Number(item.id);
-            if (item.type === 'moderation') return <View style={[styles.moderationMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}><Text style={styles.moderationTitle}>Community moderation</Text><Text style={styles.moderationText}>{item.body}</Text><Text style={styles.moderationTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}</Text></View>;
+            if (item.type === 'moderation') return <MessageRenderErrorBoundary messageId={item.id}><View style={[styles.moderationMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}><Text style={styles.moderationTitle}>Community moderation</Text><Text style={styles.moderationText}>{item.body}</Text><Text style={styles.moderationTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}</Text></View></MessageRenderErrorBoundary>;
             return <MessageRenderErrorBoundary messageId={item.id}>
               <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
               {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
@@ -811,7 +812,27 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return (
+    <ConversationErrorBoundary
+      onBackToChats={() => { setSelectedChat(null); loadChats(false, true); }}
+      onError={(error, info) => {
+        console.error('CHAT_DETAIL_RENDER_FAILURE', { chatId: selectedChat.id, error, info });
+      }}
+    >
+      <ChatDetail
+        messaging={messaging}
+        localMessages={localMessages}
+        localMessageError={localMessageError}
+        deliveredMessage={deliveredMessage}
+        key={selectedChat.id}
+        chat={selectedChat}
+        user={session.user}
+        themeSettings={themeSettings}
+        onBack={() => { setSelectedChat(null); loadChats(false, true); }}
+        onDeleted={() => { setSelectedChat(null); loadChats(true); }}
+      />
+    </ConversationErrorBoundary>
+  );
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
