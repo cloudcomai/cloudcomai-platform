@@ -6,7 +6,7 @@ const app = fs.readFileSync(new URL('../App.js', import.meta.url), 'utf8');
 assert.ok(app.includes("import ConversationErrorBoundary from './src/components/ConversationErrorBoundary';"));
 assert.ok(app.includes('<ConversationErrorBoundary'), 'ChatDetail must have a dedicated conversation boundary');
 assert.ok(app.includes('onBackToChats={() => { setSelectedChat(null); loadChats(false, true); }}'), 'conversation recovery must return to chat list');
-assert.ok(app.includes('if (safeItem.type === 'moderation')'), 'moderation messages must also be isolated');
+assert.ok(app.includes("if (safeItem.type === 'moderation')"), 'moderation messages must also be isolated');
 console.log('chat-boundary-scope.test.js passed');
 
 assert.ok(app.includes('function ChatMessageRow('), 'message row rendering must be isolated as a component');
