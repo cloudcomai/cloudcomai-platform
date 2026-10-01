@@ -12,4 +12,7 @@ console.log('chat-boundary-scope.test.js passed');
 assert.ok(app.includes('function ChatMessageRow('), 'message row rendering must be isolated as a component');
 assert.ok(app.includes("const safeItem = item && typeof item === 'object' ? item : { id: 0, type: 'text', body: '' };"), 'message rows must tolerate malformed message payloads');
 assert.ok(app.includes('<ChatMessageRow'), 'FlatList must render through the guarded message row');
+assert.ok(app.includes("const isPrivateChat = !chat?.isGroup && !chat?.isPublic;"), 'private chats must be identified before poll rendering');
+assert.ok(app.includes("? { ...safeItem, type: 'text', body: 'Poll', attachment: null }"), 'legacy private polls must render as plain Poll text');
+assert.ok(app.includes('message={displayMessage}'), 'MediaMessage must receive the safe private-poll representation');
 console.log('chat-message-row-guard.test.js passed');
