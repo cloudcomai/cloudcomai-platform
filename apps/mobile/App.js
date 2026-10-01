@@ -26,6 +26,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as ScreenCapture from 'expo-screen-capture';
 import MediaMessage from './src/components/MediaMessage';
+import MessageRenderErrorBoundary from './src/components/MessageRenderErrorBoundary';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import AccountTools from './src/components/AccountTools';
@@ -597,8 +598,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
               {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <Pressable onPress={() => navigateToMessage(item.reply_to_message_id)} accessibilityRole='button' accessibilityLabel='Jump to original message'><View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View></Pressable> : null}
-              <MediaMessage
-                message={item}
+              <MessageRenderErrorBoundary messageId={item.id}>
+                <MediaMessage
+                  message={item}
                 autoDownload={privacy.media_auto_download}
                 colors={messageColors}
                 textScale={Number(themeSettings?.textScale || 1)}
@@ -608,8 +610,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
                 onSave={() => toggleSaved(item)}
                 onDelete={() => { setSelectedMessage(null); deleteMessage(item); }}
                 canEdit={canEditMessage(item)}
-                onEdit={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}
-              />
+                  onEdit={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}
+                />
+              </MessageRenderErrorBoundary>
               <Text style={[styles.messageTime, { color: messageColors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
 
             </Pressable>;
