@@ -220,7 +220,7 @@ const parseEditTimestamp = value => {
   return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-function ChatMessageRow({ item, user, chat, theme, privacy, themeSettings, visibleMessageIds, groupManagementOpen, profileOpen, selectedMessage, highlightedMessageId, setSelectedMessage, navigateToMessage, setReplyTo, setComposer, messaging, setEditing, setSelectedMessageState, toggleSaved, deleteMessage, canEditMessage, setError }) {
+function ChatMessageRow({ item, user, chat, theme, privacy, themeSettings, visibleMessageIds, groupManagementOpen, profileOpen, selectedMessage, highlightedMessageId, setSelectedMessage, navigateToMessage, setReplyTo, setComposer, messaging, setEditing, toggleSaved, deleteMessage, canEditMessage }) {
   const safeItem = item && typeof item === 'object' ? item : { id: 0, type: 'text', body: '' };
   const mine = Number(safeItem.sender_id) === Number(user?.id);
   const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
@@ -679,7 +679,6 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
                 profileOpen={profileOpen}
                 selectedMessage={selectedMessage}
                 highlightedMessageId={highlightedMessageId}
-                setSelectedMessage={setSelectedMessage}
                 setSelectedMessageState={setSelectedMessage}
                 navigateToMessage={navigateToMessage}
                 setReplyTo={setReplyTo}
@@ -689,7 +688,6 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
                 toggleSaved={toggleSaved}
                 deleteMessage={deleteMessage}
                 canEditMessage={canEditMessage}
-                setError={setError}
               />
             </MessageRenderErrorBoundary>
           )}
