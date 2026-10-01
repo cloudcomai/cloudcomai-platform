@@ -1,15 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as ScreenCapture from 'expo-screen-capture';
 import { File } from 'expo-file-system';
 import { platformApi, uploadAttachmentAsset, cancelActiveAttachmentUpload } from '../services/platform';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { AudioPreview, VideoPreview } from './MediaMessage';
-
-const CHAT_SCREEN_CAPTURE_KEY = 'cloudcomai-chat';
 
 export default function MediaComposer({ chat, onMessage }) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -33,25 +30,6 @@ export default function MediaComposer({ chat, onMessage }) {
   };
   useEffect(() => { if (state.isRecording && state.durationMillis >= 30000) stop(); }, [state.isRecording, state.durationMillis]);
   useEffect(() => { active.current = true; const subscription = AppState.addEventListener('change', next => { if (next !== 'active' && recorder.isRecording) stop(); }); return () => { active.current = false; subscription.remove(); removeRecording(); setAudioModeAsync({ allowsRecording: false }).catch(() => {}); }; }, [recorder]);
-
-  useEffect(() => {
-    let mounted = true;
-    const enableProtection = async () => {
-      try {
-        // expo-screen-capture applies Android's native FLAG_SECURE and the
-        // supported iOS capture prevention APIs before protected chat content
-        // can be captured.
-        await ScreenCapture.preventScreenCaptureAsync(CHAT_SCREEN_CAPTURE_KEY);
-        if (Platform.OS === 'ios' && mounted) await ScreenCapture.enableAppSwitcherProtectionAsync(0.5);
-      } catch {}
-    };
-    enableProtection();
-    return () => {
-      mounted = false;
-      ScreenCapture.allowScreenCaptureAsync(CHAT_SCREEN_CAPTURE_KEY).catch(() => {});
-      if (Platform.OS === 'ios') ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => {});
-    };
-  }, []);
 
   const recordVoice = async () => {
     if (disabled) return;
@@ -140,3 +118,4 @@ export default function MediaComposer({ chat, onMessage }) {
     </Modal>
   </View>;
 }
+const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: 10, justifyContent: 'center', backgroundColor: '#fff' }, button: { padding: 12 }, link: { color: '#3157d5', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: '#0008', alignItems: 'center', justifyContent: 'center' }, card: { backgroundColor: '#fff', padding: 24, borderRadius: 18, maxWidth: '95%' }, title: { fontSize: 18, fontWeight: '700', color: '#172033', marginBottom: 12 }, progressBox: { marginTop: 12, width: '100%' }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: '#e5e7eb', overflow: 'hidden' }, progressFill: { height: 7, borderRadius: 4, backgroundColor: '#3157d5' }, progressText: { marginTop: 6, color: '#68748a', fontSize: 12 }, errorBox: { marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: '#fff1f2' }, errorText: { color: '#9f1239', fontSize: 13 }, retryButton: { marginTop: 8, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12 }, retryText: { color: '#3157d5', fontWeight: '700' }, cancelActive: { fontWeight: '900' } });
