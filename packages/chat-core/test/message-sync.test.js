@@ -31,11 +31,11 @@ test('polling uses the current cursor and does not overlap requests', async () =
 
   transport.start();
   assert.deepEqual(calls, [7]);
-  assert.equal(scheduled.length, 0);
+  assert.equal(scheduled.length, 1);
   resolveFetch([{ id: 8 }]);
   await Promise.resolve();
   await Promise.resolve();
-  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled.length, 2);
   transport.stop();
 });
 
@@ -65,7 +65,13 @@ test('polling reports a controlled timeout instead of waiting forever', async ()
     clearTimeout() {},
   };
   const transport = createPollingMessageTransport({
-    fetchMessages: () => new Promise(() => {}),
+    fetchMessages: (_cursor, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => {
+        const error = new Error('aborted by timeout');
+        error.name = 'AbortError';
+        reject(error);
+      });
+    }),
     getCursor: () => 0,
     onMessages() {},
     onError: error => errors.push(error),
