@@ -182,7 +182,7 @@ try {
     request('GET',"v1/attachments?id=$attachmentId&preview=1",1,null,404);
     check(count(glob($root.'/storage/attachments/*'))===0,'Deleted media bytes remain on disk');
 
-    $poll = request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Choose one','options'=>['One','Two']],201)['data']['message'];
+    // Polls are supported in group/public chats only. Use the existing group fixture.
     $pollId = (int)$poll['poll_id'];
     $pollMessageId = (int)$poll['id'];
     $firstOption = (int)$poll['poll']['options'][0]['id'];
@@ -190,9 +190,9 @@ try {
     $vote = ['poll_id'=>$pollId,'option_id'=>$firstOption];
     request('POST','v1/polls?action=vote',3,$vote,403);
     request('POST','v1/polls?action=vote',2,['poll_id'=>$pollId,'option_id'=>99999],400);
-    $beforeVote = request('GET','v1/messages?chat_id=1',1)['data']['synced_at'];
+    $beforeVote = request('GET','v1/messages?chat_id=2',1)['data']['synced_at'];
     request('POST','v1/polls?action=vote',2,$vote);
-    $sync = request('GET','v1/messages?chat_id=1&after_id='.$pollMessageId.'&updated_after='.rawurlencode($beforeVote),1)['data'];
+    $sync = request('GET','v1/messages?chat_id=2&after_id='.$pollMessageId.'&updated_after='.rawurlencode($beforeVote),1)['data'];
     $updatedPoll = array_values(array_filter($sync['messages'],fn($m)=>(int)$m['id']===$pollMessageId))[0] ?? null;
     check(($updatedPoll['poll']['options'][0]['votes']??0)===1,'Another member did not receive updated poll totals');
     check(($updatedPoll['poll']['options'][0]['selected']??true)===false,'Poll selected state leaked between voters');
