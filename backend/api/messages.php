@@ -201,10 +201,6 @@ if ($method === 'DELETE') {
     if ($scope === 'self') {
         $st = db()->prepare('INSERT INTO message_user_states(message_id,user_id,hidden) VALUES(?,?,1) ON DUPLICATE KEY UPDATE hidden=1');
         $st->execute([$messageId, $user['id']]);
-        $trace = db()->query('SELECT DATABASE() AS db_name, CONNECTION_ID() AS connection_id')->fetch();
-        $traceState = db()->prepare('SELECT hidden FROM message_user_states WHERE message_id=? AND user_id=? LIMIT 1');
-        $traceState->execute([$messageId, $user['id']]);
-        error_log('self-delete trace: message_id='.$messageId.' user_id='.(int)$user['id'].' db='.($trace['db_name'] ?? 'null').' conn='.($trace['connection_id'] ?? 'null').' hidden='.var_export($traceState->fetchColumn(), true));
         db()->prepare('DELETE FROM saved_messages WHERE user_id=? AND message_id=?')->execute([$user['id'],$messageId]);
         db()->prepare('DELETE q FROM notification_delivery_queue q INNER JOIN notification_history n ON n.id=q.notification_id WHERE n.user_id=? AND CAST(JSON_UNQUOTE(JSON_EXTRACT(n.data_json,"$.message_id")) AS UNSIGNED)=?')->execute([$user['id'],$messageId]);
         db()->prepare('DELETE FROM notification_history WHERE user_id=? AND CAST(JSON_UNQUOTE(JSON_EXTRACT(data_json,"$.message_id")) AS UNSIGNED)=?')->execute([$user['id'],$messageId]);
