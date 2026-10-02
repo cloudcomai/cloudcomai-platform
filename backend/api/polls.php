@@ -44,6 +44,8 @@ if ($action === 'vote') {
 
     // Defense in depth: verify the exact resolved message has no viewer-specific
     // hidden state before accepting the vote.
+    $traceDb = $pdo->query('SELECT DATABASE() AS db_name, CONNECTION_ID() AS connection_id')->fetch();
+    error_log('poll vote db trace: poll_id='.$pollId.' user_id='.(int)$user['id'].' db='.($traceDb['db_name'] ?? 'null').' conn='.($traceDb['connection_id'] ?? 'null')); 
     $hiddenMessage = $pdo->prepare('SELECT hidden FROM message_user_states WHERE message_id=? AND user_id=? LIMIT 1');
     $hiddenMessage->execute([$messageId, (int)$user['id']]);
     $hiddenState = $hiddenMessage->fetchColumn();
