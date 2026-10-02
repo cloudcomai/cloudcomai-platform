@@ -23,15 +23,24 @@ if ($action === 'vote') {
         if ($poll['closed_at'] || ($poll['closes_at'] && $poll['closes_at'] <= gmdate('Y-m-d H:i:s'))) fail('This poll is closed', 409);
         assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
 
-        // Resolve the exact message carrying this poll, then enforce the same
-        // visibility rules used by the message API. This keeps self-delete,
-        // expiry, clear-through, membership, and global-delete semantics aligned.
-        $messageQuery = $pdo->prepare('SELECT m.id FROM messages m WHERE m.chat_id=? AND m.type="poll" AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(m.body) THEN m.body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=? ORDER BY m.id DESC LIMIT 1');
-        $messageQuery->execute([$poll['chat_id'], $pollId]);
+        // A poll can only be voted on while its message is visible to this user.
+        // Keep the self-delete rule in this query so the vote endpoint cannot
+        // accidentally vote through a hidden message.
+        $messageQuery = $pdo->prepare('SELECT m.id FROM messages m
+            INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active"
+            LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id
+            WHERE m.chat_id=? AND m.type="poll" AND m.deleted_for_everyone=0
+              AND m.id>COALESCE(cus.cleared_through_message_id,0)
+              AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
+              AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(m.body) THEN m.body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=?
+              AND NOT EXISTS (
+                  SELECT 1 FROM message_user_states mus
+                  WHERE mus.message_id=m.id AND mus.user_id=? AND mus.hidden=1
+              )
+            ORDER BY m.id DESC LIMIT 1');
+        $messageQuery->execute([(int)$user['id'], $poll['chat_id'], $pollId, (int)$user['id']]);
         $messageId = (int)$messageQuery->fetchColumn();
         if ($messageId <= 0) fail('Poll message not found or no longer visible', 404);
-        // Do not duplicate message visibility rules here: this helper is the canonical gate for hidden/self-deleted messages.
-        assert_visible_message($messageId, (int)$user['id']);
 
         $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
         $option->execute([$optionId, $pollId]);
