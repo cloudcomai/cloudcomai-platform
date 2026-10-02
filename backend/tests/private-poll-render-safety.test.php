@@ -9,6 +9,6 @@ assert(str_contains($source, '$message[\'type\'] = \'text\';'), 'legacy private 
 assert(str_contains($source, '$message[\'body\'] = \'Poll\';'), 'legacy private polls must display Poll');
 assert(str_contains($source, '$message[\'poll_id\'] = null;'), 'private poll renderer must not receive poll id');
 assert(str_contains($source, '$message[\'poll\'] = null;'), 'private poll renderer must not receive poll payload');
-assert(str_contains($source, "(string)$row['type'] !== 'group' && (string)$row['type'] !== 'public'"), 'only group/public messages may retain poll rendering');
+assert(str_contains($source, "(string)\$row['type'] !== 'group' && (string)\$row['type'] !== 'public'"), 'only group/public messages may retain poll rendering');
 
 echo "private-poll-render-safety.test.php passed\n";
