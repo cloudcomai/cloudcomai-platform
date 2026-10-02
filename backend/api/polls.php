@@ -46,7 +46,9 @@ if ($action === 'vote') {
     // hidden state before accepting the vote.
     $hiddenMessage = $pdo->prepare('SELECT hidden FROM message_user_states WHERE message_id=? AND user_id=? LIMIT 1');
     $hiddenMessage->execute([$messageId, (int)$user['id']]);
-    if ((int)$hiddenMessage->fetchColumn() === 1) fail('Poll message not found or no longer visible', 404);
+    $hiddenState = $hiddenMessage->fetchColumn();
+    error_log('poll vote visibility: poll_id='.$pollId.' user_id='.(int)$user['id'].' chat_id='.(int)$poll['chat_id'].' message_id='.$messageId.' hidden='.var_export($hiddenState,true));
+    if ((int)$hiddenState === 1) fail('Poll message not found or no longer visible', 404);
 
     try {
         $pdo->beginTransaction();
