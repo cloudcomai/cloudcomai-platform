@@ -10,7 +10,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
   const [loading, setLoading] = useState(false);
 
   const handleAddOptionField = () => {
-    if (options.length >= 6) return alert('Maximum of 6 poll choices allowed.');
+    if (options.length >= 4) return alert('Maximum of 4 poll choices allowed.');
     setOptions([...options, '']);
   };
 
@@ -29,7 +29,13 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
     e.preventDefault();
 
     if (!selectedChat?.id) {
-      return alert('Select a chat before creating a poll.');
+      return alert('Select a group or public chat before creating a poll.');
+    }
+
+    const chatType = selectedChat.type;
+    const isAllowedChat = selectedChat.isGroup || chatType === 'group' || chatType === 'public';
+    if (!isAllowedChat) {
+      return alert('Polls are available only in group and public chats.');
     }
 
     const cleanQuestion = question.trim();
@@ -39,8 +45,8 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
         .filter(Boolean)
     )];
 
-    if (!cleanQuestion || cleanOptions.length < 2) {
-      return alert('Provide a clear poll question and at least 2 different options.');
+    if (!cleanQuestion || cleanOptions.length < 2 || cleanOptions.length > 4) {
+      return alert('Provide a clear poll question and 2 to 4 different options.');
     }
 
     setLoading(true);
@@ -89,7 +95,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
           style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '14px', background: 'var(--bg-primary)', color: 'var(--text-main)' }}
         />
 
-        <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Response Options</label>
+        <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Response Options (2–4)</label>
         {options.map((opt, index) => (
           <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
             <input
@@ -105,7 +111,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
           </div>
         ))}
 
-        <button type="button" onClick={handleAddOptionField} style={{ color: 'var(--primary-color)', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', marginBottom: '20px' }}>
+        <button type="button" onClick={handleAddOptionField} disabled={options.length >= 4} style={{ color: 'var(--primary-color)', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', marginBottom: '20px', opacity: options.length >= 4 ? 0.5 : 1 }}>
           <Plus size={16}/> Add Option Choice
         </button>
 
