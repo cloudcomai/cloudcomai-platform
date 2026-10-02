@@ -26,8 +26,8 @@ if ($action === 'vote') {
         // Voting must also require that the poll message is still visible to this
         // member. A self-deleted poll remains in the database for other members,
         // but the deleting member must not be able to vote through the poll API.
-        $messageQuery = $pdo->prepare('SELECT m.id FROM messages m LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.chat_id=? AND m.type="poll" AND m.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(m.body) THEN m.body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=? LIMIT 1');
-        $messageQuery->execute([$user['id'], $poll['chat_id'], $pollId]);
+        $messageQuery = $pdo->prepare('SELECT m.id FROM messages m WHERE m.chat_id=? AND m.type="poll" AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(m.body) THEN m.body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=? AND NOT EXISTS (SELECT 1 FROM message_user_states mus WHERE mus.message_id=m.id AND mus.user_id=? AND mus.hidden=1) LIMIT 1');
+        $messageQuery->execute([$poll['chat_id'], $pollId, $user['id']]);
         $messageId = (int)$messageQuery->fetchColumn();
         if ($messageId <= 0) fail('Poll message not found or no longer visible', 404);
 
