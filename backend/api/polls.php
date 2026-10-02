@@ -23,9 +23,14 @@ if ($action === 'vote') {
         if ($poll['closed_at'] || ($poll['closes_at'] && $poll['closes_at'] <= gmdate('Y-m-d H:i:s'))) fail('This poll is closed', 409);
         assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
 
-        // A poll can only be voted on while its message is visible to this user.
-        // Keep the self-delete rule in this query so the vote endpoint cannot
-        // accidentally vote through a hidden message.
+        // Self-deleted messages are a hard authorization boundary for poll votes.
+        // Check this state directly before resolving the poll message so a hidden
+        // message can never be used as a voting surface.
+        $hiddenMessage = $pdo->prepare('SELECT 1 FROM message_user_states WHERE message_id IN (SELECT m.id FROM messages m WHERE m.chat_id=? AND m.type="poll" AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(m.body) THEN m.body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=?) AND user_id=? AND hidden=1 LIMIT 1');
+        $hiddenMessage->execute([$poll['chat_id'], $pollId, (int)$user['id']]);
+        if ($hiddenMessage->fetchColumn()) fail('Poll message not found or no longer visible', 404);
+
+        // Resolve only a currently visible poll message.
         $messageQuery = $pdo->prepare('SELECT m.id FROM messages m
             INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active"
             LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id
