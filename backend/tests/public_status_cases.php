@@ -4,7 +4,7 @@ $admin->exec("INSERT INTO chats(id,type,name,group_category,retention_seconds) V
 request('POST','v1/public-chats',1,['room_id'=>2500]);
 request('POST','v1/public-chats',2,['room_id'=>2500]);
 $directory=request('GET','v1/public-chats?q=Public%20leave',2)['data'];
-check(count($directory['rooms'])===1 && count($directory['favorites'])===1,'Public room search or favorites failed');
+check(count($directory['rooms'])===1 && count($directory['favorites'])===1,'Public room search or favorites failed: '.json_encode($directory).' memberships='.(int)$admin->query("SELECT COUNT(*) FROM chat_members WHERE chat_id=2500 AND status=\'active\'")->fetchColumn());
 check(request('GET','v1/public-chats?q=not-a-room',2)['data']['rooms']===[],'Public room search ignored query');
 $publicMessage=request('POST','v1/messages',1,['chat_id'=>2500,'body'=>'Public room history'],201)['data']['message'];
 request('DELETE','v1/public-chats?id=2500',3,null,404);
