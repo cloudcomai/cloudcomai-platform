@@ -202,7 +202,8 @@ try {
     request('DELETE',"v1/messages?id=".$publicPoll['id']."&scope=everyone",1);
 
     // Legacy private polls can still exist in storage. The message API must normalize them before clients render poll UI.
-    $legacyPollId = (int)$admin->query("INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,created_at) VALUES(1,1,'Legacy private poll',0,0,UTC_TIMESTAMP()) RETURNING id")->fetchColumn();
+    $admin->exec("INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,created_at) VALUES(1,1,'Legacy private poll',0,0,UTC_TIMESTAMP())");
+    $legacyPollId = (int)$admin->lastInsertId();
     $admin->exec("INSERT INTO poll_options(poll_id,option_text,display_order) VALUES($legacyPollId,'Yes',0),($legacyPollId,'No',1)");
     $legacyBody = json_encode(['poll_id'=>$legacyPollId], JSON_UNESCAPED_SLASHES);
     $legacyStmt = $admin->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(1,1,\'poll\',?,UTC_TIMESTAMP())');
