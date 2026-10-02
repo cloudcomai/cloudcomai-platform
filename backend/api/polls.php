@@ -14,39 +14,42 @@ if ($action === 'vote') {
     $optionId = (int)($d['option_id'] ?? 0);
     if ($pollId <= 0 || $optionId <= 0) fail('Poll and option are required');
 
+    // Resolve poll membership and viewer-specific message visibility before opening
+    // the vote transaction. Self-deletion is committed by the preceding DELETE request,
+    // so this authorization check uses a fresh read before any transactional work.
+    $membership = $pdo->prepare('SELECT p.chat_id,p.closed_at,p.closes_at FROM polls p INNER JOIN chat_members cm ON cm.chat_id=p.chat_id AND cm.user_id=? AND cm.status="active" WHERE p.id=? LIMIT 1');
+    $membership->execute([$user['id'], $pollId]);
+    $poll = $membership->fetch();
+    if (!$poll) fail('Poll not found or access denied', 403);
+    if ($poll['closed_at'] || ($poll['closes_at'] && $poll['closes_at'] <= gmdate('Y-m-d H:i:s'))) fail('This poll is closed', 409);
+    assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
+
+    $messageQuery = $pdo->prepare('SELECT m.id
+        FROM messages m
+        INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active"
+        LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id
+        WHERE m.id>COALESCE(cus.cleared_through_message_id,0)
+          AND m.chat_id=? AND m.type="poll" AND m.deleted_for_everyone=0
+          AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
+          AND JSON_VALID(m.body)
+          AND CAST(JSON_UNQUOTE(JSON_EXTRACT(m.body,"$.poll_id")) AS UNSIGNED)=?
+          AND NOT EXISTS (
+              SELECT 1 FROM message_user_states mus
+              WHERE mus.message_id=m.id AND mus.user_id=? AND mus.hidden=1
+          )
+        ORDER BY m.id DESC LIMIT 1');
+    $messageQuery->execute([(int)$user['id'], (int)$poll['chat_id'], $pollId, (int)$user['id']]);
+    $messageId = (int)$messageQuery->fetchColumn();
+    if ($messageId <= 0) fail('Poll message not found or no longer visible', 404);
+
+    // Defense in depth: verify the exact resolved message has no viewer-specific
+    // hidden state before accepting the vote.
+    $hiddenMessage = $pdo->prepare('SELECT hidden FROM message_user_states WHERE message_id=? AND user_id=? LIMIT 1');
+    $hiddenMessage->execute([$messageId, (int)$user['id']]);
+    if ((int)$hiddenMessage->fetchColumn() === 1) fail('Poll message not found or no longer visible', 404);
+
     try {
         $pdo->beginTransaction();
-        $membership = $pdo->prepare('SELECT p.chat_id,p.closed_at,p.closes_at FROM polls p INNER JOIN chat_members cm ON cm.chat_id=p.chat_id WHERE p.id=? AND cm.user_id=? AND cm.status="active" LIMIT 1 FOR UPDATE');
-        $membership->execute([$pollId, $user['id']]);
-        $poll = $membership->fetch();
-        if (!$poll) fail('Poll not found or access denied', 403);
-        if ($poll['closed_at'] || ($poll['closes_at'] && $poll['closes_at'] <= gmdate('Y-m-d H:i:s'))) fail('This poll is closed', 409);
-        assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
-
-        // Resolve only a poll message that is visible to this exact viewer.
-        // Self-deletion is a per-user authorization boundary, so the NOT EXISTS
-        // predicate is part of message resolution itself rather than a later check.
-        $messageQuery = $pdo->prepare('SELECT m.id FROM messages m
-            INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active"
-            LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id
-            WHERE m.chat_id=? AND m.type="poll" AND m.deleted_for_everyone=0
-              AND m.id>COALESCE(cus.cleared_through_message_id,0)
-              AND COALESCE(m.expires_at>UTC_TIMESTAMP(),1)=1
-              AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(m.body) THEN m.body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=?
-              AND NOT EXISTS (
-                  SELECT 1 FROM message_user_states mus
-                  WHERE mus.message_id=m.id AND mus.user_id=? AND mus.hidden=1
-              )
-            ORDER BY m.id DESC LIMIT 1');
-        $messageQuery->execute([(int)$user['id'], $poll['chat_id'], $pollId, (int)$user['id']]);
-        $messageId = (int)$messageQuery->fetchColumn();
-        if ($messageId <= 0) fail('Poll message not found or no longer visible', 404);
-
-        // Defense in depth: verify the exact resolved message has no viewer-specific
-        // hidden state before accepting the vote.
-        $hiddenMessage = $pdo->prepare('SELECT 1 FROM message_user_states WHERE message_id=? AND user_id=? AND hidden=1 LIMIT 1');
-        $hiddenMessage->execute([$messageId, (int)$user['id']]);
-        if ($hiddenMessage->fetchColumn() !== false) fail('Poll message not found or no longer visible', 404);
 
         $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
         $option->execute([$optionId, $pollId]);
