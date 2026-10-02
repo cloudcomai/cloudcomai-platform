@@ -13,7 +13,7 @@ test('reply previews navigate to and highlight the original message, loading old
  assert.ok(app.includes('getMessageContext(chat.id,id'));
  assert.ok(app.includes('scrollToIndex'));
  assert.ok(app.includes('highlightedMessageId'));
- assert.ok(app.includes('navigateToMessage(safeItem.reply_to_message_id)'));
+ assert.ok(app.includes('navigateToMessage(item.reply_to_message_id)'));
 });
 test('public chat management exposes online users, reporting and leave confirmation',()=>{
  assert.ok(app.includes('PublicChatManagement'));

@@ -50,99 +50,43 @@ if ($action === 'vote') {
     out(['poll_id'=>$pollId,'options'=>array_map(static function($row){return ['id'=>(int)$row['id'],'text'=>$row['text'],'votes'=>(int)$row['votes'],'selected'=>(bool)$row['selected']];}, $options->fetchAll())]);
 }
 
-$chatIds = $d['chat_ids'] ?? null;
-if ($chatIds === null) {
-    $singleChatId = (int)($d['chat_id'] ?? 0);
-    $chatIds = $singleChatId > 0 ? [$singleChatId] : [];
-}
-if (!is_array($chatIds)) fail('Invalid poll destinations');
-$normalizedChatIds = [];
-foreach ($chatIds as $chatId) {
-    $id = (int)$chatId;
-    if ($id > 0 && !in_array($id, $normalizedChatIds, true)) $normalizedChatIds[] = $id;
-}
-if (!$normalizedChatIds) fail('At least one group is required');
-
-$destinations = [];
-$membership = $pdo->prepare('
-    SELECT c.id, c.type, c.retention_seconds
-    FROM chats c
-    INNER JOIN chat_members cm ON cm.chat_id=c.id
-    WHERE c.id=? AND cm.user_id=? AND cm.status="active"
-    LIMIT 1
-');
-
-foreach ($normalizedChatIds as $chatId) {
-    $membership->execute([$chatId, $user['id']]);
-    $chatRow = $membership->fetch();
-    if (!$chatRow) fail('Group not found or access denied', 403);
-    if ($chatRow['type'] !== 'group') fail('Polls can only be created for groups', 403);
-    assert_chat_allows_messages($chatId, (int)$user['id']);
-    $destinations[] = ['id' => $chatId, 'retention_seconds' => $chatRow['retention_seconds']];
-}
-
+$chat = (int)($d['chat_id'] ?? 0);
 $question = trim((string)($d['question'] ?? ''));
 $options = $d['options'] ?? $d['choices'] ?? [];
-if ((!is_array($options) || count($options) < 3) && isset($d['option_a'], $d['option_b'], $d['option_c'])) {
-    $options = [$d['option_a'], $d['option_b'], $d['option_c']];
-}
-if ($question === '' || !is_array($options)) fail('Invalid poll structure. Provide a question and at least 3 options.');
+if ((!is_array($options) || count($options) < 2) && isset($d['option_a'], $d['option_b'])) $options = [$d['option_a'], $d['option_b']];
+if ($question === '' || !is_array($options)) fail('Invalid poll structure. Provide a question and at least 2 options.');
 
 $cleanOptions = [];
 foreach ($options as $option) {
     $value = trim((string)$option);
     if ($value !== '' && !in_array($value, $cleanOptions, true)) $cleanOptions[] = $value;
 }
-if (count($cleanOptions) < 3) fail('Please enter at least 3 poll options.');
+if (count($cleanOptions) < 2) fail('Invalid poll structure. Provide a question and at least 2 options.');
+
+$membership = $pdo->prepare('SELECT c.retention_seconds FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id WHERE c.id=? AND cm.user_id=? AND cm.status="active" LIMIT 1');
+$membership->execute([$chat, $user['id']]);
+$chatRow = $membership->fetch();
+if (!$chatRow) fail('Not a member', 403);
+assert_chat_allows_messages($chat, (int)$user['id']);
 
 require_once __DIR__ . '/../lib/poll_expiry.php';
 try { $expiresAt = poll_expiry($d['expires_at'] ?? null); }
 catch (InvalidArgumentException $error) { fail($error->getMessage(), 422); }
 
-$createdMessages = [];
-$createdPollIds = [];
-
 try {
     $pdo->beginTransaction();
+    $pdo->prepare('INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,closes_at,created_at) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP())')->execute([$chat,$user['id'],$question,!empty($d['multiple_choice'])?1:0,!empty($d['anonymous'])?1:0,$expiresAt]);
+    $pollId = (int)$pdo->lastInsertId();
 
-    foreach ($destinations as $destination) {
-        $chatId = $destination['id'];
+    $st = $pdo->prepare('INSERT INTO poll_options(poll_id,option_text,display_order) VALUES(?,?,?)');
+    foreach ($cleanOptions as $index=>$option) $st->execute([$pollId,$option,$index]);
 
-        $pdo->prepare('INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,closes_at,created_at) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP())')
-            ->execute([$chatId,$user['id'],$question,!empty($d['multiple_choice'])?1:0,!empty($d['anonymous'])?1:0,$expiresAt]);
-        $pollId = (int)$pdo->lastInsertId();
-        $createdPollIds[] = $pollId;
-
-        $st = $pdo->prepare('INSERT INTO poll_options(poll_id,option_text,display_order) VALUES(?,?,?)');
-        foreach ($cleanOptions as $index=>$option) $st->execute([$pollId,$option,$index]);
-
-        $messageBody = json_encode(['poll_id'=>$pollId], JSON_UNESCAPED_SLASHES);
-        $messageInsert = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,expires_at,created_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP())');
-        $messageInsert->execute([$chatId,$user['id'],'poll',$messageBody,$expiresAt]);
-        $messageId = (int)$pdo->lastInsertId();
-
-        $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')
-            ->execute([$chatId, $user['id']]);
-        create_chat_notifications($chatId, (int)$user['id'], (string)$user['name'], 'Created a poll: ' . $question, $messageId);
-
-        $createdOptions = [];
-        $optionQuery = $pdo->prepare('SELECT id, option_text AS text, display_order FROM poll_options WHERE poll_id=? ORDER BY display_order ASC,id ASC');
-        $optionQuery->execute([$pollId]);
-        foreach ($optionQuery->fetchAll() as $row) {
-            $createdOptions[] = ['id'=>(int)$row['id'],'text'=>$row['text'],'votes'=>0,'selected'=>false];
-        }
-
-        $createdMessages[] = [
-            'id' => $messageId,
-            'chat_id' => $chatId,
-            'sender_id' => (int)$user['id'],
-            'type' => 'poll',
-            'body' => $messageBody,
-            'poll_id' => $pollId,
-            'poll' => ['id'=>$pollId,'question'=>$question,'options'=>$createdOptions,'expires_at'=>$expiresAt],
-            'expires_at' => $expiresAt
-        ];
-    }
+    $messageBody = json_encode(['poll_id'=>$pollId], JSON_UNESCAPED_SLASHES);
+    $messageInsert = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,expires_at,created_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP())');
+    $messageInsert->execute([$chat,$user['id'],'poll',$messageBody,$expiresAt]);
+    $messageId = (int)$pdo->lastInsertId();
+    $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
+    create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], 'Created a poll: ' . $question, $messageId);
 
     $pdo->commit();
 } catch (Throwable $e) {
@@ -151,9 +95,20 @@ try {
     fail('Poll creation failed', 500);
 }
 
-out([
-    'messages' => $createdMessages,
-    'poll_ids' => $createdPollIds,
-    'message' => $createdMessages[0] ?? null,
-    'poll_id' => $createdPollIds[0] ?? null
-], 201);
+$createdOptions = [];
+$optionQuery = $pdo->prepare('SELECT id, option_text AS text, display_order FROM poll_options WHERE poll_id=? ORDER BY display_order ASC,id ASC');
+$optionQuery->execute([$pollId]);
+foreach ($optionQuery->fetchAll() as $row) $createdOptions[] = ['id'=>(int)$row['id'],'text'=>$row['text'],'votes'=>0,'selected'=>false];
+
+$message = [
+    'id' => $messageId,
+    'chat_id' => $chat,
+    'sender_id' => (int)$user['id'],
+    'type' => 'poll',
+    'body' => $messageBody,
+    'poll_id' => $pollId,
+    'poll' => ['id'=>$pollId,'question'=>$question,'options'=>$createdOptions,'expires_at'=>$expiresAt],
+    'expires_at' => $expiresAt
+];
+
+out(['message'=>$message,'poll_id'=>$pollId],201);
