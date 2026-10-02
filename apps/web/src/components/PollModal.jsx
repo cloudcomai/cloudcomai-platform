@@ -33,7 +33,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
     }
 
     const chatType = selectedChat.type;
-    const isAllowedChat = selectedChat.isGroup || chatType === 'group' || chatType === 'public';
+    const isAllowedChat = chatType === 'group' || chatType === 'public';
     if (!isAllowedChat) {
       return alert('Polls are available only in group and public chats.');
     }
