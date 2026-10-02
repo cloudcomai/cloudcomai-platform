@@ -140,7 +140,7 @@ try {
     request('POST','v1/messages',1,['chat_id'=>1,'body'=>'blocked'],403);
     request('POST','v1/messages',2,['chat_id'=>1,'body'=>'also blocked'],403);
     request('POST','v1/messages',1,['chat_id'=>1,'type'=>'location','latitude'=>0,'longitude'=>0],403);
-    request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Blocked?','options'=>['Yes','No']],403);
+    request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Blocked?','options'=>['Yes','No']],422);
     request('DELETE','v1/users/privacy?user_id=1',2);
 
     $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
