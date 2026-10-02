@@ -23,10 +23,13 @@ if ($action === 'vote') {
         if ($poll['closed_at'] || ($poll['closes_at'] && $poll['closes_at'] <= gmdate('Y-m-d H:i:s'))) fail('This poll is closed', 409);
         assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
 
-        $messageQuery = $pdo->prepare('SELECT id FROM messages WHERE chat_id=? AND type="poll" AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(body) THEN body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=? LIMIT 1');
-        $messageQuery->execute([$poll['chat_id'], $pollId]);
+        // Voting must also require that the poll message is still visible to this
+        // member. A self-deleted poll remains in the database for other members,
+        // but the deleting member must not be able to vote through the poll API.
+        $messageQuery = $pdo->prepare('SELECT m.id FROM messages m LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.chat_id=? AND m.type="poll" AND m.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND CAST(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(m.body) THEN m.body ELSE "{}" END,"$.poll_id")) AS UNSIGNED)=? LIMIT 1');
+        $messageQuery->execute([$user['id'], $poll['chat_id'], $pollId]);
         $messageId = (int)$messageQuery->fetchColumn();
-        assert_visible_message($messageId, (int)$user['id']);
+        if ($messageId <= 0) fail('Poll message not found or no longer visible', 404);
 
         $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
         $option->execute([$optionId, $pollId]);
