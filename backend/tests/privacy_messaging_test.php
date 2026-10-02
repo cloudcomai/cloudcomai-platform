@@ -247,7 +247,8 @@ try {
     request('DELETE',"v1/messages?id=$pollMessageId&scope=self",2);
     check((int)$admin->query("SELECT hidden FROM message_user_states WHERE message_id=$pollMessageId AND user_id=2")->fetchColumn()===1,'Self-deleted poll was not hidden for the deleting member');
     request('POST','v1/polls?action=vote',2,$vote,404);
-    request('DELETE','v1/chats?id=1',1);
+    // The poll lives in group chat 2. Deleting unrelated private chat 1 must not invalidate the poll.
+    request('DELETE','v1/chats?id=2',1);
     request('POST','v1/polls?action=vote',1,$vote,404);
 
     // A failed notification insert must roll back message creation, so a retry
