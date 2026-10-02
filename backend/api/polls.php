@@ -16,8 +16,6 @@ if ($action === 'vote') {
 
     try {
         $pdo->beginTransaction();
-        // Serialize votes before reading or replacing a user's choice. Concurrent
-        // first votes must not create multiple rows for this single-choice API.
         $membership = $pdo->prepare('SELECT p.chat_id,p.closed_at,p.closes_at FROM polls p INNER JOIN chat_members cm ON cm.chat_id=p.chat_id WHERE p.id=? AND cm.user_id=? AND cm.status="active" LIMIT 1 FOR UPDATE');
         $membership->execute([$pollId, $user['id']]);
         $poll = $membership->fetch();
@@ -36,7 +34,6 @@ if ($action === 'vote') {
 
         $pdo->prepare('DELETE FROM poll_votes WHERE poll_id=? AND user_id=?')->execute([$pollId, $user['id']]);
         $pdo->prepare('INSERT INTO poll_votes(poll_id,option_id,user_id,created_at) VALUES(?,?,?,UTC_TIMESTAMP())')->execute([$pollId, $optionId, $user['id']]);
-        // Existing clients synchronize already-loaded messages by edited_at.
         $pdo->prepare('UPDATE messages SET edited_at=UTC_TIMESTAMP() WHERE id=?')->execute([$messageId]);
         $pdo->commit();
     } catch (Throwable $e) {
@@ -54,19 +51,20 @@ $chat = (int)($d['chat_id'] ?? 0);
 $question = trim((string)($d['question'] ?? ''));
 $options = $d['options'] ?? $d['choices'] ?? [];
 if ((!is_array($options) || count($options) < 2) && isset($d['option_a'], $d['option_b'])) $options = [$d['option_a'], $d['option_b']];
-if ($question === '' || !is_array($options)) fail('Invalid poll structure. Provide a question and at least 2 options.');
+if ($question === '' || !is_array($options)) fail('Invalid poll structure. Provide a question and 2 to 4 options.');
 
 $cleanOptions = [];
 foreach ($options as $option) {
     $value = trim((string)$option);
     if ($value !== '' && !in_array($value, $cleanOptions, true)) $cleanOptions[] = $value;
 }
-if (count($cleanOptions) < 2) fail('Invalid poll structure. Provide a question and at least 2 options.');
+if (count($cleanOptions) < 2 || count($cleanOptions) > 4) fail('Invalid poll structure. Provide between 2 and 4 different options.', 422);
 
-$membership = $pdo->prepare('SELECT c.retention_seconds FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id WHERE c.id=? AND cm.user_id=? AND cm.status="active" LIMIT 1');
+$membership = $pdo->prepare('SELECT c.type,c.retention_seconds FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id WHERE c.id=? AND cm.user_id=? AND cm.status="active" LIMIT 1');
 $membership->execute([$chat, $user['id']]);
 $chatRow = $membership->fetch();
 if (!$chatRow) fail('Not a member', 403);
+if (!in_array($chatRow['type'], ['group', 'public'], true)) fail('Polls are available only in group and public chats.', 422);
 assert_chat_allows_messages($chat, (int)$user['id']);
 
 require_once __DIR__ . '/../lib/poll_expiry.php';
