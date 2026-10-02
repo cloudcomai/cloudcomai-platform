@@ -44,8 +44,11 @@ if ($action === 'vote') {
 
     // Defense in depth: verify the exact resolved message has no viewer-specific
     // hidden state before accepting the vote.
-    $traceDb = $pdo->query('SELECT DATABASE() AS db_name, CONNECTION_ID() AS connection_id')->fetch();
-    error_log('poll vote db trace: poll_id='.$pollId.' user_id='.(int)$user['id'].' db='.($traceDb['db_name'] ?? 'null').' conn='.($traceDb['connection_id'] ?? 'null')); 
+    $traceDb = $pdo->query('SELECT DATABASE() AS db_name, CONNECTION_ID() AS connection_id, UTC_TIMESTAMP() AS utc_now')->fetch();
+    $traceMessage = $pdo->prepare('SELECT id,expires_at,deleted_for_everyone,type,body FROM messages WHERE id=(SELECT MAX(id) FROM messages WHERE chat_id=? AND type="poll" AND JSON_VALID(body) AND CAST(JSON_UNQUOTE(JSON_EXTRACT(body,"$.poll_id")) AS UNSIGNED)=?) LIMIT 1');
+    $traceMessage->execute([(int)$poll['chat_id'], $pollId]);
+    $traceMessageRow = $traceMessage->fetch();
+    error_log('poll vote db trace: poll_id='.$pollId.' user_id='.(int)$user['id'].' db='.($traceDb['db_name'] ?? 'null').' conn='.($traceDb['connection_id'] ?? 'null').' utc='.($traceDb['utc_now'] ?? 'null').' message_expires='.($traceMessageRow['expires_at'] ?? 'null').' deleted='.($traceMessageRow['deleted_for_everyone'] ?? 'null').' type='.($traceMessageRow['type'] ?? 'null')); 
     $hiddenMessage = $pdo->prepare('SELECT hidden FROM message_user_states WHERE message_id=? AND user_id=? LIMIT 1');
     $hiddenMessage->execute([$messageId, (int)$user['id']]);
     $hiddenState = $hiddenMessage->fetchColumn();
