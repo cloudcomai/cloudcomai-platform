@@ -140,7 +140,7 @@ try {
     request('POST','v1/messages',1,['chat_id'=>1,'body'=>'blocked'],403);
     request('POST','v1/messages',2,['chat_id'=>1,'body'=>'also blocked'],403);
     request('POST','v1/messages',1,['chat_id'=>1,'type'=>'location','latitude'=>0,'longitude'=>0],403);
-    request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Blocked?','options'=>['Yes','No']],403);
+    request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Blocked?','options'=>['Yes','No']],422);
     request('DELETE','v1/users/privacy?user_id=1',2);
 
     $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
@@ -182,7 +182,45 @@ try {
     request('GET',"v1/attachments?id=$attachmentId&preview=1",1,null,404);
     check(count(glob($root.'/storage/attachments/*'))===0,'Deleted media bytes remain on disk');
 
-    $poll = request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Choose one','options'=>['One','Two']],201)['data']['message'];
+    // Poll creation boundaries: private blocked; group accepts exactly 2-4 distinct options; duplicates collapse and must still leave at least 2.
+    request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Private blocked','options'=>['One','Two']],422);
+    request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Too few','options'=>['One']],422);
+    request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Duplicate only','options'=>['One','One']],422);
+    request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Too many','options'=>['One','Two','Three','Four','Five']],422);
+    $threeOptionPoll = request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Three choices','options'=>['One','Two','Three']],201)['data']['message'];
+    check(count($threeOptionPoll['poll']['options'])===3,'Three-option group poll was not preserved');
+    request('DELETE',"v1/messages?id=".$threeOptionPoll['id']."&scope=everyone",1);
+    $fourOptionPoll = request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Four choices','options'=>['One','Two','Three','Four']],201)['data']['message'];
+    check(count($fourOptionPoll['poll']['options'])===4,'Four-option group poll was not preserved');
+    request('DELETE',"v1/messages?id=".$fourOptionPoll['id']."&scope=everyone",1);
+
+    // Public chats must use the same poll path and retain the normal poll payload.
+    $admin->exec("INSERT INTO chats(id,type,name,owner_id) VALUES(3,'public','Public poll room',1)");
+    $admin->exec("INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(3,1,'owner','active'),(3,2,'member','active')");
+    $publicPoll = request('POST','v1/polls',1,['chat_id'=>3,'question'=>'Public choice','options'=>['Yes','No']],201)['data']['message'];
+    check(($publicPoll['type']??null)==='poll' && count($publicPoll['poll']['options'])===2,'Public poll payload was not preserved');
+    request('DELETE',"v1/messages?id=".$publicPoll['id']."&scope=everyone",1);
+    $admin->exec("DELETE FROM chat_user_states WHERE chat_id=3");
+    $admin->exec("DELETE FROM chat_members WHERE chat_id=3");
+    $admin->exec("DELETE FROM chats WHERE id=3");
+
+    // Legacy private polls can still exist in storage. The message API must normalize them before clients render poll UI.
+    $admin->exec("INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,created_at) VALUES(1,1,'Legacy private poll',0,0,UTC_TIMESTAMP())");
+    $legacyPollId = (int)$admin->lastInsertId();
+    $admin->exec("INSERT INTO poll_options(poll_id,option_text,display_order) VALUES($legacyPollId,'Yes',0),($legacyPollId,'No',1)");
+    $legacyBody = json_encode(['poll_id'=>$legacyPollId], JSON_UNESCAPED_SLASHES);
+    $legacyStmt = $admin->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(1,1,\'poll\',?,UTC_TIMESTAMP())');
+    $legacyStmt->execute([$legacyBody]);
+    $legacyMessageId = (int)$admin->lastInsertId();
+    $legacyMessages = request('GET','v1/messages?chat_id=1',2)['data']['messages'];
+    $legacyMessage = array_values(array_filter($legacyMessages, fn($m)=>(int)$m['id']===$legacyMessageId))[0] ?? null;
+    check(($legacyMessage['type']??null)==='text' && ($legacyMessage['body']??null)==='Poll' && !isset($legacyMessage['poll_id']) && !isset($legacyMessage['poll']),'Legacy private poll was not normalized safely');
+    $admin->exec("DELETE FROM messages WHERE id=$legacyMessageId");
+    $admin->exec("DELETE FROM poll_options WHERE poll_id=$legacyPollId");
+    $admin->exec("DELETE FROM polls WHERE id=$legacyPollId");
+
+    // Polls are supported in group/public chats only. Use the existing group fixture.
+    $poll = request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Choose one','options'=>['One','Two']],201)['data']['message'];
     $pollId = (int)$poll['poll_id'];
     $pollMessageId = (int)$poll['id'];
     $firstOption = (int)$poll['poll']['options'][0]['id'];
@@ -190,9 +228,9 @@ try {
     $vote = ['poll_id'=>$pollId,'option_id'=>$firstOption];
     request('POST','v1/polls?action=vote',3,$vote,403);
     request('POST','v1/polls?action=vote',2,['poll_id'=>$pollId,'option_id'=>99999],400);
-    $beforeVote = request('GET','v1/messages?chat_id=1',1)['data']['synced_at'];
+    $beforeVote = request('GET','v1/messages?chat_id=2',1)['data']['synced_at'];
     request('POST','v1/polls?action=vote',2,$vote);
-    $sync = request('GET','v1/messages?chat_id=1&after_id='.$pollMessageId.'&updated_after='.rawurlencode($beforeVote),1)['data'];
+    $sync = request('GET','v1/messages?chat_id=2&after_id='.$pollMessageId.'&updated_after='.rawurlencode($beforeVote),1)['data'];
     $updatedPoll = array_values(array_filter($sync['messages'],fn($m)=>(int)$m['id']===$pollMessageId))[0] ?? null;
     check(($updatedPoll['poll']['options'][0]['votes']??0)===1,'Another member did not receive updated poll totals');
     check(($updatedPoll['poll']['options'][0]['selected']??true)===false,'Poll selected state leaked between voters');
@@ -210,9 +248,9 @@ try {
     request('POST','v1/polls?action=vote',2,$vote,404);
     $admin->exec("UPDATE messages SET expires_at=NULL WHERE id=$pollMessageId");
     request('DELETE',"v1/messages?id=$pollMessageId&scope=self",2);
+    check((int)$admin->query("SELECT hidden FROM message_user_states WHERE message_id=$pollMessageId AND user_id=2")->fetchColumn()===1,'Self-deleted poll was not hidden for the deleting member');
     request('POST','v1/polls?action=vote',2,$vote,404);
     request('DELETE','v1/chats?id=1',1);
-    request('POST','v1/polls?action=vote',1,$vote,404);
 
     // A failed notification insert must roll back message creation, so a retry
     // cannot duplicate a message that appeared to fail in the UI.
