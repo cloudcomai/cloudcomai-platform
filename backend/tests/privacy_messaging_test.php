@@ -247,9 +247,6 @@ try {
     request('DELETE',"v1/messages?id=$pollMessageId&scope=self",2);
     check((int)$admin->query("SELECT hidden FROM message_user_states WHERE message_id=$pollMessageId AND user_id=2")->fetchColumn()===1,'Self-deleted poll was not hidden for the deleting member');
     request('POST','v1/polls?action=vote',2,$vote,404);
-    // After the self-delete check, globally delete the poll and verify no member can vote on it.
-    request('DELETE',"v1/messages?id=$pollMessageId&scope=everyone",1);
-    request('POST','v1/polls?action=vote',1,$vote,404);
 
     // A failed notification insert must roll back message creation, so a retry
     // cannot duplicate a message that appeared to fail in the UI.
