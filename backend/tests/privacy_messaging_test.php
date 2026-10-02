@@ -200,6 +200,9 @@ try {
     $publicPoll = request('POST','v1/polls',1,['chat_id'=>3,'question'=>'Public choice','options'=>['Yes','No']],201)['data']['message'];
     check(($publicPoll['type']??null)==='poll' && count($publicPoll['poll']['options'])===2,'Public poll payload was not preserved');
     request('DELETE',"v1/messages?id=".$publicPoll['id']."&scope=everyone",1);
+    $admin->exec("DELETE FROM chat_user_states WHERE chat_id=3");
+    $admin->exec("DELETE FROM chat_members WHERE chat_id=3");
+    $admin->exec("DELETE FROM chats WHERE id=3");
 
     // Legacy private polls can still exist in storage. The message API must normalize them before clients render poll UI.
     $admin->exec("INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,created_at) VALUES(1,1,'Legacy private poll',0,0,UTC_TIMESTAMP())");
