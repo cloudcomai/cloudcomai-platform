@@ -183,6 +183,7 @@ try {
     check(count(glob($root.'/storage/attachments/*'))===0,'Deleted media bytes remain on disk');
 
     // Polls are supported in group/public chats only. Use the existing group fixture.
+    $poll = request('POST','v1/polls',1,['chat_id'=>2,'question'=>'Choose one','options'=>['One','Two']],201)['data']['message'];
     $pollId = (int)$poll['poll_id'];
     $pollMessageId = (int)$poll['id'];
     $firstOption = (int)$poll['poll']['options'][0]['id'];
