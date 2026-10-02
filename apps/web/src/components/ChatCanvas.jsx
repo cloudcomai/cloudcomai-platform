@@ -129,6 +129,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   };
 
   const isGroup = selectedChat?.type === 'group' || selectedChat?.isGroup;
+  const isPollChat = selectedChat?.type === 'group' || selectedChat?.type === 'public';
   const isGroupOwner = isGroup && Number(selectedChat?.owner_id) === Number(user?.id);
 
   const prepareGroupInvite = async () => {
@@ -179,7 +180,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
           {/* Audio and video calls are temporarily hidden until their functionality is completed. */}
           {/* <button className="action-utility-btn" onClick={() => setModal('audio')}><span>Audio Call</span></button> */}
           {/* <button className="action-utility-btn" onClick={() => setModal('video')}><span>Video Call</span></button> */}
-          <button className="action-utility-btn" onClick={() => setModal('poll')}><BarChart3 size={18}/><span>New Poll</span></button>
+          {isPollChat && <button className="action-utility-btn" onClick={() => setModal('poll')}><BarChart3 size={18}/><span>New Poll</span></button>}
           {/* Location sharing is temporarily hidden until its functionality is completed. */}
 
           {isGroup ? <>
@@ -275,7 +276,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
       <div className="canvas-bottom-action-tray">
         <div className="shortcut-action-grid">
           {/* Status, Stories, and Live Location shortcuts are temporarily hidden until their functionality is completed. */}
-          <button className="shortcut-action-card yellow-theme" onClick={() => setModal('poll')}><div className="shortcut-icon-circle"><BarChart3 size={18}/></div><div className="shortcut-meta"><h5>Polls</h5><p>Create polls</p></div></button>
+          {isPollChat && <button className="shortcut-action-card yellow-theme" onClick={() => setModal('poll')}><div className="shortcut-icon-circle"><BarChart3 size={18}/></div><div className="shortcut-meta"><h5>Polls</h5><p>Create polls</p></div></button>}
         </div>
 
         {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { onCancelContext(); }}><X size={16}/></button></div> : null}
