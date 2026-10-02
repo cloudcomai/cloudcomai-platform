@@ -30,7 +30,8 @@ if ($action === 'vote') {
         $messageQuery->execute([$poll['chat_id'], $pollId]);
         $messageId = (int)$messageQuery->fetchColumn();
         if ($messageId <= 0) fail('Poll message not found or no longer visible', 404);
-        // Do not duplicate message visibility rules here: this helper is the canonical gate for hidden/self-deleted messages.\n        assert_visible_message($messageId, (int)$user['id']);
+        // Do not duplicate message visibility rules here: this helper is the canonical gate for hidden/self-deleted messages.
+        assert_visible_message($messageId, (int)$user['id']);
 
         $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
         $option->execute([$optionId, $pollId]);
