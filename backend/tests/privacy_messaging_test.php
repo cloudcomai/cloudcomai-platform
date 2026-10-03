@@ -246,6 +246,7 @@ try {
     $changedVote = request('POST','v1/polls?action=vote',2,['poll_id'=>$pollId,'option_id'=>$secondOption])['data'];
     check((int)$admin->query("SELECT COUNT(*) FROM poll_votes WHERE poll_id=$pollId AND user_id=2")->fetchColumn()===1,'Vote change retained duplicate choices');
     check($changedVote['options'][0]['votes']===0 && $changedVote['options'][1]['votes']===1,'Vote totals are incorrect after changing choice');
+    $admin->exec("INSERT INTO poll_votes(poll_id,option_id,user_id) VALUES($pollId,$firstOption,1)");
     $removeOptionEdit = request('POST','v1/polls?action=edit',1,['poll_id'=>$pollId,'question'=>'Final choice','options'=>[['id'=>$firstOption,'text'=>'One final'],['id'=>0,'text'=>'Three']]],200)['data']['message'];
     check(count($removeOptionEdit['poll']['options'])===2,'Poll edit did not keep exactly two options');
     check((int)$admin->query("SELECT COUNT(*) FROM poll_votes WHERE poll_id=$pollId AND option_id=$secondOption")->fetchColumn()===0,'Votes for a removed poll option were not deleted');
