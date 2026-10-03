@@ -495,7 +495,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
         const options = {
           mediaTypes: ['images'],
           quality: 0.82,
-          preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+          ...(Platform.OS === 'ios' && ImagePicker.UIImagePickerPreferredAssetRepresentationMode
+            ? { preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible }
+            : {}),
         };
         return useCamera
           ? ImagePicker.launchCameraAsync(options)
