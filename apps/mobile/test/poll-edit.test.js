@@ -19,6 +19,10 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(media, /pollEditError/);
   assert.match(media, /accessibilityRole="alert"/);
   assert.match(media, /colors\.iconPrimary \|\| colors\.accent \|\| '#1677c8'/);
+  assert.match(media, /function MessageAction\(\{ type, label, color, onPress, accessibilityLabel, colors = \{\} \}\)/);
+  assert.match(media, /colors\.surfaceSecondary \|\| colors\.primaryLight/);
+  assert.match(media, /colors\.surface \|\| colors\.composer/);
+  assert.match(media, /pressed && \{ backgroundColor: pressedBackground \}/);
   assert.match(app, /const canEditPoll = message =>/);
   assert.match(app, /message\?\.type !== 'poll'/);
   assert.match(app, /Number\(message\?\.edit_count \|\| 0\) >= 2/);
