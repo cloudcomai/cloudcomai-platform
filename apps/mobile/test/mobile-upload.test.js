@@ -226,7 +226,7 @@ test('attachment rendering keeps image, video and document preview paths intact'
 
 test('attachment cancellation regression remains covered without changing the upload service contract', () => {
   assert.match(platformSource, /export const cancelActiveAttachmentUpload/);
-  assert.match(platformSource, /activeAttachmentUploadCancel = cancel/);
+  assert.match(platformSource, /activeAttachmentUploadCancel=cancel/);
   assert.match(platformSource, /code:'UPLOAD_CANCELLED'/);
   assert.match(appSource, /cancelUpload\(\)/);
   assert.match(composerSource, /cancelActiveAttachmentUpload\(\)/);
