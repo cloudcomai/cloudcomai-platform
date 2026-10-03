@@ -152,7 +152,7 @@ function ActionGlyph({ type, color }) {
 function MessageAction({ type, label, color, onPress, accessibilityLabel }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={styles.messageActionButton} onPress={event => { event.stopPropagation?.(); onPress?.(); }}>
     <ActionGlyph type={type} color={color} />
-    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.messageActionLabel, { color: type === 'delete' ? color : '#172033' }]}>{label}</Text>
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.messageActionLabel, { color: color || (type === 'delete' ? '#dc2626' : '#3157d5') }]}>{label}</Text>
   </Pressable>;
 }
 
