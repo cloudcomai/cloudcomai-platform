@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const media = fs.readFileSync(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
+const pollEditor = fs.readFileSync(new URL('../src/components/PollEditModal.js', import.meta.url), 'utf8');
 const app = fs.readFileSync(new URL('../App.js', import.meta.url), 'utf8');
 const composer = fs.readFileSync(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
 const mobileMenu = fs.readFileSync(new URL('../src/components/MobileMenu.js', import.meta.url), 'utf8');
@@ -11,9 +12,12 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(media, /message\.type === 'poll'/);
   assert.match(media, /query: \{ action: 'edit' \}/);
   assert.match(media, /Edit Poll/);
-  assert.match(media, /animationType="none"/);
-  assert.match(media, /showSoftInputOnFocus=\{true\}/);
+  assert.doesNotMatch(media, /pollEditOpen/);
+  assert.match(pollEditor, /animationType="none"/);
+  assert.match(pollEditor, /showSoftInputOnFocus/);
   assert.match(app, /Keyboard\.addListener\('keyboardDidShow'/);
+  assert.match(app, /PollEditModal/);
+  assert.match(app, /onEditPoll/);
   assert.match(app, /if \(keyboardVisibleRef\.current\) return/);
   assert.match(media, /2 to 4 different options/);
   assert.match(media, /const normalizePollExpiry = value =>/);
