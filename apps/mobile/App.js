@@ -503,7 +503,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           ? ImagePicker.launchCameraAsync(options)
           : ImagePicker.launchImageLibraryAsync(options);
       });
-      if (!picked.canceled && picked.assets?.[0]) await uploadAttachment(validateAttachment(picked.assets[0]));
+      if (!picked.canceled && picked.assets?.[0]) await uploadAttachment(validateAttachment(picked.assets[0]), setAttachmentDraft);
     } catch (pickerError) {
       setError(pickerError.message || 'Unable to select an image.');
     }
@@ -525,7 +525,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       }));
       if (!picked.canceled && picked.assets?.[0]) {
         const documentAsset = validateAttachment(picked.assets[0]);
-        await uploadAttachment({ ...documentAsset, multipartPartMode: 'native' });
+        await uploadAttachment({ ...documentAsset, multipartPartMode: 'native' }, setAttachmentDraft);
       }
     } catch (pickerError) {
       setError(pickerError.message || 'Unable to open the document picker.');
