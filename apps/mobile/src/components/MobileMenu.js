@@ -40,6 +40,7 @@ const ScreenHeader = ({ title, onBack, onClose, theme }) => (
 export default function MobileMenu({
   visible,
   initialScreen = 'menu',
+  initialPollChatId = null,
   user,
   onClose,
   onChatCreated,
@@ -80,7 +81,7 @@ export default function MobileMenu({
     if (visible) {
       const requestedScreen = initialScreen || 'menu';
       setScreen(requestedScreen);
-      if (requestedScreen === 'poll') loadPollConversations();
+      if (requestedScreen === 'poll') loadPollConversations(initialPollChatId);
       setProfileName(user?.name || '');
       setProfileDob(user?.dob || '');
       setProfileGender(user?.gender || 'Male');
@@ -90,13 +91,13 @@ export default function MobileMenu({
     } else {
       setScreen('menu'); setError(''); setBusy(false); setUserQuery(''); setUserResults([]); setUserSearchCompleted(false); setPollChats([]); setPollChatId(null); setPollOptions(['', '']); setPollQuestion(''); setPollExpiry(''); setPollCalendarOpen(false); setGoogleStatus(null);
     }
-  }, [visible]);
+  }, [visible, initialPollChatId]);
 
   const go = next => { setError(''); setScreen(next); };
   const searchUsers = async () => { const query = userQuery.trim(); if (!query || busy) return; setBusy(true); setError(''); setUserSearchCompleted(false); try { const { data } = await platformApi.searchUsers(query); setUserResults(data.users || []); setUserSearchCompleted(true); } catch (e) { setError(e.message || 'Unable to search users.'); } finally { setBusy(false); } };
   const startPrivateChat = async user => { if (busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.createPrivateChat(user.id); if (!data.chat) throw new Error('Chat was not created.'); onChatCreated?.({ ...data.chat, id: Number(data.chat.id), isGroup: false }); onClose(); } catch (e) { setError(e.message || 'Unable to create private chat.'); } finally { setBusy(false); } };
   const createGroup = async () => { if (!groupName.trim() || busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.createGroup({ name: groupName.trim(), group_category: groupType }); if (!data.group) throw new Error('Group was not created.'); onGroupCreated?.({ ...data.group, id: Number(data.group.id), isGroup: true }); onClose(); } catch (e) { setError(e.message || 'Unable to create group.'); } finally { setBusy(false); } };
-  const loadPollConversations = async () => { setBusy(true); setError(''); try { const { data: groupData } = await platformApi.listChats('group'); const chats = (groupData.chats || []).map(c => ({ ...c, id: Number(c.id), type: 'group', label: c.name || 'Group' })); setPollChats(chats); if (chats[0]) setPollChatId(chats[0].id); } catch (e) { setError(e.message || 'Unable to load group conversations for the poll.'); } finally { setBusy(false); } };
+  const loadPollConversations = async preferredChatId => { setBusy(true); setError(''); try { const { data: groupData } = await platformApi.listChats('group'); const chats = (groupData.chats || []).map(c => ({ ...c, id: Number(c.id), type: 'group', label: c.name || 'Group' })); setPollChats(chats); const preferred = chats.find(chat => Number(chat.id) === Number(preferredChatId)); if (preferred) setPollChatId(preferred.id); else if (chats[0]) setPollChatId(chats[0].id); } catch (e) { setError(e.message || 'Unable to load group conversations for the poll.'); } finally { setBusy(false); } };
   const loadPoll = async () => { go('poll'); await loadPollConversations(); };
   const updatePollOption = (index, value) => setPollOptions(current => current.map((option, optionIndex) => optionIndex === index ? value : option));
   const addPollOption = () => { if (pollOptions.length < 4) setPollOptions(current => [...current, '']); };
@@ -126,7 +127,7 @@ export default function MobileMenu({
     setPollExpiry(formatPollDate(date));
     setPollCalendarOpen(false);
   };
-  const createPoll = async () => { const cleanOptions = [...new Set(pollOptions.map(option => option.trim()).filter(Boolean))]; const selectedChat = pollChats.find(chat => Number(chat.id) === Number(pollChatId)); if (!selectedChat || selectedChat.type !== 'group') { setError('Polls are available only in group chats.'); return; } if (!pollQuestion.trim() || cleanOptions.length < 2 || cleanOptions.length > 4 || busy) return; setBusy(true); setError(''); try { await platformApi.createPoll({ chat_id: pollChatId, question: pollQuestion.trim(), expires_at: pollDateExpiry(pollExpiry), options: cleanOptions }); Alert.alert('Poll created', 'The poll was posted to the selected conversation.'); onClose(); } catch (e) { setError(e.message || 'Unable to create poll.'); } finally { setBusy(false); } };
+  const createPoll = async () => { const cleanOptions = [...new Set(pollOptions.map(option => option.trim()).filter(Boolean))]; const selectedChat = pollChats.find(chat => Number(chat.id) === Number(pollChatId)); if (busy) return; if (!selectedChat || selectedChat.type !== 'group') { setError('Polls are available only in group chats.'); return; } if (!pollQuestion.trim()) { setError('Poll question is required.'); return; } if (cleanOptions.length < 2) { setError('Provide at least 2 options.'); return; } if (cleanOptions.length > 4) { setError('A poll can have at most 4 options.'); return; } setBusy(true); setError(''); try { await platformApi.createPoll({ chat_id: pollChatId, question: pollQuestion.trim(), expires_at: pollDateExpiry(pollExpiry), options: cleanOptions }); Alert.alert('Poll created', 'The poll was posted to the selected conversation.'); onClose(); } catch (e) { setError(e.message || 'Unable to create poll.'); } finally { setBusy(false); } };
   const openSyncContacts = async () => { go('contacts'); setBusy(true); try { const { data } = await platformApi.getGoogleStatus(); setGoogleStatus(data); } catch (e) { setError(e.message || 'Unable to check Google Contacts status.'); } finally { setBusy(false); } };
   const syncContacts = async () => { if (busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.syncGoogleContacts(); const count = Array.isArray(data.contacts) ? data.contacts.length : (data.contact_count || 0); Alert.alert('Contacts synced', count ? `${count} contacts were processed.` : 'Google Contacts sync completed.'); const { data: status } = await platformApi.getGoogleStatus(); setGoogleStatus(status); } catch (e) { setError(e.message || 'Unable to sync Google Contacts.'); } finally { setBusy(false); } };
   const connectGoogle = async () => { if (busy) return; setBusy(true); setError(''); try { const { data } = await platformApi.getGoogleConnect(); if (!data.authorization_url) throw new Error('Google authorization URL was not returned.'); await Linking.openURL(data.authorization_url); } catch (e) { setError(e.message || 'Unable to open Google connection.'); } finally { setBusy(false); } };
