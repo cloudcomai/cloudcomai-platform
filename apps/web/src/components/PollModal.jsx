@@ -34,7 +34,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
 
   const handleOptionChange = (index, value) => {
     const updatedOptions = [...options];
-    updatedOptions[index] = value;
+    updatedOptions[index] = typeof updatedOptions[index] === 'string' ? value : { ...updatedOptions[index], text: value };
     setOptions(updatedOptions);
   };
 
