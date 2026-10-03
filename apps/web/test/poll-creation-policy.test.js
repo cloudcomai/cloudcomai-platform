@@ -6,6 +6,7 @@ const modal = fs.readFileSync(new URL('../src/components/PollModal.jsx', import.
 const backend = fs.readFileSync(new URL('../../../backend/api/polls.php', import.meta.url), 'utf8');
 
 test('poll creation is restricted to group chats and 2-4 options', () => {
+  // Public and private chats are both excluded; only group is accepted.
   assert.match(modal, /selectedChat\.type !== 'group'/);
   assert.match(modal, /Polls are available only in group chats/);
   assert.doesNotMatch(modal, /chatType === 'group' \|\| chatType === 'public'/);
