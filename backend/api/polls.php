@@ -60,6 +60,99 @@ if ($action === 'vote') {
     out(['poll_id'=>$pollId,'options'=>array_map(static function($row){return ['id'=>(int)$row['id'],'text'=>$row['text'],'votes'=>(int)$row['votes'],'selected'=>(bool)$row['selected']];}, $options->fetchAll())]);
 }
 
+if ($action === 'edit') {
+    $pollId = (int)($d['poll_id'] ?? 0);
+    $question = trim((string)($d['question'] ?? ''));
+    $inputOptions = $d['options'] ?? [];
+    if ($pollId <= 0 || $question === '' || !is_array($inputOptions)) fail('Poll, question and options are required', 422);
+
+    $cleanOptions = [];
+    $requestedIds = [];
+    foreach ($inputOptions as $option) {
+        $optionId = 0;
+        $value = '';
+        if (is_array($option)) {
+            $optionId = (int)($option['id'] ?? 0);
+            $value = trim((string)($option['text'] ?? ''));
+        } else {
+            $value = trim((string)$option);
+        }
+        if ($value === '') continue;
+        if ($optionId > 0) $requestedIds[] = $optionId;
+        $cleanOptions[] = ['id' => $optionId, 'text' => $value];
+    }
+    $distinctTexts = [];
+    foreach ($cleanOptions as $option) {
+        if (!in_array($option['text'], $distinctTexts, true)) $distinctTexts[] = $option['text'];
+    }
+    if (count($distinctTexts) < 2 || count($distinctTexts) > 4 || count($distinctTexts) !== count($cleanOptions)) {
+        fail('Invalid poll structure. Provide between 2 and 4 different options.', 422);
+    }
+    if (count($requestedIds) !== count(array_unique($requestedIds))) fail('Poll options must be unique.', 422);
+
+    $pdo = db();
+    $pollQuery = $pdo->prepare('SELECT p.id,p.chat_id,p.creator_id,p.closes_at,m.id AS message_id,m.created_at,m.edit_count,m.deleted_for_everyone,m.expires_at
+        FROM polls p
+        INNER JOIN messages m ON m.chat_id=p.chat_id AND m.type="poll" AND m.deleted_for_everyone=0 AND JSON_VALID(m.body) AND CAST(JSON_UNQUOTE(JSON_EXTRACT(m.body,"$.poll_id")) AS UNSIGNED)=p.id
+        INNER JOIN chats c ON c.id=p.chat_id AND c.type="group"
+        INNER JOIN chat_members cm ON cm.chat_id=p.chat_id AND cm.user_id=? AND cm.status="active"
+        WHERE p.id=? AND p.creator_id=? LIMIT 1');
+    $pollQuery->execute([$user['id'], $pollId, $user['id']]);
+    $poll = $pollQuery->fetch();
+    if (!$poll) fail('Poll not found or you are not allowed to edit it', 404);
+    assert_chat_allows_messages((int)$poll['chat_id'], (int)$user['id']);
+    if ((int)$poll['deleted_for_everyone'] === 1 || ($poll['expires_at'] && $poll['expires_at'] <= gmdate('Y-m-d H:i:s'))) fail('Poll cannot be edited because it is no longer available', 409);
+    if ((int)$poll['edit_count'] >= 2 || strtotime((string)$poll['created_at']) < time() - 3 * 60 * 60) {
+        fail('Poll cannot be edited, the 3-hour window has expired, or the edit limit has been reached', 409);
+    }
+
+    $expiryInput = $d['expires_at'] ?? null;
+    try { $expiresAt = poll_expiry($expiryInput); }
+    catch (InvalidArgumentException $error) { fail($error->getMessage(), 422); }
+
+    try {
+        $pdo->beginTransaction();
+        $current = $pdo->prepare('SELECT id FROM poll_options WHERE poll_id=? ORDER BY display_order ASC,id ASC FOR UPDATE');
+        $current->execute([$pollId]);
+        $currentIds = array_map('intval', $current->fetchAll(PDO::FETCH_COLUMN));
+        foreach ($requestedIds as $optionId) {
+            if (!in_array($optionId, $currentIds, true)) fail('Invalid poll option', 422);
+        }
+        $keptIds = $requestedIds;
+        $deleteIds = array_values(array_diff($currentIds, $keptIds));
+        if ($deleteIds) {
+            $marks = implode(',', array_fill(0, count($deleteIds), '?'));
+            $pdo->prepare("DELETE FROM poll_votes WHERE poll_id=? AND option_id IN ($marks)")->execute(array_merge([$pollId], $deleteIds));
+            $pdo->prepare("DELETE FROM poll_options WHERE poll_id=? AND id IN ($marks)")->execute(array_merge([$pollId], $deleteIds));
+        }
+        $updateOption = $pdo->prepare('UPDATE poll_options SET option_text=?,display_order=? WHERE id=? AND poll_id=?');
+        $insertOption = $pdo->prepare('INSERT INTO poll_options(poll_id,option_text,display_order) VALUES(?,?,?)');
+        foreach ($cleanOptions as $index => $option) {
+            if ($option['id'] > 0) $updateOption->execute([$option['text'], $index, $option['id'], $pollId]);
+            else $insertOption->execute([$pollId, $option['text'], $index]);
+        }
+        $pdo->prepare('UPDATE polls SET question=?,closes_at=? WHERE id=?')->execute([$question, $expiresAt, $pollId]);
+        $pdo->prepare('UPDATE messages SET edit_count=edit_count+1,edited_at=UTC_TIMESTAMP(),expires_at=? WHERE id=?')->execute([$expiresAt, (int)$poll['message_id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('Poll edit failed: '.$e->getMessage());
+        fail($e instanceof InvalidArgumentException ? $e->getMessage() : 'Poll edit failed', $e instanceof InvalidArgumentException ? 422 : 500);
+    }
+
+    $optionsQuery = $pdo->prepare('SELECT po.id,po.option_text AS text,po.display_order,COUNT(pv.user_id) AS votes,MAX(CASE WHEN pv.user_id=? THEN 1 ELSE 0 END) AS selected
+        FROM poll_options po LEFT JOIN poll_votes pv ON pv.option_id=po.id AND pv.poll_id=po.poll_id
+        WHERE po.poll_id=? GROUP BY po.id,po.option_text,po.display_order ORDER BY po.display_order ASC,po.id ASC');
+    $optionsQuery->execute([$user['id'], $pollId]);
+    $options = array_map(static fn($row) => ['id'=>(int)$row['id'],'text'=>$row['text'],'votes'=>(int)$row['votes'],'selected'=>(bool)$row['selected']], $optionsQuery->fetchAll());
+    $updated = $pdo->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id WHERE m.id=?');
+    $updated->execute([(int)$poll['message_id']]);
+    $message = $updated->fetch();
+    $message['poll_id'] = $pollId;
+    $message['poll'] = ['id'=>$pollId,'question'=>$question,'options'=>$options,'expires_at'=>$expiresAt];
+    out(['message'=>$message,'poll_id'=>$pollId]);
+}
+
 $chat = (int)($d['chat_id'] ?? 0);
 $question = trim((string)($d['question'] ?? ''));
 $options = $d['options'] ?? $d['choices'] ?? [];
