@@ -20,6 +20,10 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(media, /pollCalendarOpen/);
   assert.match(media, /calendarDays/);
   assert.match(media, /pollCalendarGrid: \{ flexDirection: 'row', flexWrap: 'wrap' \}/);
+  assert.match(media, /KeyboardAvoidingView/);
+  assert.match(media, /keyboardShouldPersistTaps="handled"/);
+  assert.match(media, /animationType="none"/);
+  assert.match(media, /pollEditScrollContent/);
   assert.match(media, /pollEditError/);
   assert.match(media, /accessibilityRole="alert"/);
   assert.match(media, /colors\.iconPrimary \|\| colors\.accent \|\| '#1677c8'/);
