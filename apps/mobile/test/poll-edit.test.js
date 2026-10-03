@@ -20,4 +20,7 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(app, /const canEditPoll = message =>/);
   assert.match(app, /message\?\.type !== 'poll'/);
   assert.match(app, /Number\(message\?\.edit_count \|\| 0\) >= 2/);
+  assert.match(app, /onCreatePoll=\{\(\) => openMenu\('poll'\)\}/);
+  assert.match(app, /chat\.isGroup && onCreatePoll/);
+  assert.match(app, /<Text style=\{styles\.link\}>Poll<\/Text>/);
 });
