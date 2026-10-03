@@ -9,6 +9,8 @@ test('latest chat message remains visible above media controls and composer', ()
   assert.match(source, /messageList: \{ flexGrow: 1, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 18, justifyContent: 'flex-end' \}/);
   assert.match(source, /onLayout=\{\(\) => \{ if \(keyboardVisibleRef\.current\) return;/);
   assert.match(source, /onContentSizeChange=\{\(\) => \{ if \(keyboardVisibleRef\.current\) return;/);
+  assert.match(source, /onFocus=\{\(\) => \{ keyboardVisibleRef\.current = true; \}\} placeholder="Type a message..."/);
+  assert.match(source, /autoFocus onFocus=\{\(\) => \{ keyboardVisibleRef\.current = true; \}\} placeholder="Search messages and filenames"/);
   const listIndex = source.indexOf('<View style={styles.messageArea}>');
   const mediaIndex = source.indexOf('<MediaComposer chat={chat}', listIndex);
   const composerIndex = source.indexOf('<View style={[styles.composer', mediaIndex);
