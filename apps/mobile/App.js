@@ -7,6 +7,7 @@ import {
   BackHandler,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -228,11 +229,17 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [error, setError] = useState('');
   const cursorRef = useRef(0);
   const listRef = useRef(null);
+  const keyboardVisibleRef = useRef(false);
   const [visibleMessageIds, setVisibleMessageIds] = useState(() => new Set());
   const onMessageViewabilityChanged = useRef(({ viewableItems }) => {
     setVisibleMessageIds(new Set(viewableItems.map(({ item }) => Number(item.id))));
   }).current;
   const messageViewabilityConfig = useRef({ itemVisiblePercentThreshold: 10, minimumViewTime: 250 }).current;
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => { keyboardVisibleRef.current = true; });
+    const hide = Keyboard.addListener('keyboardDidHide', () => { keyboardVisibleRef.current = false; });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   const atBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [privacy, setPrivacy] = useState({ media_auto_download: false });
@@ -584,7 +591,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.messageList}
           scrollIndicatorInsets={{ bottom: 8 }}
-          onLayout={() => { if (atBottomRef.current && !searchActive) requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: false })); }}
+          onLayout={() => { if (keyboardVisibleRef.current) return; if (atBottomRef.current && !searchActive) requestAnimationFrame(() => { if (!keyboardVisibleRef.current) listRef.current?.scrollToEnd?.({ animated: false }); }); }}
           onScroll={event => {
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
             const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
@@ -594,7 +601,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             markVisibleRead();
           }}
           scrollEventThrottle={100}
-          onContentSizeChange={() => { if (atBottomRef.current && !searchActive) requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: false })); }}
+          onContentSizeChange={() => { if (keyboardVisibleRef.current) return; if (atBottomRef.current && !searchActive) requestAnimationFrame(() => { if (!keyboardVisibleRef.current) listRef.current?.scrollToEnd?.({ animated: false }); }); }}
           ListEmptyComponent={<Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>}
           renderItem={({ item }) => {
             const mine = Number(item.sender_id) === Number(user.id);
