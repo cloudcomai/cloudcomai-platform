@@ -39,5 +39,13 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(mobileMenu, /Choose expiry date/);
   assert.match(mobileMenu, /selectPollExpiryDate/);
   assert.match(app, /<MediaComposer chat=\{chat\} onMessage=\{onMediaMessage\} onCreatePoll=\{openPollComposer\} \/>/);
+  assert.match(app, /initialPollChatId=\{chat\.id\}/);
+  assert.match(composer, /onCreatePoll/);
+  assert.match(mobileMenu, /initialPollChatId = null/);
+  assert.match(mobileMenu, /loadPollConversations\(initialPollChatId\)/);
+  assert.match(mobileMenu, /const preferred = chats\.find\(chat => Number\(chat\.id\) === Number\(preferredChatId\)\)/);
+  assert.match(mobileMenu, /Poll question is required\./);
+  assert.match(mobileMenu, /Provide at least 2 options\./);
+  assert.match(mobileMenu, /A poll can have at most 4 options\./);
   assert.match(composer, /<Text style=\{styles\.link\}>Poll<\/Text>/);
 });
