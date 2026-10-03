@@ -21,7 +21,7 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(app, /if \(keyboardVisibleRef\.current\) return/);
   assert.match(pollEditor, /2 to 4 different options/);
   assert.match(pollEditor, /const normalize/);
-  assert.ok(pollEditor.includes("if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) return null"));
+  assert.match(pollEditor, /!\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(s\)/);
   assert.match(pollEditor, /Choose a valid expiry date\./);
   assert.match(pollEditor, /const expiresAt = normalize\(expiry\)/);
   assert.match(pollEditor, /Choose expiry date/);
