@@ -236,6 +236,14 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
       setPollEditOpen(true);
     };
     const updatePollOption = (index, value) => setPollEditOptions(current => current.map((option, optionIndex) => optionIndex === index ? { ...option, text: value } : option));
+    const normalizePollExpiry = value => {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return null;
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(trimmed)) return trimmed;
+      const [year, month, day] = trimmed.split('-').map(Number);
+      const localExpiry = new Date(year, month - 1, day, 23, 59, 59, 999);
+      return Number.isNaN(localExpiry.getTime()) ? trimmed : localExpiry.toISOString();
+    };
     const savePollEdit = async () => {
       const question = pollEditQuestion.trim();
       const options = pollEditOptions.map(option => ({ id: Number(option.id) || 0, text: String(option.text || '').trim() }));
@@ -245,7 +253,8 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
       }
       setPollEditBusy(true); setError('');
       try {
-        const { data } = await apiClient.post('v1/polls', { poll_id: pollId, question, expires_at: pollEditExpiry.trim() || null, options }, { query: { action: 'edit' } });
+        const expiresAt = normalizePollExpiry(pollEditExpiry);
+        const { data } = await apiClient.post('v1/polls', { poll_id: pollId, question, expires_at: expiresAt, options }, { query: { action: 'edit' } });
         if (data?.message?.poll) {
           setPollOptions(data.message.poll.options || []);
           onPollUpdated?.(data.message);
