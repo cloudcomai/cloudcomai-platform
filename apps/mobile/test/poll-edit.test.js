@@ -23,7 +23,7 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(pollEditor, /const normalize/);
   assert.match(pollEditor, /!\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(s\)/);
   assert.match(pollEditor, /Choose a valid expiry date\./);
-  assert.match(pollEditor, /const expiresAt = normalize\(expiry\)/);
+  assert.match(pollEditor, /expiresAt\s*=\s*normalize\(expiry\)/);
   assert.match(pollEditor, /Choose expiry date/);
   assert.match(pollEditor, /calendarOpen/);
   assert.match(pollEditor, /const days/);
