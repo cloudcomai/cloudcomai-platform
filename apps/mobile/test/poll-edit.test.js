@@ -9,7 +9,7 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(media, /message\.type === 'poll'/);
   assert.match(media, /query: \{ action: 'edit' \}/);
   assert.match(media, /Edit Poll/);
-  assert.match(media, /2 to 4 different options/);
+  assert.match(media, /2 to 4 different options/);\n  assert.match(media, /const normalizePollExpiry = value =>/);\n  assert.match(media, /const expiresAt = normalizePollExpiry\(pollEditExpiry\)/);
   assert.match(app, /const canEditPoll = message =>/);
   assert.match(app, /message\?\.type !== 'poll'/);
   assert.match(app, /Number\(message\?\.edit_count \|\| 0\) >= 2/);
