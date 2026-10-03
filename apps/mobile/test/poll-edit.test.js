@@ -33,6 +33,10 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(app, /visible=\{pollMenuVisible\}/);
   assert.match(app, /initialScreen="poll"/);
   assert.match(composer, /chat\.isGroup && onCreatePoll/);
+  assert.match(composer, /const \[pollCalendarOpen, setPollCalendarOpen\] = useState\(false\)/);
+  assert.match(composer, /pollCalendarGrid: \{ flexDirection: 'row', flexWrap: 'wrap' \}/);
+  assert.match(composer, /Choose expiry date/);
+  assert.match(composer, /selectPollExpiryDate/);
   assert.match(app, /<MediaComposer chat=\{chat\} onMessage=\{onMediaMessage\} onCreatePoll=\{openPollComposer\} \/>/);
   assert.match(composer, /<Text style=\{styles\.link\}>Poll<\/Text>/);
 });
