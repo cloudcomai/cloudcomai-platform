@@ -194,12 +194,10 @@ try {
     check(count($fourOptionPoll['poll']['options'])===4,'Four-option group poll was not preserved');
     request('DELETE',"v1/messages?id=".$fourOptionPoll['id']."&scope=everyone",1);
 
-    // Public chats must use the same poll path and retain the normal poll payload.
+    // Public chats must reject poll creation; polls are group-chat only.
     $admin->exec("INSERT INTO chats(id,type,name,owner_id) VALUES(3,'public','Public poll room',1)");
     $admin->exec("INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(3,1,'owner','active'),(3,2,'member','active')");
-    $publicPoll = request('POST','v1/polls',1,['chat_id'=>3,'question'=>'Public choice','options'=>['Yes','No']],201)['data']['message'];
-    check(($publicPoll['type']??null)==='poll' && count($publicPoll['poll']['options'])===2,'Public poll payload was not preserved');
-    request('DELETE',"v1/messages?id=".$publicPoll['id']."&scope=everyone",1);
+    request('POST','v1/polls',1,['chat_id'=>3,'question'=>'Public blocked','options'=>['Yes','No']],422);
     $admin->exec("DELETE FROM chat_user_states WHERE chat_id=3");
     $admin->exec("DELETE FROM chat_members WHERE chat_id=3");
     $admin->exec("DELETE FROM chats WHERE id=3");
