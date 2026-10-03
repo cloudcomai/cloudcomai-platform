@@ -209,7 +209,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
               </div>
               <div className="conversation-meta-summary">
                 <div className="top-row"><h5>{chat.name}</h5><span className="timestamp">{chat.time || 'Active'}</span></div>
-                <div className="bottom-row"><p className="message-snippet">{chat.preview || 'No messages yet'}</p>{chat.unread > 0 && <span className="unread-counter-bubble">{chat.unread}</span>}</div>
+                <div className="bottom-row"><p className="message-snippet">{chat.preview || ''}</p>{chat.unread > 0 && <span className="unread-counter-bubble">{chat.unread}</span>}</div>
               </div>
             </div>
           );
