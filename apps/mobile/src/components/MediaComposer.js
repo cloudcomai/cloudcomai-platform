@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -47,7 +47,13 @@ export default function MediaComposer({ chat, onMessage, onCreatePoll }) {
     try {
       const result = await withAppLockExternalActivity(async () => {
         if (camera && !(await ImagePicker.requestCameraPermissionsAsync()).granted) throw new Error('Allow camera access to record video.');
-        const options = { mediaTypes: ['videos'], videoMaxDuration: 60, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium };
+        const options = {
+          mediaTypes: ['videos'],
+          videoMaxDuration: 60,
+          ...(Platform.OS === 'ios' && ImagePicker.UIImagePickerControllerQualityType
+            ? { videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium }
+            : {}),
+        };
         return camera ? ImagePicker.launchCameraAsync(options) : ImagePicker.launchImageLibraryAsync(options);
       });
       if (!active.current || result.canceled || !result.assets?.[0]) return;
