@@ -61,6 +61,7 @@ if ($action === 'vote') {
 }
 
 if ($action === 'edit') {
+    require_once __DIR__ . '/../lib/poll_expiry.php';
     $pollId = (int)($d['poll_id'] ?? 0);
     $question = trim((string)($d['question'] ?? ''));
     $inputOptions = $d['options'] ?? [];
