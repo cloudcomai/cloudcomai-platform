@@ -5,6 +5,7 @@ import fs from 'node:fs';
 const media = fs.readFileSync(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
 const app = fs.readFileSync(new URL('../App.js', import.meta.url), 'utf8');
 const composer = fs.readFileSync(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
+const mobileMenu = fs.readFileSync(new URL('../src/components/MobileMenu.js', import.meta.url), 'utf8');
 
 test('mobile poll editing exposes creator-only edit flow with two-edit eligibility', () => {
   assert.match(media, /message\.type === 'poll'/);
@@ -33,6 +34,10 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(app, /visible=\{pollMenuVisible\}/);
   assert.match(app, /initialScreen="poll"/);
   assert.match(composer, /chat\.isGroup && onCreatePoll/);
+  assert.match(mobileMenu, /const \[pollCalendarOpen, setPollCalendarOpen\] = useState\(false\)/);
+  assert.match(mobileMenu, /pollCalendarGrid: \{ flexDirection: 'row', flexWrap: 'wrap' \}/);
+  assert.match(mobileMenu, /Choose expiry date/);
+  assert.match(mobileMenu, /selectPollExpiryDate/);
   assert.match(app, /<MediaComposer chat=\{chat\} onMessage=\{onMediaMessage\} onCreatePoll=\{openPollComposer\} \/>/);
   assert.match(composer, /<Text style=\{styles\.link\}>Poll<\/Text>/);
 });
