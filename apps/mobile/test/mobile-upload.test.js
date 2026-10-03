@@ -6,6 +6,8 @@ const platformSource = await readFile(new URL('../src/services/platform.js', imp
 const ringBellsSource = await readFile(new URL('../src/components/RingBellsStatus.js', import.meta.url), 'utf8');
 const composerSource = await readFile(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
 const appSource = await readFile(new URL('../App.js', import.meta.url), 'utf8');
+const mediaSource = await readFile(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
+const attachmentHookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
 
 
 test('profile and group image uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
@@ -103,13 +105,13 @@ test('chat attachment preview uses the native Modal and dismisses after Send', (
   assert.match(appSource, /sendAttachment\(attachmentDraft/);
 });
 
-test('chat attachment upload is owned by useAttachmentUpload with progress and cancellation wired into the preview modal', async () => {
-  const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
+test('chat attachment upload is owned by useAttachmentUpload with progress and cancellation wired into the preview modal', () => {
   assert.match(appSource, /import \{ useAttachmentUpload \} from ['"]\.\/src\/hooks\/useAttachmentUpload['"]/);
   assert.match(appSource, /chatId: chat\.id/);
   assert.match(appSource, /onMessage: onMediaMessage/);
-  assert.match(hookSource, /onProgress: progress => setAttachmentProgress\(progress\)/);
-  assert.match(hookSource, /onCancelAvailable: cancel =>/);
+  assert.match(attachmentHookSource, /onProgress: progress => setAttachmentProgress\(progress\)/);
+  assert.match(attachmentHookSource, /onCancelAvailable: cancel =>/);
+  assert.match(attachmentHookSource, /multipartPartMode: attachmentDraft\.multipartPartMode \|\| 'native'/);
   assert.match(appSource, /onRequestClose=\{\(\) => \{ if\(uploading\) cancelUpload\(\); else setAttachmentDraft\(null\); \}\}/);
   assert.match(appSource, /if\(uploading\)\{ cancelUpload\(\); \} else \{ setAttachmentDraft\(null\); setAttachmentError\(''\); \}/);
   assert.match(appSource, /disabled=\{uploading\}/);
@@ -142,11 +144,10 @@ test('attachment cancel action stays enabled and visibly active while uploading'
 });
 
 test('mobile attachment hook clears the draft after UPLOAD_CANCELLED and does not report a cancellation as an upload error', async () => {
-  const hookSource = await readFile(new URL('../src/hooks/useAttachmentUpload.js', import.meta.url), 'utf8');
-  assert.match(hookSource, /error\?\.code === 'UPLOAD_CANCELLED'/);
-  assert.match(hookSource, /clearDraft\?\.\(\)/);
-  assert.match(hookSource, /setAttachmentError\(''\)/);
-  assert.match(hookSource, /cancelActiveAttachmentUpload\(\)/);
+  assert.match(attachmentHookSource, /error\?\.code === 'UPLOAD_CANCELLED'/);
+  assert.match(attachmentHookSource, /clearDraft\?\.\(\)/);
+  assert.match(attachmentHookSource, /setAttachmentError\(''\)/);
+  assert.match(attachmentHookSource, /cancelActiveAttachmentUpload\(\)/);
 });
 
 
@@ -203,8 +204,33 @@ test('chat composer remains a bottom footer while messages load', () => {
   assert.match(composer, /styles\.emojiToggle/);
 });
 
-
 test('voice/video upload does not require expo-file-system File construction to succeed for Android content URIs', () => {
   assert.match(platformSource, /try\{file=new File\(normalized\.uri\);\}catch\{\}/);
   assert.match(platformSource, /file\?\.size\?\?normalized\.size/);
+});
+
+test('attachment picker passes the draft setter into the upload hook', () => {
+  assert.match(appSource, /uploadAttachment\(validateAttachment\(picked\.assets\[0\]\), setAttachmentDraft\)/);
+  assert.match(appSource, /uploadAttachment\(\{ \.\.\.documentAsset, multipartPartMode: 'native' \}, setAttachmentDraft\)/);
+});
+
+test('image and video pickers do not access iOS-only enums on Android', () => {
+  assert.match(appSource, /Platform\.OS === 'ios' && ImagePicker\.UIImagePickerPreferredAssetRepresentationMode/);
+  assert.match(composerSource, /Platform\.OS === 'ios' && ImagePicker\.UIImagePickerControllerQualityType/);
+});
+
+test('attachment rendering keeps image, video and document preview paths intact', () => {
+  assert.match(mediaSource, /kind === 'video'/);
+  assert.match(mediaSource, /kind === 'image'/);
+  assert.match(mediaSource, /styles\.documentCard/);
+  assert.match(mediaSource, /downloadAttachmentPreview\(attachment\)/);
+  assert.match(mediaSource, /AttachmentApproval attachment=\{attachment\}/);
+});
+
+test('attachment cancellation regression remains covered without changing the upload service contract', () => {
+  assert.match(platformSource, /export const cancelActiveAttachmentUpload/);
+  assert.match(platformSource, /activeAttachmentUploadCancel=cancel/);
+  assert.match(platformSource, /code:'UPLOAD_CANCELLED'/);
+  assert.match(appSource, /cancelUpload\(\)/);
+  assert.match(composerSource, /cancelActiveAttachmentUpload\(\)/);
 });
