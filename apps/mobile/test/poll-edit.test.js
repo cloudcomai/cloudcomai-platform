@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const media = fs.readFileSync(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
 const app = fs.readFileSync(new URL('../App.js', import.meta.url), 'utf8');
+const composer = fs.readFileSync(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
 
 test('mobile poll editing exposes creator-only edit flow with two-edit eligibility', () => {
   assert.match(media, /message\.type === 'poll'/);
@@ -23,5 +24,5 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(app, /Number\(message\?\.edit_count \|\| 0\) >= 2/);
   assert.match(app, /onCreatePoll=\{\(\) => openMenu\('poll'\)\}/);
   assert.match(media, /chat\.isGroup && onCreatePoll/);
-  assert.match(app, /<Text style=\{styles\.link\}>Poll<\/Text>/);
+  assert.match(composer, /<Text style=\{styles\.link\}>Poll<\/Text>/);
 });
