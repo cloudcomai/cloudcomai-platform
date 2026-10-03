@@ -27,4 +27,3 @@ test('poll editing is creator-only, group-only, and limited to two edits', () =>
   assert.match(backend, /UPDATE poll_options SET option_text/);
   assert.match(backend, /INSERT INTO poll_options/);
 });
-});
