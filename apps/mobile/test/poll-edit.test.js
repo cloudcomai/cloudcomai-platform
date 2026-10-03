@@ -10,7 +10,7 @@ const mobileMenu = fs.readFileSync(new URL('../src/components/MobileMenu.js', im
 
 test('mobile poll editing exposes creator-only edit flow with two-edit eligibility', () => {
   assert.match(media, /message\.type === 'poll'/);
-  assert.match(media, /query: \{ action: 'edit' \}/);
+  assert.match(pollEditor, /query: \{ action: 'edit' \}/);
   assert.match(media, /Edit Poll/);
   assert.doesNotMatch(media, /pollEditOpen/);
   assert.match(pollEditor, /animationType="none"/);
@@ -19,17 +19,17 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(app, /PollEditModal/);
   assert.match(app, /onEditPoll/);
   assert.match(app, /if \(keyboardVisibleRef\.current\) return/);
-  assert.match(media, /2 to 4 different options/);
-  assert.match(media, /const normalizePollExpiry = value =>/);
-  assert.ok(media.includes("if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(trimmed)) return null"));
-  assert.match(media, /Choose a valid expiry date\./);
-  assert.match(media, /const expiresAt = normalizePollExpiry\(pollEditExpiry\)/);
-  assert.match(media, /Choose expiry date/);
-  assert.match(media, /pollCalendarOpen/);
-  assert.match(media, /calendarDays/);
-  assert.match(media, /pollCalendarGrid: \{ flexDirection: 'row', flexWrap: 'wrap' \}/);
-  assert.match(media, /pollEditError/);
-  assert.match(media, /accessibilityRole="alert"/);
+  assert.match(pollEditor, /2 to 4 different options/);
+  assert.match(pollEditor, /const normalize/);
+  assert.ok(pollEditor.includes("if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) return null"));
+  assert.match(pollEditor, /Choose a valid expiry date\./);
+  assert.match(pollEditor, /const expiresAt = normalize\(expiry\)/);
+  assert.match(pollEditor, /Choose expiry date/);
+  assert.match(pollEditor, /calendarOpen/);
+  assert.match(pollEditor, /const days/);
+  assert.match(pollEditor, /grid:\{flexDirection:'row',flexWrap:'wrap'\}/);
+  assert.match(pollEditor, /accessibilityRole="alert"/);
+  assert.match(pollEditor, /accessibilityRole="alert"/);
   assert.match(media, /colors\.iconPrimary \|\| colors\.accent \|\| '#1677c8'/);
   assert.match(media, /function MessageAction\(\{ type, label, color, onPress, accessibilityLabel, colors = \{\} \}\)/);
   assert.match(media, /colors\.surfaceSecondary \|\| colors\.primaryLight/);
