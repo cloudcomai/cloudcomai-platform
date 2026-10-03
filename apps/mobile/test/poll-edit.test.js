@@ -12,10 +12,13 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(media, /Edit Poll/);
   assert.match(media, /2 to 4 different options/);
   assert.match(media, /const normalizePollExpiry = value =>/);
+  assert.match(media, /if \(!\/^\\\\d\{4\}-\\\\d\{2\}-\\\\d\{2\}\$\/\.test\(trimmed\)\) return null/);
+  assert.match(media, /Choose a valid expiry date\./);
   assert.match(media, /const expiresAt = normalizePollExpiry\(pollEditExpiry\)/);
   assert.match(media, /Choose expiry date/);
   assert.match(media, /pollCalendarOpen/);
   assert.match(media, /calendarDays/);
+  assert.match(media, /pollCalendarGrid: \{ flexDirection: 'row', flexWrap: 'wrap' \}/);
   assert.match(media, /pollEditError/);
   assert.match(media, /accessibilityRole="alert"/);
   assert.match(media, /colors\.iconPrimary \|\| colors\.accent \|\| '#1677c8'/);
