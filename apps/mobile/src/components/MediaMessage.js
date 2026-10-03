@@ -205,6 +205,7 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   const [pollEditOptions, setPollEditOptions] = useState([]);
   const [pollEditExpiry, setPollEditExpiry] = useState('');
   const [pollEditBusy, setPollEditBusy] = useState(false);
+  const [pollEditError, setPollEditError] = useState('');
   const [pollCalendarOpen, setPollCalendarOpen] = useState(false);
   const [pollCalendarMonth, setPollCalendarMonth] = useState(() => new Date());
   const [source, setSource] = useState(null);
@@ -235,6 +236,7 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
       setPollEditOptions((message.poll?.options || []).map(option => ({ id: option.id, text: option.text || '' })));
       setPollEditExpiry(message.poll?.expires_at ? String(message.poll.expires_at).slice(0, 10) : '');
       setError('');
+      setPollEditError('');
       setPollEditOpen(true);
     };
     const updatePollOption = (index, value) => setPollEditOptions(current => current.map((option, optionIndex) => optionIndex === index ? { ...option, text: value } : option));
@@ -275,10 +277,10 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
       const question = pollEditQuestion.trim();
       const options = pollEditOptions.map(option => ({ id: Number(option.id) || 0, text: String(option.text || '').trim() }));
       if (!question || options.length < 2 || options.length > 4 || options.some(option => !option.text) || new Set(options.map(option => option.text)).size !== options.length) {
-        setError('Provide a question and 2 to 4 different options.');
+        setPollEditError('Provide a question and 2 to 4 different options.');
         return;
       }
-      setPollEditBusy(true); setError('');
+      setPollEditBusy(true); setPollEditError('');
       try {
         const expiresAt = normalizePollExpiry(pollEditExpiry);
         const { data } = await apiClient.post('v1/polls', { poll_id: pollId, question, expires_at: expiresAt, options }, { query: { action: 'edit' } });
@@ -287,7 +289,7 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
           onPollUpdated?.(data.message);
         }
         setPollEditOpen(false);
-      } catch (e) { setError(e.message || 'Unable to edit poll.'); } finally { setPollEditBusy(false); }
+      } catch (e) { setPollEditError(e.message || 'Unable to edit poll.'); } finally { setPollEditBusy(false); }
     };
     return <View style={[styles.pollCard, { width: mediaWidth }]}>
       <Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>
@@ -300,6 +302,7 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
         <View style={styles.pollEditOverlay}>
           <View style={[styles.pollEditCard, { backgroundColor: colors.background || '#fff' }]}>
             <Text style={[styles.pollEditTitle, { color: colors.text || '#172033' }]}>Edit Poll</Text>
+            {pollEditError ? <Text style={styles.pollEditError} accessibilityRole="alert">{pollEditError}</Text> : null}
             <TextInput style={styles.pollEditInput} value={pollEditQuestion} onChangeText={setPollEditQuestion} placeholder="Poll question" editable={!pollEditBusy} />
             {pollEditOptions.map((option, index) => <View key={option.id || index} style={styles.pollEditOptionRow}><TextInput style={[styles.pollEditInput, { flex: 1 }]} value={option.text} onChangeText={value => updatePollOption(index, value)} placeholder={`Option ${index + 1}`} editable={!pollEditBusy} /><Pressable disabled={pollEditBusy || pollEditOptions.length <= 2} onPress={() => setPollEditOptions(current => current.filter((_, optionIndex) => optionIndex !== index))}><Text style={styles.pollEditRemove}>×</Text></Pressable></View>)}
             {pollEditOptions.length < 4 ? <Pressable disabled={pollEditBusy} onPress={() => setPollEditOptions(current => [...current, { id: 0, text: '' }])}><Text style={styles.pollEditAdd}>+ Add option</Text></Pressable> : null}
