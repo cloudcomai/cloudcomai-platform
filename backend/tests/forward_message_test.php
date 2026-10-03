@@ -14,5 +14,12 @@ assert(str_contains($handler,'forwarded_text'));
 assert(str_contains($handler,'assert_chat_allows_messages'));
 assert(str_contains($handler,'create_chat_notifications'));
 assert(str_contains($handler,'count($chatIds) > 50'));
+assert(str_contains($handler,'$source[\'storage_path\']'));
+assert(str_contains($handler,'realpath($sourcePath)'));
+assert(str_contains($handler,'@copy($sourceRealPath, $forwardPath)'));
+assert(str_contains($handler,'$createdFiles'));
+assert(str_contains($handler,'foreach ($createdFiles as $createdFile) @unlink($createdFile)'));
+assert(!str_contains($handler,"fopen($sourcePath, 'rb')"));
+assert(!str_contains($handler,"fopen($forwardPath, 'xb')"));
 
 echo "forward_message_test.php passed\n";
