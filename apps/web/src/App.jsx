@@ -89,6 +89,7 @@ export default function App() {
     const [replyTo, setReplyTo] = useState(null);
     const [editing, setEditing] = useState(null);
     const [modal, setModal] = useState(null);
+    const [pollEditTarget, setPollEditTarget] = useState(null);
     const [chatFilter, setChatFilter] = useState('all');
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [appTheme, setAppTheme] = useState(() => getStoredAppTheme());
@@ -600,7 +601,7 @@ export default function App() {
                     : modal === 'saved_messages' || modal === 'sessions' ? <AccountToolsPanel key={modal} mode={modal} close={() => setModal(null)} onOpenChat={openExistingChat} onSessionRotated={acceptRotatedSession} onLogout={logout} onUnsave={id => setMessages(current => current.map(item => Number(item.id) === Number(id) ? { ...item, saved: false } : item))} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'privacy_account' ? <PrivacyAccountPanel privacyApi={platformApi} close={() => setModal(null)} onSettingsChanged={handlePrivacySettingsChanged} />
-                    : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onPollCreated={pollMessageObject => setMessages(prev => {
+                    : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} initialPoll={pollEditTarget} close={() => { setPollEditTarget(null); setModal(null); }} onPollUpdated={updated => setMessages(prev => prev.map(message => Number(message.id) === Number(updated?.id) ? { ...message, ...updated } : message))} onPollCreated={pollMessageObject => setMessages(prev => {
                         const messageId = Number(pollMessageObject?.id || 0);
                         if (messageId) latestMessageIdRef.current = Math.max(latestMessageIdRef.current, messageId);
                         if (!messageId || !prev.some(message => Number(message.id) === messageId)) return [...prev, pollMessageObject];
