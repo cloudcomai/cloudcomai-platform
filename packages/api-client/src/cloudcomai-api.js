@@ -63,6 +63,7 @@ export class CloudComAiApi {
   editMessage(messageId, body, options = {}) { return this.client.post(ApiRoute.EDIT_MESSAGE, { editing_id: messageId, body }, options); }
   shareLocation(chatId, latitude, longitude, label = 'Shared location', options = {}) { return this.sendMessage({ chat_id: chatId, type: 'location', latitude, longitude, label }, options); }
   createPoll(input, options = {}) { return this.client.post(ApiRoute.POLLS, input, options); }
+  editPoll(input, options = {}) { return this.client.post(ApiRoute.POLLS, input, { ...options, query: { ...options.query, action: 'edit' } }); }
   voteInPoll(pollId, optionId, options = {}) { return this.client.post(ApiRoute.POLLS, { poll_id: pollId, option_id: optionId }, { ...options, query: { ...options.query, action: 'vote' } }); }
   listContacts(page = 1, pageSize = 500, options = {}) { return this.client.get(ApiRoute.CONTACTS, { ...options, query: { ...options.query, page, page_size: pageSize } }); }
   syncPhoneContacts(contacts, options = {}) { return this.client.post(ApiRoute.PHONE_CONTACTS, { contacts }, options); }

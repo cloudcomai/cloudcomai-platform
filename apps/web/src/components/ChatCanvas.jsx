@@ -27,7 +27,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, active = true }) {
+export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true }) {
   const historyRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
@@ -129,7 +129,12 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   };
 
   const isGroup = selectedChat?.type === 'group' || selectedChat?.isGroup;
-  const isPollChat = selectedChat?.type === 'group' || selectedChat?.type === 'public';
+  const isPollChat = selectedChat?.type === 'group';
+  const canEditPoll = msg => {
+    if (Number(msg?.sender_id) !== Number(user?.id) || msg?.type !== 'poll' || Number(msg?.edit_count || 0) >= 2) return false;
+    const createdAt = parseMessageTimestamp(msg?.created_at || msg?.timestamp || msg?.time);
+    return createdAt instanceof Date && !Number.isNaN(createdAt.getTime()) && (Date.now() - createdAt.getTime()) >= 0 && (Date.now() - createdAt.getTime()) <= 3 * 60 * 60 * 1000;
+  };
   const isGroupOwner = isGroup && Number(selectedChat?.owner_id) === Number(user?.id);
 
   const prepareGroupInvite = async () => {
@@ -233,7 +238,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
               <div style={pollOptionsStyle}>{visibleOptions.map(option => <button key={option.id} type="button" disabled={Boolean(poll?.expires_at && parseMessageTimestamp(poll.expires_at) <= new Date())} onClick={() => handleCastVote(msg.poll_id || poll?.id, option.id, poll?.options)} style={pollOptionStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}><span>{option.text}</span><strong>{option.votes || 0}</strong></div>{option.selected && <div style={{ marginTop: '4px', fontSize: '10px', color: 'var(--primary-color)' }}>Your vote</div>}</button>)}</div>
               <div className="bubble-meta-footer" style={pollFooterStyle}><span>{poll?.expires_at ? `Expires ${parseMessageTimestamp(poll.expires_at).toLocaleString()}` : 'Poll'}</span><span>{messageTime}</span></div>
-              <button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
+              <button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button>{canEditPoll(msg) && <button onClick={() => onEditPoll?.(msg)} title="Edit poll" aria-label="Edit poll"><Edit3 size={14} /> Edit</button>}<button className="message-delete-btn" onClick={() => setDeleteTarget(msg)} aria-label="Delete message"><Trash2 size={14} /> Delete</button>
             </div> : <div className={`message-data-bubble ${isMine ? 'primary-accent' : 'neutral-fallback'}`}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               {msg.reply_to_message_id && msg.reply_to_text && <div style={replyPreviewStyle}>

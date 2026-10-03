@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { pollDateExpiry } from '@cloudcomai/chat-core';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { X, Plus, Trash2 } from 'lucide-react';
 
-export default function PollModal({ selectedChat, apiBridge, close, onPollCreated }) {
+export default function PollModal({ selectedChat, apiBridge, close, onPollCreated, onPollUpdated, initialPoll = null }) {
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState(['', '']);
   const [expiry, setExpiry] = useState('');
   const [loading, setLoading] = useState(false);
+  const isEditing = Boolean(initialPoll?.poll_id || initialPoll?.poll?.id);
+  const pollId = Number(initialPoll?.poll_id || initialPoll?.poll?.id || 0);
+
+  useEffect(() => {
+    if (!initialPoll) {
+      setQuestion(''); setOptions(['', '']); setExpiry('');
+      return;
+    }
+    const poll = initialPoll.poll || {};
+    setQuestion(poll.question || '');
+    setOptions((poll.options || []).map(option => ({ id: option.id, text: option.text || '' })));
+    setExpiry(poll.expires_at ? String(poll.expires_at).slice(0, 10) : '');
+  }, [initialPoll]);
 
   const handleAddOptionField = () => {
     if (options.length >= 4) return alert('Maximum of 4 poll choices allowed.');
@@ -21,7 +34,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
 
   const handleOptionChange = (index, value) => {
     const updatedOptions = [...options];
-    updatedOptions[index] = value;
+    updatedOptions[index] = typeof updatedOptions[index] === 'string' ? value : { ...updatedOptions[index], text: value };
     setOptions(updatedOptions);
   };
 
@@ -32,18 +45,24 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
     if (selectedChat.type !== 'group') return alert('Polls are available only in group chats.');
 
     const cleanQuestion = question.trim();
-    const cleanOptions = [...new Set(options.map(option => option.trim()).filter(Boolean))];
+    const normalizedOptions = options.map(option => typeof option === 'string' ? { text: option.trim() } : { id: Number(option.id) || 0, text: String(option.text || '').trim() }).filter(option => option.text);
+    const cleanTexts = normalizedOptions.map(option => option.text);
+    const cleanOptions = [...new Set(cleanTexts)];
     if (!cleanQuestion || cleanOptions.length < 2 || cleanOptions.length > 4) {
       return alert('Provide a clear poll question and 2 to 4 different options.');
     }
 
+    if (cleanOptions.length < 2 || cleanOptions.length > 4 || cleanOptions.length !== normalizedOptions.length) return alert('Provide 2 to 4 different options.');
+
     setLoading(true);
     try {
-      const response = await apiBridge(ApiRoute.POLLS, {
-        method: 'POST',
-        body: JSON.stringify({ chat_id: Number(selectedChat.id), question: cleanQuestion, expires_at: pollDateExpiry(expiry), options: cleanOptions })
-      });
-      if (response.message) onPollCreated(response.message);
+      const response = isEditing
+        ? await apiBridge(ApiRoute.POLLS, { method: 'POST', query: { action: 'edit' }, body: JSON.stringify({ poll_id: pollId, question: cleanQuestion, expires_at: pollDateExpiry(expiry), options: normalizedOptions }) })
+        : await apiBridge(ApiRoute.POLLS, { method: 'POST', body: JSON.stringify({ chat_id: Number(selectedChat.id), question: cleanQuestion, expires_at: pollDateExpiry(expiry), options: cleanOptions }) });
+      if (response.message) {
+        if (isEditing) onPollUpdated?.(response.message);
+        else onPollCreated?.(response.message);
+      }
       close();
     } catch (err) {
       alert(err.message || 'Failed to broadcast secure poll.');
@@ -56,7 +75,7 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
     <div className="modal-backdrop">
       <form onSubmit={handleSubmitPoll} className="modal-content-card" style={{ textAlign: 'left', width: '460px', maxWidth: 'calc(100vw - 32px)', maxHeight: '90dvh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700' }}>📊 Create Real-Time Poll</h3>
+          <h3 style={{ fontSize: '18px', fontWeight: '700' }}>📊 {isEditing ? 'Edit Poll' : 'Create Real-Time Poll'}</h3>
           <button type="button" onClick={close} style={{ background: 'none', border: 'none', color: 'var(--text-light)' }}><X size={20}/></button>
         </div>
         <label style={{ display: 'block', marginBottom: 14 }}>Expiry date (optional)
@@ -66,16 +85,18 @@ export default function PollModal({ selectedChat, apiBridge, close, onPollCreate
         <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Question / Topic</label>
         <input required placeholder="What is your team update today?" value={question} onChange={e => setQuestion(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '14px', background: 'var(--bg-primary)', color: 'var(--text-main)' }} />
         <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Response Options (2–4)</label>
-        {options.map((opt, index) => (
+        {options.map((opt, index) => {
+          const value = typeof opt === 'string' ? opt : opt.text;
+          return (
           <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-            <input required placeholder={`Option ${index + 1}`} value={opt} onChange={e => handleOptionChange(index, e.target.value)} style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-main)', fontSize: '14px' }} />
+            <input required placeholder={`Option ${index + 1}`} value={value} onChange={e => handleOptionChange(index, e.target.value)} style={{ flex: 1, minWidth: 0, padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-main)', fontSize: '14px' }} />
             {options.length > 2 && <button type="button" onClick={() => handleRemoveOptionField(index)} style={{ color: '#ef4444', padding: '4px' }}><Trash2 size={16}/></button>}
           </div>
-        ))}
+        )})}
         <button type="button" onClick={handleAddOptionField} disabled={options.length >= 4} style={{ color: 'var(--primary-color)', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', marginBottom: '20px', opacity: options.length >= 4 ? 0.5 : 1 }}><Plus size={16}/> Add Option Choice</button>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
           <button type="button" className="filter-pill" onClick={close} style={{ border: 'none', background: 'var(--bg-directory)' }}>Cancel</button>
-          <button type="submit" className="primary" style={{ background: 'var(--primary-color)', color: 'white', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: '600' }} disabled={loading}>{loading ? 'Publishing...' : 'Publish Poll'}</button>
+          <button type="submit" className="primary" style={{ background: 'var(--primary-color)', color: 'white', padding: '10px 20px', borderRadius: '8px', border: 'none', fontWeight: '600' }} disabled={loading}>{loading ? (isEditing ? 'Saving...' : 'Publishing...') : (isEditing ? 'Save Changes' : 'Publish Poll')}</button>
         </div>
       </form>
     </div>

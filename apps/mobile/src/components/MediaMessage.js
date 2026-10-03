@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -194,12 +194,17 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
   </View>;
 }
 
-function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1, showActions = false, onReply, onSave, onDelete, onEdit, canEdit = false }) {
+function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1, showActions = false, onReply, onSave, onDelete, onEdit, onPollUpdated, canEdit = false }) {
   const { width } = useWindowDimensions();
   const mediaWidth = Math.min(280, Math.max(210, width * 0.72));
   const [requested, setRequested] = useState(false);
   const [pollOptions, setPollOptions] = useState(message.poll?.options || []);
   const [pollBusy, setPollBusy] = useState(false);
+  const [pollEditOpen, setPollEditOpen] = useState(false);
+  const [pollEditQuestion, setPollEditQuestion] = useState('');
+  const [pollEditOptions, setPollEditOptions] = useState([]);
+  const [pollEditExpiry, setPollEditExpiry] = useState('');
+  const [pollEditBusy, setPollEditBusy] = useState(false);
   const [source, setSource] = useState(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -223,17 +228,61 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   if (message.type === 'poll') {
     const pollId = Number(message.poll_id || message.poll?.id || 0);
     const vote = async optionId => { if (!pollId || pollBusy) return; setPollBusy(true); setError(''); try { const { data } = await apiClient.post('v1/polls', { poll_id: pollId, option_id: optionId }, { query: { action: 'vote' } }); if (Array.isArray(data.options)) setPollOptions(data.options); } catch (e) { setError(e.message || 'Unable to save vote.'); } finally { setPollBusy(false); } };
-    return <View style={[styles.pollCard, { width: mediaWidth }]}><Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>{pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}{message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}{error ? <Text style={styles.error}>{error}</Text> : null}{profileAction}</View>;
+    const openPollEdit = () => {
+      setPollEditQuestion(message.poll?.question || '');
+      setPollEditOptions((message.poll?.options || []).map(option => ({ id: option.id, text: option.text || '' })));
+      setPollEditExpiry(message.poll?.expires_at ? String(message.poll.expires_at).slice(0, 10) : '');
+      setError('');
+      setPollEditOpen(true);
+    };
+    const updatePollOption = (index, value) => setPollEditOptions(current => current.map((option, optionIndex) => optionIndex === index ? { ...option, text: value } : option));
+    const savePollEdit = async () => {
+      const question = pollEditQuestion.trim();
+      const options = pollEditOptions.map(option => ({ id: Number(option.id) || 0, text: String(option.text || '').trim() }));
+      if (!question || options.length < 2 || options.length > 4 || options.some(option => !option.text) || new Set(options.map(option => option.text)).size !== options.length) {
+        setError('Provide a question and 2 to 4 different options.');
+        return;
+      }
+      setPollEditBusy(true); setError('');
+      try {
+        const { data } = await apiClient.post('v1/polls', { poll_id: pollId, question, expires_at: pollEditExpiry.trim() || null, options }, { query: { action: 'edit' } });
+        if (data?.message?.poll) {
+          setPollOptions(data.message.poll.options || []);
+          onPollUpdated?.(data.message);
+        }
+        setPollEditOpen(false);
+      } catch (e) { setError(e.message || 'Unable to edit poll.'); } finally { setPollEditBusy(false); }
+    };
+    return <View style={[styles.pollCard, { width: mediaWidth }]}>
+      <Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>
+      {pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}
+      {message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {showActions && canEdit ? <View style={styles.messageActions}><MessageAction type="edit" label="Edit" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Edit poll" onPress={openPollEdit} /><MessageAction type="delete" label="Delete" color={colors.error || '#dc2626'} accessibilityLabel="Delete poll" onPress={onDelete} /></View> : null}
+      {profileAction}
+      <Modal visible={pollEditOpen} transparent animationType="fade" onRequestClose={() => !pollEditBusy && setPollEditOpen(false)}>
+        <View style={styles.pollEditOverlay}>
+          <View style={[styles.pollEditCard, { backgroundColor: colors.background || '#fff' }]}>
+            <Text style={[styles.pollEditTitle, { color: colors.text || '#172033' }]}>Edit Poll</Text>
+            <TextInput style={styles.pollEditInput} value={pollEditQuestion} onChangeText={setPollEditQuestion} placeholder="Poll question" editable={!pollEditBusy} />
+            {pollEditOptions.map((option, index) => <View key={option.id || index} style={styles.pollEditOptionRow}><TextInput style={[styles.pollEditInput, { flex: 1 }]} value={option.text} onChangeText={value => updatePollOption(index, value)} placeholder={`Option ${index + 1}`} editable={!pollEditBusy} /><Pressable disabled={pollEditBusy || pollEditOptions.length <= 2} onPress={() => setPollEditOptions(current => current.filter((_, optionIndex) => optionIndex !== index))}><Text style={styles.pollEditRemove}>×</Text></Pressable></View>)}
+            {pollEditOptions.length < 4 ? <Pressable disabled={pollEditBusy} onPress={() => setPollEditOptions(current => [...current, { id: 0, text: '' }])}><Text style={styles.pollEditAdd}>+ Add option</Text></Pressable> : null}
+            <TextInput style={styles.pollEditInput} value={pollEditExpiry} onChangeText={setPollEditExpiry} placeholder="Expiry date (YYYY-MM-DD), optional" editable={!pollEditBusy} autoCapitalize="none" />
+            <View style={styles.pollEditActions}><Pressable disabled={pollEditBusy} onPress={() => setPollEditOpen(false)}><Text style={styles.pollEditCancel}>Cancel</Text></Pressable><Pressable disabled={pollEditBusy} onPress={savePollEdit}><Text style={styles.pollEditSave}>{pollEditBusy ? 'Saving…' : 'Save Changes'}</Text></Pressable></View>
+          </View>
+        </View>
+      </Modal>
+    </View>;
   }
   if (message.type === 'location') { const location = parseSharedLocation(message.body); return location ? <View><Pressable onPress={() => Linking.openURL(location.url).catch(() => setError('Unable to open maps.'))} accessibilityRole="link"><Text style={[styles.link, actionTextStyle]}>📍 {location.label}</Text><Text style={messageTextStyle}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text><Text style={[styles.link, actionTextStyle]}>Open in maps ↗</Text>{error ? <Text>{error}</Text> : null}</Pressable>{profileAction}</View> : <View><Text style={messageTextStyle}>Location unavailable</Text>{profileAction}</View>; }
   if (!attachment) return <Pressable onLongPress={canForward ? () => setForwardOpen(true) : undefined}><View>{message.type === 'forwarded_text' ? <Text style={[styles.forwardedLabel, { color: colors.secondary || '#64748b' }]}>Forwarded</Text> : null}<Text style={[styles.text, messageTextStyle]}>{message.body || ''}</Text>{profileAction}{showActions ? <View style={[styles.messageActions, { width: mediaWidth, maxWidth: '100%', alignSelf: 'flex-start', backgroundColor: colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}><MessageAction type="reply" label="Reply" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Reply to message" onPress={onReply} /><MessageAction type="forward" label="Forward" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Forward message" onPress={() => setForwardOpen(true)} /><MessageAction type="save" label={message.saved ? 'Saved' : 'Save'} color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel={message.saved ? 'Unsave message' : 'Save message'} onPress={onSave} />{canEdit ? <MessageAction type="edit" label="Edit" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Edit message" onPress={onEdit} /> : null}<MessageAction type="delete" label="Delete" color={colors.error || '#dc2626'} accessibilityLabel="Delete message" onPress={onDelete} /></View> : null}<ForwardMessageModal visible={forwardOpen} message={message} onClose={() => setForwardOpen(false)} /><UserProfileModal visible={profileOpen} userId={message.sender_id} fallbackName={message.sender_name} onClose={() => setProfileOpen(false)} /></View></Pressable>;
   return <View>{error && kind !== 'video' ? <View><Text style={styles.error}>{error}</Text><Pressable onPress={() => { setSource(null); setError(''); setRequested(true); setReloadKey(value => value + 1); }} style={styles.control}><Text style={styles.link}>Try preview again</Text></Pressable></View> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'image' ? <><Pressable accessibilityRole="button" accessibilityLabel="Open image full screen" onPress={() => setImageOpen(true)}><Image source={{ uri: source }} style={[styles.image, { width: mediaWidth, height: Math.min(mediaWidth * 1.25, width * 0.92) }]} resizeMode="contain" onError={() => setError('Image preview could not be displayed.')} /></Pressable><Modal visible={imageOpen} animationType="fade" presentationStyle="fullScreen" onRequestClose={() => setImageOpen(false)}><View style={styles.fullscreen}><Pressable onPress={() => setImageOpen(false)} style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close image"><Text style={styles.closeText}>×</Text></Pressable><Image source={{ uri: source }} style={styles.fullscreenImage} resizeMode="contain" /></View></Modal></> : <View style={styles.documentCard}><Text style={styles.documentIcon}>▤</Text><Text numberOfLines={2} style={styles.documentName}>{attachment.name || 'Document'}</Text><Pressable style={styles.documentButton} onPress={() => setRequested(true)}><Text style={styles.link}>Preview document</Text></Pressable></View> : kind === 'video' ? <VideoPreview attachment={attachment} /> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.previewPlaceholder}><Text style={styles.previewIcon}>{kind === 'audio' ? '♫' : '▤'}</Text><Text style={styles.previewLabel}>{kind === 'audio' ? 'Audio' : 'Document'}</Text></Pressable> : null}{profileAction}{kind ? <AttachmentApproval attachment={attachment} message={message} showActions={showActions} onForward={() => setForwardOpen(true)} onReply={onReply} onSave={onSave} onDelete={onDelete} colors={colors} /> : null}<ForwardMessageModal visible={forwardOpen} message={message} onClose={() => setForwardOpen(false)} /></View>;
 }
 
-export default function MediaMessage({ message, autoDownload, colors, textScale, isVisible = true, showActions = false, onReply, onSave, onDelete, onEdit, canEdit = false }) { return <ReadReceipt message={message} isVisible={isVisible} showStatus={showActions}><MediaMessageContent message={message} autoDownload={autoDownload} colors={colors} textScale={textScale} showActions={showActions} onReply={onReply} onSave={onSave} onDelete={onDelete} onEdit={onEdit} canEdit={canEdit} /></ReadReceipt>; }
+export default function MediaMessage({ message, autoDownload, colors, textScale, isVisible = true, showActions = false, onReply, onSave, onDelete, onEdit, onPollUpdated, canEdit = false }) { return <ReadReceipt message={message} isVisible={isVisible} showStatus={showActions}><MediaMessageContent message={message} autoDownload={autoDownload} colors={colors} textScale={textScale} showActions={showActions} onReply={onReply} onSave={onSave} onDelete={onDelete} onEdit={onEdit} onPollUpdated={onPollUpdated} canEdit={canEdit} /></ReadReceipt>; }
 
 const styles = StyleSheet.create({
-  pollCard: { maxWidth: '100%' }, pollQuestion: { color: '#172033', fontWeight: '800', fontSize: 15, marginBottom: 8 }, pollOption: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, marginBottom: 6, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, backgroundColor: '#fff' }, pollOptionSelected: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, pollOptionText: { color: '#172033', flex: 1 }, pollVotes: { color: '#3157d5', fontWeight: '800', marginLeft: 8 },
+  pollEditOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 }, pollEditCard: { borderRadius: 16, padding: 16, gap: 10, maxHeight: '90%' }, pollEditTitle: { fontSize: 18, fontWeight: '800' }, pollEditInput: { minHeight: 44, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, paddingHorizontal: 12, color: '#172033', backgroundColor: '#fff' }, pollEditOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, pollEditRemove: { color: '#b91c1c', fontSize: 28, paddingHorizontal: 4 }, pollEditAdd: { color: '#3157d5', fontWeight: '800', paddingVertical: 4 }, pollEditActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 18, paddingTop: 8 }, pollEditCancel: { color: '#64748b', fontWeight: '800' }, pollEditSave: { color: '#3157d5', fontWeight: '800' }, pollCard: { maxWidth: '100%' }, pollQuestion: { color: '#172033', fontWeight: '800', fontSize: 15, marginBottom: 8 }, pollOption: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, marginBottom: 6, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, backgroundColor: '#fff' }, pollOptionSelected: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, pollOptionText: { color: '#172033', flex: 1 }, pollVotes: { color: '#3157d5', fontWeight: '800', marginLeft: 8 },
   messageActions: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'stretch', marginTop: 8, paddingHorizontal: 4, paddingVertical: 7, borderWidth: 1, borderRadius: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }, messageActionButton: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 1, alignItems: 'center', justifyContent: 'center' }, messageActionLabel: { marginTop: 2, fontSize: 9, fontWeight: '700', textAlign: 'center' }, actionGlyphText: { fontSize: 25, fontWeight: '800', lineHeight: 27 }, bookmarkIcon: { width: 17, height: 22, borderWidth: 2.2, borderRadius: 2, position: 'relative', overflow: 'hidden' }, bookmarkNotch: { position: 'absolute', width: 10, height: 10, left: 2, bottom: -6, transform: [{ rotate: '45deg' }] }, trashIcon: { width: 20, height: 24, alignItems: 'center' }, trashLid: { width: 20, height: 3, borderRadius: 2, marginBottom: 2 }, trashBody: { width: 15, height: 17, borderWidth: 2, borderTopWidth: 0, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 }, approvalActions: { flexDirection: 'row', gap: 8 }, senderApproval: { marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: '#fff7ed' }, senderApprovalText: { color: '#7c2d12', fontSize: 11, marginBottom: 4 },
   error: { color: '#b91c1c', marginTop: 6 }, control: { paddingVertical: 12 }, link: { color: '#3157d5', fontWeight: '700' }, rejectLink: { color: '#b91c1c', fontWeight: '700' }, text: { color: '#172033', fontSize: 15 }, meta: { color: '#68748a', fontSize: 11, marginVertical: 6 }, forwardedLabel: { marginBottom: 3, color: '#64748b', fontSize: 10, fontWeight: '800' }, forwardLink: { marginTop: 5, alignSelf: 'flex-start' }, profileLink: { marginTop: 5, alignSelf: 'flex-start' }, profileLinkText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, inlineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }, compactAction: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, compactActionIcon: { color: '#3157d5', fontSize: 16, fontWeight: '800', lineHeight: 20 },
   audioCard: { minWidth: 210, maxWidth: 280, minHeight: 58, padding: 10, borderRadius: 12, backgroundColor: '#eef2ff', flexDirection: 'row', alignItems: 'center' }, audioButton: { width: 38, height: 38, borderRadius: 19, textAlign: 'center', textAlignVertical: 'center', backgroundColor: '#3157d5', color: '#fff', fontWeight: '800', fontSize: 18 }, audioCopy: { marginLeft: 10 }, audioTitle: { color: '#172033', fontWeight: '700' }, audioTime: { color: '#68748a', fontSize: 11, marginTop: 2 },

@@ -399,6 +399,12 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     onMessage: onMediaMessage,
     onReplyConsumed: () => setReplyTo(null),
   });
+  const canEditPoll = message => {
+    if (Number(message?.sender_id) !== Number(user.id) || message?.type !== 'poll' || Number(message?.edit_count || 0) >= 2) return false;
+    const createdAt = parseEditTimestamp(message?.created_at || message?.timestamp || message?.time || '');
+    return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000;
+  };
+
   const canEditMessage = message => {
     if (Number(message?.sender_id) !== Number(user.id) || message?.type !== 'text' || Number(message?.edit_count || 0) >= 2) return false;
     const createdAt = parseEditTimestamp(message?.created_at || message?.timestamp || message?.time || '');
@@ -607,8 +613,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
                 onReply={() => { setReplyTo(item); if (editing) setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); setEditing(null); setSelectedMessage(null); }}
                 onSave={() => toggleSaved(item)}
                 onDelete={() => { setSelectedMessage(null); deleteMessage(item); }}
-                canEdit={canEditMessage(item)}
+                canEdit={item.type === 'poll' ? canEditPoll(item) : canEditMessage(item)}
                 onEdit={() => { setEditing(item); setReplyTo(null); setComposer(item.body || item.text || ''); setSelectedMessage(null); }}
+                onPollUpdated={updated => setMessages(current => current.map(message => Number(message.id) === Number(updated?.id) ? { ...message, ...updated } : message))}
               />
               <Text style={[styles.messageTime, { color: messageColors.secondary, fontSize: 10 * Number(themeSettings?.textScale || 1) }]}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}{Number(item.edit_count) > 0 ? ' · Edited' : ''}</Text>
 
