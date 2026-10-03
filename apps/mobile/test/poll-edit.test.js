@@ -10,8 +10,8 @@ const mobileMenu = fs.readFileSync(new URL('../src/components/MobileMenu.js', im
 
 test('mobile poll editing exposes creator-only edit flow with two-edit eligibility', () => {
   assert.match(media, /message\.type === 'poll'/);
-  assert.match(pollEditor, /query: \{ action: 'edit' \}/);
-  assert.match(media, /Edit Poll/);
+  assert.match(pollEditor, /query:\{action:'edit'\}/);
+  assert.match(pollEditor, /Edit Poll/);
   assert.doesNotMatch(media, /pollEditOpen/);
   assert.match(pollEditor, /animationType="none"/);
   assert.match(pollEditor, /showSoftInputOnFocus/);
