@@ -14,9 +14,6 @@ if ($action === 'vote') {
     $optionId = (int)($d['option_id'] ?? 0);
     if ($pollId <= 0 || $optionId <= 0) fail('Poll and option are required');
 
-    // Resolve poll membership and viewer-specific message visibility before opening
-    // the vote transaction. Self-deletion is committed by the preceding DELETE request,
-    // so this authorization check uses a fresh read before any transactional work.
     $membership = $pdo->prepare('SELECT p.chat_id,p.closed_at,p.closes_at FROM polls p INNER JOIN chat_members cm ON cm.chat_id=p.chat_id AND cm.user_id=? AND cm.status="active" WHERE p.id=? LIMIT 1');
     $membership->execute([$user['id'], $pollId]);
     $poll = $membership->fetch();
@@ -33,29 +30,21 @@ if ($action === 'vote') {
           AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
           AND JSON_VALID(m.body)
           AND CAST(JSON_UNQUOTE(JSON_EXTRACT(m.body,"$.poll_id")) AS UNSIGNED)=?
-          AND NOT EXISTS (
-              SELECT 1 FROM message_user_states mus
-              WHERE mus.message_id=m.id AND mus.user_id=? AND mus.hidden=1
-          )
+          AND NOT EXISTS (SELECT 1 FROM message_user_states mus WHERE mus.message_id=m.id AND mus.user_id=? AND mus.hidden=1)
         ORDER BY m.id DESC LIMIT 1');
     $messageQuery->execute([(int)$user['id'], (int)$poll['chat_id'], $pollId, (int)$user['id']]);
     $messageId = (int)$messageQuery->fetchColumn();
     if ($messageId <= 0) fail('Poll message not found or no longer visible', 404);
 
-    // Defense in depth: verify the exact resolved message has no viewer-specific
-    // hidden state before accepting the vote.
     $hiddenMessage = $pdo->prepare('SELECT hidden FROM message_user_states WHERE message_id=? AND user_id=? LIMIT 1');
     $hiddenMessage->execute([$messageId, (int)$user['id']]);
-    $hiddenState = $hiddenMessage->fetchColumn();
-    if ((int)$hiddenState === 1) fail('Poll message not found or no longer visible', 404);
+    if ((int)$hiddenMessage->fetchColumn() === 1) fail('Poll message not found or no longer visible', 404);
 
     try {
         $pdo->beginTransaction();
-
         $option = $pdo->prepare('SELECT id FROM poll_options WHERE id=? AND poll_id=? LIMIT 1');
         $option->execute([$optionId, $pollId]);
         if (!$option->fetch()) fail('Invalid poll option');
-
         $pdo->prepare('DELETE FROM poll_votes WHERE poll_id=? AND user_id=?')->execute([$pollId, $user['id']]);
         $pdo->prepare('INSERT INTO poll_votes(poll_id,option_id,user_id,created_at) VALUES(?,?,?,UTC_TIMESTAMP())')->execute([$pollId, $optionId, $user['id']]);
         $pdo->prepare('UPDATE messages SET edited_at=UTC_TIMESTAMP() WHERE id=?')->execute([$messageId]);
@@ -88,7 +77,7 @@ $membership = $pdo->prepare('SELECT c.type,c.retention_seconds FROM chats c INNE
 $membership->execute([$chat, $user['id']]);
 $chatRow = $membership->fetch();
 if (!$chatRow) fail('Not a member', 403);
-if (!in_array($chatRow['type'], ['group', 'public'], true)) fail('Polls are available only in group and public chats.', 422);
+if ($chatRow['type'] !== 'group') fail('Polls are available only in group chats.', 422);
 assert_chat_allows_messages($chat, (int)$user['id']);
 
 require_once __DIR__ . '/../lib/poll_expiry.php';
@@ -99,17 +88,14 @@ try {
     $pdo->beginTransaction();
     $pdo->prepare('INSERT INTO polls(chat_id,creator_id,question,multiple_choice,anonymous,closes_at,created_at) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP())')->execute([$chat,$user['id'],$question,!empty($d['multiple_choice'])?1:0,!empty($d['anonymous'])?1:0,$expiresAt]);
     $pollId = (int)$pdo->lastInsertId();
-
     $st = $pdo->prepare('INSERT INTO poll_options(poll_id,option_text,display_order) VALUES(?,?,?)');
     foreach ($cleanOptions as $index=>$option) $st->execute([$pollId,$option,$index]);
-
     $messageBody = json_encode(['poll_id'=>$pollId], JSON_UNESCAPED_SLASHES);
     $messageInsert = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,expires_at,created_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP())');
     $messageInsert->execute([$chat,$user['id'],'poll',$messageBody,$expiresAt]);
     $messageId = (int)$pdo->lastInsertId();
     $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chat, $user['id']]);
     create_chat_notifications($chat, (int)$user['id'], (string)$user['name'], 'Created a poll: ' . $question, $messageId);
-
     $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
@@ -121,16 +107,5 @@ $createdOptions = [];
 $optionQuery = $pdo->prepare('SELECT id, option_text AS text, display_order FROM poll_options WHERE poll_id=? ORDER BY display_order ASC,id ASC');
 $optionQuery->execute([$pollId]);
 foreach ($optionQuery->fetchAll() as $row) $createdOptions[] = ['id'=>(int)$row['id'],'text'=>$row['text'],'votes'=>0,'selected'=>false];
-
-$message = [
-    'id' => $messageId,
-    'chat_id' => $chat,
-    'sender_id' => (int)$user['id'],
-    'type' => 'poll',
-    'body' => $messageBody,
-    'poll_id' => $pollId,
-    'poll' => ['id'=>$pollId,'question'=>$question,'options'=>$createdOptions,'expires_at'=>$expiresAt],
-    'expires_at' => $expiresAt
-];
-
+$message = ['id'=>$messageId,'chat_id'=>$chat,'sender_id'=>(int)$user['id'],'type'=>'poll','body'=>$messageBody,'poll_id'=>$pollId,'poll'=>['id'=>$pollId,'question'=>$question,'options'=>$createdOptions,'expires_at'=>$expiresAt],'expires_at'=>$expiresAt];
 out(['message'=>$message,'poll_id'=>$pollId],201);
