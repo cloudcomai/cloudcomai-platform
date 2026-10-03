@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -194,12 +194,17 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
   </View>;
 }
 
-function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1, showActions = false, onReply, onSave, onDelete, onEdit, canEdit = false }) {
+function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1, showActions = false, onReply, onSave, onDelete, onEdit, onPollUpdated, canEdit = false }) {
   const { width } = useWindowDimensions();
   const mediaWidth = Math.min(280, Math.max(210, width * 0.72));
   const [requested, setRequested] = useState(false);
   const [pollOptions, setPollOptions] = useState(message.poll?.options || []);
   const [pollBusy, setPollBusy] = useState(false);
+  const [pollEditOpen, setPollEditOpen] = useState(false);
+  const [pollEditQuestion, setPollEditQuestion] = useState('');
+  const [pollEditOptions, setPollEditOptions] = useState([]);
+  const [pollEditExpiry, setPollEditExpiry] = useState('');
+  const [pollEditBusy, setPollEditBusy] = useState(false);
   const [source, setSource] = useState(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -223,7 +228,51 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   if (message.type === 'poll') {
     const pollId = Number(message.poll_id || message.poll?.id || 0);
     const vote = async optionId => { if (!pollId || pollBusy) return; setPollBusy(true); setError(''); try { const { data } = await apiClient.post('v1/polls', { poll_id: pollId, option_id: optionId }, { query: { action: 'vote' } }); if (Array.isArray(data.options)) setPollOptions(data.options); } catch (e) { setError(e.message || 'Unable to save vote.'); } finally { setPollBusy(false); } };
-    return <View style={[styles.pollCard, { width: mediaWidth }]}><Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>{pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}{message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}{error ? <Text style={styles.error}>{error}</Text> : null}{profileAction}</View>;
+    const openPollEdit = () => {
+      setPollEditQuestion(message.poll?.question || '');
+      setPollEditOptions((message.poll?.options || []).map(option => ({ id: option.id, text: option.text || '' })));
+      setPollEditExpiry(message.poll?.expires_at ? String(message.poll.expires_at).slice(0, 10) : '');
+      setError('');
+      setPollEditOpen(true);
+    };
+    const updatePollOption = (index, value) => setPollEditOptions(current => current.map((option, optionIndex) => optionIndex === index ? { ...option, text: value } : option));
+    const savePollEdit = async () => {
+      const question = pollEditQuestion.trim();
+      const options = pollEditOptions.map(option => ({ id: Number(option.id) || 0, text: String(option.text || '').trim() }));
+      if (!question || options.length < 2 || options.length > 4 || options.some(option => !option.text) || new Set(options.map(option => option.text)).size !== options.length) {
+        setError('Provide a question and 2 to 4 different options.');
+        return;
+      }
+      setPollEditBusy(true); setError('');
+      try {
+        const { data } = await apiClient.post('v1/polls', { poll_id: pollId, question, expires_at: pollEditExpiry.trim() || null, options }, { query: { action: 'edit' } });
+        if (data?.message?.poll) {
+          setPollOptions(data.message.poll.options || []);
+          onPollUpdated?.(data.message);
+        }
+        setPollEditOpen(false);
+      } catch (e) { setError(e.message || 'Unable to edit poll.'); } finally { setPollEditBusy(false); }
+    };
+    return <View style={[styles.pollCard, { width: mediaWidth }]}>
+      <Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>
+      {pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}
+      {message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {showActions && canEdit ? <View style={styles.messageActions}><MessageAction type="edit" label="Edit" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Edit poll" onPress={openPollEdit} /><MessageAction type="delete" label="Delete" color={colors.error || '#dc2626'} accessibilityLabel="Delete poll" onPress={onDelete} /></View> : null}
+      {profileAction}
+      <Modal visible={pollEditOpen} transparent animationType="fade" onRequestClose={() => !pollEditBusy && setPollEditOpen(false)}>
+        <View style={styles.pollEditOverlay}>
+          <View style={[styles.pollEditCard, { backgroundColor: colors.background || '#fff' }]}>
+            <Text style={[styles.pollEditTitle, { color: colors.text || '#172033' }]}>Edit Poll</Text>
+            <TextInput style={styles.pollEditInput} value={pollEditQuestion} onChangeText={setPollEditQuestion} placeholder="Poll question" editable={!pollEditBusy} />
+            {pollEditOptions.map((option, index) => <View key={option.id || index} style={styles.pollEditOptionRow}><TextInput style={[styles.pollEditInput, { flex: 1 }]} value={option.text} onChangeText={value => updatePollOption(index, value)} placeholder={`Option ${index + 1}`} editable={!pollEditBusy} /><Pressable disabled={pollEditBusy || pollEditOptions.length <= 2} onPress={() => setPollEditOptions(current => current.filter((_, optionIndex) => optionIndex !== index))}><Text style={styles.pollEditRemove}>×</Text></Pressable></View>)}
+            {pollEditOptions.length < 4 ? <Pressable disabled={pollEditBusy} onPress={() => setPollEditOptions(current => [...current, { id: 0, text: '' }])}><Text style={styles.pollEditAdd}>+ Add option</Text></Pressable> : null}
+            <TextInput style={styles.pollEditInput} value={pollEditExpiry} onChangeText={setPollEditExpiry} placeholder="Expiry date (YYYY-MM-DD), optional" editable={!pollEditBusy} autoCapitalize="none" />
+            <View style={styles.pollEditActions}><Pressable disabled={pollEditBusy} onPress={() => setPollEditOpen(false)}><Text style={styles.pollEditCancel}>Cancel</Text></Pressable><Pressable disabled={pollEditBusy} onPress={savePollEdit}><Text style={styles.pollEditSave}>{pollEditBusy ? 'Saving…' : 'Save Changes'}</Text></Pressable></View>
+          </View>
+        </View>
+      </Modal>
+    </View>;
   }
   if (message.type === 'location') { const location = parseSharedLocation(message.body); return location ? <View><Pressable onPress={() => Linking.openURL(location.url).catch(() => setError('Unable to open maps.'))} accessibilityRole="link"><Text style={[styles.link, actionTextStyle]}>📍 {location.label}</Text><Text style={messageTextStyle}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text><Text style={[styles.link, actionTextStyle]}>Open in maps ↗</Text>{error ? <Text>{error}</Text> : null}</Pressable>{profileAction}</View> : <View><Text style={messageTextStyle}>Location unavailable</Text>{profileAction}</View>; }
   if (!attachment) return <Pressable onLongPress={canForward ? () => setForwardOpen(true) : undefined}><View>{message.type === 'forwarded_text' ? <Text style={[styles.forwardedLabel, { color: colors.secondary || '#64748b' }]}>Forwarded</Text> : null}<Text style={[styles.text, messageTextStyle]}>{message.body || ''}</Text>{profileAction}{showActions ? <View style={[styles.messageActions, { width: mediaWidth, maxWidth: '100%', alignSelf: 'flex-start', backgroundColor: colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}><MessageAction type="reply" label="Reply" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Reply to message" onPress={onReply} /><MessageAction type="forward" label="Forward" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Forward message" onPress={() => setForwardOpen(true)} /><MessageAction type="save" label={message.saved ? 'Saved' : 'Save'} color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel={message.saved ? 'Unsave message' : 'Save message'} onPress={onSave} />{canEdit ? <MessageAction type="edit" label="Edit" color={colors.iconPrimary || colors.accent || '#1677c8'} accessibilityLabel="Edit message" onPress={onEdit} /> : null}<MessageAction type="delete" label="Delete" color={colors.error || '#dc2626'} accessibilityLabel="Delete message" onPress={onDelete} /></View> : null}<ForwardMessageModal visible={forwardOpen} message={message} onClose={() => setForwardOpen(false)} /><UserProfileModal visible={profileOpen} userId={message.sender_id} fallbackName={message.sender_name} onClose={() => setProfileOpen(false)} /></View></Pressable>;
