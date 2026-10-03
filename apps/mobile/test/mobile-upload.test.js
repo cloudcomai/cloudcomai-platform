@@ -211,6 +211,11 @@ test('voice/video upload does not require expo-file-system File construction to 
 });
 
 
+test('attachment picker passes the draft setter into the upload hook', () => {
+  assert.match(appSource, /uploadAttachment\(validateAttachment\(picked\.assets\[0\]\), setAttachmentDraft\)/);
+  assert.match(appSource, /uploadAttachment\(\{ \.\.\.documentAsset, multipartPartMode: 'native' \}, setAttachmentDraft\)/);
+});
+
 test('image and video pickers do not access iOS-only enums on Android', () => {
   assert.match(appSource, /Platform\.OS === 'ios' && ImagePicker\.UIImagePickerPreferredAssetRepresentationMode/);
   assert.match(composerSource, /Platform\.OS === 'ios' && ImagePicker\.UIImagePickerControllerQualityType/);
