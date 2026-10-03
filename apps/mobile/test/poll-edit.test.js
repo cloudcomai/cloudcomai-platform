@@ -15,6 +15,8 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(media, /Choose expiry date/);
   assert.match(media, /pollCalendarOpen/);
   assert.match(media, /calendarDays/);
+  assert.match(media, /pollEditError/);
+  assert.match(media, /accessibilityRole="alert"/);
   assert.match(app, /const canEditPoll = message =>/);
   assert.match(app, /message\?\.type !== 'poll'/);
   assert.match(app, /Number\(message\?\.edit_count \|\| 0\) >= 2/);
