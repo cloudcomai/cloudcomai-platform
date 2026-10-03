@@ -1,0 +1,29 @@
+name: Apply poll test edit
+on:
+  push:
+    branches: [fix/polls-group-only]
+jobs:
+  edit:
+    if: ${{ !contains(github.event.head_commit.message, '[poll-test-fix]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update public poll expectation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('backend/tests/privacy_messaging_test.php')
+          s=p.read_text()
+          old="""    // Public chats must use the same poll path and retain the normal poll payload.\n    $admin->exec(\"INSERT INTO chats(id,type,name,owner_id) VALUES(3,'public','Public poll room',1)\");\n    $admin->exec(\"INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(3,1,'owner','active'),(3,2,'member','active')\");\n    $publicPoll = request('POST','v1/polls',1,['chat_id'=>3,'question'=>'Public choice','options'=>['Yes','No']],201)['data']['message'];\n    check(($publicPoll['type']??null)==='poll' && count($publicPoll['poll']['options'])===2,'Public poll payload was not preserved');\n    request('DELETE',\"v1/messages?id=\".$publicPoll['id'].\"&scope=everyone\",1);\n    $admin->exec(\"DELETE FROM chat_user_states WHERE chat_id=3\");\n    $admin->exec(\"DELETE FROM chat_members WHERE chat_id=3\");\n    $admin->exec(\"DELETE FROM chats WHERE id=3\");\n"""
+          new="""    // Public chats must reject poll creation; polls are group-chat only.\n    $admin->exec(\"INSERT INTO chats(id,type,name,owner_id) VALUES(3,'public','Public poll room',1)\");\n    $admin->exec(\"INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(3,1,'owner','active'),(3,2,'member','active')\");\n    request('POST','v1/polls',1,['chat_id'=>3,'question'=>'Public blocked','options'=>['Yes','No']],422);\n    $admin->exec(\"DELETE FROM chat_user_states WHERE chat_id=3\");\n    $admin->exec(\"DELETE FROM chat_members WHERE chat_id=3\");\n    $admin->exec(\"DELETE FROM chats WHERE id=3\");\n"""
+          if old not in s:
+              raise SystemExit('expected public poll block not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add backend/tests/privacy_messaging_test.php
+          git commit -m "test(polls): reject public poll creation [poll-test-fix]"
+          git push
