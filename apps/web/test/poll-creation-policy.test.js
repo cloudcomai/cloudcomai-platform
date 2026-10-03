@@ -16,3 +16,15 @@ test('poll creation is restricted to group chats and 2-4 options', () => {
   assert.match(backend, /\$chatRow\['type'\] !== 'group'/);
   assert.match(backend, /count\(\$cleanOptions\) < 2 \|\| count\(\$cleanOptions\) > 4/);
 });
+
+test('poll editing is creator-only, group-only, and limited to two edits', () => {
+  assert.match(backend, /\$action === 'edit'/);
+  assert.match(backend, /p\.creator_id=\?/);
+  assert.match(backend, /c\.type="group"/);
+  assert.match(backend, /\$poll\['edit_count'\] >= 2/);
+  assert.match(backend, /m\.created_at.*INTERVAL 3 HOUR/);
+  assert.match(backend, /DELETE FROM poll_votes WHERE poll_id=\? AND option_id IN/);
+  assert.match(backend, /UPDATE poll_options SET option_text/);
+  assert.match(backend, /INSERT INTO poll_options/);
+});
+});
