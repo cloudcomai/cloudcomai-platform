@@ -6,6 +6,7 @@ const platformSource = await readFile(new URL('../src/services/platform.js', imp
 const ringBellsSource = await readFile(new URL('../src/components/RingBellsStatus.js', import.meta.url), 'utf8');
 const composerSource = await readFile(new URL('../src/components/MediaComposer.js', import.meta.url), 'utf8');
 const appSource = await readFile(new URL('../App.js', import.meta.url), 'utf8');
+const mediaSource = await readFile(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
 
 
 test('profile and group image uploads use Expo File multipart parts to avoid unsupported FormDataPart errors', () => {
@@ -207,4 +208,26 @@ test('chat composer remains a bottom footer while messages load', () => {
 test('voice/video upload does not require expo-file-system File construction to succeed for Android content URIs', () => {
   assert.match(platformSource, /try\{file=new File\(normalized\.uri\);\}catch\{\}/);
   assert.match(platformSource, /file\?\.size\?\?normalized\.size/);
+});
+
+
+test('image and video pickers do not access iOS-only enums on Android', () => {
+  assert.match(appSource, /Platform\.OS === 'ios' && ImagePicker\.UIImagePickerPreferredAssetRepresentationMode/);
+  assert.match(composerSource, /Platform\.OS === 'ios' && ImagePicker\.UIImagePickerControllerQualityType/);
+});
+
+test('attachment rendering keeps image, video and document preview paths intact', () => {
+  assert.match(mediaSource, /kind === 'video'/);
+  assert.match(mediaSource, /kind === 'image'/);
+  assert.match(mediaSource, /styles\.documentCard/);
+  assert.match(mediaSource, /downloadAttachmentPreview\(attachment\)/);
+  assert.match(mediaSource, /AttachmentApproval attachment=\{attachment\}/);
+});
+
+test('attachment cancellation regression remains covered without changing the upload service contract', () => {
+  assert.match(platformSource, /export const cancelActiveAttachmentUpload/);
+  assert.match(platformSource, /activeAttachmentUploadCancel = cancel/);
+  assert.match(platformSource, /code:'UPLOAD_CANCELLED'/);
+  assert.match(appSource, /cancelUpload\(\)/);
+  assert.match(composerSource, /cancelActiveAttachmentUpload\(\)/);
 });
