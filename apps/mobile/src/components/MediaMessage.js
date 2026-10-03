@@ -205,6 +205,8 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   const [pollEditOptions, setPollEditOptions] = useState([]);
   const [pollEditExpiry, setPollEditExpiry] = useState('');
   const [pollEditBusy, setPollEditBusy] = useState(false);
+  const [pollCalendarOpen, setPollCalendarOpen] = useState(false);
+  const [pollCalendarMonth, setPollCalendarMonth] = useState(() => new Date());
   const [source, setSource] = useState(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -236,6 +238,31 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
       setPollEditOpen(true);
     };
     const updatePollOption = (index, value) => setPollEditOptions(current => current.map((option, optionIndex) => optionIndex === index ? { ...option, text: value } : option));
+    const formatPollDate = date => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    const calendarDays = useMemo(() => {
+      const year = pollCalendarMonth.getFullYear();
+      const month = pollCalendarMonth.getMonth();
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const days = [];
+      for (let i = 0; i < firstDay; i += 1) days.push(null);
+      for (let day = 1; day <= daysInMonth; day += 1) days.push(new Date(year, month, day));
+      return days;
+    }, [pollCalendarMonth]);
+    const openPollCalendar = () => {
+      const selected = pollEditExpiry ? new Date(`${pollEditExpiry}T12:00:00`) : new Date();
+      setPollCalendarMonth(Number.isNaN(selected.getTime()) ? new Date() : selected);
+      setPollCalendarOpen(true);
+    };
+    const selectPollExpiryDate = date => {
+      setPollEditExpiry(formatPollDate(date));
+      setPollCalendarOpen(false);
+    };
     const normalizePollExpiry = value => {
       const trimmed = String(value || '').trim();
       if (!trimmed) return null;
@@ -276,7 +303,8 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
             <TextInput style={styles.pollEditInput} value={pollEditQuestion} onChangeText={setPollEditQuestion} placeholder="Poll question" editable={!pollEditBusy} />
             {pollEditOptions.map((option, index) => <View key={option.id || index} style={styles.pollEditOptionRow}><TextInput style={[styles.pollEditInput, { flex: 1 }]} value={option.text} onChangeText={value => updatePollOption(index, value)} placeholder={`Option ${index + 1}`} editable={!pollEditBusy} /><Pressable disabled={pollEditBusy || pollEditOptions.length <= 2} onPress={() => setPollEditOptions(current => current.filter((_, optionIndex) => optionIndex !== index))}><Text style={styles.pollEditRemove}>×</Text></Pressable></View>)}
             {pollEditOptions.length < 4 ? <Pressable disabled={pollEditBusy} onPress={() => setPollEditOptions(current => [...current, { id: 0, text: '' }])}><Text style={styles.pollEditAdd}>+ Add option</Text></Pressable> : null}
-            <TextInput style={styles.pollEditInput} value={pollEditExpiry} onChangeText={setPollEditExpiry} placeholder="Expiry date (YYYY-MM-DD), optional" editable={!pollEditBusy} autoCapitalize="none" />
+            <Pressable disabled={pollEditBusy} onPress={openPollCalendar} style={styles.pollEditDateButton} accessibilityRole="button" accessibilityLabel="Choose expiry date"><Text style={styles.pollEditDateIcon}>▣</Text><Text style={styles.pollEditDateText}>{pollEditExpiry || 'Choose expiry date (optional)'}</Text></Pressable>
+            {pollCalendarOpen ? <View style={styles.pollCalendar}><View style={styles.pollCalendarHeader}><Pressable disabled={pollEditBusy} onPress={() => setPollCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}><Text style={styles.pollCalendarNav}>‹</Text></Pressable><Text style={styles.pollCalendarTitle}>{pollCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</Text><Pressable disabled={pollEditBusy} onPress={() => setPollCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}><Text style={styles.pollCalendarNav}>›</Text></Pressable></View><View style={styles.pollCalendarWeek}>{['S','M','T','W','T','F','S'].map((day, index) => <Text key={`${day}-${index}`} style={styles.pollCalendarWeekDay}>{day}</Text>)}</View><View style={styles.pollCalendarGrid}>{calendarDays.map((date, index) => { if (!date) return <View key={`blank-${index}`} style={styles.pollCalendarDay} />; const today = new Date(); today.setHours(0,0,0,0); const disabled = date < today; const selected = pollEditExpiry === formatPollDate(date); return <Pressable key={formatPollDate(date)} disabled={disabled || pollEditBusy} onPress={() => selectPollExpiryDate(date)} style={[styles.pollCalendarDay, selected && styles.pollCalendarDaySelected, disabled && styles.pollCalendarDayDisabled]}><Text style={[styles.pollCalendarDayText, selected && styles.pollCalendarDayTextSelected, disabled && styles.pollCalendarDayTextDisabled]}>{date.getDate()}</Text></Pressable>; })}</View></View> : null}
             <View style={styles.pollEditActions}><Pressable disabled={pollEditBusy} onPress={() => setPollEditOpen(false)}><Text style={styles.pollEditCancel}>Cancel</Text></Pressable><Pressable disabled={pollEditBusy} onPress={savePollEdit}><Text style={styles.pollEditSave}>{pollEditBusy ? 'Saving…' : 'Save Changes'}</Text></Pressable></View>
           </View>
         </View>
