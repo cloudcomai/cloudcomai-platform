@@ -218,7 +218,7 @@ const parseEditTimestamp = value => {
   return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-function ChatDetail({ chat, user, onBack, onDeleted, onCreatePoll, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
   const [loading, setLoading] = useState(true);
@@ -253,10 +253,12 @@ function ChatDetail({ chat, user, onBack, onDeleted, onCreatePoll, messaging, lo
   const [publicManageOpen, setPublicManageOpen] = useState(false);
   const [attachmentDraft, setAttachmentDraft] = useState(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [pollMenuVisible, setPollMenuVisible] = useState(false);
   const searchActive = searchOpen && query.trim().length > 0;
   const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
   const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
   const theme = { ...baseTheme, colors: { ...baseTheme.colors, accent: customAccent, outgoing: themeSettings?.accentColor || baseTheme.colors.outgoing } };
+  const openPollComposer = () => { if (chat.isGroup && !chat.blocked) setPollMenuVisible(true); };
 
   useEffect(() => { setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); }, [messaging, chat.id]);
   useEffect(() => { if (Number(deliveredMessage?.chat_id) === Number(chat.id)) setMessages(current => mergeMessageBatch(current, [deliveredMessage]).messages); }, [deliveredMessage, chat.id]);
@@ -642,7 +644,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, onCreatePoll, messaging, lo
       </ScrollView> : null}
             {chat.isPublic ? <PublicChatManagement themeSettings={themeSettings} visible={publicManageOpen} chat={chat} user={user} onClose={() => setPublicManageOpen(false)} onLeave={async () => { try { await platformApi.leavePublicChat(Number(chat.id)); setPublicManageOpen(false); onBack(); } catch (e) { setError(e.message || 'Unable to leave public chat room.'); } }} /> : null}
 {attachmentMenuOpen ? <Modal visible transparent animationType='fade' onRequestClose={() => setAttachmentMenuOpen(false)}><Pressable accessibilityRole="button" accessibilityLabel="Close attachment menu backdrop" style={styles.attachmentMenuOverlay} onPress={() => setAttachmentMenuOpen(false)}><Pressable style={styles.attachmentMenuCard} onPress={event => event.stopPropagation()}><View style={styles.attachmentMenuHeader}><Text style={styles.attachmentTitle}>Add attachment</Text><Pressable accessibilityRole="button" accessibilityLabel="Close attachment menu" hitSlop={8} onPress={() => setAttachmentMenuOpen(false)} style={styles.attachmentMenuClose}><Text style={styles.attachmentMenuCloseText}>×</Text></Pressable></View><Text style={styles.attachmentMenuHint}>Choose where the attachment should come from.</Text><View style={styles.attachmentMenuActions}><Pressable style={styles.attachmentMenuOption} onPress={() => pickImage(true)}><Text style={styles.attachmentMenuOptionText}>CAMERA</Text></Pressable><Pressable style={styles.attachmentMenuOption} onPress={() => pickImage(false)}><Text style={styles.attachmentMenuOptionText}>PHOTO LIBRARY</Text></Pressable><Pressable style={styles.attachmentMenuOption} onPress={pickDocument}><Text style={styles.attachmentMenuOptionText}>DOCUMENT</Text></Pressable></View></Pressable></Pressable></Modal> : null}
-      <MediaComposer chat={chat} onMessage={onMediaMessage} onCreatePoll={onCreatePoll} />
+      <MediaComposer chat={chat} onMessage={onMediaMessage} onCreatePoll={openPollComposer} />
       {attachmentDraft ? <Modal visible transparent animationType='slide' onRequestClose={() => { if(uploading) cancelUpload(); else setAttachmentDraft(null); }} ><View style={styles.overlay}><View style={styles.attachmentCard}><Text style={styles.attachmentTitle}>Preview attachment</Text>{String(attachmentDraft.mimeType||'').startsWith('image/') ? <Image source={{uri:attachmentDraft.uri}} style={styles.attachmentPreview} resizeMode='contain'/> : <View style={styles.documentPreview}><Text style={styles.documentIcon}>📄</Text><Text style={styles.documentName} numberOfLines={2}>{attachmentDraft.name || 'Selected file'}</Text><Text style={styles.documentSize}>{Number(attachmentDraft.fileSize ?? attachmentDraft.size ?? 0) ? Math.round(Number(attachmentDraft.fileSize ?? attachmentDraft.size)/1024)+' KB' : 'File selected'}</Text></View>}{uploading?<View style={styles.attachmentSending}><ActivityIndicator color="#3157d5" /><Text style={styles.attachmentProgress}>Sending attachment… Please wait.</Text></View>:null}{attachmentError?<View style={styles.attachmentError}><Text style={styles.attachmentErrorText}>{attachmentError}</Text><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable></View>:null}<View style={styles.attachmentActions}><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={uploading ? 'Cancel attachment upload' : 'Cancel attachment'} accessibilityState={{ disabled: false }} hitSlop={8} onPress={() => { if(uploading){ cancelUpload(); } else { setAttachmentDraft(null); setAttachmentError(''); } }}><Text style={[styles.cancelText, uploading && styles.cancelTextActive]}>Cancel</Text></Pressable></View></View></View></Modal> : null}
       {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.emojiStrip, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]} contentContainerStyle={styles.emojiStripContent}>
         <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
@@ -663,6 +665,13 @@ function ChatDetail({ chat, user, onBack, onDeleted, onCreatePoll, messaging, lo
         fallbackName={chat.name}
         onClose={() => setProfileOpen(false)}
       />
+      {chat.isGroup ? <MobileMenu
+        themeSettings={themeSettings}
+        visible={pollMenuVisible}
+        initialScreen="poll"
+        user={user}
+        onClose={() => setPollMenuVisible(false)}
+      /> : null}
     </SafeAreaView>
   );
 }
@@ -815,7 +824,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onCreatePoll={() => openMenu('poll')} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))

@@ -29,7 +29,10 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(app, /const canEditPoll = message =>/);
   assert.match(app, /message\?\.type !== 'poll'/);
   assert.match(app, /Number\(message\?\.edit_count \|\| 0\) >= 2/);
-  assert.match(app, /onCreatePoll=\{\(\) => openMenu\('poll'\)\}/);
+  assert.match(app, /const openPollComposer = \(\) =>/);
+  assert.match(app, /visible=\{pollMenuVisible\}/);
+  assert.match(app, /initialScreen="poll"/);
   assert.match(composer, /chat\.isGroup && onCreatePoll/);
+  assert.match(app, /<MediaComposer chat=\{chat\} onMessage=\{onMediaMessage\} onCreatePoll=\{openPollComposer\} \/>/);
   assert.match(composer, /<Text style=\{styles\.link\}>Poll<\/Text>/);
 });
