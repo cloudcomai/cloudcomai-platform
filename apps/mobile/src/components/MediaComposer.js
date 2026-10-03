@@ -8,7 +8,7 @@ import { platformApi, uploadAttachmentAsset, cancelActiveAttachmentUpload } from
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { AudioPreview, VideoPreview } from './MediaMessage';
 
-export default function MediaComposer({ chat, onMessage }) {
+export default function MediaComposer({ chat, onMessage, onCreatePoll }) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const state = useAudioRecorderState(recorder, 200);
   const [busy, setBusy] = useState('');
@@ -107,6 +107,7 @@ export default function MediaComposer({ chat, onMessage }) {
       <Pressable disabled={disabled && !state.isRecording} onPress={state.isRecording ? stop : recordVoice} style={styles.button}><Text style={styles.link}>{state.isRecording ? `Stop · ${Math.floor(state.durationMillis / 1000)}s` : 'Voice'}</Text></Pressable>
       <Pressable disabled={disabled} onPress={() => Alert.alert('Video message', 'Record or choose a video (up to 25 MB).', [{ text: 'Record', onPress: () => chooseVideo(true) }, { text: 'Choose video', onPress: () => chooseVideo(false) }, { text: 'Cancel', style: 'cancel' }])} style={styles.button}><Text style={styles.link}>Video</Text></Pressable>
       <Pressable disabled={disabled} onPress={shareLocation} style={styles.button}><Text style={styles.link}>{busy === 'location' ? 'Locating…' : 'Location'}</Text></Pressable>
+      {chat.isGroup && onCreatePoll ? <Pressable disabled={disabled} onPress={onCreatePoll} style={styles.button}><Text style={styles.link}>Poll</Text></Pressable> : null}
     </View>
     <Modal visible={Boolean(draft)} transparent animationType="slide" onRequestClose={() => { if (!busy) { setDraft(null); setUploadError(''); removeRecording(); } }}>
       <View style={styles.overlay}><View style={styles.card}><Text style={styles.title}>Preview your message</Text>
