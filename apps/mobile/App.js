@@ -669,6 +669,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
         themeSettings={themeSettings}
         visible={pollMenuVisible}
         initialScreen="poll"
+        initialPollChatId={chat.id}
         user={user}
         onClose={() => setPollMenuVisible(false)}
       /> : null}
