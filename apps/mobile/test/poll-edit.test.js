@@ -47,5 +47,8 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(mobileMenu, /Poll question is required\./);
   assert.match(mobileMenu, /Provide at least 2 options\./);
   assert.match(mobileMenu, /A poll can have at most 4 options\./);
+  assert.match(mobileMenu, /pollValidationError/);
+  assert.match(mobileMenu, /error && screen !== 'poll'/);
+  assert.match(mobileMenu, /accessibilityRole="alert"/);
   assert.match(composer, /<Text style=\{styles\.link\}>Poll<\/Text>/);
 });
