@@ -11,6 +11,8 @@ test('mobile poll editing exposes creator-only edit flow with two-edit eligibili
   assert.match(media, /message\.type === 'poll'/);
   assert.match(media, /query: \{ action: 'edit' \}/);
   assert.match(media, /Edit Poll/);
+  assert.match(media, /animationType="none"/);
+  assert.match(media, /showSoftInputOnFocus=\{true\}/);
   assert.match(media, /2 to 4 different options/);
   assert.match(media, /const normalizePollExpiry = value =>/);
   assert.ok(media.includes("if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(trimmed)) return null"));
