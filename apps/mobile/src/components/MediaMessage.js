@@ -196,20 +196,12 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
   </View>;
 }
 
-function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1, showActions = false, onReply, onSave, onDelete, onEdit, onPollUpdated, canEdit = false }) {
+function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1, showActions = false, onReply, onSave, onDelete, onEdit, onEditPoll, onPollUpdated, canEdit = false }) {
   const { width } = useWindowDimensions();
   const mediaWidth = Math.min(280, Math.max(210, width * 0.72));
   const [requested, setRequested] = useState(false);
   const [pollOptions, setPollOptions] = useState(message.poll?.options || []);
   const [pollBusy, setPollBusy] = useState(false);
-  const [pollEditOpen, setPollEditOpen] = useState(false);
-  const [pollEditQuestion, setPollEditQuestion] = useState('');
-  const [pollEditOptions, setPollEditOptions] = useState([]);
-  const [pollEditExpiry, setPollEditExpiry] = useState('');
-  const [pollEditBusy, setPollEditBusy] = useState(false);
-  const [pollEditError, setPollEditError] = useState('');
-  const [pollCalendarOpen, setPollCalendarOpen] = useState(false);
-  const [pollCalendarMonth, setPollCalendarMonth] = useState(() => new Date());
   const [source, setSource] = useState(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -233,93 +225,14 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   if (message.type === 'poll') {
     const pollId = Number(message.poll_id || message.poll?.id || 0);
     const vote = async optionId => { if (!pollId || pollBusy) return; setPollBusy(true); setError(''); try { const { data } = await apiClient.post('v1/polls', { poll_id: pollId, option_id: optionId }, { query: { action: 'vote' } }); if (Array.isArray(data.options)) setPollOptions(data.options); } catch (e) { setError(e.message || 'Unable to save vote.'); } finally { setPollBusy(false); } };
-    const openPollEdit = () => {
-      setPollEditQuestion(message.poll?.question || '');
-      setPollEditOptions((message.poll?.options || []).map(option => ({ id: option.id, text: option.text || '' })));
-      setPollEditExpiry(message.poll?.expires_at ? String(message.poll.expires_at).slice(0, 10) : '');
-      setError('');
-      setPollEditError('');
-      setPollEditOpen(true);
-    };
-    const updatePollOption = (index, value) => setPollEditOptions(current => current.map((option, optionIndex) => optionIndex === index ? { ...option, text: value } : option));
-    const formatPollDate = date => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-    const calendarDays = useMemo(() => {
-      const year = pollCalendarMonth.getFullYear();
-      const month = pollCalendarMonth.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const days = [];
-      for (let i = 0; i < firstDay; i += 1) days.push(null);
-      for (let day = 1; day <= daysInMonth; day += 1) days.push(new Date(year, month, day));
-      return days;
-    }, [pollCalendarMonth]);
-    const openPollCalendar = () => {
-      const selected = pollEditExpiry ? new Date(`${pollEditExpiry}T12:00:00`) : new Date();
-      setPollCalendarMonth(Number.isNaN(selected.getTime()) ? new Date() : selected);
-      setPollCalendarOpen(true);
-    };
-    const selectPollExpiryDate = date => {
-      setPollEditExpiry(formatPollDate(date));
-      setPollCalendarOpen(false);
-    };
-    const normalizePollExpiry = value => {
-      const trimmed = String(value || '').trim();
-      if (!trimmed) return null;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
-      const [year, month, day] = trimmed.split('-').map(Number);
-      const localExpiry = new Date(year, month - 1, day, 23, 59, 59, 999);
-      if (Number.isNaN(localExpiry.getTime()) || localExpiry.getFullYear() !== year || localExpiry.getMonth() !== month - 1 || localExpiry.getDate() !== day) return null;
-      return localExpiry.toISOString();
-    };
-    const savePollEdit = async () => {
-      const question = pollEditQuestion.trim();
-      const options = pollEditOptions.map(option => ({ id: Number(option.id) || 0, text: String(option.text || '').trim() }));
-      if (!question || options.length < 2 || options.length > 4 || options.some(option => !option.text) || new Set(options.map(option => option.text)).size !== options.length) {
-        setPollEditError('Provide a question and 2 to 4 different options.');
-        return;
-      }
-      setPollEditBusy(true); setPollEditError('');
-      try {
-        const expiresAt = normalizePollExpiry(pollEditExpiry);
-        if (pollEditExpiry.trim() && !expiresAt) {
-          setPollEditError('Choose a valid expiry date.');
-          setPollEditBusy(false);
-          return;
-        }
-        const { data } = await apiClient.post('v1/polls', { poll_id: pollId, question, expires_at: expiresAt, options }, { query: { action: 'edit' } });
-        if (data?.message?.poll) {
-          setPollOptions(data.message.poll.options || []);
-          onPollUpdated?.(data.message);
-        }
-        setPollEditOpen(false);
-      } catch (e) { setPollEditError(e.message || 'Unable to edit poll.'); } finally { setPollEditBusy(false); }
-    };
     return <View style={[styles.pollCard, { width: mediaWidth }]}>
       <Text style={[styles.pollQuestion, messageTextStyle]}>📊 {message.poll?.question || 'Poll'}</Text>
       {pollOptions.map(option => <Pressable key={option.id} disabled={pollBusy || Boolean(message.poll?.expires_at && parseMessageTimestamp(message.poll.expires_at) <= new Date())} onPress={() => vote(option.id)} style={[styles.pollOption, option.selected && styles.pollOptionSelected]}><Text style={styles.pollOptionText}>{option.text}</Text><Text style={styles.pollVotes}>{option.votes || 0}{option.selected ? ' ✓' : ''}</Text></Pressable>)}
       {message.poll?.expires_at ? <Text style={styles.meta}>Expires {parseMessageTimestamp(message.poll.expires_at).toLocaleString()}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {showActions && canEdit ? <View style={[styles.messageActions, { backgroundColor: colors.surface || colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}><MessageAction type="edit" label="Edit" color={colors.iconPrimary || colors.accent || '#1677c8'} colors={colors} accessibilityLabel="Edit poll" onPress={openPollEdit} /><MessageAction type="delete" label="Delete" color={colors.error || '#dc2626'} colors={colors} accessibilityLabel="Delete poll" onPress={onDelete} /></View> : null}
+      {showActions && canEdit ? <View style={[styles.messageActions, { backgroundColor: colors.surface || colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}><MessageAction type="edit" label="Edit" color={colors.iconPrimary || colors.accent || '#1677c8'} colors={colors} accessibilityLabel="Edit poll" onPress={onEditPoll} /><MessageAction type="delete" label="Delete" color={colors.error || '#dc2626'} colors={colors} accessibilityLabel="Delete poll" onPress={onDelete} /></View> : null}
       {profileAction}
-      <Modal visible={pollEditOpen} transparent animationType="none" onRequestClose={() => !pollEditBusy && setPollEditOpen(false)}>
-        <View style={styles.pollEditOverlay}>
-          <View style={[styles.pollEditCard, { backgroundColor: colors.background || '#fff' }]}>
-            <Text style={[styles.pollEditTitle, { color: colors.text || '#172033' }]}>Edit Poll</Text>
-            {pollEditError ? <Text style={styles.pollEditError} accessibilityRole="alert">{pollEditError}</Text> : null}
-            <TextInput style={styles.pollEditInput} value={pollEditQuestion} onChangeText={setPollEditQuestion} placeholder="Poll question" editable={!pollEditBusy} showSoftInputOnFocus={true} />
-            {pollEditOptions.map((option, index) => <View key={option.id || index} style={styles.pollEditOptionRow}><TextInput style={[styles.pollEditInput, { flex: 1 }]} value={option.text} onChangeText={value => updatePollOption(index, value)} placeholder={`Option ${index + 1}`} editable={!pollEditBusy} showSoftInputOnFocus={true} /><Pressable disabled={pollEditBusy || pollEditOptions.length <= 2} onPress={() => setPollEditOptions(current => current.filter((_, optionIndex) => optionIndex !== index))}><Text style={styles.pollEditRemove}>×</Text></Pressable></View>)}
-            {pollEditOptions.length < 4 ? <Pressable disabled={pollEditBusy} onPress={() => setPollEditOptions(current => [...current, { id: 0, text: '' }])}><Text style={styles.pollEditAdd}>+ Add option</Text></Pressable> : null}
-            <Pressable disabled={pollEditBusy} onPress={openPollCalendar} style={styles.pollEditDateButton} accessibilityRole="button" accessibilityLabel="Choose expiry date"><Text style={styles.pollEditDateIcon}>▣</Text><Text style={styles.pollEditDateText}>{pollEditExpiry || 'Choose expiry date (optional)'}</Text></Pressable>
-            {pollCalendarOpen ? <View style={styles.pollCalendar}><View style={styles.pollCalendarHeader}><Pressable disabled={pollEditBusy} onPress={() => setPollCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}><Text style={styles.pollCalendarNav}>‹</Text></Pressable><Text style={styles.pollCalendarTitle}>{pollCalendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</Text><Pressable disabled={pollEditBusy} onPress={() => setPollCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}><Text style={styles.pollCalendarNav}>›</Text></Pressable></View><View style={styles.pollCalendarWeek}>{['S','M','T','W','T','F','S'].map((day, index) => <Text key={`${day}-${index}`} style={styles.pollCalendarWeekDay}>{day}</Text>)}</View><View style={styles.pollCalendarGrid}>{calendarDays.map((date, index) => { if (!date) return <View key={`blank-${index}`} style={styles.pollCalendarDay} />; const today = new Date(); today.setHours(0,0,0,0); const disabled = date < today; const selected = pollEditExpiry === formatPollDate(date); return <Pressable key={formatPollDate(date)} disabled={disabled || pollEditBusy} onPress={() => selectPollExpiryDate(date)} style={[styles.pollCalendarDay, selected && styles.pollCalendarDaySelected, disabled && styles.pollCalendarDayDisabled]}><Text style={[styles.pollCalendarDayText, selected && styles.pollCalendarDayTextSelected, disabled && styles.pollCalendarDayTextDisabled]}>{date.getDate()}</Text></Pressable>; })}</View></View> : null}
-            <View style={styles.pollEditActions}><Pressable disabled={pollEditBusy} onPress={() => setPollEditOpen(false)}><Text style={styles.pollEditCancel}>Cancel</Text></Pressable><Pressable disabled={pollEditBusy} onPress={savePollEdit}><Text style={styles.pollEditSave}>{pollEditBusy ? 'Saving…' : 'Save Changes'}</Text></Pressable></View>
-          </View>
-        </View>
-      </Modal>
+Modal>
     </View>;
   }
   if (message.type === 'location') { const location = parseSharedLocation(message.body); return location ? <View><Pressable onPress={() => Linking.openURL(location.url).catch(() => setError('Unable to open maps.'))} accessibilityRole="link"><Text style={[styles.link, actionTextStyle]}>📍 {location.label}</Text><Text style={messageTextStyle}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text><Text style={[styles.link, actionTextStyle]}>Open in maps ↗</Text>{error ? <Text>{error}</Text> : null}</Pressable>{profileAction}</View> : <View><Text style={messageTextStyle}>Location unavailable</Text>{profileAction}</View>; }
@@ -327,7 +240,7 @@ function MediaMessageContent({ message, autoDownload, colors = {}, textScale = 1
   return <View>{error && kind !== 'video' ? <View><Text style={styles.error}>{error}</Text><Pressable onPress={() => { setSource(null); setError(''); setRequested(true); setReloadKey(value => value + 1); }} style={styles.control}><Text style={styles.link}>Try preview again</Text></Pressable></View> : source ? kind === 'audio' ? <AudioPreview source={source} /> : kind === 'image' ? <><Pressable accessibilityRole="button" accessibilityLabel="Open image full screen" onPress={() => setImageOpen(true)}><Image source={{ uri: source }} style={[styles.image, { width: mediaWidth, height: Math.min(mediaWidth * 1.25, width * 0.92) }]} resizeMode="contain" onError={() => setError('Image preview could not be displayed.')} /></Pressable><Modal visible={imageOpen} animationType="fade" presentationStyle="fullScreen" onRequestClose={() => setImageOpen(false)}><View style={styles.fullscreen}><Pressable onPress={() => setImageOpen(false)} style={styles.closeButton} accessibilityRole="button" accessibilityLabel="Close image"><Text style={styles.closeText}>×</Text></Pressable><Image source={{ uri: source }} style={styles.fullscreenImage} resizeMode="contain" /></View></Modal></> : <View style={styles.documentCard}><Text style={styles.documentIcon}>▤</Text><Text numberOfLines={2} style={styles.documentName}>{attachment.name || 'Document'}</Text><Pressable style={styles.documentButton} onPress={() => setRequested(true)}><Text style={styles.link}>Preview document</Text></Pressable></View> : kind === 'video' ? <VideoPreview attachment={attachment} /> : kind ? <Pressable onPress={() => setRequested(true)} style={styles.previewPlaceholder}><Text style={styles.previewIcon}>{kind === 'audio' ? '♫' : '▤'}</Text><Text style={styles.previewLabel}>{kind === 'audio' ? 'Audio' : 'Document'}</Text></Pressable> : null}{profileAction}{kind ? <AttachmentApproval attachment={attachment} message={message} showActions={showActions} onForward={() => setForwardOpen(true)} onReply={onReply} onSave={onSave} onDelete={onDelete} colors={colors} /> : null}<ForwardMessageModal visible={forwardOpen} message={message} onClose={() => setForwardOpen(false)} /></View>;
 }
 
-export default function MediaMessage({ message, autoDownload, colors, textScale, isVisible = true, showActions = false, onReply, onSave, onDelete, onEdit, onPollUpdated, canEdit = false }) { return <ReadReceipt message={message} isVisible={isVisible} showStatus={showActions}><MediaMessageContent message={message} autoDownload={autoDownload} colors={colors} textScale={textScale} showActions={showActions} onReply={onReply} onSave={onSave} onDelete={onDelete} onEdit={onEdit} onPollUpdated={onPollUpdated} canEdit={canEdit} /></ReadReceipt>; }
+export default function MediaMessage({ message, autoDownload, colors, textScale, isVisible = true, showActions = false, onReply, onSave, onDelete, onEdit, onEditPoll, onPollUpdated, canEdit = false }) { return <ReadReceipt message={message} isVisible={isVisible} showStatus={showActions}><MediaMessageContent message={message} autoDownload={autoDownload} colors={colors} textScale={textScale} showActions={showActions} onReply={onReply} onSave={onSave} onDelete={onDelete} onEdit={onEdit} onEditPoll={onEditPoll} onPollUpdated={onPollUpdated} canEdit={canEdit} /></ReadReceipt>; }
 
 const styles = StyleSheet.create({
   pollEditOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 }, pollEditCard: { borderRadius: 16, padding: 16, gap: 10, maxHeight: '90%' }, pollEditTitle: { fontSize: 18, fontWeight: '800' }, pollEditInput: { minHeight: 44, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, paddingHorizontal: 12, color: '#172033', backgroundColor: '#fff' }, pollEditOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, pollEditRemove: { color: '#b91c1c', fontSize: 28, paddingHorizontal: 4 }, pollEditAdd: { color: '#3157d5', fontWeight: '800', paddingVertical: 4 }, pollEditActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 18, paddingTop: 8 }, pollEditCancel: { color: '#64748b', fontWeight: '800' }, pollEditSave: { color: '#3157d5', fontWeight: '800' }, pollCard: { maxWidth: '100%' }, pollQuestion: { color: '#172033', fontWeight: '800', fontSize: 15, marginBottom: 8 }, pollOption: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, marginBottom: 6, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, backgroundColor: '#fff' }, pollOptionSelected: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, pollOptionText: { color: '#172033', flex: 1 }, pollVotes: { color: '#3157d5', fontWeight: '800', marginLeft: 8 },
