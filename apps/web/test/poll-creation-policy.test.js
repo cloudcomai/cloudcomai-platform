@@ -22,7 +22,7 @@ test('poll editing is creator-only, group-only, and limited to two edits', () =>
   assert.match(backend, /p\.creator_id=\?/);
   assert.match(backend, /c\.type="group"/);
   assert.match(backend, /\$poll\['edit_count'\] >= 2/);
-  assert.match(backend, /m\.created_at.*INTERVAL 3 HOUR/s);
+  assert.match(backend, /strtotime\(\(string\)\$poll\['created_at'\]\).*3 \* 60 \* 60/);
   assert.match(backend, /DELETE FROM poll_votes WHERE poll_id=\? AND option_id IN/);
   assert.match(backend, /UPDATE poll_options SET option_text/);
   assert.match(backend, /INSERT INTO poll_options/);
