@@ -250,7 +250,7 @@ try {
     $removeOptionEdit = request('POST','v1/polls?action=edit',1,['poll_id'=>$pollId,'question'=>'Final choice','options'=>[['id'=>$firstOption,'text'=>'One final'],['id'=>0,'text'=>'Three']]],200)['data']['message'];
     check(count($removeOptionEdit['poll']['options'])===2,'Poll edit did not keep exactly two options');
     check((int)$admin->query("SELECT COUNT(*) FROM poll_votes WHERE poll_id=$pollId AND option_id=$secondOption")->fetchColumn()===0,'Votes for a removed poll option were not deleted');
-    check((int)$admin->query("SELECT COUNT(*) FROM poll_votes WHERE poll_id=$pollId AND option_id=$firstOption AND user_id=2")->fetchColumn()===1,'Votes for a retained poll option were lost during edit');
+    check((int)$admin->query("SELECT COUNT(*) FROM poll_votes WHERE poll_id=$pollId AND option_id=$firstOption AND user_id=1")->fetchColumn()===1,'Votes for a retained poll option were lost during edit');
     request('POST','v1/polls?action=edit',1,['poll_id'=>$pollId,'question'=>'Third edit','options'=>[['id'=>$firstOption,'text'=>'One final'],['id'=>$removeOptionEdit['poll']['options'][1]['id'],'text'=>'Three']]],409);
     $admin->exec("UPDATE polls SET closed_at=UTC_TIMESTAMP() WHERE id=$pollId");
     request('POST','v1/polls?action=vote',2,$vote,409);
