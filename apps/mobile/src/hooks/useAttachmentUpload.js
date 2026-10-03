@@ -33,7 +33,11 @@ export function useAttachmentUpload({ chatId, blocked, replyToMessageId, onMessa
         chat_id: chatId,
         download_policy: 'APPROVAL_REQUIRED',
         reply_to_message_id: replyToMessageId || undefined,
-        multipartPartMode: attachmentDraft.multipartPartMode || 'expo-file',
+        // Progress/cancellation uses React Native XMLHttpRequest. Use the native
+        // { uri, name, type } multipart part for content:// and file:// assets;
+        // Expo File parts are supported by fetch but are not reliably accepted by
+        // the React Native XHR FormData bridge on Android.
+        multipartPartMode: attachmentDraft.multipartPartMode || 'native',
         onProgress: progress => setAttachmentProgress(progress),
         onCancelAvailable: cancel => {
           if (cancelRequestedRef.current && cancel) cancel();
