@@ -737,6 +737,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const lastBackPressRef = useRef(0);
+  const [failedAvatarIds, setFailedAvatarIds] = useState(() => new Set());
 
   const loadChats = useCallback(async (refresh = false, silent = false) => {
     if (section === 'contacts' || section === 'notifications' || section === 'public') {
@@ -893,7 +894,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
                 const imageId = item.isGroup ? item.id : (item.other_user_id || item.id);
                 const title = item.name || 'Conversation';
                 return <Pressable onPress={() => setSelectedChat(item)} style={[styles.mobileChatRow,{backgroundColor:appTheme.colors.surface || appTheme.colors.background,borderColor:appTheme.colors.border}]}>
-                  <View style={styles.mobileAvatar}><Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId, item.image_version) }} style={styles.mobileAvatarImage} /><View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View></View>
+                  <View style={styles.mobileAvatar}>{failedAvatarIds.has(`${item.isGroup ? 'group' : 'user'}:${imageId}`) ? <View style={styles.mobileAvatarFallback}><Text style={styles.mobileAvatarText}>{title[0]?.toUpperCase() || 'C'}</Text></View> : <Image source={{ uri: mediaUrl(item.isGroup ? 'group' : 'user', imageId, item.image_version) }} style={styles.mobileAvatarImage} onError={() => setFailedAvatarIds(current => { const next = new Set(current); next.add(`${item.isGroup ? 'group' : 'user'}:${imageId}`); return next; })} />}</View>
                   <View style={styles.mobileChatMeta}><Text numberOfLines={1} style={[styles.mobileChatName,{color:appTheme.colors.text}]}>{title}</Text><Text numberOfLines={1} style={[styles.mobilePreview,{color:appTheme.colors.secondary}]}>{localMessages?.drafts?.[String(item.id)] ? `Draft: ${localMessages.drafts[String(item.id)]}` : item.preview || (item.isGroup ? 'Group conversation' : 'Private conversation')}</Text></View>
                   <View style={styles.mobileChatRight}><Text style={[styles.mobileTime,{color:appTheme.colors.secondary}]}>{compactTime(item.last_message_at || item.created_at)}</Text>{Number(item.unread || 0) > 0 ? <View style={[styles.mobileUnread,{backgroundColor:appTheme.colors.accent}]}><Text style={styles.mobileUnreadText}>{Number(item.unread) > 99 ? '99+' : item.unread}</Text></View> : null}</View>
                 </Pressable>;
