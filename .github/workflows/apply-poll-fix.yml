@@ -18,18 +18,14 @@ jobs:
           fetch-depth: 0
 
       - name: Apply poll fixes
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
-          # MobileMenu: poll-page back behavior is contextual and there is no visible Back button.
           path = Path('apps/mobile/src/components/MobileMenu.js')
           text = path.read_text()
-          text = text.replace(
-              "  themeSettings,\n}) {",
-              "  themeSettings,\n  onPollBack,\n}) {",
-              1,
-          )
+          text = text.replace("  themeSettings,\n}) {", "  themeSettings,\n  onPollBack,\n}) {", 1)
           old_poll_header = "if (screen === 'poll') return (<><ScreenHeader theme={theme} title=\"Create poll\" onBack={() => go('menu')} onClose={onClose} />"
           new_poll_header = "if (screen === 'poll') return (<><ScreenHeader theme={theme} title=\"Create poll\" onClose={onClose} />"
           if old_poll_header not in text:
@@ -42,7 +38,6 @@ jobs:
           text = text.replace(old_request_close, new_request_close, 1)
           path.write_text(text)
 
-          # MediaMessage: Delete must remain available after the 3-hour/2-edit edit window.
           path = Path('apps/mobile/src/components/MediaMessage.js')
           text = path.read_text()
           old_actions = "{showActions && canEdit ? <View style={[styles.messageActions, { backgroundColor: colors.surface || colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}><MessageAction type=\"edit\" label=\"Edit\" color={colors.iconPrimary || colors.accent || '#1677c8'} colors={colors} accessibilityLabel=\"Edit poll\" onPress={onEditPoll} /><MessageAction type=\"delete\" label=\"Delete\" color={colors.error || '#dc2626'} colors={colors} accessibilityLabel=\"Delete poll\" onPress={onDelete} /></View> : null}"
@@ -52,7 +47,6 @@ jobs:
           text = text.replace(old_actions, new_actions, 1)
           path.write_text(text)
 
-          # ChatDetail: hardware back from a poll opened inside a group returns to that group chat.
           path = Path('apps/mobile/App.js')
           text = path.read_text()
           old_menu = "initialScreen=\"poll\"\n        initialPollChatId={chat.id}\n        user={user}\n        onClose={() => setPollMenuVisible(false)}"
@@ -61,15 +55,16 @@ jobs:
               raise SystemExit('ChatDetail poll MobileMenu pattern not found')
           text = text.replace(old_menu, new_menu, 1)
           path.write_text(text)
+          PY
 
       - name: Add regression coverage
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
           path = Path('apps/mobile/test/poll-edit.test.js')
           text = path.read_text()
-          marker = "});\n"
-          additions = """
+          additions = r'''
 
 test('poll page has contextual hardware-back behavior and keeps delete after edit eligibility ends', () => {
   assert.match(mobileMenu, /onPollBack/);
@@ -80,10 +75,11 @@ test('poll page has contextual hardware-back behavior and keeps delete after edi
   assert.match(media, /\{canEdit \? <MessageAction type=\"edit\" label=\"Edit\"/);
   assert.match(media, /<MessageAction type=\"delete\" label=\"Delete\"/);
 });
-"""
+'''
           if additions.strip() not in text:
-              text = text + additions
+              text += additions
           path.write_text(text)
+          PY
 
       - name: Run poll regression tests
         run: node --test apps/mobile/test/poll-edit.test.js
