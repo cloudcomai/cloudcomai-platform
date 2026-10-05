@@ -12,7 +12,8 @@
     "android": {
       "package": "com.cloudcomai.mobile",
       "adaptiveIcon": { "foregroundImage": "./assets/app-icon.png", "backgroundColor": "#3157d5" },
-      "edgeToEdgeEnabled": false
+      "edgeToEdgeEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "ios": { "bundleIdentifier": "com.cloudcomai.mobile", "supportsTablet": true },
     "plugins": [
