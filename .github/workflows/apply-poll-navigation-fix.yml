@@ -1,0 +1,55 @@
+name: Apply poll navigation fix
+
+on:
+  push:
+    branches:
+      - fix/mobile-poll-back-delete
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-poll-back-delete
+          fetch-depth: 0
+
+      - name: Update poll navigation
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('apps/mobile/src/components/MobileMenu.js')
+          text = path.read_text()
+          old = 'if (screen === \'poll\') return (<><ScreenHeader theme={theme} title="Create poll" onBack={() => go(\'menu\')} onClose={onClose} />'
+          new = 'if (screen === \'poll\') return (<><ScreenHeader theme={theme} title="Create poll" onClose={onClose} />'
+          if old not in text:
+              raise SystemExit('Poll header pattern not found')
+          text = text.replace(old, new, 1)
+          old = "onRequestClose={screen === 'menu' ? onClose : () => go('menu')}"
+          new = "onRequestClose={screen === 'menu' || screen === 'poll' ? onClose : () => go('menu')}"
+          if old not in text:
+              raise SystemExit('Modal back-handler pattern not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+      - name: Commit poll navigation fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/mobile/src/components/MobileMenu.js
+          git diff --cached --quiet && { echo 'No changes'; exit 0; }
+          git commit -m 'fix(mobile): return from poll to originating screen'
+          git push origin fix/mobile-poll-back-delete
+
+      - name: Remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply-poll-navigation-fix.yml
+          git commit -m 'chore: remove temporary poll navigation workflow'
+          git push origin fix/mobile-poll-back-delete
