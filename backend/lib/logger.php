@@ -50,12 +50,24 @@ final class CloudComAiLogger
             return;
         }
 
-        if (@file_put_contents($path, $line, FILE_APPEND | LOCK_EX) === false) {
-            error_log('CloudComAI logger: unable to write ' . $path);
+        $lockPath = $directory . DIRECTORY_SEPARATOR . '.' . $filename . '.lock';
+        $lock = @fopen($lockPath, 'c+');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            if (is_resource($lock)) fclose($lock);
+            error_log('CloudComAI logger: unable to acquire log lock');
             return;
         }
 
-        @chmod($path, 0640);
+        try {
+            if (@file_put_contents($path, $line, FILE_APPEND) === false) {
+                error_log('CloudComAI logger: unable to write ' . $path);
+                return;
+            }
+            @chmod($path, 0640);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     private static function config(): array {
