@@ -1,4 +1,7 @@
 import { ApiError } from './api-error.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('api-client');
 
 const normalizeBaseUrl = (baseUrl) => {
   const value = String(baseUrl ?? '').trim();
@@ -32,6 +35,11 @@ const parseResponse = async (response, responseType = 'auto') => {
 const resolveErrorMessage = (payload, response) =>
   payload?.error ?? payload?.message ?? `Request failed with status ${response.status}`;
 
+const createRequestId = () => {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `cc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export class ApiClient {
   constructor({
     baseUrl,
@@ -61,6 +69,8 @@ export class ApiClient {
     } = options;
     const requestHeaders = new Headers(headers);
     let requestBody = body;
+    const requestId = requestHeaders.get('X-Request-Id') || createRequestId();
+    requestHeaders.set('X-Request-Id', requestId);
 
     // Multipart bodies can originate in another browser realm (iframe/window) or
     // from React Native's FormData implementation. instanceof FormData is not
@@ -85,18 +95,12 @@ export class ApiClient {
       if (token) requestHeaders.set('Authorization', `Bearer ${token}`);
     }
 
+    const startedAt = Date.now();
     let response;
     let requestUrl;
     try {
       requestUrl = addQuery(new URL(path, this.baseUrl).toString(), query);
-
-      console.log('[CloudComAI API Request]', {
-        method,
-        baseUrl: this.baseUrl,
-        path,
-        requestUrl,
-      });
-
+      log.debug('API request started', { method, path, requestId });
       response = await this.fetchImpl(requestUrl, {
         method,
         headers: requestHeaders,
@@ -104,15 +108,13 @@ export class ApiClient {
         signal,
       });
     } catch (error) {
-      console.error('[CloudComAI API Error]', {
+      log.error('API request failed before response', {
         method,
-        baseUrl: this.baseUrl,
         path,
-        requestUrl,
-        message: error?.message,
+        requestId,
+        durationMs: Date.now() - startedAt,
         error,
       });
-
       if (error?.name === 'AbortError') throw error;
       throw new ApiError(
         `Unable to reach the CloudComAI API${error?.message ? `: ${error.message}` : ''}`,
@@ -124,7 +126,15 @@ export class ApiClient {
     }
 
     const payload = await parseResponse(response, response.ok ? responseType : 'auto');
+    const context = {
+      method,
+      path,
+      requestId,
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+    };
     if (!response.ok) {
+      log.warn('API request returned an error response', context);
       if (response.status === 401 && auth && this.onUnauthorized) {
         // An in-flight request can finish after sign-in or session rotation.
         // Only expire the credentials that actually received this rejection.
@@ -140,6 +150,7 @@ export class ApiClient {
         response,
       });
     }
+    log.info('API request completed', context);
     return { data: payload, status: response.status, headers: response.headers };
   }
 
