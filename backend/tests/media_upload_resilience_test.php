@@ -34,7 +34,7 @@ expect_media(str_contains($phpIni, 'upload_max_filesize = 25M'), 'PHP upload_max
 expect_media(str_contains($phpIni, 'post_max_size = 32M'), 'PHP post_max_size must exceed the 25 MB media limit');
 expect_media(str_contains($phpIni, 'max_execution_time = 120'), 'PHP max_execution_time must allow media uploads to complete');
 
-$routerCatchPos = strpos($index, "error_log('API router failure [");
+$routerCatchPos = strpos($index, "CloudComAiLogger::error('router', 'API router failure'");
 $handlerCatchPos = strpos($index, "error_log('API handler failure [");
 $requirePos = strpos($index, 'require $result[\'handler\'];');
 expect_media($routerCatchPos !== false, 'Router failure logging missing');
