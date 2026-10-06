@@ -35,7 +35,7 @@ expect_media(str_contains($phpIni, 'post_max_size = 32M'), 'PHP post_max_size mu
 expect_media(str_contains($phpIni, 'max_execution_time = 120'), 'PHP max_execution_time must allow media uploads to complete');
 
 $routerCatchPos = strpos($index, "CloudComAiLogger::error('router', 'API router failure'");
-$handlerCatchPos = strpos($index, "error_log('API handler failure [");
+$handlerCatchPos = strpos($index, "CloudComAiLogger::error('router', 'API handler failure'");
 $requirePos = strpos($index, 'require $result[\'handler\'];');
 expect_media($routerCatchPos !== false, 'Router failure logging missing');
 expect_media($requirePos !== false && $handlerCatchPos !== false && $requirePos < $handlerCatchPos, 'Handler execution must have its own failure handling');
