@@ -1,36 +1,27 @@
 # CloudComAI generic logging
 
-CloudComAI uses a common logging contract across mobile, web and API modules.
+## Backend log file
 
-## Levels
+Backend logs are written to a dedicated application file.
 
-- `debug`: detailed diagnostics and request-start information
-- `info`: successful application operations and timings
-- `warn`: recoverable or non-successful operations
-- `error`: failures and exceptions
+Default:
+- Directory: `backend/storage/logs`
+- Active file: `cloudcomai.log`
+- Backups: `cloudcomai.log.YYYYMMDD_HH.bak`
+- Retention: 168 hours (7 days)
+
+Configuration is in `backend/config/logging.php`. Environment overrides:
+- `CLOUDCOMAI_LOG_DIR`
+- `CLOUDCOMAI_LOG_FILE`
+- `CLOUDCOMAI_LOG_RETENTION_HOURS`
+
+`backend/cron/rotate_logs.php` rotates the active log hourly. Configure the GoDaddy cron scheduler to run it once per hour using the absolute PHP path and deployed script path.
+
+The log directory is protected from direct web access and generated logs/backups are excluded from Git.
 
 ## Frontend
 
-The shared logger is exported by `@cloudcomai/api-client`:
-
-```js
-import { createLogger } from '@cloudcomai/api-client';
-const log = createLogger('contacts');
-log.info('Contacts loaded', { count: 42 });
-const timer = log.time('Contacts loading');
-// ...
-timer.end();
-```
-
-The API client automatically logs request timing, status and a correlation ID for every web/mobile API call.
-
-Set `globalThis.__CLOUDCOMAI_LOG_LEVEL__` to `debug`, `info`, `warn`, or `error` when deeper diagnostics are required.
-
-## Backend
-
-`backend/lib/logger.php` provides the same levels and emits structured JSON through PHP's standard error log. The API router loads it for every routed API request and adds an `X-Request-Id` correlation ID.
-
-Backend log level can be controlled with `CLOUDCOMAI_LOG_LEVEL` (`info` by default).
+The shared logger is exported by `@cloudcomai/api-client`. The API client logs request timing, status and correlation IDs for web/mobile API calls.
 
 ## Privacy
 
