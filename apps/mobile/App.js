@@ -346,7 +346,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       } catch (error) { if (active) { setResults([]); setSearchStatus(error.message); } }
     }, 300);
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [chat.id, query, searchActive, messages]);
+  }, [chat.id, query, searchActive]);
 
   const loadOlderMessages = useCallback(async () => {
     const beforeId = oldestMessageIdRef.current;
@@ -410,7 +410,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     const subscription = AppState.addEventListener('change', handleAppState);
     transport.start();
     return () => { subscription.remove(); transport.stop(); };
-  }, [chat.id, loadOlderMessages]);
+  }, [chat.id]);
 
   const onMediaMessage = message => {
     if (!message) return;
