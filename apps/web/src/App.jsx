@@ -72,7 +72,7 @@ const parseEditTimestamp = value => {
     return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-export default const conversationListCache = new Map();
+const conversationListCache = new Map();
 
 function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
