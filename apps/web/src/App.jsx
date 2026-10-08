@@ -99,6 +99,9 @@ export default function App() {
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
     const [privacySettings, setPrivacySettings] = useState(defaultPrivacySettings);
     const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+    const chatPageRef = useRef(1);
+    const chatHasMoreRef = useRef(true);
+    const chatLoadingMoreRef = useRef(false);
     const latestMessageIdRef = useRef(0);
     const oldestMessageIdRef = useRef(0);
     const hasMoreOlderMessagesRef = useRef(false);
@@ -250,6 +253,8 @@ export default function App() {
     };
 
     const handleTabChange = (tab) => {
+        chatPageRef.current = 1;
+        chatHasMoreRef.current = true;
         setActiveTab(tab);
         setSelectedChat(null);
         setMessages([]);
@@ -264,28 +269,36 @@ export default function App() {
         return { route: ApiRoute.CHATS, query: { type: 'private' } };
     }, [activeTab]);
 
-    const refreshConversationList = useCallback(async () => {
+    const refreshConversationList = useCallback(async ({ page = 1, append = false } = {}) => {
         if (!token || screen !== 'app') return;
+        if (append && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
+        if (append) chatLoadingMoreRef.current = true;
         try {
             const activeListPath = getActiveListPath();
             if (!activeListPath) return;
             const { route, query } = activeListPath;
-            const data = await api(route, { method: 'GET', query });
+            const data = await api(route, { method: 'GET', query: { ...query, page, limit: 20 } });
             if (data.chats) {
                 const mapped = data.chats.map(chat => ({ ...chat, id: Number(chat.id), isGroup: chat.type === 'group' }));
-                setChats(mapped);
+                setChats(current => append ? [...current, ...mapped] : mapped);
                 setSelectedChat(prev => {
-                    if (!prev) return mapped[0] || null;
+                    if (!prev) return prev;
                     const refreshed = mapped.find(chat => chat.id === Number(prev.id));
                     return refreshed ? { ...prev, ...refreshed } : prev;
                 });
+                chatPageRef.current = page;
+                chatHasMoreRef.current = Boolean(data.pagination?.has_more);
             }
         } catch (err) {
             console.error('Unable to refresh conversation list:', err);
+        } finally {
+            chatLoadingMoreRef.current = false;
         }
     }, [getActiveListPath, screen, token]);
 
     useEffect(() => {
+        chatPageRef.current = 1;
+        chatHasMoreRef.current = true;
         if (!token || screen !== 'app') return undefined;
         let cancelled = false;
         const run = async () => { if (!cancelled) await refreshConversationList(); };
@@ -613,7 +626,7 @@ export default function App() {
         <div className={`app-container ${isDarkMode ? 'dark-theme' : ''} ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
             <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
-            <ChatDirectory searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
+            <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
             <ChatCanvas onLoadOlderMessages={loadOlderMessages} active={!modal} sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} onEditPoll={message => { setPollEditTarget(message); setModal('poll'); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
 
