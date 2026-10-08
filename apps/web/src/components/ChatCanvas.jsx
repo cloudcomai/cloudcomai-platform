@@ -128,8 +128,13 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
     const viewport = historyRef.current;
     if (!viewport) return;
     if (!searchActive && viewport.scrollTop < olderLoadThreshold) {
-      if (!pendingOlderScrollHeightRef.current) pendingOlderScrollHeightRef.current = viewport.scrollHeight;
-      onLoadOlderMessages?.();
+      const previousHeight = viewport.scrollHeight;
+      const result = onLoadOlderMessages?.();
+      if (result && typeof result.then === 'function') {
+        result.then(started => {
+          if (started) pendingOlderScrollHeightRef.current = previousHeight;
+        }).catch(() => {});
+      }
     }
     const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
     shouldAutoScrollRef.current = distanceFromBottom < 100;
