@@ -345,7 +345,7 @@ export default function App() {
 
     const loadOlderMessages = useCallback(async () => {
         const beforeId = oldestMessageIdRef.current;
-        if (!selectedChat || !beforeId || !hasMoreOlderMessagesRef.current || loadingOlderMessagesRef.current) return;
+        if (!selectedChat || !beforeId || !hasMoreOlderMessagesRef.current || loadingOlderMessagesRef.current) return false;
         loadingOlderMessagesRef.current = true;
         try {
             const data = await api(ApiRoute.MESSAGES, { method: 'GET', query: { chat_id: selectedChat.id, before_id: beforeId } });
@@ -360,6 +360,7 @@ export default function App() {
         } finally {
             loadingOlderMessagesRef.current = false;
         }
+        return true;
     }, [selectedChat?.id]);
 
     useEffect(() => {
