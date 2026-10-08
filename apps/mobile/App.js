@@ -49,6 +49,8 @@ import ChatThemeSettings from './src/components/ChatThemeSettings';
 import { getChatThemeSettings, resolveChatTheme } from './src/services/chatTheme';
 import { readableMessageColor } from './src/services/chatThemeDefinitions';
 
+const homeChatCache = new Map();
+
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
   id: Number(chat.id),
@@ -776,7 +778,15 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     const page = requestedPage || (refresh ? 1 : chatPageRef.current);
     if (page > 1 && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
     if (page > 1) chatLoadingMoreRef.current = true;
-    if (!silent) refresh ? setRefreshing(true) : setLoading(true);
+    const cacheKey = section;
+    if (page === 1) {
+      const cached = homeChatCache.get(cacheKey);
+      if (cached?.length) {
+        setChats(cached);
+        setLoading(false);
+      }
+    }
+    if (!silent) refresh ? setRefreshing(true) : setLoading(prev => prev && !homeChatCache.has(cacheKey));
     setError('');
     try {
       const types = section === 'all' ? ['private', 'group'] : [section === 'groups' ? 'group' : 'private'];
@@ -784,7 +794,9 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
       const incoming = results.flatMap((result, index) => normalizeChats(result.data.chats, types[index] === 'group'));
       const hasMore = results.some(result => Boolean(result.data.pagination?.has_more));
       if (refresh || page === 1) {
-        setChats(incoming.sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||''))));
+        const sortedIncoming = incoming.sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||'')));
+        setChats(sortedIncoming);
+        homeChatCache.set(cacheKey, sortedIncoming);
         chatPageRef.current = 1;
       } else {
         setChats(current => [...current, ...incoming].sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||''))));
