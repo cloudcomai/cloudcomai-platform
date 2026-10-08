@@ -750,7 +750,7 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppe
   );
 }
 
-function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const appTheme = resolveChatTheme(themeSettings);
   const [section, setSection] = useState('all');
   const [chats, setChats] = useState([]);
@@ -801,7 +801,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     return () => clearInterval(timer);
   }, [loadChats, selectedChat]);
 
-  useEffect(() => { loadChats(); }, [loadChats]);
+  useEffect(() => { chatPageRef.current = 1; chatHasMoreRef.current = true; loadChats(); }, [section, loadChats]);
 
   useEffect(() => {
     if (!initialChatId) return;
@@ -873,7 +873,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail privacySettings={privacySettings} messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
