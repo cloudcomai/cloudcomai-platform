@@ -72,7 +72,9 @@ const parseEditTimestamp = value => {
     return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-export default function App() {
+export default const conversationListCache = new Map();
+
+function App() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [screen, setScreen] = useState(screenFromLocation);
     const [resetToken, setResetToken] = useState(() => passwordResetLink(window.location.href).token);
@@ -277,10 +279,18 @@ export default function App() {
             const activeListPath = getActiveListPath();
             if (!activeListPath) return;
             const { route, query } = activeListPath;
+            const cacheKey = activeTab;
+            if (page === 1 && !append) {
+                const cached = conversationListCache.get(cacheKey);
+                if (cached?.length) {
+                    setChats(cached);
+                }
+            }
             const data = await api(route, { method: 'GET', query: { ...query, page, limit: 20 } });
             if (data.chats) {
                 const mapped = data.chats.map(chat => ({ ...chat, id: Number(chat.id), isGroup: chat.type === 'group' }));
                 setChats(current => append ? [...current, ...mapped] : mapped);
+                if (!append) conversationListCache.set(cacheKey, mapped);
                 setSelectedChat(prev => {
                     if (!prev) return prev;
                     const refreshed = mapped.find(chat => chat.id === Number(prev.id));
