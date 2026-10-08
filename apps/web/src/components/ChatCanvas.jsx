@@ -89,7 +89,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
       } catch (error) { if (!cancelled) { setSearchResults([]); setSearchStatus(error.message || 'Search failed.'); } }
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); controller.abort(); };
-  }, [selectedChat?.id, searchQuery, searchActive, messages]);
+  }, [selectedChat?.id, searchQuery, searchActive]);
 
   const deleteMessage = async scope => {
     if (!deleteTarget || deleting) return;
