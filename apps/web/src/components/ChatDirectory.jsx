@@ -7,7 +7,7 @@ const imageUrl = chat => chat?.image_url || mediaUrl(
   chat?.isGroup ? chat?.id : chat?.other_user_id || chat?.id,
 );
 
-export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab, topInterests, onEditPreferences }) {
+export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab, topInterests, onEditPreferences }) {
   const [failedImages, setFailedImages] = useState({});
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -112,7 +112,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
           </div>
         )}
 
-        <div className="conversations-scroll-stack">
+        <div className="conversations-scroll-stack" onScroll={event => { const el = event.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) onLoadMore?.(); }}>
           {contactsLoading && contacts.length === 0 ? (
             <div className="empty-state">Loading contacts...</div>
           ) : visibleContacts.length === 0 && !contactsError ? (
