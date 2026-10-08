@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ApiRoute } from '@cloudcomai/api-client';
 import {
   ActivityIndicator,
   Appearance,
@@ -220,7 +221,7 @@ const parseEditTimestamp = value => {
   return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
   const [loading, setLoading] = useState(true);
@@ -229,6 +230,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const cursorRef = useRef(0);
+  const oldestMessageIdRef = useRef(0);
+  const hasMoreOlderRef = useRef(false);
+  const loadingOlderRef = useRef(false);
   const listRef = useRef(null);
   const keyboardVisibleRef = useRef(false);
   const [visibleMessageIds, setVisibleMessageIds] = useState(() => new Set());
@@ -243,7 +247,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   }, []);
   const atBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [privacy, setPrivacy] = useState({ media_auto_download: false });
+  const privacy = privacySettings || { media_auto_download: false };
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -316,12 +320,6 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   }, [messages, searchActive, groupManagementOpen, profileOpen]);
 
   useEffect(() => {
-    let active = true;
-    platformApi.getPrivacySettings().then(({ data }) => { if (active) setPrivacy(data.settings || {}); }).catch(() => {});
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
     // Android 13 and older require broad gallery access for detection; do not request it solely for this feature.
     if (Platform.OS !== 'ios' && !(Platform.OS === 'android' && Number(Platform.Version) >= 34)) return undefined;
     let lastCapture = 0;
@@ -350,18 +348,44 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [chat.id, query, searchActive, messages]);
 
+  const loadOlderMessages = useCallback(async () => {
+    const beforeId = oldestMessageIdRef.current;
+    if (!beforeId || !hasMoreOlderRef.current || loadingOlderRef.current || searchActive) return;
+    loadingOlderRef.current = true;
+    try {
+      const { data } = await platformApi.listMessages(chat.id, 0, { query: { before_id: beforeId } });
+      const older = Array.isArray(data.messages) ? data.messages : [];
+      if (older.length) {
+        setMessages(current => mergeMessageBatch(current, older).messages);
+        oldestMessageIdRef.current = Number(data.oldest_message_id || older[0]?.id || beforeId);
+      }
+      hasMoreOlderRef.current = Boolean(data.has_more_older);
+    } catch (olderError) {
+      setError(olderError.message || 'Unable to load older messages.');
+    } finally {
+      loadingOlderRef.current = false;
+    }
+  }, [chat.id, searchActive]);
+
   useEffect(() => {
     cursorRef.current = 0;
+    oldestMessageIdRef.current = 0;
+    hasMoreOlderRef.current = false;
+    loadingOlderRef.current = false;
     setMessages([]);
     let syncedAt = '';
     let syncFromId = 1;
     const shownAlerts = new Set();
     const transport = createPollingMessageTransport({
-      intervalMs: Number(process.env.EXPO_PUBLIC_MESSAGE_POLL_INTERVAL_MS || 3000),
+      intervalMs: Number(process.env.EXPO_PUBLIC_MESSAGE_POLL_INTERVAL_MS || 5000),
       getCursor: () => cursorRef.current,
       fetchMessages: async (afterId, options) => {
         const { data } = await platformApi.listMessages(chat.id, afterId, { ...options, query: { sync_from_id: syncFromId, updated_after: syncedAt } });
-        if (!afterId && data.messages?.length) syncFromId = Number(data.messages[0].id);
+        if (!afterId && data.messages?.length) {
+          syncFromId = Number(data.messages[0].id);
+          oldestMessageIdRef.current = Number(data.oldest_message_id || data.messages[0].id);
+          hasMoreOlderRef.current = Boolean(data.has_more_older);
+        }
         syncedAt = data.synced_at || syncedAt;
         return data;
       },
@@ -603,8 +627,10 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           contentContainerStyle={styles.messageList}
           scrollIndicatorInsets={{ bottom: 8 }}
           onLayout={() => { if (keyboardVisibleRef.current) return; if (atBottomRef.current && !searchActive) requestAnimationFrame(() => { if (!keyboardVisibleRef.current) listRef.current?.scrollToEnd?.({ animated: false }); }); }}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onScroll={event => {
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+            if (contentOffset.y < 120 && !searchActive) loadOlderMessages();
             const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
             const atBottom = distanceFromBottom < 100;
             atBottomRef.current = atBottom;
@@ -724,7 +750,7 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppe
   );
 }
 
-function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
   const appTheme = resolveChatTheme(themeSettings);
   const [section, setSection] = useState('all');
   const [chats, setChats] = useState([]);
@@ -738,35 +764,36 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
   const [searchText, setSearchText] = useState('');
   const lastBackPressRef = useRef(0);
   const [failedAvatarIds, setFailedAvatarIds] = useState(() => new Set());
+  const chatPageRef = useRef(1);
+  const chatHasMoreRef = useRef(true);
+  const chatLoadingMoreRef = useRef(false);
 
-  const loadChats = useCallback(async (refresh = false, silent = false) => {
+  const loadChats = useCallback(async (refresh = false, silent = false, requestedPage = null) => {
     if (section === 'contacts' || section === 'notifications' || section === 'public') {
-      setLoading(false);
-      setRefreshing(false);
-      return;
+      setLoading(false); setRefreshing(false); return;
     }
+    const page = requestedPage || (refresh ? 1 : chatPageRef.current);
+    if (page > 1 && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
+    if (page > 1) chatLoadingMoreRef.current = true;
     if (!silent) refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      if (section === 'all') {
-        const [{ data: privateData }, { data: groupData }] = await Promise.all([
-          platformApi.listChats('private'),
-          platformApi.listChats('group'),
-        ]);
-        setChats([
-          ...normalizeChats(privateData.chats, false),
-          ...normalizeChats(groupData.chats, true),
-        ].sort((a, b) => String(b.last_message_at || b.created_at || '').localeCompare(String(a.last_message_at || a.created_at || ''))));
+      const types = section === 'all' ? ['private', 'group'] : [section === 'groups' ? 'group' : 'private'];
+      const results = await Promise.all(types.map(type => apiClient.get(ApiRoute.CHATS, { query: { type, page, limit: 20 } })));
+      const incoming = results.flatMap((result, index) => normalizeChats(result.data.chats, types[index] === 'group'));
+      const hasMore = results.some(result => Boolean(result.data.pagination?.has_more));
+      if (refresh || page === 1) {
+        setChats(incoming.sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||''))));
+        chatPageRef.current = 1;
       } else {
-        const type = section === 'groups' ? 'group' : 'private';
-        const { data } = await platformApi.listChats(type);
-        setChats(normalizeChats(data.chats, type === 'group'));
+        setChats(current => [...current, ...incoming].sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||''))));
+        chatPageRef.current = page;
       }
+      chatHasMoreRef.current = hasMore;
     } catch (loadError) {
       setError(loadError.message || 'Unable to load chats.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoading(false); setRefreshing(false); chatLoadingMoreRef.current = false;
     }
   }, [section]);
   useEffect(() => {
@@ -774,7 +801,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     return () => clearInterval(timer);
   }, [loadChats, selectedChat]);
 
-  useEffect(() => { loadChats(); }, [loadChats]);
+  useEffect(() => { chatPageRef.current = 1; chatHasMoreRef.current = true; loadChats(); }, [section, loadChats]);
 
   useEffect(() => {
     if (!initialChatId) return;
@@ -846,7 +873,7 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail privacySettings={privacySettings} messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
@@ -886,6 +913,8 @@ function ChatsScreen({ session, onLogout, onSettings, initialChatId, onInitialCh
             {error ? <Text style={styles.listError}>{error}</Text> : null}
             {loading ? <ActivityIndicator style={styles.loader} color="#3157d5" /> : <FlatList
               data={filteredChats}
+              onEndReached={() => loadChats(false, true, chatPageRef.current + 1)}
+              onEndReachedThreshold={0.4}
               keyExtractor={item => `${item.isGroup ? 'g' : 'p'}-${item.id}`}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadChats(true)} />}
               contentContainerStyle={filteredChats.length ? styles.mobileChatList : styles.emptyList}
@@ -985,6 +1014,7 @@ function AppContent() {
   const [showChatThemeSettings, setShowChatThemeSettings] = useState(false);
   const [accountTool, setAccountTool] = useState(null);
   const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'modern-blue', selected: false });
+  const [privacySettings, setPrivacySettings] = useState({ media_auto_download: false });
   const [initialChatId, setInitialChatId] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
   const [deliveredMessage, setDeliveredMessage] = useState(null);
@@ -1013,6 +1043,13 @@ function AppContent() {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!session) { setPrivacySettings({ media_auto_download: false }); return undefined; }
+    let active = true;
+    platformApi.getPrivacySettings().then(({ data }) => { if (active) setPrivacySettings(data.settings || {}); }).catch(() => {});
+    return () => { active = false; };
+  }, [session?.token]);
 
   useEffect(() => {
     let backgrounded = false;
@@ -1098,6 +1135,7 @@ function AppContent() {
   return <ChatsScreen
     messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage}
     session={session}
+    privacySettings={privacySettings}
     onLogout={logout}
     onSettings={section => { setSettingsInitialSection(section || 'notifications'); if (section === 'privacy') setShowPrivacySettings(true); else setShowNotificationSettings(true); }}
     initialChatId={initialChatId}

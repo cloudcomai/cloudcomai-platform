@@ -7,7 +7,7 @@ const imageUrl = chat => chat?.image_url || mediaUrl(
   chat?.isGroup ? chat?.id : chat?.other_user_id || chat?.id,
 );
 
-export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab, topInterests, onEditPreferences }) {
+export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab, topInterests, onEditPreferences }) {
   const [failedImages, setFailedImages] = useState({});
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -192,7 +192,7 @@ export default function ChatDirectory({ searchQuery, setSearchQuery, chatFilter,
 
       <div className="filter-pill-row"><button className={`filter-pill ${chatFilter === 'all' ? 'active' : ''}`} onClick={() => setChatFilter('all')}>All</button><button className={`filter-pill ${chatFilter === 'unread' ? 'active' : ''}`} onClick={() => setChatFilter('unread')}>Unread</button></div>
 
-      <div className="conversations-scroll-stack">
+      <div className="conversations-scroll-stack" onScroll={event => { const el = event.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) onLoadMore?.(); }}>
         {filteredChats.length === 0 ? <div className="empty-state">No conversations found.</div> : filteredChats.map(chat => {
           const src = imageUrl(chat);
           const imageKey = `${chat.isGroup ? 'group' : 'user'}-${chat.id}`;

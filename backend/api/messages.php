@@ -19,6 +19,7 @@ if ($method === 'GET') {
     if ($chatId <= 0) fail('Chat id is required');
     if (strlen($search) > 120) $search = substr($search, 0, 120);
     $aroundId = (int)($_GET['around_id'] ?? 0);
+    $beforeId = (int)($_GET['before_id'] ?? 0);
 
     $membershipQuery = db()->prepare('SELECT COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id FROM chat_members cm LEFT JOIN chat_user_states cus ON cus.chat_id=cm.chat_id AND cus.user_id=cm.user_id WHERE cm.chat_id=? AND cm.user_id=? AND cm.status="active"');
     $membershipQuery->execute([$chatId, $user['id']]);
@@ -76,13 +77,27 @@ if ($method === 'GET') {
         $params[] = $like;
         $params[] = $like;
         $sql .= ' ORDER BY m.id DESC LIMIT 100';
+    } elseif ($beforeId > 0) {
+        $sql .= ' AND m.id < ? ORDER BY m.id DESC LIMIT 21';
+        $params[] = $beforeId;
+    } elseif ($requestedAfter === 0) {
+        $sql .= ' ORDER BY m.id DESC LIMIT 21';
     } else {
         $sql .= ' ORDER BY m.id ASC LIMIT 200';
     }
     $st = db()->prepare($sql);
     $st->execute($params);
     $messages = $st->fetchAll();
-    if ($search !== '') $messages = array_reverse($messages);
+    $hasMoreOlder = false;
+    if ($search === '') {
+        if ($beforeId > 0 || $requestedAfter === 0) {
+            $hasMoreOlder = count($messages) > 20;
+            if ($hasMoreOlder) array_pop($messages);
+            $messages = array_reverse($messages);
+        }
+    } else {
+        $messages = array_reverse($messages);
+    }
     $removedIds = [];
     if ($search === '' && $requestedAfter > 0) {
         // Synchronize edits separately so they cannot consume the new-message page.
@@ -106,7 +121,7 @@ if ($method === 'GET') {
         $alerts->execute([$user['id'], $since, $chatId]);
         $screenshotAlerts = $alerts->fetchAll();
     }
-    out(['messages' => $messages, 'removed_ids' => $removedIds, 'synced_at' => $syncedAt, 'search_query' => $search, 'screenshot_alerts' => $screenshotAlerts]);
+    out(['messages' => $messages, 'removed_ids' => $removedIds, 'synced_at' => $syncedAt, 'search_query' => $search, 'screenshot_alerts' => $screenshotAlerts, 'has_more_older' => $hasMoreOlder, 'oldest_message_id' => $messages ? (int)$messages[0]['id'] : 0]);
 }
 
 if ($method === 'POST') {

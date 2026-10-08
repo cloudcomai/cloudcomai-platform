@@ -36,7 +36,7 @@ import {
 const groupTypes = ['Family Group', 'Friend Group', 'Fan Group', 'Study Group', 'College Group', 'Class Group', 'Department Group', 'Project Group', 'Club Group', 'Alumni Group', 'Workplace Group', 'Neighborhood Group', 'Event Group', 'Staff Group'];
 const interests = ['Private Chats', 'Public Chat Rooms', ...groupTypes, 'Communities', 'Local Groups', 'Jobs and Internships', 'Business and Finance', 'Technology', 'Sports', 'Music', 'Movies', 'Education', 'Gaming', 'Travel', 'Career Guidance'];
 const defaultInterests = ['Private Chats', 'Family Group', 'Study Group', 'Technology'];
-const messagePollInterval = Number(import.meta.env.VITE_MESSAGE_POLL_INTERVAL_MS || 3000);
+const messagePollInterval = Number(import.meta.env.VITE_MESSAGE_POLL_INTERVAL_MS || 5000);
 const pendingInviteStorageKey = 'cloudcomai.pendingInvite';
 const defaultPrivacySettings = { hide_online_status: false, media_auto_download: false, screenshot_alerts: true };
 
@@ -99,7 +99,13 @@ export default function App() {
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
     const [privacySettings, setPrivacySettings] = useState(defaultPrivacySettings);
     const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+    const chatPageRef = useRef(1);
+    const chatHasMoreRef = useRef(true);
+    const chatLoadingMoreRef = useRef(false);
     const latestMessageIdRef = useRef(0);
+    const oldestMessageIdRef = useRef(0);
+    const hasMoreOlderMessagesRef = useRef(false);
+    const loadingOlderMessagesRef = useRef(false);
     const activeChatRef = useRef(selectedChat); activeChatRef.current = selectedChat;
     const { store: messaging, state: localMessages, error: localMessageError, setError: setLocalMessageError } = useMessagingStore(user?.id, message => {
         if (Number(activeChatRef.current?.id) === Number(message.chat_id)) setMessages(current => mergeMessageBatch(current, [message]).messages);
@@ -247,6 +253,8 @@ export default function App() {
     };
 
     const handleTabChange = (tab) => {
+        chatPageRef.current = 1;
+        chatHasMoreRef.current = true;
         setActiveTab(tab);
         setSelectedChat(null);
         setMessages([]);
@@ -261,28 +269,36 @@ export default function App() {
         return { route: ApiRoute.CHATS, query: { type: 'private' } };
     }, [activeTab]);
 
-    const refreshConversationList = useCallback(async () => {
+    const refreshConversationList = useCallback(async ({ page = 1, append = false } = {}) => {
         if (!token || screen !== 'app') return;
+        if (append && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
+        if (append) chatLoadingMoreRef.current = true;
         try {
             const activeListPath = getActiveListPath();
             if (!activeListPath) return;
             const { route, query } = activeListPath;
-            const data = await api(route, { method: 'GET', query });
+            const data = await api(route, { method: 'GET', query: { ...query, page, limit: 20 } });
             if (data.chats) {
                 const mapped = data.chats.map(chat => ({ ...chat, id: Number(chat.id), isGroup: chat.type === 'group' }));
-                setChats(mapped);
+                setChats(current => append ? [...current, ...mapped] : mapped);
                 setSelectedChat(prev => {
-                    if (!prev) return mapped[0] || null;
+                    if (!prev) return prev;
                     const refreshed = mapped.find(chat => chat.id === Number(prev.id));
                     return refreshed ? { ...prev, ...refreshed } : prev;
                 });
+                chatPageRef.current = page;
+                chatHasMoreRef.current = Boolean(data.pagination?.has_more);
             }
         } catch (err) {
             console.error('Unable to refresh conversation list:', err);
+        } finally {
+            chatLoadingMoreRef.current = false;
         }
     }, [getActiveListPath, screen, token]);
 
     useEffect(() => {
+        chatPageRef.current = 1;
+        chatHasMoreRef.current = true;
         if (!token || screen !== 'app') return undefined;
         let cancelled = false;
         const run = async () => { if (!cancelled) await refreshConversationList(); };
@@ -327,9 +343,31 @@ export default function App() {
         return () => { stopped = true; window.clearInterval(intervalId); };
     }, [token, screen]);
 
+    const loadOlderMessages = useCallback(async () => {
+        const beforeId = oldestMessageIdRef.current;
+        if (!selectedChat || !beforeId || !hasMoreOlderMessagesRef.current || loadingOlderMessagesRef.current) return;
+        loadingOlderMessagesRef.current = true;
+        try {
+            const data = await api(ApiRoute.MESSAGES, { method: 'GET', query: { chat_id: selectedChat.id, before_id: beforeId } });
+            const older = Array.isArray(data.messages) ? data.messages : [];
+            if (older.length) {
+                setMessages(current => mergeMessageBatch(current, older).messages);
+                oldestMessageIdRef.current = Number(data.oldest_message_id || older[0]?.id || beforeId);
+            }
+            hasMoreOlderMessagesRef.current = Boolean(data.has_more_older);
+        } catch (error) {
+            console.error('Unable to load older messages:', error);
+        } finally {
+            loadingOlderMessagesRef.current = false;
+        }
+    }, [selectedChat?.id]);
+
     useEffect(() => {
         if (!token || !selectedChat || screen !== 'app' || selectedChat.isContact) return undefined;
         latestMessageIdRef.current = 0;
+        oldestMessageIdRef.current = 0;
+        hasMoreOlderMessagesRef.current = false;
+        loadingOlderMessagesRef.current = false;
         setMessages([]);
         let syncFromId = 1;
         let syncedAt = '';
@@ -339,7 +377,11 @@ export default function App() {
             getCursor: () => latestMessageIdRef.current,
             fetchMessages: async (afterId, options) => {
                 const { data } = await platformApi.listMessages(selectedChat.id, afterId, { ...options, query: { sync_from_id: syncFromId, updated_after: syncedAt } });
-                if (!afterId && data.messages?.length) syncFromId = Number(data.messages[0].id);
+                if (!afterId && data.messages?.length) {
+                    syncFromId = Number(data.messages[0].id);
+                    oldestMessageIdRef.current = Number(data.oldest_message_id || data.messages[0].id);
+                    hasMoreOlderMessagesRef.current = Boolean(data.has_more_older);
+                }
                 syncedAt = data.synced_at || syncedAt;
                 return data;
             },
@@ -584,9 +626,9 @@ export default function App() {
         <div className={`app-container ${isDarkMode ? 'dark-theme' : ''} ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
             <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
-            <ChatDirectory searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
+            <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
-            <ChatCanvas active={!modal} sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} onEditPoll={message => { setPollEditTarget(message); setModal('poll'); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
+            <ChatCanvas onLoadOlderMessages={loadOlderMessages} active={!modal} sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} onEditPoll={message => { setPollEditTarget(message); setModal('poll'); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
 
             {modal && (
                 <div className="modal-backdrop">

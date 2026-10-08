@@ -27,7 +27,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true }) {
+export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true }) {
   const historyRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
@@ -115,6 +115,7 @@ export default function ChatCanvas({ selectedChat, messages, user, setModal, rep
   const handleHistoryScroll = () => {
     const viewport = historyRef.current;
     if (!viewport) return;
+    if (!searchActive && viewport.scrollTop < 120) onLoadOlderMessages?.();
     const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
     shouldAutoScrollRef.current = distanceFromBottom < 100;
     markVisibleRead();
