@@ -789,9 +789,10 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     if (!silent) refresh ? setRefreshing(true) : setLoading(!homeChatCache.has(cacheKey));
     setError('');
     try {
-      const types = section === 'all' ? [''] : [section === 'groups' ? 'group' : 'private'];
-      const results = await Promise.all(types.map(type => apiClient.get(ApiRoute.CHATS, { query: { ...(type ? { type } : {}), page, limit: 20 } })));
-      const incoming = results.flatMap(result => (result.data.chats || []).map(chat => ({ ...chat, id: Number(chat.id), isGroup: chat.type === 'group' })));
+      const types = section === 'all' ? ['private', 'group'] : [section === 'groups' ? 'group' : 'private'];
+      const pageLimit = section === 'all' ? 10 : 20;
+      const results = await Promise.all(types.map(type => apiClient.get(ApiRoute.CHATS, { query: { type, page, limit: pageLimit } })));
+      const incoming = results.flatMap((result, index) => normalizeChats(result.data.chats, types[index] === 'group'));
       const hasMore = results.some(result => Boolean(result.data.pagination?.has_more));
       if (refresh || page === 1) {
         const sortedIncoming = incoming.sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||'')));
