@@ -8,6 +8,9 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $type = trim((string)($_GET['type'] ?? ''));
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $limit = min(20, max(1, (int)($_GET['limit'] ?? 20)));
+    $offset = ($page - 1) * $limit;
 
     $sql = '
         SELECT
@@ -46,12 +49,18 @@ if ($method === 'GET') {
     $sql .= '
         GROUP BY c.id, c.type, c.name, c.group_category, c.owner_id, c.retention_seconds, c.created_at, cus.hidden, cus.notifications_muted, cus.last_read_message_id
         ORDER BY COALESCE(MAX(m.created_at), c.created_at) DESC
+        LIMIT ? OFFSET ?
     ';
+
+    $params[] = $limit + 1;
+    $params[] = $offset;
 
     try {
         $st = $pdo->prepare($sql);
         $st->execute($params);
         $chats = $st->fetchAll();
+        $hasMore = count($chats) > $limit;
+        if ($hasMore) array_pop($chats);
 
         foreach ($chats as &$chat) {
             $chat['id'] = (int)$chat['id'];
@@ -111,7 +120,7 @@ if ($method === 'GET') {
         }
         unset($chat);
 
-        out(['chats' => $chats]);
+        out(['chats' => $chats, 'pagination' => ['page' => $page, 'limit' => $limit, 'has_more' => $hasMore]]);
     } catch (Throwable $e) {
         error_log('chats.php GET error: ' . $e->getMessage());
         fail('Unable to load chats', 500);
