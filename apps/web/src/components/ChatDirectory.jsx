@@ -112,7 +112,7 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
           </div>
         )}
 
-        <div className="conversations-scroll-stack" onScroll={event => { const el = event.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) onLoadMore?.(); }}>
+        <div className="conversations-scroll-stack">
           {contactsLoading && contacts.length === 0 ? (
             <div className="empty-state">Loading contacts...</div>
           ) : visibleContacts.length === 0 && !contactsError ? (
@@ -192,7 +192,7 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
 
       <div className="filter-pill-row"><button className={`filter-pill ${chatFilter === 'all' ? 'active' : ''}`} onClick={() => setChatFilter('all')}>All</button><button className={`filter-pill ${chatFilter === 'unread' ? 'active' : ''}`} onClick={() => setChatFilter('unread')}>Unread</button></div>
 
-      <div className="conversations-scroll-stack">
+      <div className="conversations-scroll-stack" onScroll={event => { const el = event.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) onLoadMore?.(); }}>
         {filteredChats.length === 0 ? <div className="empty-state">No conversations found.</div> : filteredChats.map(chat => {
           const src = imageUrl(chat);
           const imageKey = `${chat.isGroup ? 'group' : 'user'}-${chat.id}`;
