@@ -233,6 +233,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const oldestMessageIdRef = useRef(0);
   const hasMoreOlderRef = useRef(false);
   const loadingOlderRef = useRef(false);
+  const olderLoadThreshold = 450;
   const listRef = useRef(null);
   const keyboardVisibleRef = useRef(false);
   const [visibleMessageIds, setVisibleMessageIds] = useState(() => new Set());
@@ -630,7 +631,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onScroll={event => {
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-            if (contentOffset.y < 120 && !searchActive) loadOlderMessages();
+            if (contentOffset.y < olderLoadThreshold && !searchActive) loadOlderMessages();
             const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
             const atBottom = distanceFromBottom < 100;
             atBottomRef.current = atBottom;
