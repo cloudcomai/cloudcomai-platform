@@ -346,7 +346,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       } catch (error) { if (active) { setResults([]); setSearchStatus(error.message); } }
     }, 300);
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [chat.id, query, searchActive]);
+  }, [chat.id, query, searchActive, messages]);
 
   const loadOlderMessages = useCallback(async () => {
     const beforeId = oldestMessageIdRef.current;
