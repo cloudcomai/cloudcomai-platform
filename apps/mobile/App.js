@@ -786,7 +786,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         setLoading(false);
       }
     }
-    if (!silent) refresh ? setRefreshing(true) : setLoading(prev => prev && !homeChatCache.has(cacheKey));
+    if (!silent) refresh ? setRefreshing(true) : setLoading(!homeChatCache.has(cacheKey));
     setError('');
     try {
       const types = section === 'all' ? ['private', 'group'] : [section === 'groups' ? 'group' : 'private'];
