@@ -13,7 +13,7 @@ expect_contract(str_contains($userProfile,"'online' => \$online"),'User profile 
 expect_contract(str_contains($heartbeat,'UPDATE users SET updated_at=UTC_TIMESTAMP()'),'Heartbeat must refresh presence timestamp');
 expect_contract(str_contains($chats,"'image_version'] ="),'Chat responses must expose avatar versions');
 expect_contract(str_contains($groups,"'image_version'] ="),'Group responses must expose avatar versions');
-expect_contract(str_contains($chats,'AND (c.type <> "private" OR m.id IS NOT NULL)'),'Empty private chats must be excluded from chat list');
+expect_contract(str_contains($chats,'AND (c.type <> "private" OR EXISTS ('),'Empty private chats must be excluded from chat list');
 expect_contract(str_contains($contacts,'merge_contact_sources'),'Contacts API must merge all contact sources');
 expect_contract(str_contains($contacts,'friend_requests'),'Accepted CloudComAI friends must be included in contacts');
 expect_contract(str_contains($phoneContacts,'DELETE FROM phone_contacts'),'Phone sync must replace the caller snapshot without duplicating records');
