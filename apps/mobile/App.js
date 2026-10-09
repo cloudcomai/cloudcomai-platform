@@ -49,6 +49,8 @@ import ChatThemeSettings from './src/components/ChatThemeSettings';
 import { getChatThemeSettings, resolveChatTheme } from './src/services/chatTheme';
 import { readableMessageColor } from './src/services/chatThemeDefinitions';
 
+const homeChatCache = new Map();
+
 const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
   ...chat,
   id: Number(chat.id),
@@ -233,6 +235,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const oldestMessageIdRef = useRef(0);
   const hasMoreOlderRef = useRef(false);
   const loadingOlderRef = useRef(false);
+  const olderLoadThreshold = 450;
   const listRef = useRef(null);
   const keyboardVisibleRef = useRef(false);
   const [visibleMessageIds, setVisibleMessageIds] = useState(() => new Set());
@@ -630,7 +633,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onScroll={event => {
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-            if (contentOffset.y < 120 && !searchActive) loadOlderMessages();
+            if (contentOffset.y < olderLoadThreshold && !searchActive) loadOlderMessages();
             const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
             const atBottom = distanceFromBottom < 100;
             atBottomRef.current = atBottom;
@@ -775,15 +778,26 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     const page = requestedPage || (refresh ? 1 : chatPageRef.current);
     if (page > 1 && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
     if (page > 1) chatLoadingMoreRef.current = true;
-    if (!silent) refresh ? setRefreshing(true) : setLoading(true);
+    const cacheKey = section;
+    if (page === 1) {
+      const cached = homeChatCache.get(cacheKey);
+      if (cached?.length) {
+        setChats(cached);
+        setLoading(false);
+      }
+    }
+    if (!silent) refresh ? setRefreshing(true) : setLoading(!homeChatCache.has(cacheKey));
     setError('');
     try {
       const types = section === 'all' ? ['private', 'group'] : [section === 'groups' ? 'group' : 'private'];
-      const results = await Promise.all(types.map(type => apiClient.get(ApiRoute.CHATS, { query: { type, page, limit: 20 } })));
+      const pageLimit = section === 'all' ? 10 : 20;
+      const results = await Promise.all(types.map(type => apiClient.get(ApiRoute.CHATS, { query: { type, page, limit: pageLimit } })));
       const incoming = results.flatMap((result, index) => normalizeChats(result.data.chats, types[index] === 'group'));
       const hasMore = results.some(result => Boolean(result.data.pagination?.has_more));
       if (refresh || page === 1) {
-        setChats(incoming.sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||''))));
+        const sortedIncoming = incoming.sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||'')));
+        setChats(sortedIncoming);
+        homeChatCache.set(cacheKey, sortedIncoming);
         chatPageRef.current = 1;
       } else {
         setChats(current => [...current, ...incoming].sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||''))));

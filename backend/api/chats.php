@@ -23,20 +23,74 @@ if ($method === 'GET') {
             c.created_at,
             COALESCE(cus.notifications_muted,0) AS notifications_muted,
             COALESCE(cus.last_read_message_id,0) AS last_read_message_id,
-            SUM(CASE WHEN m.id > COALESCE(cus.last_read_message_id,0) AND m.sender_id <> cm.user_id THEN 1 ELSE 0 END) AS unread,
-            MAX(m.created_at) AS last_message_at
+            CASE WHEN c.type = "private" THEN other_user.id ELSE NULL END AS other_user_id,
+            CASE WHEN c.type = "private" THEN other_user.name ELSE NULL END AS other_user_name,
+            CASE WHEN c.type = "private" THEN other_user.user_id ELSE NULL END AS other_user_id_text,
+            CASE WHEN c.type = "private"
+                 THEN CASE WHEN other_user.updated_at IS NOT NULL
+                              AND other_user.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
+                              AND COALESCE(other_privacy.hide_online_status,0)=0
+                              AND blocked_by_me.user_id IS NULL
+                              AND blocked_me.user_id IS NULL
+                           THEN 1 ELSE 0 END
+                 ELSE 0 END AS online,
+            CASE WHEN c.type = "private" AND blocked_by_me.user_id IS NULL THEN 0 ELSE CASE WHEN c.type = "private" THEN 1 ELSE 0 END END AS blocked_by_me,
+            CASE WHEN c.type = "private" AND blocked_me.user_id IS NULL THEN 0 ELSE CASE WHEN c.type = "private" THEN 1 ELSE 0 END END AS blocked_me,
+            (
+                SELECT MAX(m.created_at)
+                FROM messages m
+                LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id
+                WHERE m.chat_id=c.id
+                  AND m.id > COALESCE(cus.cleared_through_message_id,0)
+                  AND m.deleted_for_everyone=0
+                  AND COALESCE(mus.hidden,0)=0
+                  AND (m.expires_at IS NULL OR m.expires_at > UTC_TIMESTAMP())
+            ) AS last_message_at,
+            (
+                SELECT COUNT(*)
+                FROM messages um
+                LEFT JOIN message_user_states umus ON umus.message_id=um.id AND umus.user_id=cm.user_id
+                WHERE um.chat_id=c.id
+                  AND um.id > GREATEST(COALESCE(cus.last_read_message_id,0), COALESCE(cus.cleared_through_message_id,0))
+                  AND um.sender_id <> cm.user_id
+                  AND um.deleted_for_everyone=0
+                  AND COALESCE(umus.hidden,0)=0
+                  AND (um.expires_at IS NULL OR um.expires_at > UTC_TIMESTAMP())
+            ) AS unread
         FROM chats c
-        INNER JOIN chat_members cm ON cm.chat_id = c.id
-        LEFT JOIN chat_user_states cus ON cus.chat_id = c.id AND cus.user_id = cm.user_id
-        LEFT JOIN messages m ON m.chat_id = c.id
-          AND m.id > COALESCE(cus.cleared_through_message_id, 0)
-          AND m.deleted_for_everyone = 0
-          AND NOT EXISTS (SELECT 1 FROM message_user_states mus WHERE mus.message_id=m.id AND mus.user_id=cm.user_id AND mus.hidden=1)
-          AND (m.expires_at IS NULL OR m.expires_at > UTC_TIMESTAMP())
+        INNER JOIN chat_members cm ON cm.chat_id=c.id
+        LEFT JOIN chat_user_states cus ON cus.chat_id=c.id AND cus.user_id=cm.user_id
+        LEFT JOIN chat_members other_cm
+          ON c.type="private"
+         AND other_cm.chat_id=c.id
+         AND other_cm.user_id<>cm.user_id
+         AND other_cm.status="active"
+        LEFT JOIN users other_user ON other_user.id=other_cm.user_id
+        LEFT JOIN user_privacy_settings other_privacy ON other_privacy.user_id=other_user.id
+        LEFT JOIN user_blocks blocked_by_me ON blocked_by_me.user_id=cm.user_id AND blocked_by_me.blocked_user_id=other_user.id
+        LEFT JOIN user_blocks blocked_me ON blocked_me.user_id=other_user.id AND blocked_me.blocked_user_id=cm.user_id
         WHERE cm.user_id = ?
           AND cm.status = "active"
-          AND (COALESCE(cus.hidden, 0) = 0 OR m.id IS NOT NULL)
-          AND (c.type <> "private" OR m.id IS NOT NULL)
+          AND (COALESCE(cus.hidden,0) = 0 OR EXISTS (
+              SELECT 1
+              FROM messages hm
+              LEFT JOIN message_user_states hmus ON hmus.message_id=hm.id AND hmus.user_id=cm.user_id
+              WHERE hm.chat_id=c.id
+                AND hm.id > COALESCE(cus.cleared_through_message_id,0)
+                AND hm.deleted_for_everyone=0
+                AND COALESCE(hmus.hidden,0)=0
+                AND (hm.expires_at IS NULL OR hm.expires_at > UTC_TIMESTAMP())
+          ))
+          AND (c.type <> "private" OR EXISTS (
+              SELECT 1
+              FROM messages pm
+              LEFT JOIN message_user_states pmus ON pmus.message_id=pm.id AND pmus.user_id=cm.user_id
+              WHERE pm.chat_id=c.id
+                AND pm.id > COALESCE(cus.cleared_through_message_id,0)
+                AND pm.deleted_for_everyone=0
+                AND COALESCE(pmus.hidden,0)=0
+                AND (pm.expires_at IS NULL OR pm.expires_at > UTC_TIMESTAMP())
+          ))
     ';
 
     $params = [$user['id']];
@@ -47,8 +101,7 @@ if ($method === 'GET') {
     }
 
     $sql .= '
-        GROUP BY c.id, c.type, c.name, c.group_category, c.owner_id, c.retention_seconds, c.created_at, cus.hidden, cus.notifications_muted, cus.last_read_message_id
-        ORDER BY COALESCE(MAX(m.created_at), c.created_at) DESC
+        ORDER BY COALESCE(last_message_at, c.created_at) DESC, c.id DESC
         LIMIT ? OFFSET ?
     ';
 
@@ -69,52 +122,28 @@ if ($method === 'GET') {
             $chat['unread'] = (int)($chat['unread'] ?? 0);
             $chat['notifications_muted'] = (bool)($chat['notifications_muted'] ?? false);
             $chat['image_version'] = null;
-            $imageFolder = dirname(__DIR__) . '/uploads/' . ($chat['type'] === 'group' ? 'groups' : 'users');
-            $imageId = (int)$chat['id'];
 
             if ($chat['type'] === 'private') {
-                $other = $pdo->prepare('
-                    SELECT u.id, u.name, u.user_id, u.updated_at,
-                           CASE WHEN u.updated_at IS NOT NULL
-                                  AND u.updated_at >= UTC_TIMESTAMP() - INTERVAL 90 SECOND
-                                  AND COALESCE(ups.hide_online_status,0)=0
-                                  AND blocked_by_me.user_id IS NULL
-                                  AND blocked_me.user_id IS NULL
-                                THEN 1 ELSE 0 END AS online,
-                           CASE WHEN blocked_by_me.user_id IS NULL THEN 0 ELSE 1 END AS blocked_by_me,
-                           CASE WHEN blocked_me.user_id IS NULL THEN 0 ELSE 1 END AS blocked_me
-                    FROM chat_members cm
-                    INNER JOIN users u ON u.id = cm.user_id
-                    LEFT JOIN user_privacy_settings ups ON ups.user_id=u.id
-                    LEFT JOIN user_blocks blocked_by_me ON blocked_by_me.user_id=? AND blocked_by_me.blocked_user_id=u.id
-                    LEFT JOIN user_blocks blocked_me ON blocked_me.user_id=u.id AND blocked_me.blocked_user_id=?
-                    WHERE cm.chat_id = ?
-                      AND cm.user_id <> ?
-                      AND cm.status = "active"
-                    ORDER BY u.id ASC
-                    LIMIT 1
-                ');
-                $other->execute([$user['id'], $user['id'], $chat['id'], $user['id']]);
-                $participant = $other->fetch();
-                if ($participant) {
-                    $chat['other_user_id'] = (int)$participant['id'];
-                    $chat['other_user_name'] = $participant['name'];
-                    $chat['other_user_id_text'] = $participant['user_id'];
-                    $chat['name'] = $participant['name'];
-                    $chat['online'] = (bool)$participant['online'];
-                    $chat['other_user_online'] = (bool)$participant['online'];
-                    $chat['blocked_by_me'] = (bool)$participant['blocked_by_me'];
-                    $chat['blocked_me'] = (bool)$participant['blocked_me'];
-                    $chat['blocked'] = $chat['blocked_by_me'] || $chat['blocked_me'];
-                    $imageFolder = dirname(__DIR__) . '/uploads/users';
-                    $imageId = (int)$participant['id'];
-                }
+                $chat['other_user_id'] = $chat['other_user_id'] !== null ? (int)$chat['other_user_id'] : null;
+                $chat['name'] = $chat['other_user_name'] ?: $chat['name'];
+                $chat['online'] = (bool)$chat['online'];
+                $chat['other_user_online'] = (bool)$chat['online'];
+                $chat['blocked_by_me'] = (bool)$chat['blocked_by_me'];
+                $chat['blocked_me'] = (bool)$chat['blocked_me'];
+                $chat['blocked'] = $chat['blocked_by_me'] || $chat['blocked_me'];
+                $imageFolder = dirname(__DIR__) . '/uploads/users';
+                $imageId = (int)($chat['other_user_id'] ?? 0);
+            } else {
+                $imageFolder = dirname(__DIR__) . '/uploads/groups';
+                $imageId = (int)$chat['id'];
             }
 
-            foreach (glob($imageFolder . '/' . $imageId . '.*') ?: [] as $candidate) {
-                if (is_file($candidate)) {
-                    $chat['image_version'] = (string)(filemtime($candidate) ?: 0) . '-' . (string)filesize($candidate);
-                    break;
+            if ($imageId > 0) {
+                foreach (glob($imageFolder . '/' . $imageId . '.*') ?: [] as $candidate) {
+                    if (is_file($candidate)) {
+                        $chat['image_version'] = (string)(filemtime($candidate) ?: 0) . '-' . (string)filesize($candidate);
+                        break;
+                    }
                 }
             }
         }
@@ -126,7 +155,6 @@ if ($method === 'GET') {
         fail('Unable to load chats', 500);
     }
 }
-
 if ($method === 'POST') {
     $d = input();
     $type = (string)($d['type'] ?? '');

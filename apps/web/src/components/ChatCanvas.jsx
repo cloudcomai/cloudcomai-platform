@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { parseSharedLocation, createReadTracker, parseMessageTimestamp } from '@cloudcomai/chat-core';
 import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy } from 'lucide-react';
@@ -29,6 +29,8 @@ const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
 export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true }) {
   const historyRef = useRef(null);
+  const pendingOlderScrollHeightRef = useRef(0);
+  const olderLoadThreshold = 450;
   const shouldAutoScrollRef = useRef(true);
   const [groupActionMessage, setGroupActionMessage] = useState('');
   const [groupInviteUrl, setGroupInviteUrl] = useState('');
@@ -104,6 +106,16 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
     finally { setDeleting(false); }
   };
 
+  useLayoutEffect(() => {
+    const viewport = historyRef.current;
+    const previousHeight = pendingOlderScrollHeightRef.current;
+    if (!viewport || !previousHeight) return;
+    pendingOlderScrollHeightRef.current = 0;
+    requestAnimationFrame(() => {
+      viewport.scrollTop += viewport.scrollHeight - previousHeight;
+    });
+  }, [messages.length]); 
+
   useEffect(() => {
     const viewport = historyRef.current;
     if (!viewport || searchActive || !shouldAutoScrollRef.current) return;
@@ -115,7 +127,15 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const handleHistoryScroll = () => {
     const viewport = historyRef.current;
     if (!viewport) return;
-    if (!searchActive && viewport.scrollTop < 120) onLoadOlderMessages?.();
+    if (!searchActive && viewport.scrollTop < olderLoadThreshold) {
+      const previousHeight = viewport.scrollHeight;
+      const result = onLoadOlderMessages?.();
+      if (result && typeof result.then === 'function') {
+        result.then(started => {
+          if (started) pendingOlderScrollHeightRef.current = previousHeight;
+        }).catch(() => {});
+      }
+    }
     const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
     shouldAutoScrollRef.current = distanceFromBottom < 100;
     markVisibleRead();

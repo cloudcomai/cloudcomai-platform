@@ -150,7 +150,8 @@ CREATE TABLE IF NOT EXISTS chat_members (
     status ENUM('active','pending','removed','banned') NOT NULL DEFAULT 'active',
     joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (chat_id, user_id),
-    INDEX idx_chat_members_user_status (user_id, status)
+    INDEX idx_chat_members_user_status (user_id, status),
+    INDEX idx_chat_members_user_status_chat (user_id, status, chat_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -166,6 +167,7 @@ CREATE TABLE IF NOT EXISTS messages (
     expires_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_messages_chat_id_id (chat_id, id),
+    INDEX idx_messages_chat_created_id (chat_id, created_at, id),
     INDEX idx_messages_sender_id (sender_id),
     INDEX idx_messages_expires_at (expires_at),
     INDEX idx_messages_reply_to (reply_to_message_id)
