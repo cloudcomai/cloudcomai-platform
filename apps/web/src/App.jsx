@@ -299,7 +299,7 @@ function App() {
                 const hasMore = Boolean(data.pagination?.has_more);
                 let nextChats;
                 if (append) {
-                    nextChats = mergeChats(cached?.chats || chats, mapped);
+                    nextChats = mergeChats(cached?.chats || [], mapped);
                 } else if (page === 1 && cached && Number(cached.page) > 1) {
                     nextChats = mergeChats(mapped, cached.chats || []);
                 } else {
