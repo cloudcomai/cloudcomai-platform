@@ -819,7 +819,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     } finally {
       setLoading(false); setRefreshing(false); chatLoadingMoreRef.current = false;
     }
-  }, [section]);
+  }, [section, session?.user?.id]);
   useEffect(() => {
     const timer = setInterval(() => { if (!selectedChat && AppState.currentState === 'active') loadChats(false, true); }, 15000);
     return () => clearInterval(timer);
