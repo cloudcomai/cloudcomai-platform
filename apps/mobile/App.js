@@ -775,18 +775,18 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     if (section === 'contacts' || section === 'notifications' || section === 'public') {
       setLoading(false); setRefreshing(false); return;
     }
-    const page = requestedPage || (refresh ? 1 : chatPageRef.current);
+    const page = requestedPage || (refresh || silent ? 1 : chatPageRef.current);
     if (page > 1 && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
     if (page > 1) chatLoadingMoreRef.current = true;
-    const cacheKey = section;
-    if (page === 1) {
-      const cached = homeChatCache.get(cacheKey);
-      if (cached?.length) {
-        setChats(cached);
-        setLoading(false);
-      }
+    const cacheKey = `${session?.user?.id || 'anonymous'}:${section}`;
+    const cached = homeChatCache.get(cacheKey);
+    if (page === 1 && cached && Array.isArray(cached.chats)) {
+      setChats(cached.chats);
+      chatPageRef.current = Math.max(1, Number(cached.page) || 1);
+      chatHasMoreRef.current = Boolean(cached.hasMore);
+      setLoading(false);
     }
-    if (!silent) refresh ? setRefreshing(true) : setLoading(!homeChatCache.has(cacheKey));
+    if (!silent) refresh ? setRefreshing(true) : setLoading(!(cached && Array.isArray(cached.chats)));
     setError('');
     try {
       const types = section === 'all' ? ['private', 'group'] : [section === 'groups' ? 'group' : 'private'];
@@ -794,22 +794,32 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
       const results = await Promise.all(types.map(type => apiClient.get(ApiRoute.CHATS, { query: { type, page, limit: pageLimit } })));
       const incoming = results.flatMap((result, index) => normalizeChats(result.data.chats, types[index] === 'group'));
       const hasMore = results.some(result => Boolean(result.data.pagination?.has_more));
-      if (refresh || page === 1) {
-        const sortedIncoming = incoming.sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||'')));
-        setChats(sortedIncoming);
-        homeChatCache.set(cacheKey, sortedIncoming);
-        chatPageRef.current = 1;
+      const sortChats = items => items.sort((a, b) => String(b.last_message_at || b.created_at || '').localeCompare(String(a.last_message_at || a.created_at || '')));
+      const mergeChats = (...lists) => {
+        const byId = new Map();
+        lists.flat().forEach(chat => byId.set(`${chat.isGroup ? 'g' : 'p'}:${chat.id}`, chat));
+        return sortChats(Array.from(byId.values()));
+      };
+      if (page === 1) {
+        const preserveLoadedPages = cached && Number(cached.page) > 1;
+        const nextChats = preserveLoadedPages ? mergeChats(incoming, cached.chats || []) : mergeChats(incoming);
+        const restoredPage = preserveLoadedPages ? Number(cached.page) : 1;
+        setChats(nextChats);
+        chatPageRef.current = restoredPage;
+        homeChatCache.set(cacheKey, { chats: nextChats, page: restoredPage, hasMore: hasMore || (preserveLoadedPages && Boolean(cached.hasMore)) });
       } else {
-        setChats(current => [...current, ...incoming].sort((a,b)=>String(b.last_message_at||b.created_at||'').localeCompare(String(a.last_message_at||a.created_at||''))));
+        const nextChats = mergeChats(cached?.chats || [], incoming);
+        setChats(nextChats);
         chatPageRef.current = page;
+        homeChatCache.set(cacheKey, { chats: nextChats, page, hasMore });
       }
-      chatHasMoreRef.current = hasMore;
+      chatHasMoreRef.current = hasMore || (page === 1 && Number(cached?.page) > 1 && Boolean(cached?.hasMore));
     } catch (loadError) {
       setError(loadError.message || 'Unable to load chats.');
     } finally {
       setLoading(false); setRefreshing(false); chatLoadingMoreRef.current = false;
     }
-  }, [section]);
+  }, [section, session?.user?.id]);
   useEffect(() => {
     const timer = setInterval(() => { if (!selectedChat && AppState.currentState === 'active') loadChats(false, true); }, 15000);
     return () => clearInterval(timer);
@@ -1036,6 +1046,7 @@ function AppContent() {
 
 
   useEffect(() => subscribeToSessionExpiration(() => {
+    homeChatCache.clear();
     setSession(null);
     setShowNotificationSettings(false);
     setShowPrivacySettings(false);
@@ -1121,6 +1132,7 @@ function AppContent() {
   }, []);
 
   const logout = async () => {
+    homeChatCache.clear();
     messaging?.stop();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4000);
