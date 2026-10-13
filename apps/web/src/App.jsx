@@ -235,6 +235,7 @@ function App() {
     };
 
     const logout = async () => {
+        conversationListCache.clear();
         messaging?.stop();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 4000);
@@ -279,32 +280,49 @@ function App() {
             const activeListPath = getActiveListPath();
             if (!activeListPath) return;
             const { route, query } = activeListPath;
-            const cacheKey = activeTab;
-            if (page === 1 && !append) {
-                const cached = conversationListCache.get(cacheKey);
-                if (cached?.length) {
-                    setChats(cached);
-                }
+            const cacheKey = `${user?.id || 'anonymous'}:${activeTab}`;
+            const cached = conversationListCache.get(cacheKey);
+            if (page === 1 && !append && cached && Array.isArray(cached.chats)) {
+                setChats(cached.chats);
+                chatPageRef.current = Math.max(1, Number(cached.page) || 1);
+                chatHasMoreRef.current = Boolean(cached.hasMore);
             }
             const data = await api(route, { method: 'GET', query: { ...query, page, limit: 20 } });
             if (data.chats) {
                 const mapped = data.chats.map(chat => ({ ...chat, id: Number(chat.id), isGroup: chat.type === 'group' }));
-                setChats(current => append ? [...current, ...mapped] : mapped);
-                if (!append) conversationListCache.set(cacheKey, mapped);
+                const sortChats = items => items.sort((a, b) => String(b.last_message_at || b.created_at || '').localeCompare(String(a.last_message_at || a.created_at || '')));
+                const mergeChats = (...lists) => {
+                    const byId = new Map();
+                    lists.flat().forEach(chat => byId.set(`${chat.isGroup ? 'g' : 'p'}:${chat.id}`, chat));
+                    return sortChats(Array.from(byId.values()));
+                };
+                const hasMore = Boolean(data.pagination?.has_more);
+                let nextChats;
+                if (append) {
+                    nextChats = mergeChats(cached?.chats || chats, mapped);
+                } else if (page === 1 && cached && Number(cached.page) > 1) {
+                    nextChats = mergeChats(mapped, cached.chats || []);
+                } else {
+                    nextChats = mergeChats(mapped);
+                }
+                setChats(nextChats);
+                const restoredPage = append ? page : (page === 1 && cached && Number(cached.page) > 1 ? Number(cached.page) : page);
+                const nextHasMore = hasMore || (!append && restoredPage > 1 && Boolean(cached?.hasMore));
+                conversationListCache.set(cacheKey, { chats: nextChats, page: restoredPage, hasMore: nextHasMore });
                 setSelectedChat(prev => {
                     if (!prev) return prev;
-                    const refreshed = mapped.find(chat => chat.id === Number(prev.id));
+                    const refreshed = nextChats.find(chat => chat.id === Number(prev.id));
                     return refreshed ? { ...prev, ...refreshed } : prev;
                 });
-                chatPageRef.current = page;
-                chatHasMoreRef.current = Boolean(data.pagination?.has_more);
+                chatPageRef.current = restoredPage;
+                chatHasMoreRef.current = nextHasMore;
             }
         } catch (err) {
             console.error('Unable to refresh conversation list:', err);
         } finally {
             chatLoadingMoreRef.current = false;
         }
-    }, [getActiveListPath, screen, token]);
+    }, [getActiveListPath, screen, token, user?.id]);
 
     useEffect(() => {
         chatPageRef.current = 1;
