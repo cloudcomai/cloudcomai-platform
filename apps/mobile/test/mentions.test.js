@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 const app = await readFile(new URL('../App.js', import.meta.url), 'utf8');
 const lists = await readFile(new URL('../src/components/MobileDashboardLists.js', import.meta.url), 'utf8');
 const media = await readFile(new URL('../src/components/MediaMessage.js', import.meta.url), 'utf8');
-const api = await readFile(new URL('../../packages/api-client/src/cloudcomai-api.js', import.meta.url), 'utf8');
+const api = await readFile(new URL('../../../packages/api-client/src/cloudcomai-api.js', import.meta.url), 'utf8');
 
 test('mobile composer limits mentions to group/public rooms and submits stable recipient IDs', () => {
   assert.match(app, /mentionChatEnabled = Boolean\(chat\?\.isGroup \|\| chat\?\.type === 'group' \|\| chat\?\.type === 'public'/);
