@@ -18,6 +18,18 @@ function assert_mention_chat_access(PDO $pdo, int $chatId, int $userId): string 
 
 if ($method === 'GET') {
     $action = (string)($_GET['action'] ?? 'list');
+    if ($action === 'message') {
+        $messageId = (int)($_GET['message_id'] ?? 0);
+        if ($messageId <= 0) fail('Message id is required', 422);
+        $owned = $pdo->prepare('SELECT m.chat_id,c.type FROM messages m INNER JOIN chats c ON c.id=m.chat_id WHERE m.id=? AND m.sender_id=? AND m.deleted_for_everyone=0 LIMIT 1');
+        $owned->execute([$messageId, $userId]);
+        $message = $owned->fetch();
+        if (!$message || !in_array((string)$message['type'], ['group','public'], true)) fail('Message is unavailable for mention editing', 404);
+        assert_mention_chat_access($pdo, (int)$message['chat_id'], $userId);
+        $st = $pdo->prepare('SELECT mm.recipient_id AS id,u.user_id AS username,u.name FROM message_mentions mm INNER JOIN users u ON u.id=mm.recipient_id WHERE mm.message_id=? AND mm.removed_at IS NULL AND u.account_status="active" ORDER BY mm.id');
+        $st->execute([$messageId]);
+        out(['message_id'=>$messageId,'mention_recipients'=>$st->fetchAll()]);
+    }
     if ($action === 'candidates') {
         $chatId = (int)($_GET['chat_id'] ?? 0);
         assert_mention_chat_access($pdo, $chatId, $userId);
