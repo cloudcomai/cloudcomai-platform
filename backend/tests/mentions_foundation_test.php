@@ -20,6 +20,9 @@ assert(str_contains($helper, "['group', 'public']"));
 assert(str_contains($helper, "retained mention: do not re-notify"));
 assert(str_contains($helper, "removed_at=UTC_TIMESTAMP()"));
 assert(str_contains($helper, "'event'=>'mention'"));
+assert(str_contains($helper, 'notifications_muted'));
+$notificationRead = (string)file_get_contents(__DIR__ . '/../api/notifications_read.php');
+assert(str_contains($notificationRead, 'UPDATE message_mentions mm INNER JOIN notification_history h'));
 
 $migration = (string)file_get_contents(__DIR__ . '/../database/migrations/027_message_mentions.sql');
 assert(str_contains($migration, 'CREATE TABLE IF NOT EXISTS message_mentions'));
