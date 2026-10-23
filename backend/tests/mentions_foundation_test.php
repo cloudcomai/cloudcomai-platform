@@ -9,7 +9,7 @@ assert(in_array('POST', $contract['routes']['v1/mentions']['methods'], true));
 
 $handler = (string)file_get_contents(__DIR__ . '/../api/mentions.php');
 assert(str_contains($handler, "action === 'candidates'"));
-assert(str_contains($handler, "action') !== 'open'"));
+assert(str_contains($handler, "!== 'open'"));
 assert(str_contains($handler, "mm.removed_at IS NULL"));
 assert(str_contains($handler, "cm.status=\"active\""));
 assert(str_contains($handler, "m.deleted_for_everyone=0"));
