@@ -40,6 +40,7 @@ $endpoints = (string)file_get_contents(__DIR__ . '/../../packages/api-client/src
 $client = (string)file_get_contents(__DIR__ . '/../../packages/api-client/src/cloudcomai-api.js');
 assert(str_contains($endpoints, "MENTIONS: 'v1/mentions'"));
 assert(str_contains($client, 'searchMentionCandidates'));
+assert(str_contains($client, 'listMessageMentions'));
 assert(str_contains($client, 'openMention'));
 
 echo "mentions_foundation_test.php passed\n";
