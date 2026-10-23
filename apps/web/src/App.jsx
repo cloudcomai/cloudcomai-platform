@@ -437,7 +437,7 @@ function App() {
         return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000;
     };
 
-    const handleSendMessage = async () => {
+    const handleSendMessage = async (mentionUserIds = []) => {
         if (!composer.trim() || !selectedChat || selectedChat.blocked || sendInProgress.current) return;
         sendInProgress.current = true; setSending(true);
         const chatId = selectedChat.id;
@@ -447,13 +447,13 @@ function App() {
                     setEditing(null);
                     throw new Error('This message can no longer be edited. Messages can be edited only within 3 hours and up to 2 times.');
                 }
-                const response = await platformApi.editMessage(editing.id, composer);
+                const response = await platformApi.editMessage(editing.id, composer, { mentionUserIds });
                 const updated = response?.data?.message;
                 setMessages(prev => prev.map(m => Number(m.id) === Number(editing.id) ? { ...m, body: composer, edit_count: Number(updated?.edit_count ?? Number(m.edit_count || 0) + 1), edited: true, edited_at: updated?.edited_at || new Date().toISOString() } : m));
                 if (Number(activeChatRef.current?.id) === Number(chatId)) { setEditing(null); setComposer(messaging?.snapshot().drafts[String(chatId)] || ''); }
             } else {
                 if (!messaging) throw new Error('Local messages are still loading. Please try again.');
-                await messaging.enqueue({ chat_id: selectedChat.id, body: composer, reply_to_message_id: replyTo?.id || null });
+                await messaging.enqueue({ chat_id: selectedChat.id, body: composer, reply_to_message_id: replyTo?.id || null, mention_user_ids: mentionUserIds });
                 if (Number(activeChatRef.current?.id) === Number(chatId)) { setComposer(''); setReplyTo(null); }
                 messaging.flush().catch(e => setLocalMessageError(e.message));
             }
