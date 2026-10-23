@@ -9,7 +9,7 @@ test('chat screen is protected by a recoverable error boundary', () => {
   assert.match(source, /We couldn’t open this conversation\./);
   assert.match(source, /Try again/);
   assert.match(source, /Return to Chats/);
-  assert.match(source, /function ChatDetail\\(props\\)[\\s\\S]*?return <ChatDetailErrorBoundary \\{\\.\\.\\.props\\} \/>;/);
+  assert.match(source, /function ChatDetail\(props\)[\s\S]*?return <ChatDetailErrorBoundary \{\.\.\.props\} \/>;/);
 });
 
 test('message polling rejects malformed API responses with a recoverable error', () => {
