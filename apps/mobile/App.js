@@ -846,7 +846,7 @@ class ChatDetailErrorBoundary extends React.Component {
 }
 
 function ChatDetail(props) {
-  return <ChatDetailErrorBoundary onBack={props.onBack}><ChatDetailContent {...props} /></ChatDetailErrorBoundary>;
+  return <ChatDetailErrorBoundary {...props} />;
 }
 
 function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
