@@ -228,7 +228,7 @@ const parseEditTimestamp = value => {
   return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings, initialMessageId = null, onInitialMessageHandled }) {
+function ChatDetailContent({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings, initialMessageId = null, onInitialMessageHandled }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
   const [mentionQuery, setMentionQuery] = useState(null);
@@ -445,24 +445,28 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       intervalMs: Number(process.env.EXPO_PUBLIC_MESSAGE_POLL_INTERVAL_MS || 5000),
       getCursor: () => cursorRef.current,
       fetchMessages: async (afterId, options) => {
-        const { data } = await platformApi.listMessages(chat.id, afterId, { ...options, query: { sync_from_id: syncFromId, updated_after: syncedAt } });
-        if (!afterId && data.messages?.length) {
-          syncFromId = Number(data.messages[0].id);
-          oldestMessageIdRef.current = Number(data.oldest_message_id || data.messages[0].id);
+        const response = await platformApi.listMessages(chat.id, afterId, { ...options, query: { sync_from_id: syncFromId, updated_after: syncedAt } });
+        const data = response?.data;
+        if (!data || typeof data !== 'object' || !Array.isArray(data.messages)) throw new Error('The server returned an invalid message response. Please retry.');
+        if (!afterId && data.messages.length) {
+          syncFromId = Number(data.messages[0]?.id) || syncFromId;
+          oldestMessageIdRef.current = Number(data.oldest_message_id || data.messages[0]?.id) || 0;
           hasMoreOlderRef.current = Boolean(data.has_more_older);
         }
         syncedAt = data.synced_at || syncedAt;
         return data;
       },
       onMessages: incoming => {
-        messagingRef.current?.acknowledge(incoming.messages || []).catch(e => setError(e.message));
+        if (!incoming || typeof incoming !== 'object') { setLoading(false); setError('The server returned an invalid message response. Please retry.'); return; }
+        const incomingMessages = Array.isArray(incoming.messages) ? incoming.messages : [];
+        messagingRef.current?.acknowledge(incomingMessages).catch(e => setError(e.message || 'Unable to synchronize message state.'));
         setLoading(false);
-        for (const item of incoming.screenshot_alerts || []) {
+        for (const item of (Array.isArray(incoming.screenshot_alerts) ? incoming.screenshot_alerts : [])) {
           if (!shownAlerts.has(item.id)) { shownAlerts.add(item.id); Alert.alert('Screenshot alert', item.body); }
         }
         setMessages(current => {
-          const result = mergeMessageBatch(current, incoming);
-          cursorRef.current = (incoming.messages || incoming).reduce((max, item) => Math.max(max, Number(item.id || 0)), cursorRef.current);
+          const result = mergeMessageBatch(current, incomingMessages);
+          cursorRef.current = incomingMessages.reduce((max, item) => Math.max(max, Number(item?.id || 0)), cursorRef.current);
           return result.changed ? result.messages : current;
         });
       },
@@ -815,6 +819,34 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppe
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+
+class ChatDetailErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, retryKey: 0 }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  retry = () => this.setState(state => ({ hasError: false, retryKey: state.retryKey + 1 }));
+  render() {
+    if (this.state.hasError) return (
+      <SafeAreaView style={styles.appPage} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={styles.header}>
+          <Pressable onPress={this.props.onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
+          <Text style={styles.headerTitle}>Conversation unavailable</Text>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 10 }}>We couldn’t open this conversation.</Text>
+          <Text style={{ fontSize: 14, textAlign: 'center', lineHeight: 21, marginBottom: 20 }}>Your messages have not been deleted. Try opening the conversation again, or return to Chats.</Text>
+          <Pressable accessibilityRole="button" onPress={this.retry} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Try again</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={this.props.onBack} style={{ padding: 14 }}><Text style={styles.authSwitchLink}>Return to Chats</Text></Pressable>
+        </View>
+      </SafeAreaView>
+    );
+    return <ChatDetailContent key={this.state.retryKey} {...this.props} />;
+  }
+}
+
+function ChatDetail(props) {
+  return <ChatDetailErrorBoundary onBack={props.onBack}><ChatDetailContent {...props} /></ChatDetailErrorBoundary>;
 }
 
 function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
