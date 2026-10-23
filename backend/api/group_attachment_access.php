@@ -61,6 +61,11 @@ try {
         $expiresAt = gmdate('Y-m-d H:i:s', time() + $hours * 3600);
     }
     $revokedAt = $grant ? null : gmdate('Y-m-d H:i:s');
+    if ($action === 'revoke_group') {
+        // Revoking group-wide access also revokes any persistent member grants immediately.
+        $pdo->prepare('UPDATE group_attachment_access SET download_enabled=0,forward_enabled=0,revoked_at=?,updated_at=UTC_TIMESTAMP() WHERE chat_id=?')
+            ->execute([$revokedAt, $chatId]);
+    }
     $stmt = $pdo->prepare('INSERT INTO group_attachment_access(chat_id,grant_scope,member_id,download_enabled,forward_enabled,expires_at,revoked_at,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE download_enabled=VALUES(download_enabled),forward_enabled=VALUES(forward_enabled),expires_at=VALUES(expires_at),revoked_at=VALUES(revoked_at),created_by=VALUES(created_by),updated_at=UTC_TIMESTAMP()');
     $stmt->execute([$chatId,$scope,$memberId,$download,$forward,$expiresAt,$revokedAt,$userId]);
     $pdo->commit();
