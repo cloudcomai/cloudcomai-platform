@@ -113,6 +113,9 @@ try {
     $publicId=(int)$public['id'];
     mention_check((int)$admin->query("SELECT COUNT(*) FROM message_mentions WHERE message_id=$publicId AND recipient_id=2 AND chat_type='public' AND removed_at IS NULL")->fetchColumn()===1,'Public-room mention was not recorded');
     mention_check((int)$admin->query("SELECT COUNT(*) FROM notification_history WHERE user_id=2 AND CAST(JSON_UNQUOTE(JSON_EXTRACT(data_json,'$.message_id')) AS UNSIGNED)=$publicId AND JSON_UNQUOTE(JSON_EXTRACT(data_json,'$.event'))='mention'")->fetchColumn()===1,'Offline recipient did not receive in-app mention history');
+    $publicMention=$admin->query("SELECT id,notification_id FROM message_mentions WHERE message_id=$publicId AND recipient_id=2 AND removed_at IS NULL")->fetch(PDO::FETCH_ASSOC);
+    mention_request('POST','v1/notifications/read',2,['notification_ids'=>[(int)$publicMention['notification_id']],'read'=>true]);
+    mention_check($admin->query("SELECT read_at FROM message_mentions WHERE id=".(int)$publicMention['id'])->fetchColumn()!==null,'Marking the linked notification read did not synchronize mention state');
 
     // Message deletion and membership revocation prevent opening old mentions.
     $deleted=mention_request('POST','v1/messages',1,['chat_id'=>1,'body'=>'Delete all @Bob','mention_user_ids'=>[2]],201)['message'];
