@@ -27,7 +27,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true, focusMessageId = null, onFocusMessageHandled }) {
+export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true, focusMessageId = null, onFocusMessageHandled, onLoadMessageContext }) {
   const historyRef = useRef(null);
   const pendingOlderScrollHeightRef = useRef(0);
   const olderLoadThreshold = 450;
@@ -107,13 +107,22 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
     setMentionCandidates([]);
   };
 
+  const focusLoadRequestedRef = useRef(null);
   useEffect(() => {
     const targetId = Number(focusMessageId || 0);
-    if (!targetId || !selectedChat?.id || !messages.some(item => Number(item.id) === targetId)) return;
-    setSelectedMessageId(targetId);
-    requestAnimationFrame(() => document.getElementById('message-' + targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-    onFocusMessageHandled?.();
-  }, [focusMessageId, selectedChat?.id, messages, onFocusMessageHandled]);
+    if (!targetId || !selectedChat?.id) return;
+    if (messages.some(item => Number(item.id) === targetId)) {
+      setSelectedMessageId(targetId);
+      requestAnimationFrame(() => document.getElementById('message-' + targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+      focusLoadRequestedRef.current = null;
+      onFocusMessageHandled?.();
+      return;
+    }
+    if (focusLoadRequestedRef.current !== targetId && onLoadMessageContext) {
+      focusLoadRequestedRef.current = targetId;
+      Promise.resolve(onLoadMessageContext(targetId)).catch(() => onFocusMessageHandled?.());
+    }
+  }, [focusMessageId, selectedChat?.id, messages, onFocusMessageHandled, onLoadMessageContext]);
 
   const readTracker = useRef(null);
   const onReadRef = useRef(onRead);
