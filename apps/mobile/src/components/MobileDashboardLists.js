@@ -90,9 +90,10 @@ export function NotificationsList({ onOpenChat, themeSettings }) {
     setOpeningId(Number(item.mention_id));setError('');
     try{
       await platformApi.openMention(Number(item.mention_id));
+      const {data: notificationState}=await platformApi.listNotifications({query:{limit:1}});
+      setApplicationBadge(Number(notificationState.unread_count||0));
       await new Promise(resolve=>InteractionManager.runAfterInteractions(resolve));
       await onOpenChat?.(Number(item.chat_id),Number(item.message_id));
-      await loadMentions(true);
     }catch(e){setError(e.message||'This mention is no longer available.');}
     finally{setOpeningId(null);}
   };
