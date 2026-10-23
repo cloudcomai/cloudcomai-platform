@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../lib/bootstrap.php';
+require_once __DIR__ . '/../lib/group_attachment_access.php';
 $user = auth_user();
 $id = (int)($_GET['id'] ?? 0);
 $preview = ($_GET['preview'] ?? '') === '1';
@@ -71,6 +72,10 @@ if ($preview) {
         $q->execute([$id, $user['id']]);
         $authorizedPreview = (bool)$q->fetch();
     }
+}
+if (!$preview && $a['chat_type'] === 'group') {
+    $groupPermission = group_attachment_permission((int)$a['chat_id'], (int)$user['id'], 'download');
+    if ($groupPermission !== null) $authorizedPreview = $groupPermission;
 }
 if (!$authorizedPreview) fail($a['download_policy'] === 'VIEW_ONLY' ? 'Download is disabled for this attachment' : 'Download requires sender approval', 403);
 
