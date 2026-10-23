@@ -21,6 +21,7 @@ import { resolveChatTheme } from '../services/chatThemeDefinitions';
 export default function GroupManagement({ visible, group, user, onClose, onGroupUpdated, onGroupDeleted, themeSettings }) {
   const theme = resolveChatTheme(themeSettings);
   const [members, setMembers] = useState([]);
+  const [attachmentGrants, setAttachmentGrants] = useState([]);
   const [name, setName] = useState(group?.name || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -36,6 +37,10 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       const { data } = await platformApi.listGroupMembers(group.id);
       setMembers(data.members || []);
       setName(group.name || '');
+      if (Number(group.owner_id) === Number(user?.id) || (data.members || []).some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner')) {
+        const access = await platformApi.getGroupAttachmentAccess(group.id);
+        setAttachmentGrants(access.data.grants || []);
+      }
     } catch (e) {
       setError(e.message || 'Unable to load group members.');
     } finally {
@@ -44,6 +49,22 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   }, [visible, group?.id, group?.name]);
 
   useEffect(() => { load(); }, [load]);
+
+  const updateAttachmentAccess = async (action, memberId, durationHours) => {
+    if (busy || !ownsGroup) return;
+    setBusy(true); setError('');
+    try {
+      if (action === 'grant_member') await platformApi.grantGroupMemberAttachmentAccess(group.id, memberId);
+      else if (action === 'revoke_member') await platformApi.revokeGroupMemberAttachmentAccess(group.id, memberId);
+      else if (action === 'grant_group') await platformApi.grantGroupAttachmentAccess(group.id, durationHours);
+      else await platformApi.revokeGroupAttachmentAccess(group.id);
+      const { data } = await platformApi.getGroupAttachmentAccess(group.id);
+      setAttachmentGrants(data.grants || []);
+      Alert.alert('Attachment access updated', 'The group attachment permissions were saved.');
+    } catch (e) {
+      setError(e.message || 'Unable to update attachment access.');
+    } finally { setBusy(false); }
+  };
 
   const invite = async () => {
     setBusy(true); setError('');
@@ -213,6 +234,23 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
             {members.map(member => <View key={`${member.user_id}-${member.role}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={[styles.link,{color:theme.colors.accent}]}>Make owner</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}</View></View>)}
           </View>
+          {ownsGroup ? <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
+            <Text style={[styles.heading,{color:theme.colors.text}]}>Attachment access</Text>
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Grant download and forwarding permissions. Member grants remain active until revoked; group-wide grants expire automatically.</Text>
+            <View style={styles.memberActions}>
+              <Pressable disabled={busy} onPress={() => updateAttachmentAccess('grant_group', null, 24)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 24 hours</Text></Pressable>
+              <Pressable disabled={busy} onPress={() => updateAttachmentAccess('grant_group', null, 48)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 48 hours</Text></Pressable>
+              <Pressable disabled={busy} onPress={() => Alert.alert('Revoke all attachment access?', 'This disables group-wide access and revokes existing member grants.', [{text:'Cancel',style:'cancel'},{text:'Revoke all',style:'destructive',onPress:()=>updateAttachmentAccess('revoke_group')}])}><Text style={styles.danger}>Revoke access for the entire group</Text></Pressable>
+            </View>
+            <Text style={[styles.heading,{color:theme.colors.text}]}>Individual member permissions</Text>
+            {members.filter(member => Number(member.user_id) !== Number(user?.id) && member.role !== 'owner').map(member => {
+              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at);
+              return <View key={`attachment-${member.user_id}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}>
+                <View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{grant ? 'Download and forwarding enabled' : 'No persistent grant'}</Text></View>
+                <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', member.user_id)}><Text style={[styles.link,{color:grant ? '#b91c1c' : theme.colors.accent}]}>{grant ? 'Revoke' : 'Allow'}</Text></Pressable>
+              </View>;
+            })}
+          </View> : null}
           {ownsGroup ? <Pressable style={styles.deleteButton} onPress={deleteGroup}><Text style={styles.deleteText}>Delete group</Text></Pressable> : null}
         </ScrollView>
         {busy ? <View style={styles.busy}><ActivityIndicator color={theme.colors.accent} /></View> : null}
