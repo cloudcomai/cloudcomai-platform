@@ -6,6 +6,25 @@ CREATE TABLE chats (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,type ENUM('pri
 CREATE TABLE chat_members (chat_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,role ENUM('owner','admin','moderator','member','readonly') NOT NULL DEFAULT 'member',status ENUM('active','pending','removed','banned') NOT NULL DEFAULT 'active',joined_at DATETIME NOT NULL,PRIMARY KEY(chat_id,user_id),INDEX(user_id,status)) ENGINE=InnoDB;
 CREATE TABLE messages (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,chat_id BIGINT UNSIGNED NOT NULL,sender_id BIGINT UNSIGNED NOT NULL,type VARCHAR(40) NOT NULL DEFAULT 'text',body TEXT NULL,reply_to_message_id BIGINT UNSIGNED NULL,edit_count TINYINT UNSIGNED NOT NULL DEFAULT 0,edited_at DATETIME NULL,deleted_for_everyone TINYINT(1) NOT NULL DEFAULT 0,expires_at DATETIME NULL,created_at DATETIME NOT NULL,INDEX(chat_id,id),INDEX(sender_id),INDEX(expires_at),INDEX(reply_to_message_id)) ENGINE=InnoDB;
 CREATE TABLE message_user_states (message_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,hidden TINYINT(1) NOT NULL DEFAULT 0,PRIMARY KEY(message_id,user_id));
+-- CloudComAI @Mentions foundation for eligible group/public-chat recipients.
+-- Migration 026 is used by the open group attachment-access PR, so this feature
+-- deliberately uses 027 to avoid colliding with that unmerged branch.
+CREATE TABLE IF NOT EXISTS message_mentions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    message_id BIGINT UNSIGNED NOT NULL,
+    chat_id BIGINT UNSIGNED NOT NULL,
+    sender_id BIGINT UNSIGNED NOT NULL,
+    recipient_id BIGINT UNSIGNED NOT NULL,
+    chat_type ENUM('group','public') NOT NULL,
+    notification_id BIGINT UNSIGNED NULL,
+    read_at DATETIME NULL,
+    removed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_message_mentions_recipient_active (recipient_id, removed_at, id),
+    INDEX idx_message_mentions_recipient_unread (recipient_id, removed_at, read_at, id),
+    INDEX idx_message_mentions_message_active (message_id, removed_at, recipient_id),
+    INDEX idx_message_mentions_chat_message (chat_id, message_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE message_read_receipts (message_id BIGINT UNSIGNED NOT NULL,user_id BIGINT UNSIGNED NOT NULL,read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(message_id,user_id),INDEX idx_message_read_receipts_user_message(user_id,message_id),INDEX idx_message_read_receipts_message_read_at(message_id,read_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE group_invites (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,chat_id BIGINT UNSIGNED NOT NULL,token_hash CHAR(64) NOT NULL UNIQUE,created_by BIGINT UNSIGNED NOT NULL,requires_approval TINYINT(1) NOT NULL DEFAULT 0,max_uses INT UNSIGNED NULL,use_count INT UNSIGNED NOT NULL DEFAULT 0,expires_at DATETIME NULL,active TINYINT(1) NOT NULL DEFAULT 1,created_at DATETIME NOT NULL,INDEX(chat_id),INDEX(active,expires_at)) ENGINE=InnoDB;
 CREATE TABLE group_shortcuts (user_id BIGINT UNSIGNED NOT NULL,chat_id BIGINT UNSIGNED NOT NULL,display_order INT NOT NULL DEFAULT 0,created_at DATETIME NOT NULL,PRIMARY KEY(user_id,chat_id));
