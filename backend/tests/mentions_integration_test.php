@@ -81,6 +81,8 @@ try {
     mention_check(count($mentions)===1 && (int)$mentions[0]['recipient_id']===2,'Duplicate recipient rows were created or recipient missing');
     $mentionId=(int)$mentions[0]['id'];
     $notificationId=(int)$mentions[0]['notification_id'];
+    $currentRecipients=mention_request('GET','v1/mentions?action=message&message_id='.$messageId,1);
+    mention_check(count($currentRecipients['mention_recipients']??[])===1 && (int)$currentRecipients['mention_recipients'][0]['id']===2,'Message mention recipient lookup did not return the active recipient');
     mention_check($notificationId>0,'Mention did not create notification history');
     $event=$admin->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(data_json,'$.event')) FROM notification_history WHERE id=$notificationId")->fetchColumn();
     mention_check($event==='mention','Notification does not identify the mention event');
@@ -130,6 +132,8 @@ try {
     $revokedMention=(int)$admin->query("SELECT id FROM message_mentions WHERE message_id=$revokedId AND recipient_id=2 AND removed_at IS NULL")->fetchColumn();
     $admin->exec("UPDATE chat_members SET status='removed' WHERE chat_id=1 AND user_id=2");
     mention_request('POST','v1/mentions',2,['action'=>'open','mention_id'=>$revokedMention],404);
+    $recipientsAfterRevocation=mention_request('GET','v1/mentions?action=message&message_id='.$revokedId,1);
+    mention_check(count($recipientsAfterRevocation['mention_recipients']??[])===0,'Revoked member remained selectable in the edit recipient lookup');
 
     echo " @Mentions integration tests passed.\n";
 } finally {
