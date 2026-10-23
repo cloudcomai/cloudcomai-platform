@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../lib/bootstrap.php';
+require_once __DIR__ . '/../lib/group_attachment_access.php';
 $user = auth_user();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('Method not allowed', 405);
 $input = input();
@@ -21,10 +22,16 @@ if (!$source) fail('Message not found or no longer available', 404);
 $hasAttachment = !empty($source['attachment_id']);
 if (!$hasAttachment && !in_array($source['type'], ['text', 'forwarded_text'], true)) fail('This message type cannot be forwarded', 422);
 if (!$hasAttachment && trim((string)$source['body']) === '') fail('The selected message is empty', 422);
-if ($hasAttachment && (int)$source['sender_id'] !== (int)$user['id'] && $source['download_policy'] !== 'ALLOW' && !is_trusted_user((int)$source['sender_id'], (int)$user['id'])) {
-    $approvalStmt = db()->prepare('SELECT 1 FROM attachment_download_requests WHERE attachment_id=? AND requester_id=? AND status="APPROVED" LIMIT 1');
-    $approvalStmt->execute([(int)$source['attachment_id'], (int)$user['id']]);
-    if (!$approvalStmt->fetch()) fail('Forward requires sender approval', 403);
+if ($hasAttachment) {
+    $groupPermission = $source['chat_type'] === 'group'
+        ? group_attachment_permission((int)$source['chat_id'], (int)$user['id'], 'forward')
+        : null;
+    if ($groupPermission === false) fail('Group owner has disabled forwarding for you', 403);
+    if ($groupPermission !== true && (int)$source['sender_id'] !== (int)$user['id'] && $source['download_policy'] !== 'ALLOW' && !is_trusted_user((int)$source['sender_id'], (int)$user['id'])) {
+        $approvalStmt = db()->prepare('SELECT 1 FROM attachment_download_requests WHERE attachment_id=? AND requester_id=? AND status="APPROVED" LIMIT 1');
+        $approvalStmt->execute([(int)$source['attachment_id'], (int)$user['id']]);
+        if (!$approvalStmt->fetch()) fail('Forward requires sender approval', 403);
+    }
 }
 
 $storageRoot = dirname(__DIR__) . '/storage/attachments';
