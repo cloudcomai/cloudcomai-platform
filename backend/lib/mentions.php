@@ -10,6 +10,7 @@ function normalize_mention_user_ids(mixed $raw): array {
         $id = (int)$value;
         if (!in_array($id, $ids, true)) $ids[] = $id;
     }
+    sort($ids, SORT_NUMERIC); // Canonical order keeps idempotency fingerprints stable.
     return $ids;
 }
 
