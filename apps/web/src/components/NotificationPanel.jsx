@@ -37,6 +37,7 @@ export default function NotificationPanel({ apiBridge, close, onUnreadChange, on
     finally { setLoading(false); }
   }, [apiBridge]);
   useEffect(() => { if (view === 'mentions') loadMentions(); }, [view, loadMentions]);
+  useEffect(() => { if (view !== 'mentions') return undefined; const timer = setInterval(() => { if (document.visibilityState !== 'hidden') loadMentions(); }, 15000); return () => clearInterval(timer); }, [view, loadMentions]);
 
   const run = async action => {
     if (busy) return;
@@ -68,7 +69,7 @@ export default function NotificationPanel({ apiBridge, close, onUnreadChange, on
     </section> : <section className="notification-inbox-view">
       <div className="notification-inbox-toolbar"><span>Recent notifications</span><button className="primary" onClick={() => run(() => mark())} disabled={busy || !unread}>Mark all read</button></div>
       <div className="notification-list">{notifications.map(item => <div key={item.id}>
-        <button disabled={busy} className={`notification-item ${item.read_at ? 'read' : 'unread'}`} onClick={() => run(async () => { if (!item.read_at) await mark(item); if (item.data?.chat_id) { await onOpenChat?.(Number(item.data.chat_id)); close(); } })}>
+        <button disabled={busy} className={`notification-item ${item.read_at ? 'read' : 'unread'}`} onClick={() => run(async () => { if (!item.read_at) await mark(item); if (item.data?.chat_id) { await onOpenChat?.(Number(item.data.chat_id), Number(item.data.message_id || 0)); close(); } })}>
           <span className="notification-status-dot" aria-label={item.read_at ? 'Read' : 'Unread'} />
           <span className="notification-copy"><strong>{item.title}</strong><span>{item.body}</span><small>{item.created_at}</small></span>
         </button>
