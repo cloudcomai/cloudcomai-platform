@@ -167,7 +167,11 @@ if ($method === 'POST') {
     try {
         $pdo->beginTransaction();
         if ($clientId !== null) {
-            $fingerprint=hash('sha256',json_encode([$chatId,$type,$body,$reply]));
+            // Preserve the legacy retry fingerprint for messages without mentions,
+            // while making a changed recipient set conflict under the same idempotency key.
+            $fingerprintPayload = [$chatId,$type,$body,$reply];
+            if ($mentionIds) $fingerprintPayload[] = $mentionIds;
+            $fingerprint=hash('sha256',json_encode($fingerprintPayload));
             $pdo->prepare('INSERT INTO message_send_requests(user_id,client_id,request_hash) VALUES(?,?,?) ON DUPLICATE KEY UPDATE client_id=VALUES(client_id)')->execute([$user['id'],$clientId,$fingerprint]);
             $request=$pdo->prepare('SELECT request_hash,message_id FROM message_send_requests WHERE user_id=? AND client_id=? FOR UPDATE');
             $request->execute([$user['id'],$clientId]); $existing=$request->fetch();
