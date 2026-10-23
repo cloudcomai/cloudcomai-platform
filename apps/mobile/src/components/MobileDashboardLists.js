@@ -29,14 +29,120 @@ export function ContactsList({ onOpenChat, themeSettings }) {
 
 export function NotificationsList({ onOpenChat, themeSettings }) {
   const theme = resolveChatTheme(themeSettings);
-  const [items,setItems]=useState([]); const [unread,setUnread]=useState(0); const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [openingId,setOpeningId]=useState(null); const [actionId,setActionId]=useState(null); const [error,setError]=useState('');
-  const load=useCallback(async(refresh=false)=>{refresh?setRefreshing(true):setLoading(true);setError('');try{const{data}=await platformApi.listNotifications({query:{limit:100}});const alerts=(data.notifications||[]).filter(item=>item?.data?.event==='screenshot'||item?.data?.event==='friend_request');setItems(alerts);const count=Number(data.unread_count||alerts.length);setUnread(count);setApplicationBadge(count);}catch(e){setError(e.message||'Unable to load alerts.');}finally{setLoading(false);setRefreshing(false);}},[]);
-  useEffect(()=>{load();const timer=setInterval(()=>load(true),15000);return()=>clearInterval(timer);},[load]);
-  const setRead=async(item,read=true)=>{const{data}=await platformApi.markNotificationsRead({notification_ids:[Number(item.id)],read});if(read)setItems(current=>current.filter(entry=>Number(entry.id)!==Number(item.id)));else setItems(current=>current.map(entry=>Number(entry.id)===Number(item.id)?{...entry,read_at:null}:entry));const nextUnread=read?Math.max(0,unread-1):Number(data.unread_count||0);setUnread(nextUnread);setApplicationBadge(nextUnread);};
-  const respondFriendRequest=async(item,action)=>{const requestId=Number(item?.data?.request_id);if(!requestId||actionId!==null)return;setActionId(requestId);setError('');try{await platformApi.respondToFriendRequest(requestId,action);await setRead(item,true);await load(true);}catch(e){setError(e.message||'Unable to update friend request.');}finally{setActionId(null);}};
-  const openNotification=async item=>{const chatId=getNotificationChatId(item);if(openingId!==null||item?.data?.event==='friend_request')return;setError('');setOpeningId(Number(item.id));try{await setRead(item,true);if(!chatId)return;await new Promise(resolve=>InteractionManager.runAfterInteractions(resolve));await onOpenChat?.(chatId);}catch(e){setError(e.message||'Unable to open alert.');}finally{setOpeningId(null);}};
+  const [tab,setTab]=useState('alerts');
+  const [items,setItems]=useState([]);
+  const [mentions,setMentions]=useState([]);
+  const [unread,setUnread]=useState(0);
+  const [mentionsUnread,setMentionsUnread]=useState(0);
+  const [loading,setLoading]=useState(true);
+  const [refreshing,setRefreshing]=useState(false);
+  const [openingId,setOpeningId]=useState(null);
+  const [actionId,setActionId]=useState(null);
+  const [error,setError]=useState('');
+  const load=useCallback(async(refresh=false)=>{
+    refresh?setRefreshing(true):setLoading(true);setError('');
+    try{
+      const{data}=await platformApi.listNotifications({query:{limit:100}});
+      const alerts=(data.notifications||[]).filter(item=>item?.data?.event==='screenshot'||item?.data?.event==='friend_request');
+      setItems(alerts);setUnread(alerts.filter(item=>!item.read_at).length);
+      setApplicationBadge(Number(data.unread_count||0));
+    }catch(e){setError(e.message||'Unable to load alerts.');}
+    finally{setLoading(false);setRefreshing(false);}
+  },[]);
+  const loadMentions=useCallback(async(refresh=false)=>{
+    refresh?setRefreshing(true):setLoading(true);setError('');
+    try{
+      const{data}=await platformApi.listMentions({query:{limit:100}});
+      setMentions(data.mentions||[]);setMentionsUnread(Number(data.unread_count||0));
+    }catch(e){setError(e.message||'Unable to load mentions.');}
+    finally{setLoading(false);setRefreshing(false);}
+  },[]);
+  useEffect(()=>{
+    const refresh=()=>tab==='mentions'?loadMentions(true):load(true);
+    if(tab==='mentions')loadMentions();else load();
+    const timer=setInterval(refresh,15000);
+    return()=>clearInterval(timer);
+  },[tab,load,loadMentions]);
+  const setRead=async(item,read=true)=>{
+    const{data}=await platformApi.markNotificationsRead({notification_ids:[Number(item.id)],read});
+    if(read)setItems(current=>current.filter(entry=>Number(entry.id)!==Number(item.id)));
+    else setItems(current=>current.map(entry=>Number(entry.id)===Number(item.id)?{...entry,read_at:null}:entry));
+    const nextUnread=read?Math.max(0,unread-1):Number(data.unread_count||0);
+    setUnread(nextUnread);
+  };
+  const respondFriendRequest=async(item,action)=>{
+    const requestId=Number(item?.data?.request_id);if(!requestId||actionId!==null)return;
+    setActionId(requestId);setError('');
+    try{await platformApi.respondToFriendRequest(requestId,action);await setRead(item,true);await load(true);}
+    catch(e){setError(e.message||'Unable to update friend request.');}
+    finally{setActionId(null);}
+  };
+  const openNotification=async item=>{
+    const chatId=getNotificationChatId(item);
+    if(openingId!==null||item?.data?.event==='friend_request')return;
+    setError('');setOpeningId(Number(item.id));
+    try{await setRead(item,true);if(!chatId)return;await new Promise(resolve=>InteractionManager.runAfterInteractions(resolve));await onOpenChat?.(chatId);}
+    catch(e){setError(e.message||'Unable to open alert.');}
+    finally{setOpeningId(null);}
+  };
+  const openMention=async item=>{
+    if(openingId!==null)return;
+    setOpeningId(Number(item.mention_id));setError('');
+    try{
+      await platformApi.openMention(Number(item.mention_id));
+      await new Promise(resolve=>InteractionManager.runAfterInteractions(resolve));
+      await onOpenChat?.(Number(item.chat_id),Number(item.message_id));
+      await loadMentions(true);
+    }catch(e){setError(e.message||'This mention is no longer available.');}
+    finally{setOpeningId(null);}
+  };
   if(loading)return <ActivityIndicator style={styles.loader} color="#3157d5"/>;
-  return <FlatList style={[styles.alertsScreen,{backgroundColor:theme.colors.background}]} contentContainerStyle={styles.alertsContent} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>load(true)}/>} ListHeaderComponent={<><View style={[styles.notificationHeader,{backgroundColor:theme.colors.background,borderBottomColor:theme.colors.border}]}><Text style={[styles.notificationTitle,{color:theme.colors.text}]}>Alerts{unread?` · ${unread} unread`:''}</Text></View>{error?<Text style={styles.error}>{error}</Text>:null}</>} data={items} keyExtractor={item=>String(item.id)} ListEmptyComponent={<Text style={styles.emptyText}>No alerts.</Text>} renderItem={({item})=>{const opening=Number(item.id)===openingId;const friend=item?.data?.event==='friend_request';const requestBusy=friend&&Number(item?.data?.request_id)===actionId;return <View style={[styles.notificationRow,{backgroundColor:theme.colors.background,borderBottomColor:theme.colors.border}]}><Pressable style={styles.notificationMain} onPress={()=>openNotification(item)} disabled={openingId!==null||actionId!==null} accessibilityRole="button"><View style={styles.notificationDot}/><View style={styles.meta}><Text style={[styles.title,{color:theme.colors.text}]}>{item.title|| (friend?'New friend request':'Screenshot alert')}</Text><Text style={[styles.sub,{color:theme.colors.secondary}]}>{item.body||'You have a new CloudComAI alert.'}</Text><Text style={styles.timeText}>{formatTime(item.created_at)}</Text></View>{opening?<ActivityIndicator size="small" color="#3157d5"/>:null}</Pressable>{friend?<View style={styles.alertActions}><Pressable disabled={actionId!==null} onPress={()=>respondFriendRequest(item,'accept')} style={styles.acceptButton}><Text style={styles.acceptText}>{requestBusy?'…':'Accept'}</Text></Pressable><Pressable disabled={actionId!==null} onPress={()=>respondFriendRequest(item,'decline')} style={styles.declineButton}><Text style={styles.declineText}>Decline</Text></Pressable><Pressable disabled={actionId!==null} onPress={()=>respondFriendRequest(item,'block')} style={styles.blockButton}><Text style={styles.blockText}>Block</Text></Pressable></View>:null}</View>;}}/>;
+  return <FlatList
+    style={[styles.alertsScreen,{backgroundColor:theme.colors.background}]}
+    contentContainerStyle={styles.alertsContent}
+    keyboardShouldPersistTaps="handled"
+    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>tab==='mentions'?loadMentions(true):load(true)}/>}
+    ListHeaderComponent={<>
+      <View style={[styles.notificationHeader,{backgroundColor:theme.colors.background,borderBottomColor:theme.colors.border}]}>
+        <Text style={[styles.notificationTitle,{color:theme.colors.text}]}>{tab==='mentions'?'Mentions':'Alerts'}{tab==='mentions'?(mentionsUnread?' · '+mentionsUnread+' unread':''):(unread?' · '+unread+' unread':'')}</Text>
+      </View>
+      <View style={styles.mentionTabs}>
+        <Pressable accessibilityRole="button" onPress={()=>setTab('alerts')} style={[styles.mentionTab,tab==='alerts'&&styles.mentionTabActive]}><Text style={[styles.mentionTabText,tab==='alerts'&&styles.mentionTabTextActive]}>Alerts</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={()=>setTab('mentions')} style={[styles.mentionTab,tab==='mentions'&&styles.mentionTabActive]}><Text style={[styles.mentionTabText,tab==='mentions'&&styles.mentionTabTextActive]}>Mentions{mentionsUnread?' ('+mentionsUnread+')':''}</Text></Pressable>
+      </View>
+      {error?<Text style={styles.error}>{error}</Text>:null}
+    </>}
+    data={tab==='mentions'?mentions:items}
+    keyExtractor={item=>String(tab==='mentions'?item.mention_id:item.id)}
+    ListEmptyComponent={<Text style={styles.emptyText}>{tab==='mentions'?'No mentions yet.':'No alerts.'}</Text>}
+    renderItem={({item})=>{
+      if(tab==='mentions'){
+        const opening=Number(item.mention_id)===openingId;
+        return <Pressable style={[styles.notificationRow,{backgroundColor:theme.colors.background,borderBottomColor:theme.colors.border,opacity:opening?0.65:1}]} onPress={()=>openMention(item)} disabled={openingId!==null} accessibilityRole="button">
+          <View style={styles.notificationDot}/>
+          <View style={styles.meta}>
+            <Text style={[styles.title,{color:theme.colors.text}]}>{item.sender_name||'A member'} mentioned you in {item.chat_name||'a chat'}</Text>
+            <Text style={[styles.sub,{color:theme.colors.secondary}]} numberOfLines={2}>{item.message_body||'Mentioned you in a message'}</Text>
+            <Text style={[styles.sub,{color:theme.colors.secondary}]}>{formatTime(item.message_created_at||item.created_at)}{item.read_at?' · Read':' · Unread'}</Text>
+          </View>
+        </Pressable>;
+      }
+      const opening=Number(item.id)===openingId;
+      const friend=item?.data?.event==='friend_request';
+      const requestBusy=friend&&Number(item?.data?.request_id)===actionId;
+      return <View style={[styles.notificationRow,{backgroundColor:theme.colors.background,borderBottomColor:theme.colors.border}]}>
+        <Pressable style={styles.notificationMain} onPress={()=>openNotification(item)} disabled={openingId!==null||actionId!==null} accessibilityRole="button">
+          <View style={styles.notificationDot}/><View style={styles.meta}>
+            <Text style={[styles.title,{color:theme.colors.text}]}>{item.title||(friend?'New friend request':'CloudComAI alert')}</Text>
+            <Text style={[styles.sub,{color:theme.colors.secondary}]} numberOfLines={2}>{item.body||''}</Text>
+            <Text style={[styles.sub,{color:theme.colors.secondary}]}>{formatTime(item.created_at)}</Text>
+          </View>
+        </Pressable>
+        {friend?<View style={styles.requestActions}><Pressable disabled={actionId!==null} onPress={()=>respondFriendRequest(item,'accept')} style={styles.acceptButton}><Text style={styles.acceptText}>{requestBusy?'…':'Accept'}</Text></Pressable><Pressable disabled={actionId!==null} onPress={()=>respondFriendRequest(item,'decline')} style={styles.declineButton}><Text style={styles.declineText}>Decline</Text></Pressable><Pressable disabled={actionId!==null} onPress={()=>respondFriendRequest(item,'block')} style={styles.blockButton}><Text style={styles.blockText}>Block</Text></Pressable></View>:null}
+      </View>;
+    }}
+  />;
 }
+
 function formatTime(value){if(!value)return '';const normalized=value.includes('T')?value:value.replace(' ','T');const date=new Date(normalized.endsWith('Z')?normalized:`${normalized}Z`);if(Number.isNaN(date.getTime()))return value;return date.toLocaleString([],{dateStyle:'short',timeStyle:'short'});}
-const styles=StyleSheet.create({alertsScreen:{flex:1,backgroundColor:'#f7f9fd'},alertsContent:{paddingBottom:24},loader:{marginTop:50},list:{paddingHorizontal:12,paddingBottom:24},empty:{flexGrow:1,alignItems:'center',justifyContent:'center',padding:24},emptyText:{color:'#718096',textAlign:'center',lineHeight:20},error:{margin:12,padding:10,borderRadius:8,color:'#b91c1c',backgroundColor:'#fee2e2'},sectionHeader:{marginHorizontal:12,marginTop:8,minHeight:48,paddingHorizontal:14,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderWidth:1,borderRadius:10},sectionTitle:{fontSize:15,fontWeight:'900'},sectionCount:{color:'#64748b',fontSize:12,fontWeight:'800'},onlineHeader:{marginTop:8,paddingHorizontal:16,paddingVertical:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'#f6f8ff',borderTopWidth:1,borderBottomWidth:1,borderColor:'#e4e9f5'},onlineTitle:{color:'#172033',fontSize:16,fontWeight:'900'},onlineCount:{marginTop:2,color:'#22a05a',fontSize:11,fontWeight:'700'},chevron:{color:'#3157d5',fontSize:24,fontWeight:'800'},noOnline:{padding:16,backgroundColor:'#fff'},noOnlineText:{color:'#94a3b8',fontSize:12,textAlign:'center'},allContactsTitle:{paddingHorizontal:16,paddingVertical:13,color:'#172033',fontSize:16,fontWeight:'900',backgroundColor:'#fff'},row:{minHeight:72,flexDirection:'row',alignItems:'center',paddingHorizontal:10,borderBottomWidth:1,borderBottomColor:'#edf0f5',backgroundColor:'#fff'},avatar:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center',overflow:'hidden',backgroundColor:'#eef2ff'},avatarImage:{...StyleSheet.absoluteFillObject,width:48,height:48,zIndex:2},avatarText:{color:'#3157d5',fontWeight:'800',fontSize:18},meta:{flex:1,minWidth:0,marginLeft:12},title:{color:'#172033',fontWeight:'800',fontSize:15},sub:{marginTop:4,color:'#6b7280',fontSize:12},statusDot:{width:10,height:10,borderRadius:5},onlineDot:{backgroundColor:'#22c55e'},awayDot:{backgroundColor:'#f59e0b'},offlineDot:{backgroundColor:'#cbd5e1'},requestsCard:{margin:12,padding:12,borderRadius:14,backgroundColor:'#f8faff',borderWidth:1,borderColor:'#dbe4ff'},requestsHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:4},requestsTitle:{color:'#172033',fontWeight:'900',fontSize:15},requestsCount:{minWidth:22,height:22,paddingHorizontal:6,borderRadius:11,backgroundColor:'#3157d5',color:'#fff',textAlign:'center',fontSize:11,fontWeight:'800',overflow:'hidden'},requestRow:{paddingVertical:12,flexDirection:'row',alignItems:'center',borderTopWidth:1,borderTopColor:'#e2e8f0'},requestActions:{width:102,marginLeft:8,gap:4},acceptButton:{minHeight:28,paddingHorizontal:7,alignItems:'center',justifyContent:'center',borderRadius:7,backgroundColor:'#3157d5'},acceptText:{color:'#fff',fontSize:10,fontWeight:'800'},declineButton:{minHeight:28,paddingHorizontal:7,alignItems:'center',justifyContent:'center',borderRadius:7,backgroundColor:'#e5eaf4'},declineText:{color:'#475569',fontSize:10,fontWeight:'800'},blockButton:{minHeight:28,paddingHorizontal:7,alignItems:'center',justifyContent:'center',borderRadius:7,backgroundColor:'#fee2e2'},blockText:{color:'#b91c1c',fontSize:10,fontWeight:'800'},notificationHeader:{minHeight:48,flexWrap:'wrap',gap:8,paddingVertical:8,paddingHorizontal:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'#fff',borderBottomWidth:1,borderBottomColor:'#edf0f5'},notificationTitle:{color:'#172033',fontWeight:'800'},notificationRow:{minHeight:78,padding:14,borderBottomWidth:1,borderBottomColor:'#edf0f5',backgroundColor:'#fff'},friendAlertRow:{backgroundColor:'#f8faff'},notificationMain:{minHeight:52,flexDirection:'row',alignItems:'flex-start'},alertActions:{flexDirection:'row',gap:6,marginLeft:21,marginTop:4},notificationDot:{width:9,height:9,marginTop:6,borderRadius:5,backgroundColor:'#3157d5'},timeText:{marginTop:5,color:'#94a3b8',fontSize:10}});
+const styles=StyleSheet.create({mentionTabs:{flexDirection:'row',padding:10,gap:8,borderBottomWidth:1,borderBottomColor:'#e4e9f5'},mentionTab:{flex:1,paddingVertical:10,alignItems:'center',borderRadius:10,backgroundColor:'#eef2f7'},mentionTabActive:{backgroundColor:'#3157d5'},mentionTabText:{fontSize:13,fontWeight:'800',color:'#475569'},mentionTabTextActive:{color:'#fff'},alertsScreen:{flex:1,backgroundColor:'#f7f9fd'},alertsContent:{paddingBottom:24},loader:{marginTop:50},list:{paddingHorizontal:12,paddingBottom:24},empty:{flexGrow:1,alignItems:'center',justifyContent:'center',padding:24},emptyText:{color:'#718096',textAlign:'center',lineHeight:20},error:{margin:12,padding:10,borderRadius:8,color:'#b91c1c',backgroundColor:'#fee2e2'},sectionHeader:{marginHorizontal:12,marginTop:8,minHeight:48,paddingHorizontal:14,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderWidth:1,borderRadius:10},sectionTitle:{fontSize:15,fontWeight:'900'},sectionCount:{color:'#64748b',fontSize:12,fontWeight:'800'},onlineHeader:{marginTop:8,paddingHorizontal:16,paddingVertical:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'#f6f8ff',borderTopWidth:1,borderBottomWidth:1,borderColor:'#e4e9f5'},onlineTitle:{color:'#172033',fontSize:16,fontWeight:'900'},onlineCount:{marginTop:2,color:'#22a05a',fontSize:11,fontWeight:'700'},chevron:{color:'#3157d5',fontSize:24,fontWeight:'800'},noOnline:{padding:16,backgroundColor:'#fff'},noOnlineText:{color:'#94a3b8',fontSize:12,textAlign:'center'},allContactsTitle:{paddingHorizontal:16,paddingVertical:13,color:'#172033',fontSize:16,fontWeight:'900',backgroundColor:'#fff'},row:{minHeight:72,flexDirection:'row',alignItems:'center',paddingHorizontal:10,borderBottomWidth:1,borderBottomColor:'#edf0f5',backgroundColor:'#fff'},avatar:{width:48,height:48,borderRadius:24,alignItems:'center',justifyContent:'center',overflow:'hidden',backgroundColor:'#eef2ff'},avatarImage:{...StyleSheet.absoluteFillObject,width:48,height:48,zIndex:2},avatarText:{color:'#3157d5',fontWeight:'800',fontSize:18},meta:{flex:1,minWidth:0,marginLeft:12},title:{color:'#172033',fontWeight:'800',fontSize:15},sub:{marginTop:4,color:'#6b7280',fontSize:12},statusDot:{width:10,height:10,borderRadius:5},onlineDot:{backgroundColor:'#22c55e'},awayDot:{backgroundColor:'#f59e0b'},offlineDot:{backgroundColor:'#cbd5e1'},requestsCard:{margin:12,padding:12,borderRadius:14,backgroundColor:'#f8faff',borderWidth:1,borderColor:'#dbe4ff'},requestsHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:4},requestsTitle:{color:'#172033',fontWeight:'900',fontSize:15},requestsCount:{minWidth:22,height:22,paddingHorizontal:6,borderRadius:11,backgroundColor:'#3157d5',color:'#fff',textAlign:'center',fontSize:11,fontWeight:'800',overflow:'hidden'},requestRow:{paddingVertical:12,flexDirection:'row',alignItems:'center',borderTopWidth:1,borderTopColor:'#e2e8f0'},requestActions:{width:102,marginLeft:8,gap:4},acceptButton:{minHeight:28,paddingHorizontal:7,alignItems:'center',justifyContent:'center',borderRadius:7,backgroundColor:'#3157d5'},acceptText:{color:'#fff',fontSize:10,fontWeight:'800'},declineButton:{minHeight:28,paddingHorizontal:7,alignItems:'center',justifyContent:'center',borderRadius:7,backgroundColor:'#e5eaf4'},declineText:{color:'#475569',fontSize:10,fontWeight:'800'},blockButton:{minHeight:28,paddingHorizontal:7,alignItems:'center',justifyContent:'center',borderRadius:7,backgroundColor:'#fee2e2'},blockText:{color:'#b91c1c',fontSize:10,fontWeight:'800'},notificationHeader:{minHeight:48,flexWrap:'wrap',gap:8,paddingVertical:8,paddingHorizontal:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'#fff',borderBottomWidth:1,borderBottomColor:'#edf0f5'},notificationTitle:{color:'#172033',fontWeight:'800'},notificationRow:{minHeight:78,padding:14,borderBottomWidth:1,borderBottomColor:'#edf0f5',backgroundColor:'#fff'},friendAlertRow:{backgroundColor:'#f8faff'},notificationMain:{minHeight:52,flexDirection:'row',alignItems:'flex-start'},alertActions:{flexDirection:'row',gap:6,marginLeft:21,marginTop:4},notificationDot:{width:9,height:9,marginTop:6,borderRadius:5,backgroundColor:'#3157d5'},timeText:{marginTop:5,color:'#94a3b8',fontSize:10}});
