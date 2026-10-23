@@ -61,6 +61,7 @@ export class CloudComAiApi {
   markMessagesRead(messageIds, options = {}) { return this.client.post(ApiRoute.MESSAGE_READ, { message_ids: messageIds }, options); }
   listMentions(options = {}) { return this.client.get(ApiRoute.MENTIONS, options); }
   searchMentionCandidates(chatId, query = '', options = {}) { return this.client.get(ApiRoute.MENTIONS, { ...options, query: { ...options.query, action: 'candidates', chat_id: chatId, q: query } }); }
+  listMessageMentions(messageId, options = {}) { return this.client.get(ApiRoute.MENTIONS, { ...options, query: { ...options.query, action: 'message', message_id: messageId } }); }
   openMention(mentionId, options = {}) { return this.client.post(ApiRoute.MENTIONS, { action: 'open', mention_id: mentionId }, options); }
   getMessageReadStatus(messageId, options = {}) { return this.client.get(ApiRoute.MESSAGE_READ, { ...options, query: { ...options.query, message_id: messageId } }); }
   editMessage(messageId, body, options = {}) { const { mentionUserIds, ...requestOptions } = options; return this.client.post(ApiRoute.EDIT_MESSAGE, { editing_id: messageId, body, ...(Array.isArray(mentionUserIds) ? { mention_user_ids: mentionUserIds } : {}) }, requestOptions); }
