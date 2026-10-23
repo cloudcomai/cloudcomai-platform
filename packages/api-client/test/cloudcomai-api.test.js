@@ -126,6 +126,26 @@ test('maps cloud backup settings, backup, and restore separately from local expo
   ]);
 });
 
+test('maps @Mention candidate search, message recipient lookup, inbox and open actions', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.searchMentionCandidates(23, 'bob');
+  await api.listMessageMentions(81);
+  await api.listMentions({ query: { limit: 25 } });
+  await api.openMention(91);
+  assert.deepEqual(calls[0], { method: 'get', args: ['v1/mentions', { query: { action: 'candidates', chat_id: 23, q: 'bob' } }] });
+  assert.deepEqual(calls[1], { method: 'get', args: ['v1/mentions', { query: { action: 'message', message_id: 81 } }] });
+  assert.deepEqual(calls[2], { method: 'get', args: ['v1/mentions', { query: { limit: 25 } }] });
+  assert.deepEqual(calls[3], { method: 'post', args: ['v1/mentions', { action: 'open', mention_id: 91 }, {}] });
+});
+
+test('sends stable recipient IDs when editing a mentioned message', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.editMessage(81, 'Hello @bob', { mentionUserIds: [23, 24], timeout: 1000 });
+  assert.deepEqual(calls[0], { method: 'post', args: ['v1/messages/edit', { editing_id: 81, body: 'Hello @bob', mention_user_ids: [23, 24] }, { timeout: 1000 }] });
+});
+
 
 test('maps owner-managed group attachment access operations to the PHP API contract', async () => {
   const { client, calls } = recorder();
