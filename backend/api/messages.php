@@ -6,6 +6,7 @@ $user = auth_user();
 $method = $_SERVER['REQUEST_METHOD'];
 
 require_once __DIR__ . '/../lib/message_payload.php';
+require_once __DIR__ . '/../lib/mentions.php';
 
 if ($method === 'GET') {
     $chatId = (int)($_GET['chat_id'] ?? 0);
@@ -126,6 +127,7 @@ if ($method === 'GET') {
 
 if ($method === 'POST') {
     $data = input();
+    $mentionIds = normalize_mention_user_ids($data['mention_user_ids'] ?? []);
     $chatId = (int)($data['chat_id'] ?? 0);
     $type = (string)($data['type'] ?? 'text');
     $body = trim((string)($data['body'] ?? ''));
@@ -147,10 +149,11 @@ if ($method === 'POST') {
         $body = json_encode(['latitude' => $latitude, 'longitude' => $longitude, 'label' => $label], JSON_UNESCAPED_SLASHES);
     }
 
-    $membershipQuery = db()->prepare('SELECT c.retention_seconds,COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id LEFT JOIN chat_user_states cus ON cus.chat_id=c.id AND cus.user_id=cm.user_id WHERE c.id=? AND cm.user_id=? AND cm.status="active"');
+    $membershipQuery = db()->prepare('SELECT c.type AS chat_type,c.retention_seconds,COALESCE(cus.cleared_through_message_id,0) AS cleared_through_message_id FROM chats c INNER JOIN chat_members cm ON cm.chat_id=c.id LEFT JOIN chat_user_states cus ON cus.chat_id=c.id AND cus.user_id=cm.user_id WHERE c.id=? AND cm.user_id=? AND cm.status="active"');
     $membershipQuery->execute([$chatId, $user['id']]);
     $membership = $membershipQuery->fetch();
     if (!$membership) fail('Not a member', 403);
+    if ($mentionIds && !in_array($membership['chat_type'], ['group', 'public'], true)) fail('@Mentions are available only in group chats and public rooms', 422);
     assert_chat_allows_messages($chatId, (int)$user['id']);
     if ($reply) {
         if ($reply <= (int)$membership['cleared_through_message_id']) fail('Invalid reply target');
@@ -164,7 +167,11 @@ if ($method === 'POST') {
     try {
         $pdo->beginTransaction();
         if ($clientId !== null) {
-            $fingerprint=hash('sha256',json_encode([$chatId,$type,$body,$reply]));
+            // Preserve the legacy retry fingerprint for messages without mentions,
+            // while making a changed recipient set conflict under the same idempotency key.
+            $fingerprintPayload = [$chatId,$type,$body,$reply];
+            if ($mentionIds) $fingerprintPayload[] = $mentionIds;
+            $fingerprint=hash('sha256',json_encode($fingerprintPayload));
             $pdo->prepare('INSERT INTO message_send_requests(user_id,client_id,request_hash) VALUES(?,?,?) ON DUPLICATE KEY UPDATE client_id=VALUES(client_id)')->execute([$user['id'],$clientId,$fingerprint]);
             $request=$pdo->prepare('SELECT request_hash,message_id FROM message_send_requests WHERE user_id=? AND client_id=? FOR UPDATE');
             $request->execute([$user['id'],$clientId]); $existing=$request->fetch();
@@ -184,6 +191,7 @@ if ($method === 'POST') {
         $messageId = (int)$pdo->lastInsertId();
         if ($clientId !== null) $pdo->prepare('UPDATE message_send_requests SET message_id=? WHERE user_id=? AND client_id=?')->execute([$messageId,$user['id'],$clientId]);
         $pdo->prepare('UPDATE chat_user_states SET hidden=0,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?')->execute([$chatId, $user['id']]);
+        reconcile_message_mentions($messageId, $chatId, (int)$user['id'], $mentionIds);
         create_chat_notifications($chatId, (int)$user['id'], (string)$user['name'], $type === 'location' ? 'Shared a location' : $body, $messageId);
         $pdo->commit();
     } catch (Throwable $error) {
@@ -214,6 +222,7 @@ if ($method === 'DELETE') {
     if (!$message) fail('Message not found', 404);
 
     if ($scope === 'self') {
+        deactivate_message_mentions($messageId, (int)$user['id']);
         $st = db()->prepare('INSERT INTO message_user_states(message_id,user_id,hidden) VALUES(?,?,1) ON DUPLICATE KEY UPDATE hidden=1');
         $st->execute([$messageId, $user['id']]);
         db()->prepare('DELETE FROM saved_messages WHERE user_id=? AND message_id=?')->execute([$user['id'],$messageId]);
@@ -239,6 +248,7 @@ if ($method === 'DELETE') {
         $pdo->prepare('DELETE FROM message_attachments WHERE message_id=?')->execute([$messageId]);
         $pdo->prepare('DELETE FROM saved_messages WHERE message_id=?')->execute([$messageId]);
         $pdo->prepare('DELETE FROM message_user_states WHERE message_id=?')->execute([$messageId]);
+        deactivate_message_mentions($messageId);
         if ($pollId > 0) {
             $pdo->prepare('DELETE FROM poll_votes WHERE poll_id=?')->execute([$pollId]);
             $pdo->prepare('DELETE FROM poll_options WHERE poll_id=?')->execute([$pollId]);
