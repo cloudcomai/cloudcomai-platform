@@ -73,11 +73,13 @@ if ($method === 'POST') {
         }
         cancel_read_notification_deliveries($userId);
         $pdo->commit();
+        $unread = $pdo->prepare('SELECT COUNT(*) FROM message_mentions mm INNER JOIN messages m ON m.id=mm.message_id INNER JOIN chats c ON c.id=mm.chat_id INNER JOIN chat_members cm ON cm.chat_id=mm.chat_id AND cm.user_id=mm.recipient_id AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=mm.chat_id AND cus.user_id=mm.recipient_id LEFT JOIN message_user_states mus ON mus.message_id=mm.message_id AND mus.user_id=mm.recipient_id WHERE mm.recipient_id=? AND mm.removed_at IS NULL AND mm.read_at IS NULL AND c.type IN ("group","public") AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND m.id>COALESCE(cus.cleared_through_message_id,0) AND COALESCE(mus.hidden,0)=0');
+        $unread->execute([$userId]);
         out(['mention'=>[
             'mention_id'=>(int)$mention['mention_id'],'message_id'=>(int)$mention['message_id'],'chat_id'=>(int)$mention['chat_id'],
             'sender_id'=>(int)$mention['sender_id'],'chat_type'=>$mention['chat_type'],'message_body'=>$mention['body'],
             'message_created_at'=>$mention['created_at'],'chat_name'=>$mention['chat_name'],'sender_name'=>$mention['sender_name']
-        ],'unread_count'=>(int)$pdo->query('SELECT COUNT(*) FROM message_mentions WHERE recipient_id=' . $userId . ' AND removed_at IS NULL AND read_at IS NULL')->fetchColumn()]);
+        ],'unread_count'=>(int)$unread->fetchColumn()]);
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('Mention open failed: ' . $error->getMessage());
