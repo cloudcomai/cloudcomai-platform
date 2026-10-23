@@ -52,6 +52,8 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const [mentionCandidates, setMentionCandidates] = useState([]);
   const [mentionUsers, setMentionUsers] = useState([]);
   const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionRecipientsLoading, setMentionRecipientsLoading] = useState(false);
+  const [mentionRecipientsLoadFailed, setMentionRecipientsLoadFailed] = useState(false);
   const mentionChatEnabled = selectedChat?.type === 'group' || selectedChat?.type === 'public' || Boolean(selectedChat?.isGroup || selectedChat?.isPublic);
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
@@ -78,10 +80,13 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
 
   useEffect(() => {
     let cancelled = false;
-    if (!editing?.id || !mentionChatEnabled) { setMentionUsers([]); return undefined; }
+    if (!editing?.id || !mentionChatEnabled) { setMentionUsers([]); setMentionRecipientsLoading(false); setMentionRecipientsLoadFailed(false); return undefined; }
+    setMentionRecipientsLoading(true);
+    setMentionRecipientsLoadFailed(false);
     apiBridge(ApiRoute.MENTIONS, { method: 'GET', query: { action: 'message', message_id: Number(editing.id) } })
       .then(result => { if (!cancelled) setMentionUsers((result.mention_recipients || []).map(item => ({ id: Number(item.id), username: String(item.username || item.id), name: item.name || '' }))); })
-      .catch(() => { if (!cancelled) setMentionUsers([]); });
+      .catch(() => { if (!cancelled) { setMentionUsers([]); setMentionRecipientsLoadFailed(true); } })
+      .finally(() => { if (!cancelled) setMentionRecipientsLoading(false); });
     return () => { cancelled = true; };
   }, [editing?.id, mentionChatEnabled, apiBridge]);
 
@@ -100,7 +105,9 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
     setMentionCandidates([]);
   };
   const submitWithMentions = async () => {
-    const sent = await onSendMessage(mentionUsers.map(item => Number(item.id)));
+    if (editing && mentionChatEnabled && mentionRecipientsLoading) return;
+    const recipients = editing && mentionChatEnabled && mentionRecipientsLoadFailed ? null : mentionUsers.map(item => Number(item.id));
+    const sent = await onSendMessage(recipients);
     if (sent === false) return;
     setMentionUsers([]);
     setMentionQuery(null);
@@ -372,7 +379,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           {isPollChat && <button className="shortcut-action-card yellow-theme" onClick={() => setModal('poll')}><div className="shortcut-icon-circle"><BarChart3 size={18}/></div><div className="shortcut-meta"><h5>Polls</h5><p>Create polls</p></div></button>}
         </div>
 
-        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { onCancelContext(); }}><X size={16}/></button></div> : null}
+        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong>{editing && mentionChatEnabled && mentionRecipientsLoading ? <small> Loading current mentions…</small> : null}{editing && mentionChatEnabled && mentionRecipientsLoadFailed ? <small> Existing mention recipients could not be loaded; saving preserves them.</small> : null}</div><button onClick={() => { onCancelContext(); }}><X size={16}/></button></div> : null}
         {emojiOpen && <div className="emoji-picker-row"><button type="button" key="😀" onClick={() => onComposerChange(value => `${value}😀`)}>😀</button><button type="button" key="😂" onClick={() => onComposerChange(value => `${value}😂`)}>😂</button><button type="button" key="😍" onClick={() => onComposerChange(value => `${value}😍`)}>😍</button><button type="button" key="😊" onClick={() => onComposerChange(value => `${value}😊`)}>😊</button><button type="button" key="👍" onClick={() => onComposerChange(value => `${value}👍`)}>👍</button><button type="button" key="🙏" onClick={() => onComposerChange(value => `${value}🙏`)}>🙏</button><button type="button" key="❤️" onClick={() => onComposerChange(value => `${value}❤️`)}>❤️</button><button type="button" key="🎉" onClick={() => onComposerChange(value => `${value}🎉`)}>🎉</button><button type="button" key="😢" onClick={() => onComposerChange(value => `${value}😢`)}>😢</button><button type="button" key="😡" onClick={() => onComposerChange(value => `${value}😡`)}>😡</button><button type="button" key="🤔" onClick={() => onComposerChange(value => `${value}🤔`)}>🤔</button><button type="button" key="👏" onClick={() => onComposerChange(value => `${value}👏`)}>👏</button></div>}
         {mentionChatEnabled && mentionQuery !== null && (mentionLoading || mentionCandidates.length > 0) && <div className="mention-suggestions" role="listbox" aria-label="Mention a chat member">
           {mentionLoading && <div className="mention-suggestion-empty">Searching members…</div>}
@@ -383,7 +390,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           <button type="button" className="emoji-toggle-btn" onClick={() => setEmojiOpen(value => !value)} aria-label="Choose emoji">☺</button>
           <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
           <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => handleComposerInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && submitWithMentions()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" />
-          <button className="voice-mic-submit-btn" onClick={submitWithMentions} disabled={sending || !selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
+          <button className="voice-mic-submit-btn" onClick={submitWithMentions} disabled={sending || !selectedChat || selectedChat.blocked || (Boolean(editing && mentionChatEnabled && mentionRecipientsLoading))} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
       {forwardTarget && <ForwardMessageDialog message={forwardTarget} onClose={() => setForwardTarget(null)} />}
