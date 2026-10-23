@@ -27,7 +27,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true }) {
+export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true, focusMessageId = null, onFocusMessageHandled }) {
   const historyRef = useRef(null);
   const pendingOlderScrollHeightRef = useRef(0);
   const olderLoadThreshold = 450;
@@ -105,6 +105,14 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
     setMentionQuery(null);
     setMentionCandidates([]);
   };
+
+  useEffect(() => {
+    const targetId = Number(focusMessageId || 0);
+    if (!targetId || !selectedChat?.id || !messages.some(item => Number(item.id) === targetId)) return;
+    setSelectedMessageId(targetId);
+    requestAnimationFrame(() => document.getElementById('message-' + targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    onFocusMessageHandled?.();
+  }, [focusMessageId, selectedChat?.id, messages, onFocusMessageHandled]);
 
   const readTracker = useRef(null);
   const onReadRef = useRef(onRead);
@@ -302,7 +310,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           const attachmentIsImage = isAttachment && String(msg.attachment.mime_type || '').startsWith('image/');
 
           const selected = Number(selectedMessageId) === Number(msg.id);
-          return <div key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'} ${selected ? 'message-selected' : ''}`} onClick={() => setSelectedMessageId(current => Number(current) === Number(msg.id) ? null : msg.id)}>
+          return <div id={`message-${msg.id}`} key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'} ${selected ? 'message-selected' : ''}`} onClick={() => setSelectedMessageId(current => Number(current) === Number(msg.id) ? null : msg.id)}>
             {isPoll ? <div className="poll-bubble-card" style={pollCardStyle}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
