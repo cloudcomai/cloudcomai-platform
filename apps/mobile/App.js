@@ -223,7 +223,7 @@ const parseEditTimestamp = value => {
   return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings }) {
+function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings, initialMessageId = null, onInitialMessageHandled }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
   const [mentionQuery, setMentionQuery] = useState(null);
@@ -338,6 +338,11 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     } catch(e){setError(e.message||'Unable to find the original message.');}
     finally{setLoading(false);}
   };
+  useEffect(() => {
+    if (!initialMessageId) return;
+    void navigateToMessage(initialMessageId);
+    onInitialMessageHandled?.();
+  }, [initialMessageId, chat.id]);
   const toggleSaved = async item => {
     try { if (item.saved) await platformApi.unsaveMessage(item.id); else await platformApi.saveMessage(item.id); setMessages(current => current.map(message => Number(message.id) === Number(item.id) ? { ...message, saved: !item.saved } : message)); }
     catch (e) { setError(e.message); }
@@ -915,7 +920,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     setMenuInitialScreen(initialScreen || 'menu');
     setMenuVisible(true);
   };
-  const openChatFromNotification = async chatId => {
+  const openChatFromNotification = async (chatId, messageId = null) => {
     try {
       const [{ data: privateData }, { data: groupData }, { data: publicData }] = await Promise.all([
         platformApi.listChats('private'),
@@ -928,6 +933,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         ...(publicData.chats || []).map(chat => ({ ...chat, id: Number(chat.id), isPublic: true, isGroup: false })),
       ].find(item => Number(item.id) === Number(chatId));
       if (target) {
+        setPendingMentionMessageId(Number(messageId) || null);
         setSection(target.isPublic ? 'public' : target.isGroup ? 'groups' : 'private');
         setSelectedChat(target);
       }
@@ -936,7 +942,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail privacySettings={privacySettings} messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail initialMessageId={pendingMentionMessageId} onInitialMessageHandled={() => setPendingMentionMessageId(null)} privacySettings={privacySettings} messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
@@ -1079,6 +1085,7 @@ function AppContent() {
   const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'modern-blue', selected: false });
   const [privacySettings, setPrivacySettings] = useState({ media_auto_download: false });
   const [initialChatId, setInitialChatId] = useState(null);
+  const [pendingMentionMessageId, setPendingMentionMessageId] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
   const [deliveredMessage, setDeliveredMessage] = useState(null);
   const { store: messaging, state: localMessages, error: localMessageError } = useMessagingStore(session?.user?.id, setDeliveredMessage);
