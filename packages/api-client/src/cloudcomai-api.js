@@ -13,6 +13,11 @@ export class CloudComAiApi {
   saveMessage(messageId, options = {}) { return this.client.post(ApiRoute.SAVED_MESSAGES, { message_id: messageId }, options); }
   unsaveMessage(messageId, options = {}) { return this.client.delete(ApiRoute.SAVED_MESSAGES, { ...options, query: { ...options.query, message_id: messageId } }); }
   transferGroupOwnership(id, userId, options = {}) { return this.client.post(ApiRoute.GROUPS, { user_id: userId }, { ...options, query: { ...options.query, action: 'transfer', id } }); }
+  getGroupAttachmentAccess(chatId, options = {}) { return this.client.get(ApiRoute.GROUP_ATTACHMENT_ACCESS, { ...options, query: { ...options.query, chat_id: chatId } }); }
+  grantGroupMemberAttachmentAccess(chatId, userId, permissions = {}, options = {}) { return this.client.post(ApiRoute.GROUP_ATTACHMENT_ACCESS, { chat_id: chatId, action: 'grant_member', user_id: userId, download: permissions.download ?? true, forward: permissions.forward ?? true }, options); }
+  revokeGroupMemberAttachmentAccess(chatId, userId, options = {}) { return this.client.post(ApiRoute.GROUP_ATTACHMENT_ACCESS, { chat_id: chatId, action: 'revoke_member', user_id: userId }, options); }
+  grantGroupAttachmentAccess(chatId, durationHours = 24, permissions = {}, options = {}) { return this.client.post(ApiRoute.GROUP_ATTACHMENT_ACCESS, { chat_id: chatId, action: 'grant_group', duration_hours: durationHours, download: permissions.download ?? true, forward: permissions.forward ?? true }, options); }
+  revokeGroupAttachmentAccess(chatId, options = {}) { return this.client.post(ApiRoute.GROUP_ATTACHMENT_ACCESS, { chat_id: chatId, action: 'revoke_group' }, options); }
   updateProfile(input, options = {}) { return this.client.put(ApiRoute.PROFILE, input, options); }
   getUserProfile(userId, options = {}) { return this.client.get(ApiRoute.USER_PROFILE, { ...options, query: { ...options.query, id: userId } }); }
   trustUser(userId, options = {}) { return this.client.post(ApiRoute.TRUSTED_USER, { user_id: userId }, options); }
