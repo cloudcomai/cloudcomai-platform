@@ -519,7 +519,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
 
   const sendMessage = async () => {
     const body = composer.trim();
-    if (!body || sendInProgress.current || chat.blocked) return;
+    if (!body || sendInProgress.current || chat.blocked || (editing && mentionChatEnabled && mentionRecipientsLoading)) return;
     sendInProgress.current = true; setSending(true);
     setError('');
     try {
