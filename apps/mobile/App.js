@@ -63,6 +63,8 @@ function AuthScreen({ onAuthenticated }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [userId, setUserId] = useState('');
+  const [userIdTouched, setUserIdTouched] = useState(false);
+  const userIdFormatValid = /^[A-Za-z0-9]{4,20}$/.test(userId);
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [dob, setDob] = useState('');
@@ -96,6 +98,7 @@ function AuthScreen({ onAuthenticated }) {
   const register = async () => {
     if (busy) return;
     if (!name.trim()) { setError('Full name is required.'); return; }
+    if (userId.trim() && !/^[A-Za-z0-9]{4,20}$/.test(userId.trim())) { setError('CloudComAI User ID must be 4–20 characters and contain only letters and numbers.'); return; }
     if (!email.trim() && !mobile.trim() && !userId.trim()) { setError('Email, mobile number or CloudComAI User ID is required.'); return; }
     if (!dob.trim()) { setError('Date of birth is required in YYYY-MM-DD format.'); return; }
     if (password.length < 8) { setError('Password must contain at least 8 characters.'); return; }
@@ -179,7 +182,9 @@ function AuthScreen({ onAuthenticated }) {
             ) : (
               <>
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={userId} onChangeText={setUserId} autoCapitalize="none" autoCorrect={false} placeholder="CloudComAI User ID" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={userId} onChangeText={value => { setUserId(value); setUserIdTouched(true); }} autoCapitalize="none" autoCorrect={false} maxLength={20} placeholder="CloudComAI User ID (e.g. test1234)" placeholderTextColor="#7f8aa3" accessibilityLabel="CloudComAI User ID, 4 to 20 letters and numbers" />
+                <Text style={styles.userIdHint}>Use 4–20 letters and numbers only, e.g. test1234.</Text>
+                {userIdTouched && userId.length > 0 && !userIdFormatValid ? <Text style={styles.error} accessibilityLiveRegion="polite">User ID must be 4–20 characters and contain letters and numbers only.</Text> : null}
                 <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="Email address" placeholderTextColor="#7f8aa3" />
                 <TextInput style={styles.input} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" placeholder="Mobile number" placeholderTextColor="#7f8aa3" />
                 <TextInput style={styles.input} value={dob} onChangeText={setDob} autoCapitalize="none" placeholder="Date of birth (YYYY-MM-DD)" placeholderTextColor="#7f8aa3" />
@@ -1251,7 +1256,8 @@ const styles = StyleSheet.create({mentionSuggestions:{maxHeight:180,borderTopWid
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
-  input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
+  input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' },
+  userIdHint: { marginTop: -7, marginBottom: 12, color: '#68748a', fontSize: 12, lineHeight: 17 }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
   mobileHome: { flex: 1, backgroundColor: '#fff' },
   mobileTopBar: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
   topIconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
