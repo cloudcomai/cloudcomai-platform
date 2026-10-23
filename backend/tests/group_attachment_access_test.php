@@ -16,8 +16,12 @@ assert(str_contains($handler, 'grant_member'));
 assert(str_contains($handler, 'revoke_group'));
 assert(str_contains($handler, 'duration_hours'));
 assert(str_contains($policy, 'expires_at'));
+assert(str_contains($download, "\$a['chat_type'] === 'group'"));
 assert(str_contains($download, 'group_attachment_permission'));
+assert(str_contains($forward, "\$source['chat_type'] === 'group'"));
 assert(str_contains($forward, 'group_attachment_permission'));
+assert(substr_count($fresh, 'CREATE TABLE IF NOT EXISTS group_attachment_access') === 1);
+assert(substr_count($schema, 'CREATE TABLE IF NOT EXISTS group_attachment_access') === 1);
 foreach ([$fresh, $schema, $migration] as $sql) {
     assert(str_contains($sql, 'CREATE TABLE IF NOT EXISTS group_attachment_access'));
     assert(str_contains($sql, 'uq_group_attachment_access_scope_member'));
