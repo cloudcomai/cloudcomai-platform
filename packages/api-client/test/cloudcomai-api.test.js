@@ -125,3 +125,26 @@ test('maps cloud backup settings, backup, and restore separately from local expo
     { method: 'post', args: ['v1/users/backup', { action: 'restore' }, {}] },
   ]);
 });
+
+
+test('maps owner-managed group attachment access operations to the PHP API contract', async () => {
+  const { client, calls } = recorder();
+  const api = new CloudComAiApi(client);
+  await api.getGroupAttachmentAccess(12);
+  await api.grantGroupMemberAttachmentAccess(12, 34, { download: true, forward: false });
+  await api.revokeGroupMemberAttachmentAccess(12, 34);
+  await api.grantGroupAttachmentAccess(12, 48);
+  await api.revokeGroupAttachmentAccess(12);
+  assert.deepEqual(calls.map(call => [call.method, call.args[0]]), [
+    ['get', 'v1/group-attachment-access'],
+    ['post', 'v1/group-attachment-access'],
+    ['post', 'v1/group-attachment-access'],
+    ['post', 'v1/group-attachment-access'],
+    ['post', 'v1/group-attachment-access'],
+  ]);
+  assert.deepEqual(calls[0].args[1].query, { chat_id: 12 });
+  assert.deepEqual(calls[1].args[1], { chat_id: 12, action: 'grant_member', user_id: 34, download: true, forward: false });
+  assert.deepEqual(calls[2].args[1], { chat_id: 12, action: 'revoke_member', user_id: 34 });
+  assert.deepEqual(calls[3].args[1], { chat_id: 12, action: 'grant_group', duration_hours: 48, download: true, forward: true });
+  assert.deepEqual(calls[4].args[1], { chat_id: 12, action: 'revoke_group' });
+});
