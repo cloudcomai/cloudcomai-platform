@@ -229,6 +229,8 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [mentionQuery, setMentionQuery] = useState(null);
   const [mentionCandidates, setMentionCandidates] = useState([]);
   const [mentionUsers, setMentionUsers] = useState([]);
+  const [mentionRecipientsLoading, setMentionRecipientsLoading] = useState(false);
+  const [mentionRecipientsLoadFailed, setMentionRecipientsLoadFailed] = useState(false);
   const mentionChatEnabled = Boolean(chat?.isGroup || chat?.type === 'group' || chat?.type === 'public' || chat?.isPublic);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -315,10 +317,12 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   }, [mentionChatEnabled, mentionQuery, chat.id]);
   useEffect(() => {
     let cancelled = false;
-    if (!editing?.id || !mentionChatEnabled) { setMentionUsers([]); return undefined; }
+    if (!editing?.id || !mentionChatEnabled) { setMentionUsers([]); setMentionRecipientsLoading(false); setMentionRecipientsLoadFailed(false); return undefined; }
+    setMentionRecipientsLoading(true); setMentionRecipientsLoadFailed(false);
     platformApi.listMessageMentions(Number(editing.id)).then(({ data }) => {
       if (!cancelled) setMentionUsers((data?.mention_recipients || []).map(item => ({ id: Number(item.id), username: String(item.username || item.id), name: item.name || '' })));
-    }).catch(() => { if (!cancelled) setMentionUsers([]); });
+    }).catch(() => { if (!cancelled) { setMentionUsers([]); setMentionRecipientsLoadFailed(true); } })
+      .finally(() => { if (!cancelled) setMentionRecipientsLoading(false); });
     return () => { cancelled = true; };
   }, [editing?.id, mentionChatEnabled]);
   const scrollToMessage = (messageId, list = messages) => {
@@ -524,7 +528,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           setEditing(null);
           throw new Error('This message can no longer be edited. Messages can be edited only within 3 hours and up to 2 times.');
         }
-        const response = await platformApi.editMessage(editing.id, body, { mentionUserIds: mentionUsers.map(item => Number(item.id)) });
+        const response = await platformApi.editMessage(editing.id, body, { mentionUserIds: mentionRecipientsLoadFailed ? null : mentionUsers.map(item => Number(item.id)) });
         const updated = response?.data?.message;
         setMessages(current => current.map(item => Number(item.id) === Number(editing.id) ? { ...item, body, edit_count: Number(updated?.edit_count ?? Number(item.edit_count || 0) + 1), edited: true, edited_at: updated?.edited_at || new Date().toISOString() } : item));
         setEditing(null);
@@ -742,7 +746,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
         <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
       </ScrollView> : null}
       {mentionChatEnabled && mentionQuery !== null && mentionCandidates.length > 0 ? <View style={[styles.mentionSuggestions,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>{mentionCandidates.map(candidate=><Pressable key={candidate.id} accessibilityRole="button" onPress={()=>chooseMention(candidate)} style={[styles.mentionSuggestion,{borderBottomColor:theme.colors.border}]}><Text style={[styles.mentionSuggestionName,{color:theme.colors.text}]}>@{candidate.username || candidate.id}</Text><Text style={[styles.mentionSuggestionMeta,{color:theme.colors.secondary}]}>{candidate.name || 'Chat member'}</Text></Pressable>)}</View> : null}
-      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={[styles.composerInput, { color: theme.colors.text, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
+      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={[styles.composerInput, { color: theme.colors.text, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
       {chat.isGroup ? <GroupManagement
         visible={groupManagementOpen}
