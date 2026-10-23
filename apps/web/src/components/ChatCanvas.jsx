@@ -100,7 +100,8 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
     setMentionCandidates([]);
   };
   const submitWithMentions = async () => {
-    await onSendMessage(mentionUsers.map(item => Number(item.id)));
+    const sent = await onSendMessage(mentionUsers.map(item => Number(item.id)));
+    if (sent === false) return;
     setMentionUsers([]);
     setMentionQuery(null);
     setMentionCandidates([]);
