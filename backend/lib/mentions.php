@@ -66,12 +66,16 @@ function reconcile_message_mentions(int $messageId, int $chatId, int $senderId, 
         $insert = $pdo->prepare('INSERT INTO message_mentions(message_id,chat_id,sender_id,recipient_id,chat_type,created_at) VALUES(?,?,?,?,?,UTC_TIMESTAMP())');
         $insert->execute([$messageId, $chatId, $senderId, $recipientId, $chatType]);
         $mentionId = (int)$pdo->lastInsertId();
+        $mute = $pdo->prepare('SELECT notifications_muted FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
+        $mute->execute([$chatId, $recipientId]);
+        $deliverPush = !(bool)$mute->fetchColumn();
         $notificationId = queue_user_notification(
             $recipientId,
             $category,
             (string)$message['sender_name'] . ' mentioned you',
             $preview,
-            ['event'=>'mention','mention_id'=>$mentionId,'chat_id'=>$chatId,'chat_type'=>$chatType,'message_id'=>$messageId]
+            ['event'=>'mention','mention_id'=>$mentionId,'chat_id'=>$chatId,'chat_type'=>$chatType,'message_id'=>$messageId],
+            $deliverPush
         );
         $pdo->prepare('UPDATE message_mentions SET notification_id=? WHERE id=?')->execute([$notificationId, $mentionId]);
     }
