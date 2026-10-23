@@ -369,6 +369,17 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   }, [messages, searchActive, groupManagementOpen, profileOpen]);
 
   useEffect(() => {
+    // Keep native capture protection enabled for the lifetime of this chat screen.
+    // On Android, expo-screen-capture applies FLAG_SECURE so screenshots and recordings
+    // are blocked/redacted by the OS. iOS cannot block user-initiated screenshots.
+    const captureProtectionKey = `chat-${chat.id}`;
+    ScreenCapture.preventScreenCaptureAsync(captureProtectionKey).catch(() => {});
+    return () => {
+      ScreenCapture.allowScreenCaptureAsync(captureProtectionKey).catch(() => {});
+    };
+  }, [chat.id]);
+
+  useEffect(() => {
     // Android 13 and older require broad gallery access for detection; do not request it solely for this feature.
     if (Platform.OS !== 'ios' && !(Platform.OS === 'android' && Number(Platform.Version) >= 34)) return undefined;
     let lastCapture = 0;
