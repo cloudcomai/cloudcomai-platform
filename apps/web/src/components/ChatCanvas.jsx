@@ -27,7 +27,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true }) {
+export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true, focusMessageId = null, onFocusMessageHandled, onLoadMessageContext }) {
   const historyRef = useRef(null);
   const pendingOlderScrollHeightRef = useRef(0);
   const olderLoadThreshold = 450;
@@ -48,14 +48,88 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const [forwardTarget, setForwardTarget] = useState(null);
   const [readStatusTarget, setReadStatusTarget] = useState(null);
   const [profileUserId, setProfileUserId] = useState(null);
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionCandidates, setMentionCandidates] = useState([]);
+  const [mentionUsers, setMentionUsers] = useState([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const [mentionRecipientsLoading, setMentionRecipientsLoading] = useState(false);
+  const [mentionRecipientsLoadFailed, setMentionRecipientsLoadFailed] = useState(false);
+  const mentionChatEnabled = selectedChat?.type === 'group' || selectedChat?.type === 'public' || Boolean(selectedChat?.isGroup || selectedChat?.isPublic);
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
 
   useEffect(() => {
     setChatMuted(Boolean(selectedChat?.notifications_muted));
-    setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null); setSelectedMessageId(null);
+    setSearchOpen(false); setSearchQuery(''); setSearchResults([]); setDeleteTarget(null); setSelectedMessageId(null); setMentionQuery(null); setMentionCandidates([]); setMentionUsers([]);
     shouldAutoScrollRef.current = true;
   }, [selectedChat?.id]);
+
+  useEffect(() => {
+    if (!mentionChatEnabled || mentionQuery === null || !selectedChat?.id) { setMentionCandidates([]); setMentionLoading(false); return undefined; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setMentionLoading(true);
+      try {
+        const result = await apiBridge(ApiRoute.MENTIONS, { method: 'GET', query: { action: 'candidates', chat_id: Number(selectedChat.id), q: mentionQuery } });
+        if (!cancelled) setMentionCandidates(result.candidates || []);
+      } catch { if (!cancelled) setMentionCandidates([]); }
+      finally { if (!cancelled) setMentionLoading(false); }
+    }, 180);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [mentionChatEnabled, mentionQuery, selectedChat?.id, apiBridge]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!editing?.id || !mentionChatEnabled) { setMentionUsers([]); setMentionRecipientsLoading(false); setMentionRecipientsLoadFailed(false); return undefined; }
+    setMentionRecipientsLoading(true);
+    setMentionRecipientsLoadFailed(false);
+    apiBridge(ApiRoute.MENTIONS, { method: 'GET', query: { action: 'message', message_id: Number(editing.id) } })
+      .then(result => { if (!cancelled) setMentionUsers((result.mention_recipients || []).map(item => ({ id: Number(item.id), username: String(item.username || item.id), name: item.name || '' }))); })
+      .catch(() => { if (!cancelled) { setMentionUsers([]); setMentionRecipientsLoadFailed(true); } })
+      .finally(() => { if (!cancelled) setMentionRecipientsLoading(false); });
+    return () => { cancelled = true; };
+  }, [editing?.id, mentionChatEnabled, apiBridge]);
+
+  const handleComposerInput = value => {
+    onComposerChange(value);
+    setMentionUsers(current => current.filter(item => value.includes('@' + item.username)));
+    const match = String(value).match(/@([a-zA-Z0-9_.-]*)$/);
+    setMentionQuery(mentionChatEnabled && match ? match[1] : null);
+  };
+  const chooseMention = candidate => {
+    const username = String(candidate.username || candidate.id);
+    const next = String(composer).replace(/@([a-zA-Z0-9_.-]*)$/, '@' + username + ' ');
+    onComposerChange(next);
+    setMentionUsers(current => current.some(item => Number(item.id) === Number(candidate.id)) ? current : [...current, { id: Number(candidate.id), username, name: candidate.name || '' }]);
+    setMentionQuery(null);
+    setMentionCandidates([]);
+  };
+  const submitWithMentions = async () => {
+    if (editing && mentionChatEnabled && mentionRecipientsLoading) return;
+    const recipients = editing && mentionChatEnabled && mentionRecipientsLoadFailed ? null : mentionUsers.map(item => Number(item.id));
+    const sent = await onSendMessage(recipients);
+    if (sent === false) return;
+    setMentionUsers([]);
+    setMentionQuery(null);
+    setMentionCandidates([]);
+  };
+
+  const focusLoadRequestedRef = useRef(null);
+  useEffect(() => {
+    const targetId = Number(focusMessageId || 0);
+    if (!targetId || !selectedChat?.id) return;
+    if (messages.some(item => Number(item.id) === targetId)) {
+      setSelectedMessageId(targetId);
+      requestAnimationFrame(() => document.getElementById('message-' + targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+      focusLoadRequestedRef.current = null;
+      onFocusMessageHandled?.();
+      return;
+    }
+    if (focusLoadRequestedRef.current !== targetId && onLoadMessageContext) {
+      focusLoadRequestedRef.current = targetId;
+      Promise.resolve(onLoadMessageContext(targetId)).catch(() => onFocusMessageHandled?.());
+    }
+  }, [focusMessageId, selectedChat?.id, messages, onFocusMessageHandled, onLoadMessageContext]);
 
   const readTracker = useRef(null);
   const onReadRef = useRef(onRead);
@@ -245,7 +319,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           const isPoll = msg.type === 'poll';
           const isAttachment = Boolean(msg.attachment);
           const location = msg.type === 'location' ? parseSharedLocation(msg.body) : null;
-          const messageContent = msg.body || msg.text || '';
+          const messageContent = msg.body || msg.text || ''; const renderedMessageContent = String(messageContent).split(/(@[a-zA-Z0-9_.-]+)/g).map((part, index) => /^@[a-zA-Z0-9_.-]+$/.test(part) ? <span key={index} className="message-mention-token">{part}</span> : part);
           const poll = msg.poll;
           const visibleOptions = resolvePollOptions(poll?.options, pollVoteState[msg.poll_id || poll?.id]);
           const messageTime = formatMessageTime(msg.created_at || msg.timestamp || msg.time);
@@ -253,7 +327,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           const attachmentIsImage = isAttachment && String(msg.attachment.mime_type || '').startsWith('image/');
 
           const selected = Number(selectedMessageId) === Number(msg.id);
-          return <div key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'} ${selected ? 'message-selected' : ''}`} onClick={() => setSelectedMessageId(current => Number(current) === Number(msg.id) ? null : msg.id)}>
+          return <div id={`message-${msg.id}`} key={msg.id} className={`message-bubble-wrapper ${isMine ? 'outgoing-align' : 'incoming-align'} ${selected ? 'message-selected' : ''}`} onClick={() => setSelectedMessageId(current => Number(current) === Number(msg.id) ? null : msg.id)}>
             {isPoll ? <div className="poll-bubble-card" style={pollCardStyle}>
               {senderLabel && <div style={senderNameStyle}>{senderLabel}</div>}
               <div style={pollHeaderStyle}><span style={{ fontSize: '18px' }}>📊</span><h4 style={pollTitleStyle}>{poll?.question || 'Poll'}</h4></div>
@@ -286,7 +360,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
                     </div>
                   </div>
                 </div>
-              </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : messageContent}</p>}
+              </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : renderedMessageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
               {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button onClick={() => { onBeginReply(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button><button onClick={() => { setForwardTarget(msg); setSelectedMessageId(null); }} title="Forward" aria-label="Forward message">Forward</button>{isMine && <button onClick={() => { setReadStatusTarget(msg); setSelectedMessageId(null); }} title="Message info" aria-label="Message info">Info</button>}{isMine && msg.type === 'text' && Number(msg.edit_count || 0) < 2 && (() => { const createdAt = Date.parse(msg.created_at || msg.timestamp || msg.time || ''); return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000; })() && <button onClick={() => { onBeginEdit(msg); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
             </div>}
@@ -305,13 +379,18 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           {isPollChat && <button className="shortcut-action-card yellow-theme" onClick={() => setModal('poll')}><div className="shortcut-icon-circle"><BarChart3 size={18}/></div><div className="shortcut-meta"><h5>Polls</h5><p>Create polls</p></div></button>}
         </div>
 
-        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong></div><button onClick={() => { onCancelContext(); }}><X size={16}/></button></div> : null}
+        {replyTo || editing ? <div className="context-bar"><div>{editing ? 'Editing Message' : 'Replying to'}: <strong>{(editing || replyTo).body || (editing || replyTo).text}</strong>{editing && mentionChatEnabled && mentionRecipientsLoading ? <small> Loading current mentions…</small> : null}{editing && mentionChatEnabled && mentionRecipientsLoadFailed ? <small> Existing mention recipients could not be loaded; saving preserves them.</small> : null}</div><button onClick={() => { onCancelContext(); }}><X size={16}/></button></div> : null}
         {emojiOpen && <div className="emoji-picker-row"><button type="button" key="😀" onClick={() => onComposerChange(value => `${value}😀`)}>😀</button><button type="button" key="😂" onClick={() => onComposerChange(value => `${value}😂`)}>😂</button><button type="button" key="😍" onClick={() => onComposerChange(value => `${value}😍`)}>😍</button><button type="button" key="😊" onClick={() => onComposerChange(value => `${value}😊`)}>😊</button><button type="button" key="👍" onClick={() => onComposerChange(value => `${value}👍`)}>👍</button><button type="button" key="🙏" onClick={() => onComposerChange(value => `${value}🙏`)}>🙏</button><button type="button" key="❤️" onClick={() => onComposerChange(value => `${value}❤️`)}>❤️</button><button type="button" key="🎉" onClick={() => onComposerChange(value => `${value}🎉`)}>🎉</button><button type="button" key="😢" onClick={() => onComposerChange(value => `${value}😢`)}>😢</button><button type="button" key="😡" onClick={() => onComposerChange(value => `${value}😡`)}>😡</button><button type="button" key="🤔" onClick={() => onComposerChange(value => `${value}🤔`)}>🤔</button><button type="button" key="👏" onClick={() => onComposerChange(value => `${value}👏`)}>👏</button></div>}
+        {mentionChatEnabled && mentionQuery !== null && (mentionLoading || mentionCandidates.length > 0) && <div className="mention-suggestions" role="listbox" aria-label="Mention a chat member">
+          {mentionLoading && <div className="mention-suggestion-empty">Searching members…</div>}
+          {!mentionLoading && mentionCandidates.map(candidate => <button type="button" role="option" key={candidate.id} className="mention-suggestion" onClick={() => chooseMention(candidate)}><strong>@{candidate.username || candidate.id}</strong><span>{candidate.name || 'Chat member'}</span></button>)}
+          {!mentionLoading && !mentionCandidates.length && <div className="mention-suggestion-empty">No eligible members found.</div>}
+        </div>}
         <div className="message-input-composer-bar">
           <button type="button" className="emoji-toggle-btn" onClick={() => setEmojiOpen(value => !value)} aria-label="Choose emoji">☺</button>
           <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
-          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => onComposerChange(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && onSendMessage()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" />
-          <button className="voice-mic-submit-btn" onClick={onSendMessage} disabled={sending || !selectedChat || selectedChat.blocked} aria-label="Send message"><Send size={18} /></button>
+          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => handleComposerInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && submitWithMentions()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" />
+          <button className="voice-mic-submit-btn" onClick={submitWithMentions} disabled={sending || !selectedChat || selectedChat.blocked || (Boolean(editing && mentionChatEnabled && mentionRecipientsLoading))} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
       {forwardTarget && <ForwardMessageDialog message={forwardTarget} onClose={() => setForwardTarget(null)} />}

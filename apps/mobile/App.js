@@ -63,6 +63,8 @@ function AuthScreen({ onAuthenticated }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [userId, setUserId] = useState('');
+  const [userIdTouched, setUserIdTouched] = useState(false);
+  const userIdFormatValid = /^[A-Za-z0-9]{4,20}$/.test(userId);
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
   const [dob, setDob] = useState('');
@@ -96,6 +98,7 @@ function AuthScreen({ onAuthenticated }) {
   const register = async () => {
     if (busy) return;
     if (!name.trim()) { setError('Full name is required.'); return; }
+    if (userId.trim() && !/^[A-Za-z0-9]{4,20}$/.test(userId.trim())) { setError('CloudComAI User ID must be 4–20 characters and contain only letters and numbers.'); return; }
     if (!email.trim() && !mobile.trim() && !userId.trim()) { setError('Email, mobile number or CloudComAI User ID is required.'); return; }
     if (!dob.trim()) { setError('Date of birth is required in YYYY-MM-DD format.'); return; }
     if (password.length < 8) { setError('Password must contain at least 8 characters.'); return; }
@@ -179,7 +182,9 @@ function AuthScreen({ onAuthenticated }) {
             ) : (
               <>
                 <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={userId} onChangeText={setUserId} autoCapitalize="none" autoCorrect={false} placeholder="CloudComAI User ID" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={userId} onChangeText={value => { setUserId(value); setUserIdTouched(true); }} autoCapitalize="none" autoCorrect={false} maxLength={20} placeholder="CloudComAI User ID (e.g. test1234)" placeholderTextColor="#7f8aa3" accessibilityLabel="CloudComAI User ID, 4 to 20 letters and numbers" />
+                <Text style={styles.userIdHint}>Use 4–20 letters and numbers only, e.g. test1234.</Text>
+                {userIdTouched && userId.length > 0 && !userIdFormatValid ? <Text style={styles.error} accessibilityLiveRegion="polite">User ID must be 4–20 characters and contain letters and numbers only.</Text> : null}
                 <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="Email address" placeholderTextColor="#7f8aa3" />
                 <TextInput style={styles.input} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" placeholder="Mobile number" placeholderTextColor="#7f8aa3" />
                 <TextInput style={styles.input} value={dob} onChangeText={setDob} autoCapitalize="none" placeholder="Date of birth (YYYY-MM-DD)" placeholderTextColor="#7f8aa3" />
@@ -223,9 +228,15 @@ const parseEditTimestamp = value => {
   return Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : `${normalized}Z`);
 };
 
-function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings }) {
+function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings, initialMessageId = null, onInitialMessageHandled }) {
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionCandidates, setMentionCandidates] = useState([]);
+  const [mentionUsers, setMentionUsers] = useState([]);
+  const [mentionRecipientsLoading, setMentionRecipientsLoading] = useState(false);
+  const [mentionRecipientsLoadFailed, setMentionRecipientsLoadFailed] = useState(false);
+  const mentionChatEnabled = Boolean(chat?.isGroup || chat?.type === 'group' || chat?.type === 'public' || chat?.isPublic);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const sendInProgress = useRef(false);
@@ -284,6 +295,41 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     setComposer(next);
     if (!editing && messaging) messaging.saveDraft(chat.id, next).catch(e => setError(e.message));
   };
+  const handleComposerInput = value => {
+    changeComposer(value);
+    setMentionUsers(current => current.filter(item => String(value).includes('@' + item.username)));
+    const match = String(value).match(/@([a-zA-Z0-9_.-]*)$/);
+    setMentionQuery(mentionChatEnabled && match ? match[1] : null);
+  };
+  const chooseMention = candidate => {
+    const username = String(candidate.username || candidate.id);
+    const next = String(composer).replace(/@([a-zA-Z0-9_.-]*)$/, '@' + username + ' ');
+    changeComposer(next);
+    setMentionUsers(current => current.some(item => Number(item.id) === Number(candidate.id)) ? current : [...current, { id: Number(candidate.id), username, name: candidate.name || '' }]);
+    setMentionQuery(null);
+    setMentionCandidates([]);
+  };
+  useEffect(() => {
+    if (!mentionChatEnabled || mentionQuery === null) { setMentionCandidates([]); return undefined; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await platformApi.searchMentionCandidates(Number(chat.id), mentionQuery);
+        if (!cancelled) setMentionCandidates(data?.candidates || []);
+      } catch { if (!cancelled) setMentionCandidates([]); }
+    }, 180);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [mentionChatEnabled, mentionQuery, chat.id]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!editing?.id || !mentionChatEnabled) { setMentionUsers([]); setMentionRecipientsLoading(false); setMentionRecipientsLoadFailed(false); return undefined; }
+    setMentionRecipientsLoading(true); setMentionRecipientsLoadFailed(false);
+    platformApi.listMessageMentions(Number(editing.id)).then(({ data }) => {
+      if (!cancelled) setMentionUsers((data?.mention_recipients || []).map(item => ({ id: Number(item.id), username: String(item.username || item.id), name: item.name || '' })));
+    }).catch(() => { if (!cancelled) { setMentionUsers([]); setMentionRecipientsLoadFailed(true); } })
+      .finally(() => { if (!cancelled) setMentionRecipientsLoading(false); });
+    return () => { cancelled = true; };
+  }, [editing?.id, mentionChatEnabled]);
   const scrollToMessage = (messageId, list = messages) => {
     const id=Number(messageId); const index=list.findIndex(item=>Number(item.id)===id); if(index<0)return false;
     requestAnimationFrame(()=>listRef.current?.scrollToIndex?.({index,animated:true,viewPosition:0.5}));
@@ -301,6 +347,11 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     } catch(e){setError(e.message||'Unable to find the original message.');}
     finally{setLoading(false);}
   };
+  useEffect(() => {
+    if (!initialMessageId) return;
+    void navigateToMessage(initialMessageId);
+    onInitialMessageHandled?.();
+  }, [initialMessageId, chat.id]);
   const toggleSaved = async item => {
     try { if (item.saved) await platformApi.unsaveMessage(item.id); else await platformApi.saveMessage(item.id); setMessages(current => current.map(message => Number(message.id) === Number(item.id) ? { ...message, saved: !item.saved } : message)); }
     catch (e) { setError(e.message); }
@@ -321,6 +372,17 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     const subscription = AppState.addEventListener('change', markVisibleRead);
     return () => { cancelAnimationFrame(frame); clearInterval(timer); subscription.remove(); };
   }, [messages, searchActive, groupManagementOpen, profileOpen]);
+
+  useEffect(() => {
+    // Keep native capture protection enabled for the lifetime of this chat screen.
+    // On Android, expo-screen-capture applies FLAG_SECURE so screenshots and recordings
+    // are blocked/redacted by the OS. iOS cannot block user-initiated screenshots.
+    const captureProtectionKey = `chat-${chat.id}`;
+    ScreenCapture.preventScreenCaptureAsync(captureProtectionKey).catch(() => {});
+    return () => {
+      ScreenCapture.allowScreenCaptureAsync(captureProtectionKey).catch(() => {});
+    };
+  }, [chat.id]);
 
   useEffect(() => {
     // Android 13 and older require broad gallery access for detection; do not request it solely for this feature.
@@ -473,7 +535,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
 
   const sendMessage = async () => {
     const body = composer.trim();
-    if (!body || sendInProgress.current || chat.blocked) return;
+    if (!body || sendInProgress.current || chat.blocked || (editing && mentionChatEnabled && mentionRecipientsLoading)) return;
     sendInProgress.current = true; setSending(true);
     setError('');
     try {
@@ -482,17 +544,18 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           setEditing(null);
           throw new Error('This message can no longer be edited. Messages can be edited only within 3 hours and up to 2 times.');
         }
-        const response = await platformApi.editMessage(editing.id, body);
+        const response = await platformApi.editMessage(editing.id, body, { mentionUserIds: mentionRecipientsLoadFailed ? null : mentionUsers.map(item => Number(item.id)) });
         const updated = response?.data?.message;
         setMessages(current => current.map(item => Number(item.id) === Number(editing.id) ? { ...item, body, edit_count: Number(updated?.edit_count ?? Number(item.edit_count || 0) + 1), edited: true, edited_at: updated?.edited_at || new Date().toISOString() } : item));
         setEditing(null);
       } else {
         if (!messaging) throw new Error('Local messages are still loading. Please try again.');
-        await messaging.enqueue({ chat_id: chat.id, body, reply_to_message_id: replyTo?.id || null });
+        await messaging.enqueue({ chat_id: chat.id, body, reply_to_message_id: replyTo?.id || null, mention_user_ids: mentionUsers.map(item => Number(item.id)) });
         messaging.flush().catch(e => setError(e.message));
         setReplyTo(null);
       }
       setComposer(editing ? (messaging?.snapshot().drafts[String(chat.id)] || '') : '');
+      setMentionUsers([]); setMentionQuery(null); setMentionCandidates([]);
     } catch (sendError) {
       setError(sendError.message || (editing ? 'Unable to edit message.' : 'Unable to send message.'));
     } finally {
@@ -698,7 +761,8 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.emojiStrip, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]} contentContainerStyle={styles.emojiStripContent}>
         <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
       </ScrollView> : null}
-      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={[styles.composerInput, { color: theme.colors.text, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={changeComposer} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked}><Text style={styles.sendText}>Send</Text></Pressable></View>
+      {mentionChatEnabled && mentionQuery !== null && mentionCandidates.length > 0 ? <View style={[styles.mentionSuggestions,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>{mentionCandidates.map(candidate=><Pressable key={candidate.id} accessibilityRole="button" onPress={()=>chooseMention(candidate)} style={[styles.mentionSuggestion,{borderBottomColor:theme.colors.border}]}><Text style={[styles.mentionSuggestionName,{color:theme.colors.text}]}>@{candidate.username || candidate.id}</Text><Text style={[styles.mentionSuggestionMeta,{color:theme.colors.secondary}]}>{candidate.name || 'Chat member'}</Text></Pressable>)}</View> : null}
+      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={[styles.composerInput, { color: theme.colors.text, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
       {chat.isGroup ? <GroupManagement
         visible={groupManagementOpen}
@@ -876,7 +940,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     setMenuInitialScreen(initialScreen || 'menu');
     setMenuVisible(true);
   };
-  const openChatFromNotification = async chatId => {
+  const openChatFromNotification = async (chatId, messageId = null) => {
     try {
       const [{ data: privateData }, { data: groupData }, { data: publicData }] = await Promise.all([
         platformApi.listChats('private'),
@@ -889,6 +953,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         ...(publicData.chats || []).map(chat => ({ ...chat, id: Number(chat.id), isPublic: true, isGroup: false })),
       ].find(item => Number(item.id) === Number(chatId));
       if (target) {
+        setPendingMentionMessageId(Number(messageId) || null);
         setSection(target.isPublic ? 'public' : target.isGroup ? 'groups' : 'private');
         setSelectedChat(target);
       }
@@ -897,7 +962,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
     }
   };
 
-  if (selectedChat) return <ChatDetail privacySettings={privacySettings} messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
+  if (selectedChat) return <ChatDetail initialMessageId={pendingMentionMessageId} onInitialMessageHandled={() => setPendingMentionMessageId(null)} privacySettings={privacySettings} messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage} key={selectedChat.id} chat={selectedChat} user={session.user} themeSettings={themeSettings} onBack={() => { setSelectedChat(null); loadChats(false, true); }} onDeleted={() => { setSelectedChat(null); loadChats(true); }} />;
 
   const filteredChats = searchText.trim()
     ? chats.filter(item => `${item.name || ''} ${item.preview || ''}`.toLowerCase().includes(searchText.trim().toLowerCase()))
@@ -1040,6 +1105,7 @@ function AppContent() {
   const [chatThemeSettings, setChatThemeSettings] = useState({ id: 'modern-blue', selected: false });
   const [privacySettings, setPrivacySettings] = useState({ media_auto_download: false });
   const [initialChatId, setInitialChatId] = useState(null);
+  const [pendingMentionMessageId, setPendingMentionMessageId] = useState(null);
   const [appLocked, setAppLocked] = useState(false);
   const [deliveredMessage, setDeliveredMessage] = useState(null);
   const { store: messaging, state: localMessages, error: localMessageError } = useMessagingStore(session?.user?.id, setDeliveredMessage);
@@ -1183,14 +1249,15 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create({mentionSuggestions:{maxHeight:180,borderTopWidth:1,borderLeftWidth:1,borderRightWidth:1},mentionSuggestion:{minHeight:46,paddingHorizontal:14,paddingVertical:8,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1},mentionSuggestionName:{fontWeight:'800',fontSize:14},mentionSuggestionMeta:{fontSize:12,marginLeft:10,flexShrink:1},
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
   searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'space-around', alignItems: 'stretch', gap: 2, marginTop: 8, paddingHorizontal: 4, paddingVertical: 7, borderWidth: 1, borderRadius: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }, messageActionButton: { flex: 1, minWidth: 0, minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 1 }, messageActionIcon: { color: '#1677c8', fontSize: 22, fontWeight: '800', lineHeight: 24 }, messageActionLabel: { marginTop: 2, color: '#172033', fontSize: 9, fontWeight: '700' }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, highlightedMessage: { borderWidth: 2, borderColor: '#f59e0b' }, attachmentCard: { width: '94%', maxHeight: '82%', padding: 18, borderRadius: 18, backgroundColor: '#fff' }, attachmentMenuOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22, backgroundColor: '#0008' }, attachmentMenuCard: { width: '100%', maxWidth: 420, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14, borderRadius: 3, backgroundColor: '#fff', elevation: 8, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12 }, attachmentMenuHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }, attachmentMenuClose: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' }, attachmentMenuCloseText: { color: '#374151', fontSize: 25, lineHeight: 27 }, attachmentMenuHint: { marginTop: -4, marginBottom: 22, color: '#172033', fontSize: 16, lineHeight: 20 }, attachmentMenuActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, attachmentMenuOption: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center' }, attachmentMenuOptionText: { color: '#008577', fontSize: 13, fontWeight: '700', textAlign: 'center' }, attachmentMenuCancel: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }, attachmentTitle: { fontSize: 18, fontWeight: '800', color: '#172033', marginBottom: 12 }, attachmentPreview: { width: '100%', height: 300, borderRadius: 12, backgroundColor: '#f3f4f6' }, documentPreview: { minHeight: 180, alignItems: 'center', justifyContent: 'center', padding: 20, borderRadius: 12, backgroundColor: '#f8faff' }, documentIcon: { fontSize: 50 }, documentName: { marginTop: 10, fontSize: 15, fontWeight: '800', color: '#172033', textAlign: 'center' }, documentSize: { marginTop: 5, color: '#68748a', fontSize: 11 }, attachmentSending: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, attachmentProgress: { color: '#3157d5', fontWeight: '700' }, attachmentError: { marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: '#fff1f2', flexDirection: 'row', justifyContent: 'space-between' }, attachmentErrorText: { flex: 1, color: '#b91c1c' }, attachmentActions: { marginTop: 14, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 18 }, attachmentSend: { paddingVertical: 11, paddingHorizontal: 18, borderRadius: 10, backgroundColor: '#3157d5' }, attachmentSendText: { color: '#fff', fontWeight: '800' }, cancelText: { color: '#68748a', fontWeight: '700', paddingVertical: 11, paddingHorizontal: 4 }, cancelTextActive: { color: '#3157d5', fontWeight: '800' }, messageDeleteAction: { color: '#b91c1c' }, moderationMessage: { alignSelf: 'center', maxWidth: '90%', marginVertical: 8, padding: 12, borderRadius: 12, backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa' }, moderationTitle: { color: '#9a3412', fontSize: 11, fontWeight: '800', textAlign: 'center' }, moderationText: { marginTop: 4, color: '#7c2d12', fontSize: 12, lineHeight: 17, textAlign: 'center' }, moderationTime: { marginTop: 5, color: '#a16207', fontSize: 9, textAlign: 'center' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
   headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, chatHeaderIdentity: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 }, headerProfileHint: { marginTop: 2, color: '#dbe4ff', fontSize: 10, fontWeight: '600' }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { flex: 1, flexShrink: 1, paddingRight: 8, color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
-  input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
+  input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' },
+  userIdHint: { marginTop: -7, marginBottom: 12, color: '#68748a', fontSize: 12, lineHeight: 17 }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
   mobileHome: { flex: 1, backgroundColor: '#fff' },
   mobileTopBar: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
   topIconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },

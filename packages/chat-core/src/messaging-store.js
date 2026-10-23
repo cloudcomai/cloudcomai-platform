@@ -46,7 +46,7 @@ export function createMessagingStore({ userId, storage, send, onDelivered = () =
     enqueue(input) {
       if (!String(input.body || '').trim() || !Number(input.chat_id)) return Promise.reject(new Error('A chat and message are required.'));
       if (String(input.body).length > 15000) return Promise.reject(new Error('Messages must be 15,000 characters or fewer.'));
-      const item = { id: makeId(), payload: { chat_id: Number(input.chat_id), body: String(input.body).trim(), reply_to_message_id: input.reply_to_message_id || null }, status: 'queued', attempts: 0, nextAttemptAt: 0, createdAt: new Date(now()).toISOString(), error: '' };
+      const item = { id: makeId(), payload: { chat_id: Number(input.chat_id), body: String(input.body).trim(), reply_to_message_id: input.reply_to_message_id || null, ...(Array.isArray(input.mention_user_ids) ? { mention_user_ids: input.mention_user_ids } : {}) }, status: 'queued', attempts: 0, nextAttemptAt: 0, createdAt: new Date(now()).toISOString(), error: '' };
       return change(next => { next.outbox.push(item); delete next.drafts[String(input.chat_id)]; return structuredCopy(item); });
     },
     acknowledge(messages) {

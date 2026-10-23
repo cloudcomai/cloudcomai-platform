@@ -20,6 +20,17 @@ try {
     $st = $pdo->prepare('UPDATE notification_history SET read_at=' . ($read ? 'UTC_TIMESTAMP()' : 'NULL') . ' WHERE ' . $where . ' AND read_at IS ' . ($read ? 'NULL' : 'NOT NULL'));
     $st->execute($params);
     $changed = $st->rowCount();
+    // Keep a mention's unread badge synchronized when its linked notification is
+    // explicitly marked read/unread from the notifications surface.
+    $mentionSyncWhere = 'h.user_id=? AND JSON_UNQUOTE(JSON_EXTRACT(h.data_json,"$.event"))="mention"';
+    $mentionSyncParams = [$user['id']];
+    if (!$all) {
+        $mentionSyncWhere .= ' AND h.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        $mentionSyncParams = array_merge($mentionSyncParams, $ids);
+    }
+    $mentionReadValue = $read ? 'COALESCE(mm.read_at,UTC_TIMESTAMP())' : 'NULL';
+    $mentionSync = $pdo->prepare('UPDATE message_mentions mm INNER JOIN notification_history h ON h.id=mm.notification_id SET mm.read_at=' . $mentionReadValue . ' WHERE ' . $mentionSyncWhere . ' AND mm.removed_at IS NULL');
+    $mentionSync->execute($mentionSyncParams);
     cancel_read_notification_deliveries((int)$user['id']);
     $pdo->commit();
 } catch (Throwable $error) { $pdo->rollBack(); throw $error; }

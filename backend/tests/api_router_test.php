@@ -39,6 +39,10 @@ $userProfile = $router->resolve('GET', '/api/v1/users/profile?id=17');
 expect($userProfile['status'] === 200, 'User profile route did not resolve');
 expect(basename($userProfile['handler']) === 'user_profile.php', 'User profile handler mismatch');
 
+$mentions = $router->resolve('GET', '/api/v1/mentions?action=list');
+expect($mentions['status'] === 200, 'Mentions route did not resolve');
+expect(basename($mentions['handler']) === 'mentions.php', 'Mentions handler mismatch');
+
 $queryPath = ApiRouter::normalizePath('/api/v1/messages?chat_id=7&after_id=10');
 expect($queryPath === 'v1/messages', 'Query string was not removed');
 
