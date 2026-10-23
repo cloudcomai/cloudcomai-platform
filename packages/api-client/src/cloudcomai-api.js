@@ -63,7 +63,7 @@ export class CloudComAiApi {
   searchMentionCandidates(chatId, query = '', options = {}) { return this.client.get(ApiRoute.MENTIONS, { ...options, query: { ...options.query, action: 'candidates', chat_id: chatId, q: query } }); }
   openMention(mentionId, options = {}) { return this.client.post(ApiRoute.MENTIONS, { action: 'open', mention_id: mentionId }, options); }
   getMessageReadStatus(messageId, options = {}) { return this.client.get(ApiRoute.MESSAGE_READ, { ...options, query: { ...options.query, message_id: messageId } }); }
-  editMessage(messageId, body, options = {}) { return this.client.post(ApiRoute.EDIT_MESSAGE, { editing_id: messageId, body }, options); }
+  editMessage(messageId, body, options = {}) { const { mentionUserIds, ...requestOptions } = options; return this.client.post(ApiRoute.EDIT_MESSAGE, { editing_id: messageId, body, ...(Array.isArray(mentionUserIds) ? { mention_user_ids: mentionUserIds } : {}) }, requestOptions); }
   shareLocation(chatId, latitude, longitude, label = 'Shared location', options = {}) { return this.sendMessage({ chat_id: chatId, type: 'location', latitude, longitude, label }, options); }
   createPoll(input, options = {}) { return this.client.post(ApiRoute.POLLS, input, options); }
   editPoll(input, options = {}) { return this.client.post(ApiRoute.POLLS, input, { ...options, query: { ...options.query, action: 'edit' } }); }
