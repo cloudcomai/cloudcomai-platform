@@ -50,3 +50,21 @@ test('a synchronized message clears an outbox item after a lost response', async
   await store.acknowledge([{ id: 12, client_message_id: item.id }]);
   assert.equal(store.snapshot().outbox.length, 0);
 });
+
+test('queued @Mention recipient IDs survive persistence and delivery', async () => {
+  const storage = memory();
+  const delivered = [];
+  const store = createMessagingStore({
+    userId: 7,
+    storage,
+    makeId: () => 'mention-client-key',
+    send: async input => { delivered.push(input); return { message: { id: 77, ...input } }; },
+  });
+  await store.load();
+  await store.enqueue({ chat_id: 12, body: 'Hello @bob', mention_user_ids: [23, 24] });
+  const persisted = JSON.parse(await storage.getItem('cloudcomai.messages.7'));
+  assert.deepEqual(persisted.outbox[0].payload.mention_user_ids, [23, 24]);
+  await store.flush();
+  assert.deepEqual(delivered[0].mention_user_ids, [23, 24]);
+  assert.equal(store.snapshot().outbox.length, 0);
+});
