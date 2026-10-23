@@ -1,5 +1,5 @@
 {
-  "contractVersion": "1.7.0",
+  "contractVersion": "1.8.0",
   "basePath": "/api",
   "errorShape": { "required": ["error"] },
   "routes": {
@@ -55,6 +55,7 @@
     "v1/stories/media/upload": { "handler": "story_media_upload.php", "methods": ["POST"], "auth": true, "contentType": "multipart/form-data" },
     "v1/media": { "handler": "media.php", "methods": ["GET"], "auth": true },
     "v1/media/upload": { "handler": "media_upload.php", "methods": ["POST"], "auth": true },
-    "v1/invitations/join": { "handler": "join.php", "methods": ["GET", "POST"], "auth": false }
+    "v1/invitations/join": { "handler": "join.php", "methods": ["GET", "POST"], "auth": false },
+    "v1/mentions": { "handler": "mentions.php", "methods": ["GET", "POST"], "auth": true }
   }
 }
