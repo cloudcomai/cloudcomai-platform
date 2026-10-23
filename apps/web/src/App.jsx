@@ -439,7 +439,7 @@ function App() {
     };
 
     const handleSendMessage = async (mentionUserIds = []) => {
-        if (!composer.trim() || !selectedChat || selectedChat.blocked || sendInProgress.current) return;
+        if (!composer.trim() || !selectedChat || selectedChat.blocked || sendInProgress.current) return false;
         sendInProgress.current = true; setSending(true);
         const chatId = selectedChat.id;
         try {
@@ -458,7 +458,8 @@ function App() {
                 if (Number(activeChatRef.current?.id) === Number(chatId)) { setComposer(''); setReplyTo(null); }
                 messaging.flush().catch(e => setLocalMessageError(e.message));
             }
-        } catch (err) { alert(err.message); }
+            return true;
+        } catch (err) { alert(err.message); return false; }
         finally { sendInProgress.current = false; setSending(false); }
     };
 
