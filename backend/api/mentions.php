@@ -26,7 +26,7 @@ if ($method === 'GET') {
         $message = $owned->fetch();
         if (!$message || !in_array((string)$message['type'], ['group','public'], true)) fail('Message is unavailable for mention editing', 404);
         assert_mention_chat_access($pdo, (int)$message['chat_id'], $userId);
-        $st = $pdo->prepare('SELECT mm.recipient_id AS id,u.user_id AS username,u.name FROM message_mentions mm INNER JOIN users u ON u.id=mm.recipient_id WHERE mm.message_id=? AND mm.removed_at IS NULL AND u.account_status="active" ORDER BY mm.id');
+        $st = $pdo->prepare('SELECT mm.recipient_id AS id,u.user_id AS username,u.name FROM message_mentions mm INNER JOIN users u ON u.id=mm.recipient_id INNER JOIN chat_members cm ON cm.chat_id=mm.chat_id AND cm.user_id=mm.recipient_id AND cm.status="active" WHERE mm.message_id=? AND mm.removed_at IS NULL AND u.account_status="active" ORDER BY mm.id');
         $st->execute([$messageId]);
         out(['message_id'=>$messageId,'mention_recipients'=>$st->fetchAll()]);
     }
