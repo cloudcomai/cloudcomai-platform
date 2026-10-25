@@ -117,7 +117,13 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
             <div className="empty-state">Loading contacts...</div>
           ) : visibleContacts.length === 0 && !contactsError ? (
             <div className="empty-state">
-              {contactsTotal === 0 ? 'None of your synced contacts are registered on CloudComAI yet.' : contactsView === 'online' ? 'No contacts are online right now.' : 'No registered contacts match your search.'}
+              {contactsTotal === 0 ? (
+                <>
+                  <p>None of your synced contacts are registered on CloudComAI yet.</p>
+                  <p>Connect Google Contacts or sync them from the mobile app to find registered contacts. Accepted CloudComAI friends remain listed automatically.</p>
+                  <button type="button" onClick={() => setModal('google_contacts')}>Connect or sync Google Contacts</button>
+                </>
+              ) : contactsView === 'online' ? 'No contacts are online right now.' : 'No registered contacts match your search.'}
             </div>
           ) : visibleContacts.map(contact => {
             const registeredUserId = Number(contact.registered_user_id);
