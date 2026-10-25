@@ -817,7 +817,7 @@ function NotificationSettings({ preferences, onBack, onChange, onPrivacy, onAppe
   );
 }
 
-function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings }) {
+function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialChatId, onInitialChatConsumed, onProfileUpdated, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, pendingMentionMessageId, setPendingMentionMessageId }) {
   const appTheme = resolveChatTheme(themeSettings);
   const [section, setSection] = useState('all');
   const [chats, setChats] = useState([]);
@@ -1226,6 +1226,7 @@ function AppContent() {
   if (showNotificationSettings) return <NotificationSettings initialSection={settingsInitialSection} onAccountTool={setAccountTool} preferences={notificationPreferences} onBack={() => setShowNotificationSettings(false)} onPrivacy={() => setShowPrivacySettings(true)} onAppearance={() => setShowChatThemeSettings(true)} onChange={async changes => { const { data } = await platformApi.updateNotificationPreferences(changes); await setNotificationPreferences(data.preferences); setNotificationPreferencesState(data.preferences); if (data.preferences.enabled) { const device = await requestNotificationPermission(); if (device?.data) { await rememberDeviceToken(device.data); await platformApi.registerDeviceToken({ token: device.data, platform: Platform.OS.toUpperCase() }); } } }} />;
   return <ChatsScreen
     messaging={messaging} localMessages={localMessages} localMessageError={localMessageError} deliveredMessage={deliveredMessage}
+    pendingMentionMessageId={pendingMentionMessageId} setPendingMentionMessageId={setPendingMentionMessageId}
     session={session}
     privacySettings={privacySettings}
     onLogout={logout}
