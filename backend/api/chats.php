@@ -81,16 +81,6 @@ if ($method === 'GET') {
                 AND COALESCE(hmus.hidden,0)=0
                 AND (hm.expires_at IS NULL OR hm.expires_at > UTC_TIMESTAMP())
           ))
-          AND (c.type <> "private" OR EXISTS (
-              SELECT 1
-              FROM messages pm
-              LEFT JOIN message_user_states pmus ON pmus.message_id=pm.id AND pmus.user_id=cm.user_id
-              WHERE pm.chat_id=c.id
-                AND pm.id > COALESCE(cus.cleared_through_message_id,0)
-                AND pm.deleted_for_everyone=0
-                AND COALESCE(pmus.hidden,0)=0
-                AND (pm.expires_at IS NULL OR pm.expires_at > UTC_TIMESTAMP())
-          ))
     ';
 
     $params = [$user['id']];
