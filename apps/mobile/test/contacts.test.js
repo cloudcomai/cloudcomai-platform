@@ -36,7 +36,7 @@ test('uses the saved contact snapshot when disconnected or sync/status is unavai
     createApi({ connected: false, contacts }),
     createApi({ syncError: 'offline', contacts }),
     createApi({ statusError: 'offline', contacts }),
-  ]) assert.deepEqual(await loadMobileContacts(api, 1, 500, testOptions), contacts);
+  ]) assert.deepEqual(await loadMobileContacts(api, 1, 500), contacts);
 });
 
 test('phone contact sync uses the Expo module-level permission API', async () => {
