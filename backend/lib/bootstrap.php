@@ -71,8 +71,8 @@ function create_chat_notifications(int $chatId, int $senderId, string $senderNam
     $kind = db()->prepare('SELECT type FROM messages WHERE id=?');
     $kind->execute([$messageId]);
     $category = in_array($kind->fetchColumn(), ['attachment','voice','video'], true) ? 'attachment' : ($chatType === 'group' ? 'group' : 'message');
-    $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
-    $st->execute([$chatId, $senderId]);
+    $st = db()->prepare('SELECT cm.user_id FROM chat_members cm WHERE cm.chat_id=? AND cm.user_id<>? AND cm.status="active" AND (?<>"public" OR NOT EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=cm.user_id AND h.hidden_user_id=?))');
+    $st->execute([$chatId, $senderId, (string)$chatType, $senderId]);
     $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $recipientId) {
         $mute = db()->prepare('SELECT notifications_muted FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
