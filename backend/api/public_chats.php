@@ -11,10 +11,11 @@ function public_room_active_member(int $roomId,int $userId): bool { $st=db()->pr
 if ($method === 'GET') {
     $action=strtolower(trim((string)($_GET['action'] ?? '')));
     $roomId=(int)($_GET['room_id'] ?? 0);
-    if(in_array($action,['manage','online-users','reports'],true)){
+    if(in_array($action,['manage','online-users','reports','hidden-users'],true)){
         if($roomId<=0) fail('A valid public chat room is required',422);
         $room=db()->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$room->execute([$roomId]);if(!$room->fetch())fail('Public chat room not found',404);
         if(!public_room_active_member($roomId,(int)$user['id']))fail('You are not a member of this public chat room',403);
+        if($action==='hidden-users'){$st=$pdo->prepare('SELECT h.hidden_user_id AS id,u.name,h.created_at FROM public_chat_hidden_users h INNER JOIN users u ON u.id=h.hidden_user_id WHERE h.user_id=? ORDER BY h.created_at DESC LIMIT 200');$st->execute([(int)$user['id']]);out(['hidden_users'=>$st->fetchAll()]);}
         if($action==='reports'){
             $role=public_room_role($roomId,(int)$user['id']);if(!in_array($role,['owner','admin','moderator'],true))fail('Moderator access is required',403);
             $st=$pdo->prepare('SELECT r.id,r.reported_user_id,u.name AS reported_user_name,r.message_id,r.reason,r.details,r.status,r.created_at,r.reviewed_at FROM public_chat_reports r INNER JOIN users u ON u.id=r.reported_user_id WHERE r.chat_id=? ORDER BY r.id DESC LIMIT 200');$st->execute([$roomId]);out(['reports'=>$st->fetchAll()]);
@@ -72,6 +73,7 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $data=input();
     $action=strtolower(trim((string)($data['action'] ?? 'join')));
+    if($action==='unhide-user'){$roomId=(int)($data['room_id']??0);$target=(int)($data['user_id']??0);if($roomId<=0||$target<=0||$target===(int)$user['id'])fail('A valid public chat room and user are required',422);$roomQ=$pdo->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$roomQ->execute([$roomId]);if(!$roomQ->fetch())fail('Public chat room not found',404);if(!public_room_active_member($roomId,(int)$user['id']))fail('You are not a member of this public chat room',403);$pdo->prepare('DELETE FROM public_chat_hidden_users WHERE user_id=? AND hidden_user_id=?')->execute([(int)$user['id'],$target]);out(['unhidden'=>true,'user_id'=>$target]);}
     if($action==='report'){
         $roomId=(int)($data['room_id'] ?? 0);if($roomId<=0)fail('A valid public chat room is required',422);
         $roomQ=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$roomQ->execute([$roomId]);$room=$roomQ->fetch();if(!$room)fail('Public chat room not found',404);
@@ -81,6 +83,7 @@ if ($method === 'POST') {
         if($incidentKey===''||strlen($incidentKey)>128||!preg_match('/^[A-Za-z0-9:_-]+$/D',$incidentKey))fail('A valid incident key is required',422);
         try{
             $pdo->beginTransaction();$pdo->prepare('SELECT id FROM chats WHERE id=? FOR UPDATE')->execute([$roomId]);
+            $pdo->prepare('INSERT IGNORE INTO public_chat_hidden_users(user_id,hidden_user_id,created_at) VALUES(?,?,UTC_TIMESTAMP())')->execute([(int)$user['id'],$target]);
             $ins=$pdo->prepare('INSERT IGNORE INTO public_chat_reports(chat_id,reporter_id,reported_user_id,message_id,incident_key,reason,details,status,created_at) VALUES(?,?,?,?,?,?,?,"valid",UTC_TIMESTAMP())');$ins->execute([$roomId,$user['id'],$target,$messageId?:null,$incidentKey,$reason,$details!==''?$details:null]);
             if($ins->rowCount()===0){$pdo->commit();out(['submitted'=>false,'duplicate'=>true,'message'=>'This incident has already been reported by your account.']);}
             queue_user_notification((int)$user['id'],'system','Report received','Your report was securely recorded and sent to the public chat moderators for review.',['event'=>'public_chat_report_confirmation','chat_id'=>$roomId,'chat_type'=>'public','reported_user_id'=>$target,'report_status'=>'pending_review']);
