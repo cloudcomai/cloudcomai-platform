@@ -28,6 +28,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [memberTypeFilter, setMemberTypeFilter] = useState('all');
+  const [permissionFilter, setPermissionFilter] = useState('all');
   const ownsGroup = members.some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner');
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
@@ -279,14 +280,61 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             <Text style={[styles.note,{color:theme.colors.secondary}]}>Member Type</Text>
             <View style={styles.filterRow}>
               {[
-                ['all', 'All'], ['owner', 'Owner'], ['admin', 'Admins'], ['member', 'Members'],
+                ['all', 'All Members'], ['owner', 'Owner'], ['admin', 'Admins'], ['member', 'Members'],
               ].map(([value, label]) => (
                 <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: memberTypeFilter === value }} onPress={() => setMemberTypeFilter(value)} style={[styles.filterChip, { borderColor: theme.colors.border, backgroundColor: memberTypeFilter === value ? theme.colors.accent : theme.colors.background }]}>
                   <Text style={{ color: memberTypeFilter === value ? '#fff' : theme.colors.text, fontSize: 12 }}>{label}</Text>
                 </Pressable>
               ))}
             </View>
-            {members.filter(member => memberTypeFilter === 'all' || (member.role || 'member') === memberTypeFilter).map(member => <View key={`${member.user_id}-${member.role}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={[styles.link,{color:theme.colors.accent}]}>Make owner</Text></Pressable> : null}{ownsGroup && member.role !== 'owner' && member.role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}{ownsGroup && member.role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}</View></View>)}
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Permissions</Text>
+            <View style={styles.filterRow}>
+              {[
+                ['all', 'All Permissions'], ['can_download', 'Can Download Attachments'],
+                ['cannot_download', 'Cannot Download Attachments'], ['can_message', 'Can Send Messages'], ['restricted', 'Restricted'],
+              ].map(([value, label]) => (
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: permissionFilter === value }} onPress={() => setPermissionFilter(value)} style={[styles.filterChip, { borderColor: theme.colors.border, backgroundColor: permissionFilter === value ? theme.colors.accent : theme.colors.background }]}>
+                  <Text style={{ color: permissionFilter === value ? '#fff' : theme.colors.text, fontSize: 12 }}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {members.filter(member => {
+              const role = member.role || 'member';
+              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
+              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
+              const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
+              const matchesType = memberTypeFilter === 'all' || role === memberTypeFilter;
+              const matchesPermission = permissionFilter === 'all'
+                || (permissionFilter === 'can_download' && canDownload)
+                || (permissionFilter === 'cannot_download' && !canDownload)
+                || (permissionFilter === 'can_message' && canMessage)
+                || (permissionFilter === 'restricted' && !canMessage);
+              return matchesType && matchesPermission;
+            }).map(member => {
+              const role = member.role || 'member';
+              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
+              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
+              const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
+              const photoVersion = member.image_version || member.photo_version || '1';
+              return <View key={`${member.user_id}-${role}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
+                <Image source={{ uri: mediaUrl('user', Number(member.user_id), photoVersion) }} style={styles.memberAvatar} onError={() => {}} />
+                <View style={styles.memberInfo}>
+                  <Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text>
+                  <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username} · ` : ''}{role.charAt(0).toUpperCase()+role.slice(1)}</Text>
+                  <Text style={[styles.permissionText,{color:canDownload ? '#15803d' : theme.colors.secondary}]}>{canDownload ? 'Can download attachments' : 'Cannot download attachments'}</Text>
+                  <Text style={[styles.permissionText,{color:canMessage ? '#15803d' : '#b91c1c'}]}>{canMessage ? 'Can send messages' : 'Messaging restricted'}</Text>
+                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : null}
+                </View>
+                <View style={styles.memberActions}>
+                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
+                  {ownsGroup && role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}
+                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', Number(member.user_id))}><Text style={[styles.link,{color:theme.colors.accent}]}>{grant ? 'Revoke download' : 'Grant download'}</Text></Pressable> : null}
+                  {role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}
+                </View>
+              </View>;
+            })}
           </View>
           {ownsGroup ? <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Attachment access</Text>
@@ -330,6 +378,10 @@ const styles = StyleSheet.create({
   linkButton: { alignSelf: 'flex-start', paddingVertical: 10 },
   link: { color: '#3157d5', fontWeight: '800' },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  memberCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, borderBottomWidth: 1 },
+  memberAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#e5e7eb' },
+  memberInfo: { flex: 1, minWidth: 0, paddingRight: 4 },
+  permissionText: { fontSize: 11, marginTop: 4 },
   meta: { flex: 1, paddingRight: 10 },
   memberActions: { gap: 14, paddingVertical: 12 },
   name: { color: '#172033', fontWeight: '700' },
