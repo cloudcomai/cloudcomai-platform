@@ -23,6 +23,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [members, setMembers] = useState([]);
   const [attachmentGrants, setAttachmentGrants] = useState([]);
   const [name, setName] = useState(group?.name || '');
+  const [description, setDescription] = useState(group?.group_description || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -39,6 +40,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       const { data } = await platformApi.listGroupMembers(group.id);
       setMembers(data.members || []);
       setName(group.name || '');
+      setDescription(group.group_description || '');
       const access = await platformApi.getGroupAttachmentAccess(group.id);
       setAttachmentGrants(access.data.grants || []);
     } catch (e) {
@@ -122,13 +124,16 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
 
   const save = async () => {
     if (!name.trim() || busy) return;
+    if (description.length > 256) { setError('Group description must be 256 characters or fewer.'); return; }
+    if (description !== (group?.group_description || '') && !ownsGroup) { setError('Only the group owner can edit the group description.'); return; }
     setBusy(true); setError('');
     try {
       const { data } = await platformApi.updateGroup(group.id, {
         name: name.trim(),
         group_category: group.group_category || 'Family Group',
+        ...(ownsGroup ? { group_description: description } : {}),
       });
-      onGroupUpdated?.({ ...group, ...(data.group || {}), name: name.trim() });
+      onGroupUpdated?.({ ...group, ...(data.group || {}), name: name.trim(), group_description: data.group?.group_description ?? group.group_description ?? '' });
       Alert.alert('Group updated', 'Group details were saved.');
     } catch (e) {
       setError(e.message || 'Unable to update group.');
@@ -265,7 +270,20 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             </View>
             <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background}]} value={name} onChangeText={setName} placeholder="Group name" />
             <Text style={[styles.note,{color:theme.colors.secondary}]}>{group.group_category || 'Group'}</Text>
-            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save}><Text style={styles.primaryText}>Save group</Text></Pressable>
+            <Text style={[styles.note,{color:theme.colors.text, marginTop: 12}]}>Group Description</Text>
+            <TextInput
+              style={[styles.input, styles.descriptionInput, {color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background, opacity: ownsGroup ? 1 : 0.75}]}
+              value={description}
+              onChangeText={value => { setDescription(value); if (error) setError(''); }}
+              placeholder="Add a description about this group"
+              multiline
+              maxLength={256}
+              editable={ownsGroup && !busy}
+              accessibilityLabel="Group description"
+            />
+            <Text style={[styles.note,{color: description.length > 256 ? '#b91c1c' : theme.colors.secondary}]}>{description.length}/256 characters</Text>
+            {!ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Only the group owner can edit this description.</Text> : null}
+            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save} disabled={busy}><Text style={styles.primaryText}>Save group</Text></Pressable>
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Add member</Text>
@@ -372,6 +390,7 @@ const styles = StyleSheet.create({
   content: { padding: 14, paddingBottom: 40 },
   card: { padding: 16, marginBottom: 12, borderRadius: 14, backgroundColor: '#fff' },
   photoWrap: { alignItems: 'center', marginBottom: 12 }, groupPhoto: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#e5e7eb' }, heading: { color: '#172033', fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  descriptionInput: { minHeight: 88, textAlignVertical: 'top', paddingTop: 10 },
   input: { minHeight: 46, paddingHorizontal: 12, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, color: '#172033' },
   note: { color: '#68748a', fontSize: 11, marginTop: 4 },
   primary: { minHeight: 46, marginTop: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#3157d5' },
