@@ -10,7 +10,10 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState('');
   const [memberTypeFilter, setMemberTypeFilter] = useState('all');
-  const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === Number(user?.id) && member.role === 'owner');
+  const currentUserId = Number(user?.id);
+  const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
+  const isAdmin = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'admin');
+  const canManageMembers = ownsGroup || isAdmin;
 
   useEffect(() => {
     if ((type === 'manage_members' || type === 'add_member') && selectedChat) {
@@ -45,7 +48,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
           action: actionType
         })
       });
-      alert(`User successfully ${actionType === 'add' ? 'added to' : 'removed from'} group.`);
+      alert(actionType === 'add' ? 'User successfully added to group.' : Number(targetUserId) === currentUserId ? 'You have left the group.' : 'Member removed from group.');
       setSearchTerm('');
       setSearchResults([]);
       setHasSearched(false);
@@ -177,11 +180,15 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                       {ownsGroup && m.role === 'admin' && <button disabled={loading} onClick={() => setMemberRole(m, 'demote_admin')}>Remove admin</button>}
                       {isOwner ? (
                         <span style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: '600' }}>Owner</span>
-                      ) : (
+                      ) : Number(m.user_id || m.id) === currentUserId ? (
+                        <button style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '500', background: 'none', border: 'none' }} onClick={() => executeMemberAction(m.user_id || m.id, 'remove')} disabled={loading}>
+                          <UserMinus size={14} /> Leave group
+                        </button>
+                      ) : canManageMembers ? (
                         <button style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '500', background: 'none', border: 'none' }} onClick={() => executeMemberAction(m.user_id || m.id, 'remove')} disabled={loading}>
                           <UserMinus size={14} /> Remove
                         </button>
-                      )}
+                      ) : null}
                       </div>
                     </div>
                   );
