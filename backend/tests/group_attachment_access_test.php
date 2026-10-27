@@ -24,6 +24,8 @@ assert(str_contains($messages, '$expire->rowCount() > 0'));
 assert(str_contains($policy, 'expires_at'));
 assert(str_contains($download, '$a[\'chat_type\'] === \'group\''));
 assert(str_contains($download, 'group_attachment_permission'));
+assert(str_contains($download, '$isGroupAdmin'));
+assert(str_contains($download, '$authorizedPreview = true;'));
 assert(str_contains($forward, '$source[\'chat_type\'] === \'group\''));
 assert(str_contains($forward, 'group_attachment_permission'));
 assert(substr_count($fresh, 'CREATE TABLE IF NOT EXISTS group_attachment_access') === 1);
