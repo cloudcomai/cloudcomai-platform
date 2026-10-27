@@ -11,6 +11,11 @@ on:
         options:
           - CANCEL
           - DEPLOY
+      source_branch:
+        description: Branch or tag whose code should be deployed.
+        required: true
+        default: main
+        type: string
       deployment_mode:
         description: Choose INITIAL for the first deployment to a freshly imported database, or RELEASE for normal incremental deployments.
         required: true
@@ -53,13 +58,16 @@ env:
 jobs:
   deploy:
     name: Validate and deploy CloudComAI
+    # Keep the deployment workflow itself on main; deploy the explicitly selected source ref.
     if: github.ref == 'refs/heads/main' && inputs.confirmation == 'DEPLOY'
     runs-on: ubuntu-latest
     environment: production
 
     steps:
-      - name: Checkout repository
+      - name: Checkout selected deployment branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_branch }}
 
       - name: Show deployment plan
         run: |
