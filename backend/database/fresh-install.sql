@@ -1,11 +1,3 @@
--CREATE TABLE IF NOT EXISTS public_chat_hidden_users (
-    user_id BIGINT UNSIGNED NOT NULL,
-    hidden_user_id BIGINT UNSIGNED NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id,hidden_user_id),
-    INDEX idx_public_chat_hidden_target (hidden_user_id,user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 - CloudComAI Platform - consolidated fresh-install schema
 -- Generated for a brand-new website launch.
 --
@@ -676,7 +668,8 @@ VALUES
     ('022_public_language_chat_rooms.sql', UTC_TIMESTAMP()),
     ('023_trusted_users.sql', UTC_TIMESTAMP()),
     ('024_password_recovery_schema.sql', UTC_TIMESTAMP()),
-    ('027_message_mentions.sql', UTC_TIMESTAMP())
+    ('027_message_mentions.sql', UTC_TIMESTAMP()),
+    ('028_public_chat_hidden_users.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -712,4 +705,12 @@ CREATE TABLE IF NOT EXISTS public_chat_restrictions (
     PRIMARY KEY (chat_id,user_id),
     INDEX idx_public_chat_restrictions_active (user_id,status,blocked_until),
     INDEX idx_public_chat_restrictions_chat (chat_id,status,blocked_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS public_chat_hidden_users (
+    user_id BIGINT UNSIGNED NOT NULL,
+    hidden_user_id BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id,hidden_user_id),
+    INDEX idx_public_chat_hidden_target (hidden_user_id,user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
