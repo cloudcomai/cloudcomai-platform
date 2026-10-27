@@ -11,9 +11,11 @@ $userId = (int)$user['id'];
 
 if ($method === 'GET') {
     $chatId = (int)($_GET['chat_id'] ?? 0);
-    $owner = $pdo->prepare('SELECT owner_id FROM chats WHERE id=? AND type="group"');
-    $owner->execute([$chatId]);
-    if ((int)$owner->fetchColumn() !== $userId) fail('Only the group owner can manage attachment access', 403);
+    $membership = $pdo->prepare('SELECT cm.role FROM chat_members cm INNER JOIN chats c ON c.id=cm.chat_id AND c.type="group" WHERE cm.chat_id=? AND cm.user_id=? AND cm.status="active" LIMIT 1');
+    $membership->execute([$chatId, $userId]);
+    if (!$membership->fetch()) fail('Group not found or access denied', 403);
+    // Active group members may view effective attachment permission indicators.
+    // Only the owner can mutate grants (enforced below for POST requests).
     $st = $pdo->prepare('SELECT grant_scope,member_id,download_enabled,forward_enabled,expires_at,revoked_at,updated_at FROM group_attachment_access WHERE chat_id=? ORDER BY grant_scope,member_id');
     $st->execute([$chatId]);
     out(['chat_id'=>$chatId,'grants'=>$st->fetchAll()]);
