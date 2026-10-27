@@ -287,6 +287,10 @@ try {
 
     // A failed notification insert must roll back message creation, so a retry
     // cannot duplicate a message that appeared to fail in the UI.
+    // Explicitly ensure this rollback fixture has an eligible notification recipient.
+    request('POST','v1/notifications/device-token',2,['token'=>'ExponentPushToken[integration-test-rollback]','platform'=>'ANDROID']);
+    $admin->exec('INSERT INTO user_notification_preferences(user_id,enabled,message) VALUES(2,1,1) ON DUPLICATE KEY UPDATE enabled=1,message=1');
+    $admin->exec("UPDATE chat_members SET status='active' WHERE chat_id=1 AND user_id=2");
     $messageCount = (int)$admin->query('SELECT COUNT(*) FROM messages')->fetchColumn();
     $notificationCount = (int)$admin->query('SELECT COUNT(*) FROM notification_history')->fetchColumn();
     $admin->exec('RENAME TABLE notification_delivery_queue TO unavailable_delivery_queue');
