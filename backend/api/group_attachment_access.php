@@ -68,6 +68,13 @@ try {
     }
     $stmt = $pdo->prepare('INSERT INTO group_attachment_access(chat_id,grant_scope,member_id,download_enabled,forward_enabled,expires_at,revoked_at,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE download_enabled=VALUES(download_enabled),forward_enabled=VALUES(forward_enabled),expires_at=VALUES(expires_at),revoked_at=VALUES(revoked_at),created_by=VALUES(created_by),updated_at=UTC_TIMESTAMP()');
     $stmt->execute([$chatId,$scope,$memberId,$download,$forward,$expiresAt,$revokedAt,$userId]);
+    if ($action === 'grant_group') {
+        $hours = (int)($data['duration_hours'] ?? 24);
+        $expiresLabel = gmdate('Y-m-d H:i:s', strtotime((string)$expiresAt . ' UTC'));
+        $body = sprintf('The group owner has enabled attachment downloads for %d hours. Access expires at %s UTC.', $hours, $expiresLabel);
+        $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())')
+            ->execute([$chatId, $userId, $body]);
+    }
     $pdo->commit();
     out(['status'=>'ok','chat_id'=>$chatId,'scope'=>$scope,'user_id'=>$scope === 'member' ? $memberId : null,'download'=>(bool)$download,'forward'=>(bool)$forward,'expires_at'=>$expiresAt,'revoked'=>!$grant]);
 } catch (Throwable $error) {
