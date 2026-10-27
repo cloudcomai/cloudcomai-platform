@@ -1,4 +1,4 @@
-- CloudComAI Platform - consolidated fresh-install schema
+-- CloudComAI Platform - consolidated fresh-install schema
 -- Generated for a brand-new website launch.
 --
 -- IMPORTANT:
