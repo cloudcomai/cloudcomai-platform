@@ -38,7 +38,7 @@ $bootstrap=(string)file_get_contents(__DIR__.'/../lib/bootstrap.php');
 assert(str_contains($bootstrap,'public_chat_restrictions'));
 assert(str_contains($bootstrap,'temporarily restricted'));
 assert(str_contains($bootstrap,'public_chat_hidden_users'));
-assert(str_contains($bootstrap,'?<>\"public\" OR NOT EXISTS'));
+assert(str_contains($bootstrap,'(?<>"public" OR NOT EXISTS'));
 
 $notifications=(string)file_get_contents(__DIR__.'/../lib/notifications.php');
 assert(str_contains($notifications,'persistent_moderation'));
