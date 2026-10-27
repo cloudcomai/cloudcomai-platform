@@ -30,6 +30,7 @@ if ($method === 'GET') {
 
     // Expire temporary group-wide attachment access on the first chat sync after
     // the deadline and publish one system message for all active group members.
+    $pdo = db();
     $chatTypeQuery = $pdo->prepare('SELECT type,owner_id FROM chats WHERE id=? LIMIT 1');
     $chatTypeQuery->execute([$chatId]);
     $chatInfo = $chatTypeQuery->fetch();
