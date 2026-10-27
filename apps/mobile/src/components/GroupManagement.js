@@ -30,7 +30,10 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [results, setResults] = useState([]);
   const [memberTypeFilter, setMemberTypeFilter] = useState('all');
   const [permissionFilter, setPermissionFilter] = useState('all');
-  const ownsGroup = members.some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner');
+  const currentUserId = Number(user?.id);
+  const ownsGroup = members.some(member => Number(member.user_id) === currentUserId && member.role === 'owner');
+  const isAdmin = members.some(member => Number(member.user_id) === currentUserId && member.role === 'admin');
+  const canManageMembers = ownsGroup || isAdmin;
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
   const load = useCallback(async () => {
@@ -181,9 +184,13 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       ]);
       return;
     }
-    Alert.alert('Remove member?', `Remove ${member.name || member.username || 'this member'} from the group?`, [
+    const isSelf = memberId === currentUserId;
+    const actionTitle = isSelf ? 'Leave group?' : 'Remove member?';
+    const actionMessage = isSelf ? 'Leave this group? You will no longer receive its messages.' : `Remove ${member.name || member.username || 'this member'} from the group?`;
+    const actionLabel = isSelf ? 'Leave' : 'Remove';
+    Alert.alert(actionTitle, actionMessage, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => {
+      { text: actionLabel, style: 'destructive', onPress: async () => {
         setBusy(true); setError('');
         try {
           await platformApi.updateGroupMember(group.id, memberId, 'remove');
@@ -350,7 +357,11 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
                   {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
                   {ownsGroup && role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}
                   {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', Number(member.user_id))}><Text style={[styles.link,{color:theme.colors.accent}]}>{grant ? 'Revoke download' : 'Grant download'}</Text></Pressable> : null}
-                  {role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}
+                  {role === 'owner' ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text> : Number(member.user_id) === currentUserId ? (
+                    <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Leave group</Text></Pressable>
+                  ) : canManageMembers ? (
+                    <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable>
+                  ) : null}
                 </View>
               </View>;
             })}
