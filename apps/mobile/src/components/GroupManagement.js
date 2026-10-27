@@ -39,10 +39,8 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       const { data } = await platformApi.listGroupMembers(group.id);
       setMembers(data.members || []);
       setName(group.name || '');
-      if (Number(group.owner_id) === Number(user?.id) || (data.members || []).some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner')) {
-        const access = await platformApi.getGroupAttachmentAccess(group.id);
-        setAttachmentGrants(access.data.grants || []);
-      }
+      const access = await platformApi.getGroupAttachmentAccess(group.id);
+      setAttachmentGrants(access.data.grants || []);
     } catch (e) {
       setError(e.message || 'Unable to load group members.');
     } finally {
