@@ -144,6 +144,8 @@ try {
     request('DELETE','v1/users/privacy?user_id=1',2);
 
     // Reporting a public-chat participant hides their messages only from the reporter.
+    // This visibility test does not need push delivery; the fixture's consolidated schema may omit the delivery queue table.
+    $admin->exec('DELETE FROM notification_devices WHERE user_id=2');
     $publicChatId = (int)$admin->query('SELECT COALESCE(MAX(id),0)+1 FROM chats')->fetchColumn();
     $publicChatInsert = $admin->prepare("INSERT INTO chats(id,type,name,room_type,group_category,retention_seconds) VALUES(?,'public','Test public room','city','india-city',14400)");
     $publicChatInsert->execute([$publicChatId]);
