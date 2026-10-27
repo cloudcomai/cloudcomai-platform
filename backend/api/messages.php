@@ -32,8 +32,8 @@ if ($method === 'GET') {
         $contextSql = <<<'SQL'
             SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,
                    CASE WHEN c.type='public' AND m.sender_id<>? AND NOT EXISTS (SELECT 1 FROM friend_requests fr WHERE fr.status='accepted' AND ((fr.requester_id=? AND fr.recipient_id=m.sender_id) OR (fr.requester_id=m.sender_id AND fr.recipient_id=?))) THEN 1 ELSE 0 END AS show_profile,
-                   CASE WHEN COALESCE(rus.hidden,0)=0 THEN r.body ELSE NULL END AS reply_to_text,
-                   CASE WHEN COALESCE(rus.hidden,0)=0 THEN ru.name ELSE NULL END AS reply_to_sender_name
+                   CASE WHEN COALESCE(rus.hidden,0)=0 AND NOT (c.type='public' AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=mus.user_id AND h.hidden_user_id=r.sender_id)) THEN r.body ELSE NULL END AS reply_to_text,
+                   CASE WHEN COALESCE(rus.hidden,0)=0 AND NOT (c.type='public' AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=mus.user_id AND h.hidden_user_id=r.sender_id)) THEN ru.name ELSE NULL END AS reply_to_sender_name
             FROM messages m LEFT JOIN users u ON u.id=m.sender_id INNER JOIN chats c ON c.id=m.chat_id
             LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP())
             LEFT JOIN users ru ON ru.id=r.sender_id LEFT JOIN message_user_states rus ON rus.message_id=r.id AND rus.user_id=?
@@ -158,8 +158,8 @@ if ($method === 'POST') {
     assert_chat_allows_messages($chatId, (int)$user['id']);
     if ($reply) {
         if ($reply <= (int)$membership['cleared_through_message_id']) fail('Invalid reply target');
-        $replyQuery = db()->prepare('SELECT r.id FROM messages r LEFT JOIN message_user_states mus ON mus.message_id=r.id AND mus.user_id=? WHERE r.id=? AND r.chat_id=? AND r.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP())');
-        $replyQuery->execute([$user['id'], $reply, $chatId]);
+        $replyQuery = db()->prepare('SELECT r.id FROM messages r INNER JOIN chats rc ON rc.id=r.chat_id LEFT JOIN message_user_states mus ON mus.message_id=r.id AND mus.user_id=? WHERE r.id=? AND r.chat_id=? AND r.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP()) AND NOT (rc.type="public" AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=r.sender_id))');
+        $replyQuery->execute([$user['id'], $reply, $chatId, $user['id']]);
         if (!$replyQuery->fetch()) fail('Invalid reply target');
     }
     $expires = $membership['retention_seconds'] ? gmdate('Y-m-d H:i:s', time() + (int)$membership['retention_seconds']) : null;
