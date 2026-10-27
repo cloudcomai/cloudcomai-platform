@@ -107,7 +107,7 @@ if ($method === 'GET') {
         $updates = db()->prepare(str_replace(' LIMIT 200', '', $updatesSql));
         $updates->execute([$user['id'],$user['id'],$user['id'],$clearedThrough,$user['id'],$user['id'],$chatId,max($clearedThrough,$syncFrom-1),$requestedAfter,$since,$user['id']]);
         $messages = array_merge($updates->fetchAll(), $messages);
-        $removed = db()->prepare('SELECT m.id FROM messages m INNER JOIN chats c ON c.id=m.chat_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.chat_id=? AND m.id>=? AND m.id<=? AND (m.deleted_for_everyone=1 OR COALESCE(mus.hidden,0)=1 OR m.id<=? OR m.expires_at<=UTC_TIMESTAMP() OR (c.type=\"public\" AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=m.sender_id)))');
+        $removed = db()->prepare('SELECT m.id FROM messages m INNER JOIN chats c ON c.id=m.chat_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.chat_id=? AND m.id>=? AND m.id<=? AND (m.deleted_for_everyone=1 OR COALESCE(mus.hidden,0)=1 OR m.id<=? OR m.expires_at<=UTC_TIMESTAMP() OR (c.type="public" AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=m.sender_id)))');
         $removed->execute([$user['id'],$chatId,$syncFrom,$requestedAfter,$clearedThrough,$user['id']]);
         $removedIds = array_map('intval', $removed->fetchAll(PDO::FETCH_COLUMN));
         $purged = db()->prepare('SELECT message_id FROM message_deletions WHERE chat_id=? AND message_id>=? AND message_id<=?');
