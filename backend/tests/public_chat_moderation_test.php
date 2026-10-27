@@ -22,7 +22,8 @@ foreach([
     'You cannot report yourself',
     'public_chat_report_confirmation',
     'Report received',
-    'sent to the public chat moderators for review'
+    'sent to the public chat moderators for review',
+    "SET status='reviewed',reviewed_at=UTC_TIMESTAMP(),reviewed_by=?"
 ] as $needle) assert(str_contains($handler,$needle),$needle);
 
 $messages=(string)file_get_contents(__DIR__.'/../api/messages.php');
