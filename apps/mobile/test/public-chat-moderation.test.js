@@ -35,4 +35,7 @@ test('API client exposes message context and public moderation endpoints',()=>{
  assert.ok(api.includes('getMessageContext(chatId, messageId'));
  assert.ok(api.includes('getPublicChatManage(roomId'));
  assert.ok(api.includes('reportPublicChatUser(roomId'));
+ assert.ok(component.includes('data?.duplicate'));
+ assert.ok(component.includes('duplicate report was not counted'));
+ assert.ok(component.includes('private confirmation in CloudComAI Alerts'));
 });
