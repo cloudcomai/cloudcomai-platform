@@ -161,6 +161,12 @@ try {
     check(count(request('GET',"v1/messages?chat_id=$publicChatId",1)['data']['messages'])===1,'Reporter hide affected the offender own view');
     request('POST','v1/public-chats',2,['action'=>'unhide-user','room_id'=>$publicChatId,'user_id'=>1]);
     check(count(request('GET',"v1/messages?chat_id=$publicChatId",2)['data']['messages'])===1,'Unhide did not restore public message visibility');
+    $admin->prepare('DELETE FROM public_chat_reports WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM public_chat_restrictions WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM messages WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM chat_user_states WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM chat_members WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM chats WHERE id=?')->execute([$publicChatId]);
     $admin->exec('DELETE FROM user_notification_preferences WHERE user_id=2');
 
     $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
