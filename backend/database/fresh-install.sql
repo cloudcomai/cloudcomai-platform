@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS chats (
     type ENUM('private','group','public','community') NOT NULL,
     name VARCHAR(160) NULL,
     group_category VARCHAR(80) NULL,
+    group_description VARCHAR(256) NOT NULL DEFAULT '',
     room_type ENUM('city','language') NOT NULL DEFAULT 'city',
     language_code VARCHAR(16) NULL,
     owner_id BIGINT UNSIGNED NULL,
