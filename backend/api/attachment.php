@@ -74,8 +74,18 @@ if ($preview) {
     }
 }
 if (!$preview && $a['chat_type'] === 'group') {
-    $groupPermission = group_attachment_permission((int)$a['chat_id'], (int)$user['id'], 'download');
-    if ($groupPermission !== null) $authorizedPreview = $groupPermission;
+    // Group admins can download group attachments without sender approval or an
+    // explicit attachment grant. They must still be active group members (checked above).
+    $admin = db()->prepare('SELECT role FROM chat_members WHERE chat_id=? AND user_id=? AND status="active" LIMIT 1');
+    $admin->execute([(int)$a['chat_id'], (int)$user['id']]);
+    $isGroupAdmin = $admin->fetchColumn() === 'admin';
+
+    if ($isGroupAdmin) {
+        $authorizedPreview = true;
+    } else {
+        $groupPermission = group_attachment_permission((int)$a['chat_id'], (int)$user['id'], 'download');
+        if ($groupPermission !== null) $authorizedPreview = $groupPermission;
+    }
 }
 if (!$authorizedPreview) fail($a['download_policy'] === 'VIEW_ONLY' ? 'Download is disabled for this attachment' : 'Download requires sender approval', 403);
 

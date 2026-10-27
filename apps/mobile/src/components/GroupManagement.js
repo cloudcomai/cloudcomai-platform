@@ -23,11 +23,17 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [members, setMembers] = useState([]);
   const [attachmentGrants, setAttachmentGrants] = useState([]);
   const [name, setName] = useState(group?.name || '');
+  const [description, setDescription] = useState(group?.group_description || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
-  const ownsGroup = members.some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner');
+  const [memberTypeFilter, setMemberTypeFilter] = useState('all');
+  const [permissionFilter, setPermissionFilter] = useState('all');
+  const currentUserId = Number(user?.id);
+  const ownsGroup = members.some(member => Number(member.user_id) === currentUserId && member.role === 'owner');
+  const isAdmin = members.some(member => Number(member.user_id) === currentUserId && member.role === 'admin');
+  const canManageMembers = ownsGroup || isAdmin;
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
   const load = useCallback(async () => {
@@ -37,10 +43,9 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       const { data } = await platformApi.listGroupMembers(group.id);
       setMembers(data.members || []);
       setName(group.name || '');
-      if (Number(group.owner_id) === Number(user?.id) || (data.members || []).some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner')) {
-        const access = await platformApi.getGroupAttachmentAccess(group.id);
-        setAttachmentGrants(access.data.grants || []);
-      }
+      setDescription(group.group_description || '');
+      const access = await platformApi.getGroupAttachmentAccess(group.id);
+      setAttachmentGrants(access.data.grants || []);
     } catch (e) {
       setError(e.message || 'Unable to load group members.');
     } finally {
@@ -122,13 +127,16 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
 
   const save = async () => {
     if (!name.trim() || busy) return;
+    if (description.length > 256) { setError('Group description must be 256 characters or fewer.'); return; }
+    if (description !== (group?.group_description || '') && !ownsGroup) { setError('Only the group owner can edit the group description.'); return; }
     setBusy(true); setError('');
     try {
       const { data } = await platformApi.updateGroup(group.id, {
         name: name.trim(),
         group_category: group.group_category || 'Family Group',
+        ...(ownsGroup ? { group_description: description } : {}),
       });
-      onGroupUpdated?.({ ...group, ...(data.group || {}), name: name.trim() });
+      onGroupUpdated?.({ ...group, ...(data.group || {}), name: name.trim(), group_description: data.group?.group_description ?? group.group_description ?? '' });
       Alert.alert('Group updated', 'Group details were saved.');
     } catch (e) {
       setError(e.message || 'Unable to update group.');
@@ -158,19 +166,53 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const remove = member => {
     const memberId = Number(member.user_id);
     const isOwner = member.role === 'owner';
-    if (isOwner && memberId !== Number(user?.id)) {
-      Alert.alert('Owner cannot be removed', 'Transfer ownership before removing the group owner.');
+    if (isOwner) {
+      if (memberId !== Number(user?.id)) { Alert.alert('Owner cannot be removed', 'Transfer ownership before removing the group owner.'); return; }
+      const candidates = members.filter(item => Number(item.user_id) !== memberId && item.role !== 'owner');
+      if (!candidates.length) { Alert.alert('Cannot leave yet', 'Add another active member before leaving the group.'); return; }
+      Alert.alert('Transfer ownership before leaving?', 'Choose an active member to become the new owner. You will leave the group management screen after transfer.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Choose owner', onPress: () => Alert.alert('Choose new owner', 'Select the member who will own this group.', [
+          ...candidates.slice(0, 3).map(candidate => ({ text: candidate.name || candidate.username || String(candidate.user_id), onPress: async () => {
+            setBusy(true); setError('');
+            try { await platformApi.transferGroupOwnership(group.id, Number(candidate.user_id)); onClose(); }
+            catch (e) { setError(e.message || 'Unable to transfer ownership.'); }
+            finally { setBusy(false); }
+          }})),
+          { text: 'Cancel', style: 'cancel' },
+        ]) },
+      ]);
       return;
     }
-    Alert.alert('Remove member?', `Remove ${member.name || member.username || 'this member'} from the group?`, [
+    const isSelf = memberId === currentUserId;
+    const actionTitle = isSelf ? 'Leave group?' : 'Remove member?';
+    const actionMessage = isSelf ? 'Leave this group? You will no longer receive its messages.' : `Remove ${member.name || member.username || 'this member'} from the group?`;
+    const actionLabel = isSelf ? 'Leave' : 'Remove';
+    Alert.alert(actionTitle, actionMessage, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => {
+      { text: actionLabel, style: 'destructive', onPress: async () => {
         setBusy(true); setError('');
         try {
           await platformApi.updateGroupMember(group.id, memberId, 'remove');
           if (memberId === Number(user?.id)) { onClose(); return; }
           await load();
         } catch (e) { setError(e.message || 'Unable to remove member.'); }
+        finally { setBusy(false); }
+      }},
+    ]);
+  };
+
+  const setMemberRole = async (member, action) => {
+    if (busy || !ownsGroup) return;
+    const label = action === 'promote_admin' ? 'make this member an admin' : 'remove this member as an admin';
+    Alert.alert('Update member role?', `Are you sure you want to ${label}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: async () => {
+        setBusy(true); setError('');
+        try {
+          await platformApi.updateGroupMember(group.id, Number(member.user_id), action);
+          await load();
+        } catch (e) { setError(e.message || 'Unable to update member role.'); }
         finally { setBusy(false); }
       }},
     ]);
@@ -193,7 +235,20 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   };
 
   const deleteGroup = () => {
-    Alert.alert('Delete group?', 'This removes the group for all active members.', [
+    Alert.alert('Delete group?', 'You can transfer ownership to another active member instead of deleting the group.', [
+      { text: 'Transfer ownership', onPress: () => {
+        const candidates = members.filter(item => Number(item.user_id) !== Number(user?.id) && item.role !== 'owner');
+        if (!candidates.length) { Alert.alert('No eligible members', 'Add another active member before transferring ownership.'); return; }
+        Alert.alert('Choose new owner', 'Select the member who will own this group.', [
+          ...candidates.slice(0, 3).map(candidate => ({ text: candidate.name || candidate.username || String(candidate.user_id), onPress: async () => {
+            setBusy(true); setError('');
+            try { await platformApi.transferGroupOwnership(group.id, Number(candidate.user_id)); onGroupUpdated?.({ ...group, owner_id: Number(candidate.user_id) }); onClose(); }
+            catch (e) { setError(e.message || 'Unable to transfer ownership.'); }
+            finally { setBusy(false); }
+          }})),
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+      }},
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         setBusy(true); setError('');
@@ -222,7 +277,20 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             </View>
             <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background}]} value={name} onChangeText={setName} placeholder="Group name" />
             <Text style={[styles.note,{color:theme.colors.secondary}]}>{group.group_category || 'Group'}</Text>
-            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save}><Text style={styles.primaryText}>Save group</Text></Pressable>
+            <Text style={[styles.note,{color:theme.colors.text, marginTop: 12}]}>Group Description</Text>
+            <TextInput
+              style={[styles.input, styles.descriptionInput, {color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background, opacity: ownsGroup ? 1 : 0.75}]}
+              value={description}
+              onChangeText={value => { setDescription(value); if (error) setError(''); }}
+              placeholder="Add a description about this group"
+              multiline
+              maxLength={256}
+              editable={ownsGroup && !busy}
+              accessibilityLabel="Group description"
+            />
+            <Text style={[styles.note,{color: description.length > 256 ? '#b91c1c' : theme.colors.secondary}]}>{description.length}/256 characters</Text>
+            {!ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Only the group owner can edit this description.</Text> : null}
+            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save} disabled={busy}><Text style={styles.primaryText}>Save group</Text></Pressable>
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Add member</Text>
@@ -232,7 +300,71 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
-            {members.map(member => <View key={`${member.user_id}-${member.role}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={[styles.link,{color:theme.colors.accent}]}>Make owner</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}</View></View>)}
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Member Type</Text>
+            <View style={styles.filterRow}>
+              {[
+                ['all', 'All Members'], ['owner', 'Owner'], ['admin', 'Admins'], ['member', 'Members'],
+              ].map(([value, label]) => (
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: memberTypeFilter === value }} onPress={() => setMemberTypeFilter(value)} style={[styles.filterChip, { borderColor: theme.colors.border, backgroundColor: memberTypeFilter === value ? theme.colors.accent : theme.colors.background }]}>
+                  <Text style={{ color: memberTypeFilter === value ? '#fff' : theme.colors.text, fontSize: 12 }}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Permissions</Text>
+            <View style={styles.filterRow}>
+              {[
+                ['all', 'All Permissions'], ['can_download', 'Can Download Attachments'],
+                ['cannot_download', 'Cannot Download Attachments'], ['can_message', 'Can Send Messages'], ['restricted', 'Restricted'],
+              ].map(([value, label]) => (
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: permissionFilter === value }} onPress={() => setPermissionFilter(value)} style={[styles.filterChip, { borderColor: theme.colors.border, backgroundColor: permissionFilter === value ? theme.colors.accent : theme.colors.background }]}>
+                  <Text style={{ color: permissionFilter === value ? '#fff' : theme.colors.text, fontSize: 12 }}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {members.filter(member => {
+              const role = member.role || 'member';
+              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
+              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
+              const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
+              const matchesType = memberTypeFilter === 'all' || role === memberTypeFilter;
+              const matchesPermission = permissionFilter === 'all'
+                || (permissionFilter === 'can_download' && canDownload)
+                || (permissionFilter === 'cannot_download' && !canDownload)
+                || (permissionFilter === 'can_message' && canMessage)
+                || (permissionFilter === 'restricted' && !canMessage);
+              return matchesType && matchesPermission;
+            }).map(member => {
+              const role = member.role || 'member';
+              const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrantRecord = attachmentGrants.find(item => item.grant_scope === 'group');
+              const grant = memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()) ? memberGrant : null;
+              const groupGrant = groupGrantRecord && !groupGrantRecord.revoked_at && (!groupGrantRecord.expires_at || new Date(groupGrantRecord.expires_at).getTime() > Date.now()) ? groupGrantRecord : null;
+              const expired = Boolean((memberGrant?.expires_at && new Date(memberGrant.expires_at).getTime() <= Date.now()) || (groupGrantRecord?.expires_at && new Date(groupGrantRecord.expires_at).getTime() <= Date.now()));
+              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
+              const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
+              const photoVersion = member.image_version || member.photo_version || '1';
+              return <View key={`${member.user_id}-${role}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
+                <Image source={{ uri: mediaUrl('user', Number(member.user_id), photoVersion) }} style={styles.memberAvatar} onError={() => {}} />
+                <View style={styles.memberInfo}>
+                  <Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text>
+                  <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username} · ` : ''}{role.charAt(0).toUpperCase()+role.slice(1)}</Text>
+                  <Text style={[styles.permissionText,{color:canDownload ? '#15803d' : theme.colors.secondary}]}>{canDownload ? 'Can download attachments' : 'Cannot download attachments'}</Text>
+                  <Text style={[styles.permissionText,{color:canMessage ? '#15803d' : '#b91c1c'}]}>{canMessage ? 'Can send messages' : 'Messaging restricted'}</Text>
+                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download access closed</Text> : null}
+                </View>
+                <View style={styles.memberActions}>
+                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
+                  {ownsGroup && role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}
+                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', Number(member.user_id))}><Text style={[styles.link,{color:theme.colors.accent}]}>{grant ? 'Revoke download' : 'Grant download'}</Text></Pressable> : null}
+                  {role === 'owner' ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text> : Number(member.user_id) === currentUserId ? (
+                    <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Leave group</Text></Pressable>
+                  ) : canManageMembers ? (
+                    <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable>
+                  ) : null}
+                </View>
+              </View>;
+            })}
           </View>
           {ownsGroup ? <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Attachment access</Text>
@@ -260,6 +392,8 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
 }
 
 const styles = StyleSheet.create({
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
+  filterChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
   page: { flex: 1, backgroundColor: '#f5f7fb' },
   header: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, backgroundColor: '#3157d5' },
   headerTitle: { flex: 1, textAlign: 'center', color: '#fff', fontSize: 18, fontWeight: '800' },
@@ -267,6 +401,7 @@ const styles = StyleSheet.create({
   content: { padding: 14, paddingBottom: 40 },
   card: { padding: 16, marginBottom: 12, borderRadius: 14, backgroundColor: '#fff' },
   photoWrap: { alignItems: 'center', marginBottom: 12 }, groupPhoto: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#e5e7eb' }, heading: { color: '#172033', fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  descriptionInput: { minHeight: 88, textAlignVertical: 'top', paddingTop: 10 },
   input: { minHeight: 46, paddingHorizontal: 12, borderWidth: 1, borderColor: '#d8deea', borderRadius: 10, color: '#172033' },
   note: { color: '#68748a', fontSize: 11, marginTop: 4 },
   primary: { minHeight: 46, marginTop: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#3157d5' },
@@ -274,6 +409,10 @@ const styles = StyleSheet.create({
   linkButton: { alignSelf: 'flex-start', paddingVertical: 10 },
   link: { color: '#3157d5', fontWeight: '800' },
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  memberCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, borderBottomWidth: 1 },
+  memberAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#e5e7eb' },
+  memberInfo: { flex: 1, minWidth: 0, paddingRight: 4 },
+  permissionText: { fontSize: 11, marginTop: 4 },
   meta: { flex: 1, paddingRight: 10 },
   memberActions: { gap: 14, paddingVertical: 12 },
   name: { color: '#172033', fontWeight: '700' },

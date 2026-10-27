@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS chats (
     type ENUM('private','group','public','community') NOT NULL,
     name VARCHAR(160) NULL,
     group_category VARCHAR(80) NULL,
+    group_description VARCHAR(256) NOT NULL DEFAULT '',
     room_type ENUM('city','language') NOT NULL DEFAULT 'city',
     language_code VARCHAR(16) NULL,
     owner_id BIGINT UNSIGNED NULL,
@@ -668,7 +669,8 @@ VALUES
     ('022_public_language_chat_rooms.sql', UTC_TIMESTAMP()),
     ('023_trusted_users.sql', UTC_TIMESTAMP()),
     ('024_password_recovery_schema.sql', UTC_TIMESTAMP()),
-    ('027_message_mentions.sql', UTC_TIMESTAMP())
+    ('027_message_mentions.sql', UTC_TIMESTAMP()),
+    ('029_group_description.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;

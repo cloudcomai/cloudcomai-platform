@@ -22,12 +22,12 @@ function group_invite_payload(string $token): array {
 
 if ($method === 'GET') {
     $st = $pdo->prepare('
-        SELECT c.id,c.type,c.name,c.group_category,c.owner_id,c.retention_seconds,c.created_at,MAX(m.created_at) AS last_message_at
+        SELECT c.id,c.type,c.name,c.group_category,c.group_description,c.owner_id,c.retention_seconds,c.created_at,MAX(m.created_at) AS last_message_at
         FROM chats c
         INNER JOIN chat_members cm ON cm.chat_id=c.id
         LEFT JOIN messages m ON m.chat_id=c.id
         WHERE c.type="group" AND cm.user_id=? AND cm.status="active"
-        GROUP BY c.id,c.type,c.name,c.group_category,c.owner_id,c.retention_seconds,c.created_at
+        GROUP BY c.id,c.type,c.name,c.group_category,c.group_description,c.owner_id,c.retention_seconds,c.created_at
         ORDER BY COALESCE(MAX(m.created_at),c.created_at) DESC
     ');
     $st->execute([$user['id']]);
@@ -124,10 +124,19 @@ if ($method === 'PUT') {
     $name = trim((string)($d['name'] ?? ''));
     $type = (string)($d['group_category'] ?? '');
     if ($name === '' || !in_array($type, $types, true)) fail('Valid group name and category are required');
-    $st = $pdo->prepare('UPDATE chats SET name=?, group_category=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND type="group"');
-    $st->execute([$name, $type, $chatId]);
-    $owner=$pdo->prepare('SELECT owner_id FROM chats WHERE id=?'); $owner->execute([$chatId]);
-    out(['group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'owner_id'=>(int)$owner->fetchColumn(),'isGroup'=>true]]);
+    $descriptionProvided = array_key_exists('group_description', $d);
+    $description = trim((string)($d['group_description'] ?? ''));
+    if ($descriptionProvided && mb_strlen($description, 'UTF-8') > 256) fail('Group description must be 256 characters or fewer.', 422);
+    if ($descriptionProvided && $memberRow['role'] !== 'owner') fail('Only the group owner can edit the group description.', 403);
+    if ($descriptionProvided) {
+        $st = $pdo->prepare('UPDATE chats SET name=?, group_category=?, group_description=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND type="group"');
+        $st->execute([$name, $type, $description, $chatId]);
+    } else {
+        $st = $pdo->prepare('UPDATE chats SET name=?, group_category=?, updated_at=UTC_TIMESTAMP() WHERE id=? AND type="group"');
+        $st->execute([$name, $type, $chatId]);
+    }
+    $owner=$pdo->prepare('SELECT owner_id,group_description FROM chats WHERE id=?'); $owner->execute([$chatId]); $saved=$owner->fetch();
+    out(['group'=>['id'=>$chatId,'type'=>'group','name'=>$name,'group_category'=>$type,'group_description'=>$saved['group_description'] ?? '', 'owner_id'=>(int)$saved['owner_id'],'isGroup'=>true]]);
 }
 
 if ($method === 'DELETE') {

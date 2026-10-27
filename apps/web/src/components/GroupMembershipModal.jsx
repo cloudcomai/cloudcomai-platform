@@ -9,7 +9,11 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState('');
-  const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === Number(user?.id) && member.role === 'owner');
+  const [memberTypeFilter, setMemberTypeFilter] = useState('all');
+  const currentUserId = Number(user?.id);
+  const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
+  const isAdmin = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'admin');
+  const canManageMembers = ownsGroup || isAdmin;
 
   useEffect(() => {
     if ((type === 'manage_members' || type === 'add_member') && selectedChat) {
@@ -44,7 +48,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
           action: actionType
         })
       });
-      alert(`User successfully ${actionType === 'add' ? 'added to' : 'removed from'} group.`);
+      alert(actionType === 'add' ? 'User successfully added to group.' : Number(targetUserId) === currentUserId ? 'You have left the group.' : 'Member removed from group.');
       setSearchTerm('');
       setSearchResults([]);
       setHasSearched(false);
@@ -54,6 +58,22 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     } finally {
       setLoading(false);
     }
+  };
+
+  const setMemberRole = async (member, action) => {
+    if (loading) return;
+    const label = action === 'promote_admin' ? 'make this member an admin' : 'remove admin privileges from this member';
+    if (!window.confirm(`Are you sure you want to ${label}?`)) return;
+    setLoading(true); setError('');
+    try {
+      await apiBridge(ApiRoute.GROUP_MEMBERS, {
+        method: 'POST',
+        body: JSON.stringify({ chat_id: selectedChat.id, user_id: Number(member.user_id || member.id), action })
+      });
+      const result = await apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } });
+      setCurrentMembers(result.members || []);
+    } catch (e) { setError(e.message || 'Unable to update member role.'); }
+    finally { setLoading(false); }
   };
 
   const transferOwnership = async member => {
@@ -137,11 +157,16 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
         {type === 'manage_members' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)' }}>Active Group Participants ({currentMembers.length})</h5>
+            <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Member Type
+              <select aria-label="Member Type" value={memberTypeFilter} onChange={e => setMemberTypeFilter(e.target.value)} style={{ display: 'block', width: '100%', marginTop: '6px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-main)' }}>
+                <option value="all">All members</option><option value="owner">Owner</option><option value="admin">Admins</option><option value="member">Members</option>
+              </select>
+            </label>
             <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {!currentMembers || currentMembers.length === 0 ? (
                 <p style={{ fontSize: '12px', color: 'var(--text-light)', textAlign: 'center', padding: '20px' }}>No active participants found in this group chat.</p>
               ) : (
-                currentMembers.map(m => {
+                currentMembers.filter(m => memberTypeFilter === 'all' || (m.role || 'member') === memberTypeFilter).map(m => {
                   const isOwner = m.role === 'owner';
                   return (
                     <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-directory)', borderRadius: '8px', marginBottom: '4px' }}>
@@ -151,13 +176,19 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                       </div>
                       <div className="account-tool-actions">
                       {ownsGroup && !isOwner && <button disabled={loading} onClick={() => transferOwnership(m)}>Make owner</button>}
+                      {ownsGroup && !isOwner && m.role !== 'admin' && <button disabled={loading || currentMembers.filter(x => x.role === 'admin').length >= 3} onClick={() => setMemberRole(m, 'promote_admin')}>Make admin</button>}
+                      {ownsGroup && m.role === 'admin' && <button disabled={loading} onClick={() => setMemberRole(m, 'demote_admin')}>Remove admin</button>}
                       {isOwner ? (
                         <span style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: '600' }}>Owner</span>
-                      ) : (
+                      ) : Number(m.user_id || m.id) === currentUserId ? (
+                        <button style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '500', background: 'none', border: 'none' }} onClick={() => executeMemberAction(m.user_id || m.id, 'remove')} disabled={loading}>
+                          <UserMinus size={14} /> Leave group
+                        </button>
+                      ) : canManageMembers ? (
                         <button style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '500', background: 'none', border: 'none' }} onClick={() => executeMemberAction(m.user_id || m.id, 'remove')} disabled={loading}>
                           <UserMinus size={14} /> Remove
                         </button>
-                      )}
+                      ) : null}
                       </div>
                     </div>
                   );
