@@ -669,7 +669,8 @@ VALUES
     ('022_public_language_chat_rooms.sql', UTC_TIMESTAMP()),
     ('023_trusted_users.sql', UTC_TIMESTAMP()),
     ('024_password_recovery_schema.sql', UTC_TIMESTAMP()),
-    ('027_message_mentions.sql', UTC_TIMESTAMP())
+    ('027_message_mentions.sql', UTC_TIMESTAMP()),
+    ('029_group_description.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
 SET FOREIGN_KEY_CHECKS = 1;
