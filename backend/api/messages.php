@@ -38,14 +38,14 @@ if ($method === 'GET') {
             LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP())
             LEFT JOIN users ru ON ru.id=r.sender_id LEFT JOIN message_user_states rus ON rus.message_id=r.id AND rus.user_id=?
             LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=?
-            WHERE m.chat_id=? AND m.id>? AND m.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
+            WHERE m.chat_id=? AND m.id>? AND m.deleted_for_everyone=0 AND COALESCE(mus.hidden,0)=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND NOT (c.type='public' AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=m.sender_id))
             ORDER BY m.id DESC LIMIT 101
         SQL;
-        $st=$pdo->prepare($contextSql);$st->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$clearedThrough]);$older=$st->fetchAll();
+        $st=$pdo->prepare($contextSql);$st->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$clearedThrough,$user['id']]);$older=$st->fetchAll();
         $targetFound=false;foreach($older as $row){if((int)$row['id']===$aroundId){$targetFound=true;break;}}
-        if(!$targetFound){$target=$pdo->prepare(str_replace('m.id>?','m.id=?',$contextSql));$target->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$aroundId]);$targetRow=$target->fetch();if(!$targetRow)fail('Message not found',404);$older[]=$targetRow;}
+        if(!$targetFound){$target=$pdo->prepare(str_replace('m.id>?','m.id=?',$contextSql));$target->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$aroundId,$user['id']]);$targetRow=$target->fetch();if(!$targetRow)fail('Message not found',404);$older[]=$targetRow;}
         $older=array_reverse($older);
-        $newerSql=str_replace(['m.id>?','ORDER BY m.id DESC LIMIT 101'],['m.id>?','ORDER BY m.id ASC LIMIT 101'],$contextSql);$newer=$pdo->prepare($newerSql);$newer->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$aroundId]);
+        $newerSql=str_replace(['m.id>?','ORDER BY m.id DESC LIMIT 101'],['m.id>?','ORDER BY m.id ASC LIMIT 101'],$contextSql);$newer=$pdo->prepare($newerSql);$newer->execute([$user['id'],$user['id'],$user['id'],$user['id'],$user['id'],$chatId,$aroundId,$user['id']]);
         $messages=array_merge($older,$newer->fetchAll());$unique=[];foreach($messages as $row)$unique[(int)$row['id']]=$row;$messages=array_values($unique);usort($messages,static fn($a,$b)=>(int)$a['id']<=>(int)$b['id']);
         hydrate_message_state($messages,(int)$user['id']);hydrate_message_attachments($messages);hydrate_message_polls($messages,(int)$user['id']);out(['messages'=>$messages,'removed_ids'=>[],'synced_at'=>$syncedAt,'search_query'=>'','screenshot_alerts'=>[]]);
     }
@@ -69,9 +69,10 @@ if ($method === 'GET') {
         LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=?
         WHERE m.chat_id=? AND m.id>? AND m.deleted_for_everyone=0
           AND COALESCE(mus.hidden,0)=0
+          AND NOT (c.type='public' AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=m.sender_id))
           AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())
     SQL;
-    $params = [$user['id'], $user['id'], $user['id'], $clearedThrough, $user['id'], $user['id'], $chatId, $after];
+    $params = [$user['id'], $user['id'], $user['id'], $clearedThrough, $user['id'], $user['id'], $chatId, $after, $user['id']];
     if ($search !== '') {
         $sql .= ' AND (m.body LIKE ? OR EXISTS (SELECT 1 FROM message_attachments ma WHERE ma.message_id=m.id AND ma.original_filename LIKE ?))';
         $like = '%' . $search . '%';
@@ -104,10 +105,10 @@ if ($method === 'GET') {
         // Synchronize edits separately so they cannot consume the new-message page.
         $updatesSql = str_replace('m.id>? AND m.deleted_for_everyone=0', 'm.id>? AND m.id<=? AND m.edited_at>=? AND m.deleted_for_everyone=0', $sql);
         $updates = db()->prepare(str_replace(' LIMIT 200', '', $updatesSql));
-        $updates->execute([$user['id'],$user['id'],$user['id'],$clearedThrough,$user['id'],$user['id'],$chatId,max($clearedThrough,$syncFrom-1),$requestedAfter,$since]);
+        $updates->execute([$user['id'],$user['id'],$user['id'],$clearedThrough,$user['id'],$user['id'],$chatId,max($clearedThrough,$syncFrom-1),$requestedAfter,$since,$user['id']]);
         $messages = array_merge($updates->fetchAll(), $messages);
-        $removed = db()->prepare('SELECT m.id FROM messages m LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.chat_id=? AND m.id>=? AND m.id<=? AND (m.deleted_for_everyone=1 OR COALESCE(mus.hidden,0)=1 OR m.id<=? OR m.expires_at<=UTC_TIMESTAMP())');
-        $removed->execute([$user['id'],$chatId,$syncFrom,$requestedAfter,$clearedThrough]);
+        $removed = db()->prepare('SELECT m.id FROM messages m INNER JOIN chats c ON c.id=m.chat_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=? WHERE m.chat_id=? AND m.id>=? AND m.id<=? AND (m.deleted_for_everyone=1 OR COALESCE(mus.hidden,0)=1 OR m.id<=? OR m.expires_at<=UTC_TIMESTAMP() OR (c.type=\"public\" AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=m.sender_id)))');
+        $removed->execute([$user['id'],$chatId,$syncFrom,$requestedAfter,$clearedThrough,$user['id']]);
         $removedIds = array_map('intval', $removed->fetchAll(PDO::FETCH_COLUMN));
         $purged = db()->prepare('SELECT message_id FROM message_deletions WHERE chat_id=? AND message_id>=? AND message_id<=?');
         $purged->execute([$chatId,$syncFrom,$requestedAfter]);
