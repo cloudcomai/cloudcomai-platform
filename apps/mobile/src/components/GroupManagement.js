@@ -159,8 +159,22 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const remove = member => {
     const memberId = Number(member.user_id);
     const isOwner = member.role === 'owner';
-    if (isOwner && memberId !== Number(user?.id)) {
-      Alert.alert('Owner cannot be removed', 'Transfer ownership before removing the group owner.');
+    if (isOwner) {
+      if (memberId !== Number(user?.id)) { Alert.alert('Owner cannot be removed', 'Transfer ownership before removing the group owner.'); return; }
+      const candidates = members.filter(item => Number(item.user_id) !== memberId && item.role !== 'owner');
+      if (!candidates.length) { Alert.alert('Cannot leave yet', 'Add another active member before leaving the group.'); return; }
+      Alert.alert('Transfer ownership before leaving?', 'Choose an active member to become the new owner. You will leave the group management screen after transfer.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Choose owner', onPress: () => Alert.alert('Choose new owner', 'Select the member who will own this group.', [
+          ...candidates.slice(0, 3).map(candidate => ({ text: candidate.name || candidate.username || String(candidate.user_id), onPress: async () => {
+            setBusy(true); setError('');
+            try { await platformApi.transferGroupOwnership(group.id, Number(candidate.user_id)); onClose(); }
+            catch (e) { setError(e.message || 'Unable to transfer ownership.'); }
+            finally { setBusy(false); }
+          }})),
+          { text: 'Cancel', style: 'cancel' },
+        ]) },
+      ]);
       return;
     }
     Alert.alert('Remove member?', `Remove ${member.name || member.username || 'this member'} from the group?`, [
