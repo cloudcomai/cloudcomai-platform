@@ -74,12 +74,18 @@ try {
             $pdo->prepare('INSERT INTO chat_members(chat_id,user_id,role,status,joined_at) VALUES(?,?,?,"active",UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE status="active",role=VALUES(role),joined_at=UTC_TIMESTAMP()')->execute([$chatId, $targetId, $role]);
         }
     } else {
-        if ($targetId === $ownerId || ($existing && $existing['role'] === 'owner')) fail('The group owner cannot leave or be removed. Transfer ownership first or delete the group.', 403);
-        if (!in_array($member['role'], ['owner', 'admin'], true) && $userId !== $targetId) fail('Only administrators can remove other members', 403);
-        $pdo->prepare('UPDATE chat_members SET status="removed" WHERE chat_id=? AND user_id=?')->execute([$chatId, $targetId]);
+        if (!$existing || $existing['status'] !== 'active') fail('This member is not active in the group', 404);
+        if ($targetId === $ownerId || $existing['role'] === 'owner') {
+            fail('The group owner cannot leave or be removed. Transfer ownership first or delete the group.', 403);
+        }
+        $isSelfAction = $userId === $targetId;
+        if (!$isSelfAction && !in_array($member['role'], ['owner', 'admin'], true)) {
+            fail('Only the group owner or an admin can remove other members', 403);
+        }
+        $pdo->prepare('UPDATE chat_members SET status="removed" WHERE chat_id=? AND user_id=? AND status="active"')->execute([$chatId, $targetId]);
     }
     $pdo->commit();
-    out(['status' => 'ok', 'message' => $action === 'add' ? 'Member added successfully' : 'Member removed successfully']);
+    out(['status' => 'ok', 'message' => $action === 'add' ? 'Member added successfully' : ($userId === $targetId ? 'You have left the group' : 'Member removed successfully')]);
 } catch (Throwable $error) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('Group membership update failed: ' . $error->getMessage());
