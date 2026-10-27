@@ -174,6 +174,8 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
       const result = await apiClient.post('v1/attachment-requests/request', { attachment_id: attachment.id, request_type: requestType });
       const nextStatus = result.data?.status || 'PENDING';
       if (nextStatus === 'APPROVED') {
+        // Clear stale pending state when the server now authorizes this action.
+        setStatuses(current => ({ ...current, [requestType]: null }));
         if (requestType === 'DOWNLOAD') {
           const file = await downloadAttachmentPreview(attachment, { download: true });
           if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(file.uri, { dialogTitle: `Save ${attachment.name || 'attachment'}` });
@@ -194,9 +196,9 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
   const statusLabel = status => status === 'APPROVED' ? 'Approved' : status === 'DENIED' ? 'Rejected' : status === 'PENDING' ? 'Request Pending' : null;
   return <View>
     {showActions ? <View style={[styles.messageActions, { backgroundColor: colors.surface || colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}>
-      <MessageAction type="download" label={statusLabel(statuses.DOWNLOAD) || 'Download'} color={statuses.DOWNLOAD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.DOWNLOAD) || 'Download attachment'} onPress={statuses.DOWNLOAD === 'PENDING' ? undefined : () => request('DOWNLOAD')} colors={colors} />
+      <MessageAction type="download" label={statusLabel(statuses.DOWNLOAD) || 'Download'} color={statuses.DOWNLOAD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.DOWNLOAD) || 'Download attachment'} onPress={() => request('DOWNLOAD')} colors={colors} />
       <MessageAction type="reply" label="Reply" color={primary} accessibilityLabel="Reply to message" onPress={onReply} colors={colors}/>
-      <MessageAction type="forward" label={statusLabel(statuses.FORWARD) || 'Forward'} color={statuses.FORWARD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.FORWARD) || 'Forward attachment'} onPress={statuses.FORWARD === 'PENDING' ? undefined : () => request('FORWARD')} colors={colors} />
+      <MessageAction type="forward" label={statusLabel(statuses.FORWARD) || 'Forward'} color={statuses.FORWARD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.FORWARD) || 'Forward attachment'} onPress={() => request('FORWARD')} colors={colors} />
       <MessageAction type="save" label={message.saved ? 'Saved' : 'Save'} color={primary} accessibilityLabel={message.saved ? 'Unsave message' : 'Save message'} onPress={onSave} colors={colors}/>
       <MessageAction type="delete" label="Delete" color={danger} accessibilityLabel="Delete message" onPress={onDelete} colors={colors}/>
     </View> : null}

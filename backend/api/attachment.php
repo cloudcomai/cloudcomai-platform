@@ -74,13 +74,10 @@ if ($preview) {
     }
 }
 if (!$preview && $a['chat_type'] === 'group') {
-    // Group admins can download group attachments without sender approval or an
-    // explicit attachment grant. They must still be active group members (checked above).
-    $admin = db()->prepare('SELECT role FROM chat_members WHERE chat_id=? AND user_id=? AND status="active" LIMIT 1');
-    $admin->execute([(int)$a['chat_id'], (int)$user['id']]);
-    $isGroupAdmin = $admin->fetchColumn() === 'admin';
-
-    if ($isGroupAdmin) {
+    // Active group owners and admins can download without sender approval or a
+    // per-member/group grant. Regular members continue to follow group grants and
+    // the attachment's download policy.
+    if (group_attachment_is_admin_or_owner((int)$a['chat_id'], (int)$user['id'])) {
         $authorizedPreview = true;
     } else {
         $groupPermission = group_attachment_permission((int)$a['chat_id'], (int)$user['id'], 'download');

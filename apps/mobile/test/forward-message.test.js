@@ -11,6 +11,7 @@ const api = fs.readFileSync(path.join(here, '../../../packages/api-client/src/cl
 const endpoints = fs.readFileSync(path.join(here, '../../../packages/api-client/src/endpoints.js'), 'utf8');
 const contract = JSON.parse(fs.readFileSync(path.join(here, '../../../backend/api-contract.json'), 'utf8'));
 const handler = fs.readFileSync(path.join(here, '../../../backend/api/forward_message.php'), 'utf8');
+const attachmentRequestHandler = fs.readFileSync(path.join(here, '../../../backend/api/request_attachment_download.php'), 'utf8');
 
 test('mobile forward flow supports search, multi-select and confirmation', () => {
   assert.match(modal, /Search contacts or chats/);
@@ -32,4 +33,12 @@ test('forward API is registered and only forwards visible text messages', () => 
   assert.match(handler, /type,body,reply_to_message_id,expires_at,created_at/);
   assert.match(handler, /forwarded_text/);
   assert.match(handler, /create_chat_notifications/);
+});
+
+test('group owners and admins receive immediate approval for attachment actions', () => {
+  assert.match(attachmentRequestHandler, /group_attachment_is_admin_or_owner/);
+  assert.match(attachmentRequestHandler, /group_role_bypass/);
+  assert.match(handler, /group_attachment_is_admin_or_owner/);
+  assert.match(handler, /if \(!\$groupAdminOrOwner\)/);
+  assert.match(media, /setStatuses\(current => \(\{ \.\.\.current, \[requestType\]: null \}\)\)/);
 });

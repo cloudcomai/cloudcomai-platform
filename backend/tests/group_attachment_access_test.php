@@ -9,6 +9,7 @@ $handler = (string)file_get_contents($root . '/api/group_attachment_access.php')
 $messages = (string)file_get_contents($root . '/api/messages.php');
 $policy = (string)file_get_contents($root . '/lib/group_attachment_access.php');
 $download = (string)file_get_contents($root . '/api/attachment.php');
+$request = (string)file_get_contents($root . '/api/request_attachment_download.php');
 $forward = (string)file_get_contents($root . '/api/forward_message.php');
 $fresh = (string)file_get_contents($root . '/database/fresh-install.sql');
 $schema = (string)file_get_contents($root . '/sql/schema.sql');
@@ -22,12 +23,18 @@ assert(str_contains($messages, 'Download access closed. The temporary attachment
 assert(str_contains($messages, 'expires_at<=UTC_TIMESTAMP() AND revoked_at IS NULL'));
 assert(str_contains($messages, '$expire->rowCount() > 0'));
 assert(str_contains($policy, 'expires_at'));
+assert(str_contains($policy, 'function group_attachment_is_admin_or_owner'));
+assert(str_contains($policy, 'role IN ("owner","admin")'));
 assert(str_contains($download, '$a[\'chat_type\'] === \'group\''));
 assert(str_contains($download, 'group_attachment_permission'));
-assert(str_contains($download, '$isGroupAdmin'));
+assert(str_contains($download, 'group_attachment_is_admin_or_owner'));
 assert(str_contains($download, '$authorizedPreview = true;'));
+assert(str_contains($request, 'group_attachment_is_admin_or_owner'));
+assert(str_contains($request, "out(['status'=>'APPROVED','request_type'=>\$type,'group_role_bypass'=>true]"));
 assert(str_contains($forward, '$source[\'chat_type\'] === \'group\''));
 assert(str_contains($forward, 'group_attachment_permission'));
+assert(str_contains($forward, 'group_attachment_is_admin_or_owner'));
+assert(str_contains($forward, 'if (!$groupAdminOrOwner)'));
 assert(substr_count($fresh, 'CREATE TABLE IF NOT EXISTS group_attachment_access') === 1);
 assert(substr_count($schema, 'CREATE TABLE IF NOT EXISTS group_attachment_access') === 1);
 foreach ([$fresh, $schema, $migration] as $sql) {

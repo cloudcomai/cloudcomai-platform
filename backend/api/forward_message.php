@@ -23,14 +23,22 @@ $hasAttachment = !empty($source['attachment_id']);
 if (!$hasAttachment && !in_array($source['type'], ['text', 'forwarded_text'], true)) fail('This message type cannot be forwarded', 422);
 if (!$hasAttachment && trim((string)$source['body']) === '') fail('The selected message is empty', 422);
 if ($hasAttachment) {
-    $groupPermission = $source['chat_type'] === 'group'
-        ? group_attachment_permission((int)$source['chat_id'], (int)$user['id'], 'forward')
-        : null;
-    if ($groupPermission === false) fail('Group owner has disabled forwarding for you', 403);
-    if ($groupPermission !== true && (int)$source['sender_id'] !== (int)$user['id'] && $source['download_policy'] !== 'ALLOW' && !is_trusted_user((int)$source['sender_id'], (int)$user['id'])) {
-        $approvalStmt = db()->prepare('SELECT 1 FROM attachment_download_requests WHERE attachment_id=? AND requester_id=? AND status="APPROVED" LIMIT 1');
-        $approvalStmt->execute([(int)$source['attachment_id'], (int)$user['id']]);
-        if (!$approvalStmt->fetch()) fail('Forward requires sender approval', 403);
+    $groupAdminOrOwner = $source['chat_type'] === 'group'
+        && group_attachment_is_admin_or_owner((int)$source['chat_id'], (int)$user['id']);
+
+    // Group owners/admins follow the same bypass as the download endpoint: no
+    // sender approval or explicit group grant is required. All other members
+    // retain the existing group forward grant and per-attachment approval checks.
+    if (!$groupAdminOrOwner) {
+        $groupPermission = $source['chat_type'] === 'group'
+            ? group_attachment_permission((int)$source['chat_id'], (int)$user['id'], 'forward')
+            : null;
+        if ($groupPermission === false) fail('Group owner has disabled forwarding for you', 403);
+        if ($groupPermission !== true && (int)$source['sender_id'] !== (int)$user['id'] && $source['download_policy'] !== 'ALLOW' && !is_trusted_user((int)$source['sender_id'], (int)$user['id'])) {
+            $approvalStmt = db()->prepare('SELECT 1 FROM attachment_download_requests WHERE attachment_id=? AND requester_id=? AND status="APPROVED" LIMIT 1');
+            $approvalStmt->execute([(int)$source['attachment_id'], (int)$user['id']]);
+            if (!$approvalStmt->fetch()) fail('Forward requires sender approval', 403);
+        }
     }
 }
 

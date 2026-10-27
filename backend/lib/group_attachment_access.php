@@ -25,3 +25,12 @@ function group_attachment_permission(int $chatId, int $userId, string $action): 
     if ($row['expires_at'] !== null && strtotime($row['expires_at'] . ' UTC') <= time()) return null;
     return (bool)$row[$column];
 }
+
+
+/** Active group owners and admins bypass per-attachment sender approval for group attachments. */
+function group_attachment_is_admin_or_owner(int $chatId, int $userId): bool
+{
+    $stmt = db()->prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status="active" AND role IN ("owner","admin") LIMIT 1');
+    $stmt->execute([$chatId, $userId]);
+    return (bool)$stmt->fetchColumn();
+}
