@@ -1,12 +1,13 @@
 <?php
 require __DIR__ . '/../lib/bootstrap.php';
+require_once __DIR__ . '/../lib/group_attachment_access.php';
 $user = auth_user();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('Method not allowed', 405);
 $d = input();
 $id = (int)($d['attachment_id'] ?? 0);
 $type = strtoupper((string)($d['request_type'] ?? 'DOWNLOAD'));
 if ($id <= 0 || !in_array($type, ['DOWNLOAD','FORWARD'], true)) fail('Invalid attachment request');
-$st = db()->prepare('SELECT a.id,a.message_id,a.download_policy,m.chat_id,m.sender_id FROM message_attachments a JOIN messages m ON m.id=a.message_id WHERE a.id=?');
+$st = db()->prepare('SELECT a.id,a.message_id,a.download_policy,m.chat_id,m.sender_id,c.type AS chat_type FROM message_attachments a JOIN messages m ON m.id=a.message_id JOIN chats c ON c.id=m.chat_id WHERE a.id=?');
 $st->execute([$id]); $a = $st->fetch();
 if (!$a) fail('Attachment not found', 404);
 assert_visible_message((int)$a['message_id'], (int)$user['id']);
@@ -14,6 +15,13 @@ assert_chat_allows_messages((int)$a['chat_id'], (int)$user['id']);
 $member = db()->prepare('SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status="active"');
 $member->execute([(int)$a['chat_id'], $user['id']]);
 if (!$member->fetch()) fail('Not a member', 403);
+
+// Active group owners/admins are authorized immediately, before sender policy
+// and any previously-created pending request can affect the mobile UI.
+if ($a['chat_type'] === 'group' && group_attachment_is_admin_or_owner((int)$a['chat_id'], (int)$user['id'])) {
+    out(['status'=>'APPROVED','request_type'=>$type,'group_role_bypass'=>true]);
+}
+
 // Trusted User is sender-controlled: sender -> recipient. A trusted recipient
 // gets download/forward access without creating an approval request.
 $trustedSender = is_trusted_user((int)$a['sender_id'], (int)$user['id']);

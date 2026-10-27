@@ -29,8 +29,10 @@ test('selected attachment actions match the approved single-row reference', () =
   assert.doesNotMatch(media, /type === 'DOWNLOAD' \? '↓' : '↗'/);
   assert.match(media, /type === 'save'.*bookmarkIcon/);
   assert.match(media, /status === 'PENDING' \? 'Request Pending'/);
-  assert.match(media, /statuses\.FORWARD === 'PENDING' \? undefined/);
-  assert.match(media, /statuses\.DOWNLOAD === 'PENDING' \? undefined/);
+  // Pending requests must remain retryable so the API can refresh authorization
+  // after a user's group role or attachment policy changes.
+  assert.match(media, /onPress=\{\(\) => request\('FORWARD'\)\}/);
+  assert.match(media, /onPress=\{\(\) => request\('DOWNLOAD'\)\}/);
 });
 
 test('text messages expose reply forward save delete without download', () => {
