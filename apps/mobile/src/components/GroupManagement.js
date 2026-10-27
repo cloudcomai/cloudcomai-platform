@@ -210,7 +210,20 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   };
 
   const deleteGroup = () => {
-    Alert.alert('Delete group?', 'This removes the group for all active members.', [
+    Alert.alert('Delete group?', 'You can transfer ownership to another active member instead of deleting the group.', [
+      { text: 'Transfer ownership', onPress: () => {
+        const candidates = members.filter(item => Number(item.user_id) !== Number(user?.id) && item.role !== 'owner');
+        if (!candidates.length) { Alert.alert('No eligible members', 'Add another active member before transferring ownership.'); return; }
+        Alert.alert('Choose new owner', 'Select the member who will own this group.', [
+          ...candidates.slice(0, 3).map(candidate => ({ text: candidate.name || candidate.username || String(candidate.user_id), onPress: async () => {
+            setBusy(true); setError('');
+            try { await platformApi.transferGroupOwnership(group.id, Number(candidate.user_id)); onGroupUpdated?.({ ...group, owner_id: Number(candidate.user_id) }); onClose(); }
+            catch (e) { setError(e.message || 'Unable to transfer ownership.'); }
+            finally { setBusy(false); }
+          }})),
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+      }},
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         setBusy(true); setError('');
