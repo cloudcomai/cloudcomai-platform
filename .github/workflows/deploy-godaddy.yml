@@ -53,7 +53,14 @@ env:
 jobs:
   deploy:
     name: Validate and deploy CloudComAI
-    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'DEPLOY'
+    # Production deploys remain manual and require explicit DEPLOY confirmation.
+    # Allow main for releases and feature/* branches for deliberate branch testing.
+    if: >-
+      inputs.confirmation == 'DEPLOY' &&
+      (
+        github.ref == 'refs/heads/main' ||
+        startsWith(github.ref, 'refs/heads/feature/')
+      )
     runs-on: ubuntu-latest
     environment: production
 
