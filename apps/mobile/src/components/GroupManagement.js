@@ -27,6 +27,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [memberTypeFilter, setMemberTypeFilter] = useState('all');
   const ownsGroup = members.some(member => Number(member.user_id) === Number(user?.id) && member.role === 'owner');
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
@@ -176,6 +177,22 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
     ]);
   };
 
+  const setMemberRole = async (member, action) => {
+    if (busy || !ownsGroup) return;
+    const label = action === 'promote_admin' ? 'make this member an admin' : 'remove this member as an admin';
+    Alert.alert('Update member role?', `Are you sure you want to ${label}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: async () => {
+        setBusy(true); setError('');
+        try {
+          await platformApi.updateGroupMember(group.id, Number(member.user_id), action);
+          await load();
+        } catch (e) { setError(e.message || 'Unable to update member role.'); }
+        finally { setBusy(false); }
+      }},
+    ]);
+  };
+
   const transferOwnership = member => {
     if (busy) return;
     Alert.alert('Transfer ownership?', `Make ${member.name || 'this member'} the group owner? You will become an admin and existing invite links will stop working.`, [
@@ -232,7 +249,17 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
-            {members.map(member => <View key={`${member.user_id}-${member.role}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={[styles.link,{color:theme.colors.accent}]}>Make owner</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}</View></View>)}
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Member Type</Text>
+            <View style={styles.filterRow}>
+              {[
+                ['all', 'All'], ['owner', 'Owner'], ['admin', 'Admins'], ['member', 'Members'],
+              ].map(([value, label]) => (
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: memberTypeFilter === value }} onPress={() => setMemberTypeFilter(value)} style={[styles.filterChip, { borderColor: theme.colors.border, backgroundColor: memberTypeFilter === value ? theme.colors.accent : theme.colors.background }]}>
+                  <Text style={{ color: memberTypeFilter === value ? '#fff' : theme.colors.text, fontSize: 12 }}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {members.filter(member => memberTypeFilter === 'all' || (member.role || 'member') === memberTypeFilter).map(member => <View key={`${member.user_id}-${member.role}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{member.role}{member.username ? ` · @${member.username}` : ''}</Text></View><View style={styles.memberActions}>{ownsGroup && member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => transferOwnership(member)}><Text style={[styles.link,{color:theme.colors.accent}]}>Make owner</Text></Pressable> : null}{ownsGroup && member.role !== 'owner' && member.role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}{ownsGroup && member.role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}{member.role !== 'owner' ? <Pressable disabled={busy} onPress={() => remove(member)}><Text style={styles.danger}>Remove</Text></Pressable> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text>}</View></View>)}
           </View>
           {ownsGroup ? <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Attachment access</Text>
@@ -260,6 +287,8 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
 }
 
 const styles = StyleSheet.create({
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
+  filterChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
   page: { flex: 1, backgroundColor: '#f5f7fb' },
   header: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, backgroundColor: '#3157d5' },
   headerTitle: { flex: 1, textAlign: 'center', color: '#fff', fontSize: 18, fontWeight: '800' },
