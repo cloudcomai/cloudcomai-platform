@@ -143,8 +143,8 @@ function token_for(int $userId, int $sessionVersion = 0): string {
     return $token;
 }
 function assert_visible_message(int $messageId, int $userId): void {
-    $st = db()->prepare('SELECT m.id FROM messages m INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id WHERE m.id=? AND m.id>COALESCE(cus.cleared_through_message_id,0) AND COALESCE(mus.hidden,0)=0 AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
-    $st->execute([$userId, $messageId]);
+    $st = db()->prepare('SELECT m.id FROM messages m INNER JOIN chats c ON c.id=m.chat_id INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id WHERE m.id=? AND m.id>COALESCE(cus.cleared_through_message_id,0) AND COALESCE(mus.hidden,0)=0 AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND NOT (c.type="public" AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=m.sender_id))');
+    $st->execute([$userId, $messageId, $userId]);
     if (!$st->fetch()) fail('Message not found', 404);
 }
 function auth_user(): array {
