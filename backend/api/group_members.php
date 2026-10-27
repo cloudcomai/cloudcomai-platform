@@ -17,9 +17,22 @@ $member = $membership->fetch();
 if (!$member) fail('Group not found or access denied', 403);
 
 if ($method === 'GET') {
-    $members = $pdo->prepare('SELECT cm.user_id,cm.role,u.name,u.user_id AS username FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id WHERE cm.chat_id=? AND cm.status="active" ORDER BY cm.user_id');
+    $members = $pdo->prepare('SELECT cm.user_id,cm.role,cm.status,u.name,u.user_id AS username FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id WHERE cm.chat_id=? AND cm.status="active" ORDER BY cm.user_id');
     $members->execute([$chatId]);
-    out(['members' => $members->fetchAll()]);
+    $rows = $members->fetchAll();
+    $uploadFolder = __DIR__ . '/../uploads/users';
+    foreach ($rows as &$row) {
+        $row['user_id'] = (int)$row['user_id'];
+        $row['image_version'] = null;
+        foreach (glob($uploadFolder . '/' . $row['user_id'] . '.*') ?: [] as $photo) {
+            if (is_file($photo)) {
+                $row['image_version'] = (string)(filemtime($photo) ?: 0) . '-' . (string)filesize($photo);
+                break;
+            }
+        }
+    }
+    unset($row);
+    out(['members' => $rows]);
 }
 
 $targetId = (int)($data['user_id'] ?? 0);
