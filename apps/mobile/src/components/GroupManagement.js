@@ -311,8 +311,11 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               return matchesType && matchesPermission;
             }).map(member => {
               const role = member.role || 'member';
-              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
-              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
+              const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrantRecord = attachmentGrants.find(item => item.grant_scope === 'group');
+              const grant = memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()) ? memberGrant : null;
+              const groupGrant = groupGrantRecord && !groupGrantRecord.revoked_at && (!groupGrantRecord.expires_at || new Date(groupGrantRecord.expires_at).getTime() > Date.now()) ? groupGrantRecord : null;
+              const expired = Boolean((memberGrant?.expires_at && new Date(memberGrant.expires_at).getTime() <= Date.now()) || (groupGrantRecord?.expires_at && new Date(groupGrantRecord.expires_at).getTime() <= Date.now()));
               const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
               const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
               const photoVersion = member.image_version || member.photo_version || '1';
@@ -323,7 +326,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
                   <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username} · ` : ''}{role.charAt(0).toUpperCase()+role.slice(1)}</Text>
                   <Text style={[styles.permissionText,{color:canDownload ? '#15803d' : theme.colors.secondary}]}>{canDownload ? 'Can download attachments' : 'Cannot download attachments'}</Text>
                   <Text style={[styles.permissionText,{color:canMessage ? '#15803d' : '#b91c1c'}]}>{canMessage ? 'Can send messages' : 'Messaging restricted'}</Text>
-                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : null}
+                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download access closed</Text> : null}
                 </View>
                 <View style={styles.memberActions}>
                   {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
