@@ -127,7 +127,7 @@ export default function PublicChatManagement({ visible, chat, user, onClose, onL
     try {
       const { data } = await platformApi.reportPublicChatUser(chat.id, {
         reported_user_id: Number(selectedUser.id), reason, details: details.trim(),
-        incident_key: 'user:' + String(selectedUser.id),
+        incident_key:'user:'+String(selectedUser.id),
       });
       if (data?.duplicate) {
         Alert.alert('Already reported', 'Your duplicate report was not counted. Messages from this user are now hidden from you in all public chats.');
