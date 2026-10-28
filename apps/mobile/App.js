@@ -1243,6 +1243,17 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Apply capture protection for the entire mobile app, not only while a chat is open.
+    // Android uses FLAG_SECURE to block screenshots and screen recordings. iOS has
+    // platform limitations and cannot reliably prevent user-initiated screenshots/recordings.
+    const appCaptureProtectionKey = 'cloudcomai-app-wide-capture-protection';
+    ScreenCapture.preventScreenCaptureAsync(appCaptureProtectionKey).catch(() => {});
+    return () => {
+      ScreenCapture.allowScreenCaptureAsync(appCaptureProtectionKey).catch(() => {});
+    };
+  }, []);
+
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <AppContent />
