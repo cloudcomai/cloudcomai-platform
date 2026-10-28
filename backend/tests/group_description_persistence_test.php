@@ -5,7 +5,7 @@ $root = dirname(__DIR__);
 $handler = (string) file_get_contents($root . '/api/groups.php');
 $fresh = (string) file_get_contents($root . '/database/fresh-install.sql');
 $migration = (string) file_get_contents($root . '/database/migrations/029_group_description.sql');
-$mobile = (string) file_get_contents(dirname($root) . '/../apps/mobile/src/components/GroupManagement.js');
+$mobile = (string) file_get_contents(dirname($root) . '/apps/mobile/src/components/GroupManagement.js');
 
 assert(str_contains($handler, 'c.group_description'));
 assert(str_contains($handler, "array_key_exists('group_description', \$d)"));
@@ -17,4 +17,4 @@ assert(str_contains($fresh, 'group_description VARCHAR(256) NOT NULL DEFAULT'));
 assert(str_contains($mobile, 'platformApi.listGroups()'));
 assert(str_contains($mobile, 'The group description was not retained by the server.'));
 
-echo "group_description_persistence_test.php passed\\n";
+echo "group_description_persistence_test.php passed\n";
