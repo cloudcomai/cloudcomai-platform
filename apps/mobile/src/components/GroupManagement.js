@@ -43,7 +43,27 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       const { data } = await platformApi.listGroupMembers(group.id);
       setMembers(data.members || []);
       setName(group.name || '');
-      setDescription(group.group_description || '');
+
+      // The parent may hold a stale snapshot. Refresh the selected group once
+      // and propagate the complete server version so every group field stays
+      // consistent across Manage Group and the parent screen.
+      try {
+        const { data: groupsData } = await platformApi.listGroups();
+        const latestGroup = (groupsData.groups || []).find(item => Number(item.id) === Number(group.id));
+        if (latestGroup) {
+          setName(String(latestGroup.name ?? group.name ?? ''));
+          setDescription(String(latestGroup.group_description ?? group.group_description ?? ''));
+          onGroupUpdated?.({ ...group, ...latestGroup });
+        } else {
+          setName(group.name || '');
+          setDescription(String(group.group_description ?? ''));
+        }
+      } catch {
+        // Keep group management usable if this optional refresh fails.
+        setName(group.name || '');
+        setDescription(String(group.group_description ?? ''));
+      }
+
       const access = await platformApi.getGroupAttachmentAccess(group.id);
       setAttachmentGrants(access.data.grants || []);
     } catch (e) {
@@ -131,13 +151,27 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
     if (description !== (group?.group_description || '') && !ownsGroup) { setError('Only the group owner can edit the group description.'); return; }
     setBusy(true); setError('');
     try {
+      const requestedDescription = description.trim();
       const { data } = await platformApi.updateGroup(group.id, {
         name: name.trim(),
         group_category: group.group_category || 'Family Group',
-        ...(ownsGroup ? { group_description: description } : {}),
+        ...(ownsGroup ? { group_description: requestedDescription } : {}),
       });
-      onGroupUpdated?.({ ...group, ...(data.group || {}), name: name.trim(), group_description: data.group?.group_description ?? group.group_description ?? '' });
-      Alert.alert('Group updated', 'Group details were saved.');
+
+      // The PUT response is read back from the database. Do not tell the
+      // owner the description was saved unless the server confirms that value.
+      const responseGroup = data.group || {};
+      if (ownsGroup && String(responseGroup.group_description ?? '') !== requestedDescription) {
+        throw new Error('CloudComAI could not confirm the saved group description. Please try again.');
+      }
+
+      // The update endpoint's response is the save confirmation. Avoid a
+      // second listGroups request; keep local and parent state aligned to it.
+      const savedDescription = String(responseGroup.group_description ?? '');
+      setName(String(responseGroup.name ?? name.trim()));
+      setDescription(savedDescription);
+      onGroupUpdated?.({ ...group, ...responseGroup, name: name.trim(), group_description: savedDescription });
+      Alert.alert('Group updated', 'Group details were saved and verified.');
     } catch (e) {
       setError(e.message || 'Unable to update group.');
     } finally { setBusy(false); }
