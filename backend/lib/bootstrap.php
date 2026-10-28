@@ -71,8 +71,8 @@ function create_chat_notifications(int $chatId, int $senderId, string $senderNam
     $kind = db()->prepare('SELECT type FROM messages WHERE id=?');
     $kind->execute([$messageId]);
     $category = in_array($kind->fetchColumn(), ['attachment','voice','video'], true) ? 'attachment' : ($chatType === 'group' ? 'group' : 'message');
-    $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id=? AND user_id<>? AND status="active"');
-    $st->execute([$chatId, $senderId]);
+    $st = db()->prepare('SELECT cm.user_id FROM chat_members cm WHERE cm.chat_id=? AND cm.user_id<>? AND cm.status="active" AND (?<>"public" OR NOT EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=cm.user_id AND h.hidden_user_id=?))');
+    $st->execute([$chatId, $senderId, (string)$chatType, $senderId]);
     $text = trim($body); if ($text === '') $text = 'Sent you an attachment';
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $recipientId) {
         $mute = db()->prepare('SELECT notifications_muted FROM chat_user_states WHERE chat_id=? AND user_id=? LIMIT 1');
@@ -143,8 +143,8 @@ function token_for(int $userId, int $sessionVersion = 0): string {
     return $token;
 }
 function assert_visible_message(int $messageId, int $userId): void {
-    $st = db()->prepare('SELECT m.id FROM messages m INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id WHERE m.id=? AND m.id>COALESCE(cus.cleared_through_message_id,0) AND COALESCE(mus.hidden,0)=0 AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
-    $st->execute([$userId, $messageId]);
+    $st = db()->prepare('SELECT m.id FROM messages m INNER JOIN chats c ON c.id=m.chat_id INNER JOIN chat_members cm ON cm.chat_id=m.chat_id AND cm.user_id=? AND cm.status="active" LEFT JOIN chat_user_states cus ON cus.chat_id=m.chat_id AND cus.user_id=cm.user_id LEFT JOIN message_user_states mus ON mus.message_id=m.id AND mus.user_id=cm.user_id WHERE m.id=? AND m.id>COALESCE(cus.cleared_through_message_id,0) AND COALESCE(mus.hidden,0)=0 AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP()) AND NOT (c.type="public" AND EXISTS (SELECT 1 FROM public_chat_hidden_users h WHERE h.user_id=? AND h.hidden_user_id=m.sender_id))');
+    $st->execute([$userId, $messageId, $userId]);
     if (!$st->fetch()) fail('Message not found', 404);
 }
 function auth_user(): array {
