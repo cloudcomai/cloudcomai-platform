@@ -670,6 +670,7 @@ VALUES
     ('023_trusted_users.sql', UTC_TIMESTAMP()),
     ('024_password_recovery_schema.sql', UTC_TIMESTAMP()),
     ('027_message_mentions.sql', UTC_TIMESTAMP()),
+    ('028_public_chat_hidden_users.sql', UTC_TIMESTAMP()),
     ('029_group_description.sql', UTC_TIMESTAMP())
 ON DUPLICATE KEY UPDATE executed_at = executed_at;
 
@@ -692,6 +693,14 @@ CREATE TABLE IF NOT EXISTS public_chat_reports (
     INDEX idx_public_chat_reports_target (chat_id,reported_user_id,status,created_at),
     INDEX idx_public_chat_reports_message (chat_id,message_id),
     INDEX idx_public_chat_reports_reporter (reporter_id,created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS public_chat_hidden_users (
+    user_id BIGINT UNSIGNED NOT NULL,
+    hidden_user_id BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id,hidden_user_id),
+    INDEX idx_public_chat_hidden_target (hidden_user_id,user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS public_chat_restrictions (

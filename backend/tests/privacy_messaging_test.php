@@ -143,6 +143,32 @@ try {
     request('POST','v1/polls',1,['chat_id'=>1,'question'=>'Blocked?','options'=>['Yes','No']],422);
     request('DELETE','v1/users/privacy?user_id=1',2);
 
+    // Reporting a public-chat participant hides their messages only from the reporter.
+    // This visibility test does not need push delivery; the fixture's consolidated schema may omit the delivery queue table.
+    $admin->exec('INSERT INTO user_notification_preferences(user_id,enabled) VALUES(2,0) ON DUPLICATE KEY UPDATE enabled=0');
+    $publicChatId = (int)$admin->query('SELECT COALESCE(MAX(id),0)+1 FROM chats')->fetchColumn();
+    $publicChatInsert = $admin->prepare("INSERT INTO chats(id,type,name,room_type,group_category,retention_seconds) VALUES(?,'public','Test public room','city','india-city',14400)");
+    $publicChatInsert->execute([$publicChatId]);
+    $publicMembers = $admin->prepare("INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(?,1,'member','active'),(?,2,'member','active')");
+    $publicMembers->execute([$publicChatId,$publicChatId]);
+    $publicMessage = request('POST','v1/messages',1,['chat_id'=>$publicChatId,'body'=>'message hidden after report'],201)['data']['message'];
+    $publicMessageId = (int)$publicMessage['id'];
+    check(count(request('GET',"v1/messages?chat_id=$publicChatId",2)['data']['messages'])===1,'Public message should be visible before reporting');
+    request('POST','v1/public-chats',2,['action'=>'report','room_id'=>$publicChatId,'reported_user_id'=>1,'reason'=>'Harassment','details'=>'Test report','incident_key'=>'user:1']);
+    $publicSync = request('GET',"v1/messages?chat_id=$publicChatId&after_id=$publicMessageId",2)['data'];
+    check(!in_array($publicMessageId,array_column($publicSync['messages'],'id')),'Reported public message remained visible');
+    check(in_array($publicMessageId,$publicSync['removed_ids'],true),'Previously loaded reported message was not removed from sync');
+    check(count(request('GET',"v1/messages?chat_id=$publicChatId",1)['data']['messages'])===1,'Reporter hide affected the offender own view');
+    request('POST','v1/public-chats',2,['action'=>'unhide-user','room_id'=>$publicChatId,'user_id'=>1]);
+    check(count(request('GET',"v1/messages?chat_id=$publicChatId",2)['data']['messages'])===1,'Unhide did not restore public message visibility');
+    $admin->prepare('DELETE FROM public_chat_reports WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM public_chat_restrictions WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM messages WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM chat_user_states WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM chat_members WHERE chat_id=?')->execute([$publicChatId]);
+    $admin->prepare('DELETE FROM chats WHERE id=?')->execute([$publicChatId]);
+    $admin->exec('DELETE FROM user_notification_preferences WHERE user_id=2');
+
     $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true);
     check(is_string($png),'Unable to prepare image upload fixture');
     $imageBoundary = 'CloudComAIImageUploadTest';
@@ -267,6 +293,10 @@ try {
 
     // A failed notification insert must roll back message creation, so a retry
     // cannot duplicate a message that appeared to fail in the UI.
+    // Explicitly ensure this rollback fixture has an eligible notification recipient.
+    request('POST','v1/notifications/device-token',2,['token'=>'ExponentPushToken[integration-test-rollback]','platform'=>'ANDROID']);
+    $admin->exec('INSERT INTO user_notification_preferences(user_id,enabled,message) VALUES(2,1,1) ON DUPLICATE KEY UPDATE enabled=1,message=1');
+    $admin->exec("UPDATE chat_members SET status='active' WHERE chat_id=1 AND user_id=2");
     $messageCount = (int)$admin->query('SELECT COUNT(*) FROM messages')->fetchColumn();
     $notificationCount = (int)$admin->query('SELECT COUNT(*) FROM notification_history')->fetchColumn();
     $admin->exec('RENAME TABLE notification_delivery_queue TO unavailable_delivery_queue');

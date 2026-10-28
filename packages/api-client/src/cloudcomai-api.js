@@ -47,6 +47,8 @@ export class CloudComAiApi {
   leavePublicChat(roomId, options = {}) { return this.client.delete(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, id: roomId } }); }
   getPublicChatManage(roomId, options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, action: 'manage', room_id: roomId } }); }
   getPublicChatReports(roomId, options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, action: 'reports', room_id: roomId } }); }
+  getPublicChatHiddenUsers(roomId, options = {}) { return this.client.get(ApiRoute.PUBLIC_CHATS, { ...options, query: { ...options.query, action: 'hidden-users', room_id: roomId } }); }
+  unhidePublicChatUser(roomId, userId, options = {}) { return this.client.post(ApiRoute.PUBLIC_CHATS, { action: 'unhide-user', room_id: roomId, user_id: userId }, options); }
   reportPublicChatUser(roomId, input, options = {}) { return this.client.post(ApiRoute.PUBLIC_CHATS, { action: 'report', room_id: roomId, ...input }, options); }
   listGroups(options = {}) { return this.client.get(ApiRoute.GROUPS, options); }
   createGroup(input, options = {}) { return this.client.post(ApiRoute.GROUPS, input, options); }

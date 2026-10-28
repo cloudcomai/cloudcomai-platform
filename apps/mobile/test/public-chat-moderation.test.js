@@ -35,4 +35,12 @@ test('API client exposes message context and public moderation endpoints',()=>{
  assert.ok(api.includes('getMessageContext(chatId, messageId'));
  assert.ok(api.includes('getPublicChatManage(roomId'));
  assert.ok(api.includes('reportPublicChatUser(roomId'));
+ assert.ok(api.includes('getPublicChatHiddenUsers(roomId'));
+ assert.ok(api.includes('unhidePublicChatUser(roomId'));
+ assert.ok(component.includes('Hidden Users'));
+ assert.ok(component.includes('Messages from this user are now hidden from you in all public chats'));
+ assert.ok(component.includes('data?.duplicate'));
+ assert.ok(component.includes('duplicate report was not counted'));
+ assert.ok(component.includes("incident_key:'user:'+String(selectedUser.id)"));
+ assert.ok(component.includes('private confirmation in CloudComAI Alerts'));
 });

@@ -6,21 +6,51 @@ $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
 function public_room_role(int $roomId, int $userId): ?string { $st=db()->prepare("SELECT role FROM chat_members WHERE chat_id=? AND user_id=? AND status='active' LIMIT 1"); $st->execute([$roomId,$userId]); $role=$st->fetchColumn(); return $role===false?null:(string)$role; }
 function public_room_active_member(int $roomId,int $userId): bool { $st=db()->prepare("SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status='active' LIMIT 1"); $st->execute([$roomId,$userId]); return (bool)$st->fetchColumn(); }
+function public_room_relationship_for_users(int $viewerId, int $targetId): array {
+    if ($viewerId === $targetId) return ['status' => 'self'];
+    if (users_block_state($viewerId, $targetId)['blocked']) return ['status' => 'blocked'];
+    $stmt = db()->prepare('SELECT id,status,requester_id,recipient_id FROM friend_requests WHERE (requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?) ORDER BY id DESC LIMIT 1');
+    $stmt->execute([$viewerId, $targetId, $targetId, $viewerId]);
+    $row = $stmt->fetch();
+    if (!$row) return ['status' => 'none'];
+    if ((string)$row['status'] === 'blocked') return ['status' => 'none'];
+    return [
+        'status' => (string)$row['status'],
+        'direction' => (int)$row['requester_id'] === $viewerId ? 'outgoing' : 'incoming',
+        'request_id' => (int)$row['id'],
+    ];
+}
 
 
 if ($method === 'GET') {
     $action=strtolower(trim((string)($_GET['action'] ?? '')));
     $roomId=(int)($_GET['room_id'] ?? 0);
-    if(in_array($action,['manage','online-users','reports'],true)){
+    if(in_array($action,['manage','online-users','reports','hidden-users'],true)){
         if($roomId<=0) fail('A valid public chat room is required',422);
         $room=db()->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$room->execute([$roomId]);if(!$room->fetch())fail('Public chat room not found',404);
         if(!public_room_active_member($roomId,(int)$user['id']))fail('You are not a member of this public chat room',403);
+        if($action==='hidden-users'){$st=$pdo->prepare('SELECT h.hidden_user_id AS id,u.name,h.created_at FROM public_chat_hidden_users h INNER JOIN users u ON u.id=h.hidden_user_id WHERE h.user_id=? ORDER BY h.created_at DESC LIMIT 200');$st->execute([(int)$user['id']]);out(['hidden_users'=>$st->fetchAll()]);}
         if($action==='reports'){
             $role=public_room_role($roomId,(int)$user['id']);if(!in_array($role,['owner','admin','moderator'],true))fail('Moderator access is required',403);
             $st=$pdo->prepare('SELECT r.id,r.reported_user_id,u.name AS reported_user_name,r.message_id,r.reason,r.details,r.status,r.created_at,r.reviewed_at FROM public_chat_reports r INNER JOIN users u ON u.id=r.reported_user_id WHERE r.chat_id=? ORDER BY r.id DESC LIMIT 200');$st->execute([$roomId]);out(['reports'=>$st->fetchAll()]);
         }
-        $st=$pdo->prepare("SELECT u.id,u.name,COALESCE(up.hide_online_status,0) AS hide_online_status,u.updated_at FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id LEFT JOIN user_privacy_settings up ON up.user_id=u.id WHERE cm.chat_id=? AND cm.status='active' AND u.account_status='active' ORDER BY u.name ASC LIMIT 500");$st->execute([$roomId]);$participants=[];$online=[];
-        foreach($st->fetchAll() as $row){$isOnline=!$row['hide_online_status']&&!empty($row['updated_at'])&&strtotime($row['updated_at'])>=time()-90;$participants[]=['id'=>(int)$row['id'],'name'=>$row['name'],'online'=>$isOnline];if($isOnline)$online[]=['id'=>(int)$row['id'],'name'=>$row['name'],'online'=>true];}
+        $st=$pdo->prepare("SELECT u.id,u.name,u.user_id,u.dob,u.gender,u.updated_at,COALESCE(up.hide_online_status,0) AS hide_online_status,COALESCE(pv.share_age,1) AS share_age,COALESCE(pv.share_gender,1) AS share_gender FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id LEFT JOIN user_privacy_settings up ON up.user_id=u.id LEFT JOIN profile_visibility pv ON pv.user_id=u.id WHERE cm.chat_id=? AND cm.status='active' AND u.account_status='active' ORDER BY u.name ASC LIMIT 500");$st->execute([$roomId]);$participants=[];$online=[];
+        foreach($st->fetchAll() as $row){
+            $memberId=(int)$row['id'];
+            $isOnline=!(bool)$row['hide_online_status']&&!empty($row['updated_at'])&&strtotime($row['updated_at'])>=time()-90;
+            $imageVersion=null;
+            foreach(glob(dirname(__DIR__).'/uploads/users/'.$memberId.'.*')?:[] as $candidate){if(is_file($candidate)){$imageVersion=(string)(filemtime($candidate)?:0).'-'.(string)filesize($candidate);break;}}
+            $relationship=public_room_relationship_for_users((int)$user['id'],$memberId);
+            $age=age_from_dob((string)($row['dob']??''));
+            $member=['id'=>$memberId,'name'=>$row['name'],'online'=>$isOnline,'image_version'=>$imageVersion,
+                'age'=>($memberId===(int)$user['id']||(bool)$row['share_age'])&&$age>=0?$age:null,
+                'gender'=>($memberId===(int)$user['id']||(bool)$row['share_gender'])?($row['gender']?:null):null,
+                'age_private'=>$memberId!==(int)$user['id']&&!(bool)$row['share_age'],
+                'gender_private'=>$memberId!==(int)$user['id']&&!(bool)$row['share_gender'],
+                'relationship'=>$relationship];
+            $participants[]=$member;
+            if($isOnline)$online[]=$member;
+        }
         out(['room_id'=>$roomId,'online_users'=>$online,'participants'=>$participants]);
     }
 
@@ -72,6 +102,7 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $data=input();
     $action=strtolower(trim((string)($data['action'] ?? 'join')));
+    if($action==='unhide-user'){$roomId=(int)($data['room_id']??0);$target=(int)($data['user_id']??0);if($roomId<=0||$target<=0||$target===(int)$user['id'])fail('A valid public chat room and user are required',422);$roomQ=$pdo->prepare("SELECT id FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$roomQ->execute([$roomId]);if(!$roomQ->fetch())fail('Public chat room not found',404);if(!public_room_active_member($roomId,(int)$user['id']))fail('You are not a member of this public chat room',403);$pdo->prepare('DELETE FROM public_chat_hidden_users WHERE user_id=? AND hidden_user_id=?')->execute([(int)$user['id'],$target]);out(['unhidden'=>true,'user_id'=>$target]);}
     if($action==='report'){
         $roomId=(int)($data['room_id'] ?? 0);if($roomId<=0)fail('A valid public chat room is required',422);
         $roomQ=$pdo->prepare("SELECT id,name,retention_seconds FROM chats WHERE id=? AND type='public' AND room_type IN ('city','language') LIMIT 1");$roomQ->execute([$roomId]);$room=$roomQ->fetch();if(!$room)fail('Public chat room not found',404);
@@ -81,8 +112,10 @@ if ($method === 'POST') {
         if($incidentKey===''||strlen($incidentKey)>128||!preg_match('/^[A-Za-z0-9:_-]+$/D',$incidentKey))fail('A valid incident key is required',422);
         try{
             $pdo->beginTransaction();$pdo->prepare('SELECT id FROM chats WHERE id=? FOR UPDATE')->execute([$roomId]);
+            $pdo->prepare('INSERT IGNORE INTO public_chat_hidden_users(user_id,hidden_user_id,created_at) VALUES(?,?,UTC_TIMESTAMP())')->execute([(int)$user['id'],$target]);
             $ins=$pdo->prepare('INSERT IGNORE INTO public_chat_reports(chat_id,reporter_id,reported_user_id,message_id,incident_key,reason,details,status,created_at) VALUES(?,?,?,?,?,?,?,"valid",UTC_TIMESTAMP())');$ins->execute([$roomId,$user['id'],$target,$messageId?:null,$incidentKey,$reason,$details!==''?$details:null]);
             if($ins->rowCount()===0){$pdo->commit();out(['submitted'=>false,'duplicate'=>true,'message'=>'This incident has already been reported by your account.']);}
+            queue_user_notification((int)$user['id'],'system','Report received','Your report was securely recorded and sent to the public chat moderators for review.',['event'=>'public_chat_report_confirmation','chat_id'=>$roomId,'chat_type'=>'public','reported_user_id'=>$target,'report_status'=>'pending_review']);
             $cnt=$pdo->prepare("SELECT COUNT(DISTINCT reporter_id) FROM public_chat_reports WHERE chat_id=? AND reported_user_id=? AND status='valid'");$cnt->execute([$roomId,$target]);$unique=(int)$cnt->fetchColumn();$blocked=false;$blockedUntil=null;
             if($unique>=5){$rs=$pdo->prepare('SELECT blocked_until,status FROM public_chat_restrictions WHERE chat_id=? AND user_id=? FOR UPDATE');$rs->execute([$roomId,$target]);$existing=$rs->fetch();$active=$existing&&in_array($existing['status'],['active','extended'],true)&&$existing['blocked_until']&&strtotime($existing['blocked_until'])>time();
                 if(!$active){$blocked=true;$blockedUntil=gmdate('Y-m-d H:i:s',time()+7*86400);$blockedAt=gmdate('Y-m-d H:i:s');$pdo->prepare("INSERT INTO public_chat_restrictions(chat_id,user_id,blocked_at,blocked_until,reason,status) VALUES(?,?,?,?,'Multiple valid community reports','active') ON DUPLICATE KEY UPDATE blocked_at=VALUES(blocked_at),blocked_until=VALUES(blocked_until),reason=VALUES(reason),status='active',updated_at=UTC_TIMESTAMP()")->execute([$roomId,$target,$blockedAt,$blockedUntil]);$pdo->prepare("UPDATE chat_members SET status='banned' WHERE chat_id=? AND user_id=? AND status='active'")->execute([$roomId,$target]);
@@ -98,8 +131,8 @@ if ($method === 'POST') {
         $roomId=(int)($data['room_id']??0);if($roomId<=0)fail('A valid public chat room is required',422);
         $role=public_room_role($roomId,(int)$user['id']);if(!in_array($role,['owner','admin','moderator'],true))fail('Moderator access is required',403);
         $target=(int)($data['user_id']??0);$moderationAction=strtolower(trim((string)($data['moderation_action']??'')));if($target<=0)fail('A valid user is required',422);
-        if($moderationAction==='remove'){$pdo->prepare("UPDATE public_chat_restrictions SET blocked_until=UTC_TIMESTAMP(),status='removed',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$roomId,$target]);$pdo->prepare("UPDATE chat_members SET status='active' WHERE chat_id=? AND user_id=? AND status='banned'")->execute([$roomId,$target]);out(['status'=>'removed']);}
-        if($moderationAction==='extend'){$days=max(1,min(30,(int)($data['days']??7)));$st=$pdo->prepare('SELECT blocked_until FROM public_chat_restrictions WHERE chat_id=? AND user_id=? LIMIT 1');$st->execute([$roomId,$target]);$until=$st->fetchColumn();$base=$until&&strtotime($until)>time()?strtotime($until):time();$newUntil=gmdate('Y-m-d H:i:s',$base+$days*86400);$pdo->prepare("UPDATE public_chat_restrictions SET blocked_until=?,status='extended',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$newUntil,$roomId,$target]);$pdo->prepare("UPDATE chat_members SET status='banned' WHERE chat_id=? AND user_id=?")->execute([$roomId,$target]);out(['status'=>'extended','blocked_until'=>$newUntil]);}
+        if($moderationAction==='remove'){$pdo->prepare("UPDATE public_chat_restrictions SET blocked_until=UTC_TIMESTAMP(),status='removed',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$roomId,$target]);$pdo->prepare("UPDATE chat_members SET status='active' WHERE chat_id=? AND user_id=? AND status='banned'")->execute([$roomId,$target]);$pdo->prepare("UPDATE public_chat_reports SET status='reviewed',reviewed_at=UTC_TIMESTAMP(),reviewed_by=? WHERE chat_id=? AND reported_user_id=? AND status='valid'")->execute([(int)$user['id'],$roomId,$target]);out(['status'=>'removed']);}
+        if($moderationAction==='extend'){$days=max(1,min(30,(int)($data['days']??7)));$st=$pdo->prepare('SELECT blocked_until FROM public_chat_restrictions WHERE chat_id=? AND user_id=? LIMIT 1');$st->execute([$roomId,$target]);$until=$st->fetchColumn();$base=$until&&strtotime($until)>time()?strtotime($until):time();$newUntil=gmdate('Y-m-d H:i:s',$base+$days*86400);$pdo->prepare("UPDATE public_chat_restrictions SET blocked_until=?,status='extended',updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND user_id=?")->execute([$newUntil,$roomId,$target]);$pdo->prepare("UPDATE chat_members SET status='banned' WHERE chat_id=? AND user_id=?")->execute([$roomId,$target]);$pdo->prepare("UPDATE public_chat_reports SET status='reviewed',reviewed_at=UTC_TIMESTAMP(),reviewed_by=? WHERE chat_id=? AND reported_user_id=? AND status='valid'")->execute([(int)$user['id'],$roomId,$target]);out(['status'=>'extended','blocked_until'=>$newUntil]);}
         fail('Unsupported moderation action',422);
     }
     $roomId=(int)($data['room_id'] ?? 0);
