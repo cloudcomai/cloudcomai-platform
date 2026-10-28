@@ -43,7 +43,20 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       const { data } = await platformApi.listGroupMembers(group.id);
       setMembers(data.members || []);
       setName(group.name || '');
-      setDescription(group.group_description || '');
+
+      // The selected group object can be a stale list snapshot. Re-read the
+      // server's group list so opening this screen never overwrites a saved
+      // description with an old empty value held by the parent screen.
+      try {
+        const { data: groupsData } = await platformApi.listGroups();
+        const latestGroup = (groupsData.groups || []).find(item => Number(item.id) === Number(group.id));
+        setDescription(String(latestGroup?.group_description ?? group.group_description ?? ''));
+        if (latestGroup?.name) setName(latestGroup.name);
+      } catch {
+        // Keep group management usable if this optional refresh fails.
+        setDescription(String(group.group_description ?? ''));
+      }
+
       const access = await platformApi.getGroupAttachmentAccess(group.id);
       setAttachmentGrants(access.data.grants || []);
     } catch (e) {
@@ -131,13 +144,40 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
     if (description !== (group?.group_description || '') && !ownsGroup) { setError('Only the group owner can edit the group description.'); return; }
     setBusy(true); setError('');
     try {
+      const requestedDescription = description.trim();
       const { data } = await platformApi.updateGroup(group.id, {
         name: name.trim(),
         group_category: group.group_category || 'Family Group',
-        ...(ownsGroup ? { group_description: description } : {}),
+        ...(ownsGroup ? { group_description: requestedDescription } : {}),
       });
-      onGroupUpdated?.({ ...group, ...(data.group || {}), name: name.trim(), group_description: data.group?.group_description ?? group.group_description ?? '' });
-      Alert.alert('Group updated', 'Group details were saved.');
+
+      // The PUT response is read back from the database. Do not tell the
+      // owner the description was saved unless the server confirms that value.
+      const responseGroup = data.group || {};
+      if (ownsGroup && String(responseGroup.group_description ?? '') !== requestedDescription) {
+        throw new Error('CloudComAI could not confirm the saved group description. Please try again.');
+      }
+
+      let confirmedGroup = responseGroup;
+      try {
+        const { data: groupsData } = await platformApi.listGroups();
+        const persistedGroup = (groupsData.groups || []).find(item => Number(item.id) === Number(group.id));
+        if (persistedGroup) {
+          if (ownsGroup && String(persistedGroup.group_description ?? '') !== requestedDescription) {
+            throw new Error('The group description was not retained by the server. Please save again.');
+          }
+          confirmedGroup = { ...confirmedGroup, ...persistedGroup };
+        }
+      } catch (verifyError) {
+        // A confirmed PUT response is still authoritative if the follow-up
+        // refresh is temporarily unavailable; preserve a real mismatch error.
+        if (/was not retained/.test(verifyError.message || '')) throw verifyError;
+      }
+
+      const savedDescription = String(confirmedGroup.group_description ?? responseGroup.group_description ?? '');
+      setDescription(savedDescription);
+      onGroupUpdated?.({ ...group, ...confirmedGroup, name: name.trim(), group_description: savedDescription });
+      Alert.alert('Group updated', 'Group details were saved and verified.');
     } catch (e) {
       setError(e.message || 'Unable to update group.');
     } finally { setBusy(false); }
