@@ -19,8 +19,22 @@ if ($method === 'GET') {
             $role=public_room_role($roomId,(int)$user['id']);if(!in_array($role,['owner','admin','moderator'],true))fail('Moderator access is required',403);
             $st=$pdo->prepare('SELECT r.id,r.reported_user_id,u.name AS reported_user_name,r.message_id,r.reason,r.details,r.status,r.created_at,r.reviewed_at FROM public_chat_reports r INNER JOIN users u ON u.id=r.reported_user_id WHERE r.chat_id=? ORDER BY r.id DESC LIMIT 200');$st->execute([$roomId]);out(['reports'=>$st->fetchAll()]);
         }
-        $st=$pdo->prepare("SELECT u.id,u.name,COALESCE(up.hide_online_status,0) AS hide_online_status,u.updated_at FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id LEFT JOIN user_privacy_settings up ON up.user_id=u.id WHERE cm.chat_id=? AND cm.status='active' AND u.account_status='active' ORDER BY u.name ASC LIMIT 500");$st->execute([$roomId]);$participants=[];$online=[];
-        foreach($st->fetchAll() as $row){$isOnline=!$row['hide_online_status']&&!empty($row['updated_at'])&&strtotime($row['updated_at'])>=time()-90;$participants[]=['id'=>(int)$row['id'],'name'=>$row['name'],'online'=>$isOnline];if($isOnline)$online[]=['id'=>(int)$row['id'],'name'=>$row['name'],'online'=>true];}
+        $st=$pdo->prepare("SELECT u.id,u.name,u.user_id,u.dob,u.gender,u.updated_at,COALESCE(up.hide_online_status,0) AS hide_online_status,COALESCE(pv.share_age,1) AS share_age,COALESCE(pv.share_gender,1) AS share_gender FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id LEFT JOIN user_privacy_settings up ON up.user_id=u.id LEFT JOIN profile_visibility pv ON pv.user_id=u.id WHERE cm.chat_id=? AND cm.status='active' AND u.account_status='active' ORDER BY u.name ASC LIMIT 500");$st->execute([$roomId]);$participants=[];$online=[];
+        foreach($st->fetchAll() as $row){
+            $memberId=(int)$row['id'];
+            $isOnline=!(bool)$row['hide_online_status']&&!empty($row['updated_at'])&&strtotime($row['updated_at'])>=time()-90;
+            $imageVersion=null;
+            foreach(glob(dirname(__DIR__).'/uploads/users/'.$memberId.'.*')?:[] as $candidate){if(is_file($candidate)){$imageVersion=(string)(filemtime($candidate)?:0).'-'.(string)filesize($candidate);break;}}
+            $relationship=$memberId===(int)$user['id']?['status'=>'self']:relationship_for_users((int)$user['id'],$memberId);
+            $member=['id'=>$memberId,'name'=>$row['name'],'online'=>$isOnline,'image_version'=>$imageVersion,
+                'age'=>($memberId===(int)$user['id']||(bool)$row['share_age'])?age_from_dob((string)($row['dob']??'')):null,
+                'gender'=>($memberId===(int)$user['id']||(bool)$row['share_gender'])?($row['gender']?:null):null,
+                'age_private'=>$memberId!==(int)$user['id']&&!(bool)$row['share_age'],
+                'gender_private'=>$memberId!==(int)$user['id']&&!(bool)$row['share_gender'],
+                'relationship'=>$relationship];
+            $participants[]=$member;
+            if($isOnline)$online[]=$member;
+        }
         out(['room_id'=>$roomId,'online_users'=>$online,'participants'=>$participants]);
     }
 
