@@ -18,7 +18,8 @@ test('friend request action uses authenticated backend and reflects relationship
   assert.match(source, /platformApi\.respondToFriendRequest\(requestId, 'accept'\)/);
   assert.match(source, /Request Sent/);
   assert.match(source, /Respond to Request/);
-  assert.match(source, /Friends/);
+  assert.match(source, /return 'Friend'/);
+  assert.match(source, /relationship\.status === 'accepted'/);
   assert.match(source, /busyUserId/);
   assert.match(source, /Number\(item\.id\) === Number\(user\?\.id\)/);
 });
