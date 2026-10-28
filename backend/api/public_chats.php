@@ -26,8 +26,9 @@ if ($method === 'GET') {
             $imageVersion=null;
             foreach(glob(dirname(__DIR__).'/uploads/users/'.$memberId.'.*')?:[] as $candidate){if(is_file($candidate)){$imageVersion=(string)(filemtime($candidate)?:0).'-'.(string)filesize($candidate);break;}}
             $relationship=$memberId===(int)$user['id']?['status'=>'self']:relationship_for_users((int)$user['id'],$memberId);
+            $age=age_from_dob((string)($row['dob']??''));
             $member=['id'=>$memberId,'name'=>$row['name'],'online'=>$isOnline,'image_version'=>$imageVersion,
-                'age'=>($memberId===(int)$user['id']||(bool)$row['share_age'])?age_from_dob((string)($row['dob']??'')):null,
+                'age'=>($memberId===(int)$user['id']||(bool)$row['share_age'])&&$age>=0?$age:null,
                 'gender'=>($memberId===(int)$user['id']||(bool)$row['share_gender'])?($row['gender']?:null):null,
                 'age_private'=>$memberId!==(int)$user['id']&&!(bool)$row['share_age'],
                 'gender_private'=>$memberId!==(int)$user['id']&&!(bool)$row['share_gender'],
