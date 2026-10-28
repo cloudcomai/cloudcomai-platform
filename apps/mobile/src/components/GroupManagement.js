@@ -44,16 +44,23 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
       setMembers(data.members || []);
       setName(group.name || '');
 
-      // The selected group object can be a stale list snapshot. Re-read the
-      // server's group list so opening this screen never overwrites a saved
-      // description with an old empty value held by the parent screen.
+      // The parent may hold a stale snapshot. Refresh the selected group once
+      // and propagate the complete server version so every group field stays
+      // consistent across Manage Group and the parent screen.
       try {
         const { data: groupsData } = await platformApi.listGroups();
         const latestGroup = (groupsData.groups || []).find(item => Number(item.id) === Number(group.id));
-        setDescription(String(latestGroup?.group_description ?? group.group_description ?? ''));
-        if (latestGroup?.name) setName(latestGroup.name);
+        if (latestGroup) {
+          setName(String(latestGroup.name ?? group.name ?? ''));
+          setDescription(String(latestGroup.group_description ?? group.group_description ?? ''));
+          onGroupUpdated?.({ ...group, ...latestGroup });
+        } else {
+          setName(group.name || '');
+          setDescription(String(group.group_description ?? ''));
+        }
       } catch {
         // Keep group management usable if this optional refresh fails.
+        setName(group.name || '');
         setDescription(String(group.group_description ?? ''));
       }
 
@@ -158,25 +165,12 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
         throw new Error('CloudComAI could not confirm the saved group description. Please try again.');
       }
 
-      let confirmedGroup = responseGroup;
-      try {
-        const { data: groupsData } = await platformApi.listGroups();
-        const persistedGroup = (groupsData.groups || []).find(item => Number(item.id) === Number(group.id));
-        if (persistedGroup) {
-          if (ownsGroup && String(persistedGroup.group_description ?? '') !== requestedDescription) {
-            throw new Error('The group description was not retained by the server. Please save again.');
-          }
-          confirmedGroup = { ...confirmedGroup, ...persistedGroup };
-        }
-      } catch (verifyError) {
-        // A confirmed PUT response is still authoritative if the follow-up
-        // refresh is temporarily unavailable; preserve a real mismatch error.
-        if (/was not retained/.test(verifyError.message || '')) throw verifyError;
-      }
-
-      const savedDescription = String(confirmedGroup.group_description ?? responseGroup.group_description ?? '');
+      // The update endpoint's response is the save confirmation. Avoid a
+      // second listGroups request; keep local and parent state aligned to it.
+      const savedDescription = String(responseGroup.group_description ?? '');
+      setName(String(responseGroup.name ?? name.trim()));
       setDescription(savedDescription);
-      onGroupUpdated?.({ ...group, ...confirmedGroup, name: name.trim(), group_description: savedDescription });
+      onGroupUpdated?.({ ...group, ...responseGroup, name: name.trim(), group_description: savedDescription });
       Alert.alert('Group updated', 'Group details were saved and verified.');
     } catch (e) {
       setError(e.message || 'Unable to update group.');
