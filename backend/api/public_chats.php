@@ -6,6 +6,20 @@ $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
 function public_room_role(int $roomId, int $userId): ?string { $st=db()->prepare("SELECT role FROM chat_members WHERE chat_id=? AND user_id=? AND status='active' LIMIT 1"); $st->execute([$roomId,$userId]); $role=$st->fetchColumn(); return $role===false?null:(string)$role; }
 function public_room_active_member(int $roomId,int $userId): bool { $st=db()->prepare("SELECT 1 FROM chat_members WHERE chat_id=? AND user_id=? AND status='active' LIMIT 1"); $st->execute([$roomId,$userId]); return (bool)$st->fetchColumn(); }
+function public_room_relationship_for_users(int $viewerId, int $targetId): array {
+    if ($viewerId === $targetId) return ['status' => 'self'];
+    if (users_block_state($viewerId, $targetId)['blocked']) return ['status' => 'blocked'];
+    $stmt = db()->prepare('SELECT id,status,requester_id,recipient_id FROM friend_requests WHERE (requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?) ORDER BY id DESC LIMIT 1');
+    $stmt->execute([$viewerId, $targetId, $targetId, $viewerId]);
+    $row = $stmt->fetch();
+    if (!$row) return ['status' => 'none'];
+    if ((string)$row['status'] === 'blocked') return ['status' => 'none'];
+    return [
+        'status' => (string)$row['status'],
+        'direction' => (int)$row['requester_id'] === $viewerId ? 'outgoing' : 'incoming',
+        'request_id' => (int)$row['id'],
+    ];
+}
 
 
 if ($method === 'GET') {
@@ -25,7 +39,7 @@ if ($method === 'GET') {
             $isOnline=!(bool)$row['hide_online_status']&&!empty($row['updated_at'])&&strtotime($row['updated_at'])>=time()-90;
             $imageVersion=null;
             foreach(glob(dirname(__DIR__).'/uploads/users/'.$memberId.'.*')?:[] as $candidate){if(is_file($candidate)){$imageVersion=(string)(filemtime($candidate)?:0).'-'.(string)filesize($candidate);break;}}
-            $relationship=$memberId===(int)$user['id']?['status'=>'self']:relationship_for_users((int)$user['id'],$memberId);
+            $relationship=public_room_relationship_for_users((int)$user['id'],$memberId);
             $age=age_from_dob((string)($row['dob']??''));
             $member=['id'=>$memberId,'name'=>$row['name'],'online'=>$isOnline,'image_version'=>$imageVersion,
                 'age'=>($memberId===(int)$user['id']||(bool)$row['share_age'])&&$age>=0?$age:null,
