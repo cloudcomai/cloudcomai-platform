@@ -17,6 +17,7 @@ export default function PublicChatManagement({ visible, chat, user, onClose, onL
   const [screen, setScreen] = useState('menu');
   const [users, setUsers] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [hiddenUsers, setHiddenUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [reason, setReason] = useState(REASONS[0]);
   const [details, setDetails] = useState('');
@@ -32,6 +33,8 @@ export default function PublicChatManagement({ visible, chat, user, onClose, onL
       const { data } = await platformApi.getPublicChatManage(chat.id);
       setUsers(Array.isArray(data.online_users) ? data.online_users : []);
       setParticipants(Array.isArray(data.participants) ? data.participants : []);
+      const hidden = await platformApi.getPublicChatHiddenUsers(chat.id);
+      setHiddenUsers(Array.isArray(hidden.data.hidden_users) ? hidden.data.hidden_users : []);
       setError('');
     } catch (e) {
       setError(e.message || 'Unable to load room members.');
@@ -53,6 +56,8 @@ export default function PublicChatManagement({ visible, chat, user, onClose, onL
         if (active) {
           setUsers(Array.isArray(data.online_users) ? data.online_users : []);
           setParticipants(Array.isArray(data.participants) ? data.participants : []);
+          const hidden = await platformApi.getPublicChatHiddenUsers(chat.id);
+          if (active) setHiddenUsers(Array.isArray(hidden.data.hidden_users) ? hidden.data.hidden_users : []);
           setError('');
         }
       } catch (e) {
@@ -120,12 +125,18 @@ export default function PublicChatManagement({ visible, chat, user, onClose, onL
     if (!selectedUser || Number(selectedUser.id) === Number(user.id) || submitting) return;
     setSubmitting(true); setError('');
     try {
-      await platformApi.reportPublicChatUser(chat.id, {
+      const { data } = await platformApi.reportPublicChatUser(chat.id, {
         reported_user_id: Number(selectedUser.id), reason, details: details.trim(),
-        incident_key: 'incident-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12),
+        incident_key: 'user:' + String(selectedUser.id),
       });
-      Alert.alert('Report submitted', 'Your report was securely recorded for moderator review.');
+      if (data?.duplicate) {
+        Alert.alert('Already reported', 'Your duplicate report was not counted. Messages from this user are now hidden from you in all public chats.');
+      } else {
+        Alert.alert('Report submitted', 'Your report was recorded. Messages from this user are now hidden from you in all public chats. You will receive a private confirmation in CloudComAI Alerts.');
+      }
       setSelectedUser(null); setDetails('');
+      const hidden = await platformApi.getPublicChatHiddenUsers(chat.id);
+      setHiddenUsers(Array.isArray(hidden.data.hidden_users) ? hidden.data.hidden_users : []);
     } catch (e) {
       setError(e.message || 'Unable to submit report.');
     } finally {
@@ -133,11 +144,21 @@ export default function PublicChatManagement({ visible, chat, user, onClose, onL
     }
   };
 
+  const unhide = async item => {
+    try {
+      await platformApi.unhidePublicChatUser(chat.id, Number(item.id));
+      setHiddenUsers(current => current.filter(entry => Number(entry.id) !== Number(item.id)));
+      Alert.alert('User unhidden', 'Messages from this user can appear again in public chats.');
+    } catch (e) {
+      setError(e.message || 'Unable to unhide user.');
+    }
+  };
+
   const confirmLeave = () => Alert.alert('Leave this room?', 'You will leave this public chat room and can join again unless a moderation restriction prevents access.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Leave Room', style: 'destructive', onPress: onLeave },
   ]);
-  const title = screen === 'menu' ? 'Manage Public Chat' : screen === 'users' ? 'Online Users' : 'Report User';
+  const title = screen === 'menu' ? 'Manage Public Chat' : screen === 'users' ? 'Online Users' : screen === 'hidden' ? 'Hidden Users' : 'Report User';
 
   const renderUser = item => {
     const name = item.name || 'CloudComAI user';
@@ -167,12 +188,19 @@ export default function PublicChatManagement({ visible, chat, user, onClose, onL
       {screen === 'menu' ? <View style={styles.menu}>
         <Pressable style={[styles.menuItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]} onPress={() => { setScreen('users'); void load(); }}><Text style={[styles.menuTitle, { color: theme.colors.text }]}>Online Users</Text><Text style={[styles.menuText, { color: theme.colors.secondary }]}>See profiles and add people from this room.</Text></Pressable>
         <Pressable style={[styles.menuItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]} onPress={() => setScreen('report')}><Text style={[styles.menuTitle, { color: theme.colors.text }]}>Report User</Text><Text style={[styles.menuText, { color: theme.colors.secondary }]}>Report a participant for moderator review.</Text></Pressable>
+        <Pressable style={[styles.menuItem, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]} onPress={() => { setScreen('hidden'); void load(); }}><Text style={[styles.menuTitle, { color: theme.colors.text }]}>Hidden Users</Text><Text style={[styles.menuText, { color: theme.colors.secondary }]}>Manage people whose public-chat messages are hidden from you.</Text></Pressable>
         <Pressable style={[styles.menuItem, styles.leaveItem]} onPress={confirmLeave}><Text style={styles.leaveText}>Leave Chat / Leave Room</Text></Pressable>
       </View> : <>
         <Pressable accessibilityRole="button" onPress={goBack}><Text style={[styles.back, { color: theme.colors.accent }]}>‹ Manage</Text></Pressable>
         {loading ? <View style={styles.loading}><ActivityIndicator color={theme.colors.accent} /><Text style={{ color: theme.colors.secondary }}>Loading…</Text></View> : null}
         {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
-        {screen === 'users' ? <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+        {screen === 'hidden' ? <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+          {hiddenUsers.length ? hiddenUsers.map(item => <View key={item.id} style={[styles.userRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={[styles.dot, styles.offline]} />
+            <View style={styles.userMeta}><Text style={[styles.userName, { color: theme.colors.text }]}>{item.name || 'Member'}</Text><Text style={[styles.userSub, { color: theme.colors.secondary }]}>Hidden in all public chats</Text></View>
+            <Pressable accessibilityRole="button" onPress={() => unhide(item)} style={styles.friendButton}><Text style={[styles.friendButtonText, { color: theme.colors.accent }]}>Unhide</Text></Pressable>
+          </View>) : !loading ? <Text style={[styles.empty, { color: theme.colors.secondary }]}>You have no hidden users.</Text> : null}
+        </ScrollView> : screen === 'users' ? <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
           {users.length ? users.map(renderUser) : !loading ? <Text style={[styles.empty, { color: theme.colors.secondary }]}>No users are currently online in this room.</Text> : null}
         </ScrollView> : <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
           {participants.filter(item => Number(item.id) !== Number(user.id)).map(item => <Pressable key={item.id} style={[styles.userRow, { borderBottomColor: theme.colors.border }]} onPress={() => setSelectedUser(item)}><View style={[styles.dot, !item.online && styles.offline]} /><View style={styles.userMeta}><Text style={[styles.userName, { color: theme.colors.text }]}>{item.name || 'Member'}</Text><Text style={[styles.userSub, { color: theme.colors.secondary }]}>{item.online ? 'Online now' : 'Participant'}</Text></View></Pressable>)}
