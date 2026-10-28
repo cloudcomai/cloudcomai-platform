@@ -6,7 +6,7 @@ import { resolveChatTheme } from '../services/chatThemeDefinitions';
 const REASONS = ['Harassment', 'Spam', 'Hate or abusive content', 'Impersonation', 'Unsafe content', 'Other'];
 const relationshipLabel = relationship => {
   const status = relationship?.status || 'none';
-  if (status === 'accepted') return 'Friends';
+  if (status === 'accepted') return 'Friend';
   if (status === 'pending' && relationship?.direction === 'outgoing') return 'Request Sent';
   if (status === 'pending' && relationship?.direction === 'incoming') return 'Respond to Request';
   return 'Add as Friend';
