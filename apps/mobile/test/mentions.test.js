@@ -23,3 +23,17 @@ test('mobile Mentions inbox opens the original message and navigates to its cont
   assert.match(api, /listMessageMentions/);
 });
 
+
+test('mobile Mentions navigation handles invalid and unavailable message contexts without blanking the chat', () => {
+  assert.match(app, /This mention does not contain a valid message reference/);
+  assert.match(app, /The original message is unavailable, deleted, expired, or no longer visible/);
+  assert.match(app, /onInitialMessageHandled\?\.\(\)/);
+  assert.match(app, /if \(!target\) \{/);
+  assert.match(app, /throw e;/);
+});
+
+test('mobile Mentions inbox removes read entries from the active list while preserving server history', () => {
+  assert.match(lists, /filter\(item=>!item\.read_at\)/);
+  assert.match(lists, /setMentions\(current=>current\.filter\(entry=>Number\(entry\.mention_id\)!==Number\(item\.mention_id\)\)\)/);
+  assert.match(lists, /invalid chat or message reference/);
+});
