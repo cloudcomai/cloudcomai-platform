@@ -37,3 +37,10 @@ test('mobile Mentions inbox removes read entries from the active list while pres
   assert.match(lists, /setMentions\(current=>current\.filter\(entry=>Number\(entry\.mention_id\)!==Number\(item\.mention_id\)\)\)/);
   assert.match(lists, /invalid chat or message reference/);
 });
+
+
+test('mobile Mentions polling cannot reinsert a mention already read in this session', () => {
+  assert.match(lists, /dismissedMentionIds = useRef\(new Set\(\)\)/);
+  assert.match(lists, /!dismissedMentionIds\.current\.has\(Number\(item\.mention_id\)\)/);
+  assert.match(lists, /dismissedMentionIds\.current\.add\(Number\(item\.mention_id\)\)/);
+});
