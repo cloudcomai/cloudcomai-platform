@@ -33,7 +33,7 @@ test('mobile Mentions navigation handles invalid and unavailable message context
 });
 
 test('mobile Mentions inbox removes read entries from the active list while preserving server history', () => {
-  assert.match(lists, /filter\(item=>!item\.read_at\)/);
+  assert.match(lists, /filter\\(item=>!item\\.read_at && !dismissedMentionIds\\.current\\.has\\(Number\\(item\\.mention_id\\)\\)\\)/);
   assert.match(lists, /setMentions\(current=>current\.filter\(entry=>Number\(entry\.mention_id\)!==Number\(item\.mention_id\)\)\)/);
   assert.match(lists, /invalid chat or message reference/);
 });
