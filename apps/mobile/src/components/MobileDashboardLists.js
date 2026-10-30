@@ -53,7 +53,10 @@ export function NotificationsList({ onOpenChat, themeSettings }) {
     refresh?setRefreshing(true):setLoading(true);setError('');
     try{
       const{data}=await platformApi.listMentions({query:{limit:100}});
-      setMentions(data.mentions||[]);setMentionsUnread(Number(data.unread_count||0));
+      // The inbox is an active/unread queue: reading a mention removes it here,
+      // while the server retains its read history and original chat message.
+      setMentions((data.mentions||[]).filter(item=>!item.read_at));
+      setMentionsUnread(Number(data.unread_count||0));
     }catch(e){setError(e.message||'Unable to load mentions.');}
     finally{setLoading(false);setRefreshing(false);}
   },[]);
@@ -90,13 +93,23 @@ export function NotificationsList({ onOpenChat, themeSettings }) {
     setOpeningId(Number(item.mention_id));setError('');
     try{
       await platformApi.openMention(Number(item.mention_id));
+      // Remove the item immediately after the server confirms it was read.
+      // A failed navigation still shows an actionable error instead of a blank screen.
+      setMentions(current=>current.filter(entry=>Number(entry.mention_id)!==Number(item.mention_id)));
+      setMentionsUnread(current=>item.read_at?current:Math.max(0,current-1));
       try {
         const {data: notificationState}=await platformApi.listNotifications({query:{limit:1}});
         setApplicationBadge(Number(notificationState.unread_count||0));
       } catch {}
       await new Promise(resolve=>InteractionManager.runAfterInteractions(resolve));
-      await onOpenChat?.(Number(item.chat_id),Number(item.message_id));
-    }catch(e){setError(e.message||'This mention is no longer available.');}
+      if (!Number(item.chat_id) || !Number(item.message_id)) {
+        throw new Error('This mention has an invalid chat or message reference. Refresh Mentions and try again.');
+      }
+      if (typeof onOpenChat !== 'function') {
+        throw new Error('Chat navigation is unavailable right now. Return to Mentions and try again.');
+      }
+      await onOpenChat(Number(item.chat_id),Number(item.message_id));
+    }catch(e){setError(e?.message||'This mention is no longer available. Refresh Mentions and try again.');}
     finally{setOpeningId(null);}
   };
   if(loading)return <ActivityIndicator style={styles.loader} color="#3157d5"/>;
