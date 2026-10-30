@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, InteractionManager, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { platformApi } from '../services/platform';
 import { setApplicationBadge } from '../services/notifications';
@@ -32,6 +32,9 @@ export function NotificationsList({ onOpenChat, themeSettings }) {
   const [tab,setTab]=useState('alerts');
   const [items,setItems]=useState([]);
   const [mentions,setMentions]=useState([]);
+  // Prevent an in-flight/stale polling response from resurrecting a mention
+  // that this session has already opened and marked as read.
+  const dismissedMentionIds = useRef(new Set());
   const [unread,setUnread]=useState(0);
   const [mentionsUnread,setMentionsUnread]=useState(0);
   const [loading,setLoading]=useState(true);
@@ -55,7 +58,7 @@ export function NotificationsList({ onOpenChat, themeSettings }) {
       const{data}=await platformApi.listMentions({query:{limit:100}});
       // The inbox is an active/unread queue: reading a mention removes it here,
       // while the server retains its read history and original chat message.
-      setMentions((data.mentions||[]).filter(item=>!item.read_at));
+      setMentions((data.mentions||[]).filter(item=>!item.read_at && !dismissedMentionIds.current.has(Number(item.mention_id))));
       setMentionsUnread(Number(data.unread_count||0));
     }catch(e){setError(e.message||'Unable to load mentions.');}
     finally{setLoading(false);setRefreshing(false);}
@@ -93,6 +96,9 @@ export function NotificationsList({ onOpenChat, themeSettings }) {
     setOpeningId(Number(item.mention_id));setError('');
     try{
       await platformApi.openMention(Number(item.mention_id));
+      // Remember this ID before updating state: an older polling request may
+      // resolve afterward, so every subsequent response must keep it dismissed.
+      dismissedMentionIds.current.add(Number(item.mention_id));
       // Remove the item immediately after the server confirms it was read.
       // A failed navigation still shows an actionable error instead of a blank screen.
       setMentions(current=>current.filter(entry=>Number(entry.mention_id)!==Number(item.mention_id)));
