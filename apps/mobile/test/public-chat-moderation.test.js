@@ -10,7 +10,7 @@ const api=fs.readFileSync(path.join(here,'../../../packages/api-client/src/cloud
 const component=fs.readFileSync(path.join(here,'../src/components/PublicChatManagement.js'),'utf8');
 
 test('reply previews navigate to and highlight the original message, loading older context when needed',()=>{
- assert.ok(app.includes('getMessageContext(chat.id,id'));
+ assert.ok(app.includes('getMessageContext(Number(chat.id), id'));
  assert.ok(app.includes('scrollToIndex'));
  assert.ok(app.includes('highlightedMessageId'));
  assert.ok(app.includes('navigateToMessage(item.reply_to_message_id)'));

@@ -17,9 +17,30 @@ test('mobile composer limits mentions to group/public rooms and submits stable r
 test('mobile Mentions inbox opens the original message and navigates to its context', () => {
   assert.match(lists, /tab==='mentions'/);
   assert.match(lists, /platformApi\.openMention\(Number\(item\.mention_id\)\)/);
-  assert.match(lists, /onOpenChat\?\.\(Number\(item\.chat_id\),Number\(item\.message_id\)\)/);
+  assert.match(lists, /await onOpenChat\(Number\(item\.chat_id\),Number\(item\.message_id\)\)/);
   assert.match(app, /initialMessageId=\{pendingMentionMessageId\}/);
   assert.match(app, /navigateToMessage\(initialMessageId\)/);
   assert.match(api, /listMessageMentions/);
 });
 
+
+test('mobile Mentions navigation handles invalid and unavailable message contexts without blanking the chat', () => {
+  assert.match(app, /This mention does not contain a valid message reference/);
+  assert.match(app, /The original message is unavailable, deleted, expired, or no longer visible/);
+  assert.match(app, /onInitialMessageHandled\?\.\(\)/);
+  assert.match(app, /if \(!target\) \{/);
+  assert.match(app, /throw e;/);
+});
+
+test('mobile Mentions inbox removes read entries from the active list while preserving server history', () => {
+  assert.match(lists, /filter\(item=>!item\.read_at && !dismissedMentionIds\.current\.has\(Number\(item\.mention_id\)\)\)/);
+  assert.match(lists, /setMentions\(current=>current\.filter\(entry=>Number\(entry\.mention_id\)!==Number\(item\.mention_id\)\)\)/);
+  assert.match(lists, /invalid chat or message reference/);
+});
+
+
+test('mobile Mentions polling cannot reinsert a mention already read in this session', () => {
+  assert.match(lists, /dismissedMentionIds = useRef\(new Set\(\)\)/);
+  assert.match(lists, /!dismissedMentionIds\.current\.has\(Number\(item\.mention_id\)\)/);
+  assert.match(lists, /dismissedMentionIds\.current\.add\(Number\(item\.mention_id\)\)/);
+});

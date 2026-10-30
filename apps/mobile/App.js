@@ -336,21 +336,41 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     setHighlightedMessageId(id); setTimeout(()=>setHighlightedMessageId(current=>current===id?null:current),2200); return true;
   };
   const navigateToMessage = async messageId => {
-    const id=Number(messageId); if(!id)return;
-    if(scrollToMessage(id))return;
-    setLoading(true); setError('');
+    const id = Number(messageId);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      setError('This mention does not contain a valid message reference. You can return to Mentions and try another item.');
+      return false;
+    }
+    if (scrollToMessage(id)) return true;
+    setLoading(true);
+    setError('');
     try {
-      const {data}=await platformApi.getMessageContext(chat.id,id);
-      const merged=mergeMessageBatch(messages,data.messages||[]).messages;
+      const { data } = await platformApi.getMessageContext(Number(chat.id), id);
+      const contextMessages = Array.isArray(data?.messages) ? data.messages : [];
+      const merged = mergeMessageBatch(messages, contextMessages).messages;
       setMessages(merged);
-      if(!scrollToMessage(id,merged))throw new Error('The original message is no longer available.');
-    } catch(e){setError(e.message||'Unable to find the original message.');}
-    finally{setLoading(false);}
+      if (!scrollToMessage(id, merged)) {
+        throw new Error('The original message is unavailable, deleted, expired, or no longer visible to your account.');
+      }
+      return true;
+    } catch (e) {
+      setError(e?.message || 'Unable to open this mention. Return to Mentions and try again.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
     if (!initialMessageId) return;
-    void navigateToMessage(initialMessageId);
-    onInitialMessageHandled?.();
+    let active = true;
+    (async () => {
+      try {
+        await navigateToMessage(initialMessageId);
+      } finally {
+        if (active) onInitialMessageHandled?.();
+      }
+    })();
+    return () => { active = false; };
   }, [initialMessageId, chat.id]);
   const toggleSaved = async item => {
     try { if (item.saved) await platformApi.unsaveMessage(item.id); else await platformApi.saveMessage(item.id); setMessages(current => current.map(message => Number(message.id) === Number(item.id) ? { ...message, saved: !item.saved } : message)); }
@@ -952,13 +972,15 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         ...normalizeChats(groupData.chats, true),
         ...(publicData.chats || []).map(chat => ({ ...chat, id: Number(chat.id), isPublic: true, isGroup: false })),
       ].find(item => Number(item.id) === Number(chatId));
-      if (target) {
-        setPendingMentionMessageId(Number(messageId) || null);
-        setSection(target.isPublic ? 'public' : target.isGroup ? 'groups' : 'private');
-        setSelectedChat(target);
+      if (!target) {
+        throw new Error('This chat is no longer available to your account. Return to Mentions and refresh the list.');
       }
+      setPendingMentionMessageId(Number(messageId) || null);
+      setSection(target.isPublic ? 'public' : target.isGroup ? 'groups' : 'private');
+      setSelectedChat(target);
     } catch (e) {
       setError(e.message || 'Unable to open notification chat.');
+      throw e;
     }
   };
 
@@ -1243,6 +1265,17 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Apply capture protection for the entire mobile app, not only while a chat is open.
+    // Android uses FLAG_SECURE to block screenshots and screen recordings. iOS has
+    // platform limitations and cannot reliably prevent user-initiated screenshots/recordings.
+    const appCaptureProtectionKey = 'cloudcomai-app-wide-capture-protection';
+    ScreenCapture.preventScreenCaptureAsync(appCaptureProtectionKey).catch(() => {});
+    return () => {
+      ScreenCapture.allowScreenCaptureAsync(appCaptureProtectionKey).catch(() => {});
+    };
+  }, []);
+
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <AppContent />
