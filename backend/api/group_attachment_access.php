@@ -53,6 +53,8 @@ try {
         $pdo->rollBack();
         fail('Enable download, forwarding, or both', 422);
     }
+    // Individual member grants are persistent: only an explicit owner action
+    // against that member can revoke them. 24/48-hour expiry applies to group grants only.
     $expiresAt = null;
     if ($action === 'grant_group') {
         $hours = (int)($data['duration_hours'] ?? 24);
@@ -64,9 +66,14 @@ try {
     }
     $revokedAt = $grant ? null : gmdate('Y-m-d H:i:s');
     if ($action === 'revoke_group') {
-        // Revoking group-wide access also revokes any persistent member grants immediately.
-        $pdo->prepare('UPDATE group_attachment_access SET download_enabled=0,forward_enabled=0,revoked_at=?,updated_at=UTC_TIMESTAMP() WHERE chat_id=?')
-            ->execute([$revokedAt, $chatId]);
+        // Revoke only the temporary group-wide grant. Preserve separately granted
+        // member permissions until the owner explicitly revokes each member grant.
+        $revoke = $pdo->prepare('UPDATE group_attachment_access SET download_enabled=0,forward_enabled=0,revoked_at=?,updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND grant_scope="group" AND member_id=0 AND revoked_at IS NULL');
+        $revoke->execute([$revokedAt, $chatId]);
+        if ($revoke->rowCount() > 0) {
+            $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())')
+                ->execute([$chatId, $userId, 'Download access closed. The group owner has revoked temporary group-wide attachment access.']);
+        }
     }
     $stmt = $pdo->prepare('INSERT INTO group_attachment_access(chat_id,grant_scope,member_id,download_enabled,forward_enabled,expires_at,revoked_at,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE download_enabled=VALUES(download_enabled),forward_enabled=VALUES(forward_enabled),expires_at=VALUES(expires_at),revoked_at=VALUES(revoked_at),created_by=VALUES(created_by),updated_at=UTC_TIMESTAMP()');
     $stmt->execute([$chatId,$scope,$memberId,$download,$forward,$expiresAt,$revokedAt,$userId]);
