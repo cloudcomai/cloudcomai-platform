@@ -17,7 +17,7 @@ test('mobile composer limits mentions to group/public rooms and submits stable r
 test('mobile Mentions inbox opens the original message and navigates to its context', () => {
   assert.match(lists, /tab==='mentions'/);
   assert.match(lists, /platformApi\.openMention\(Number\(item\.mention_id\)\)/);
-  assert.match(lists, /onOpenChat\?\.\(Number\(item\.chat_id\),Number\(item\.message_id\)\)/);
+  assert.match(lists, /await onOpenChat\(Number\(item\.chat_id\),Number\(item\.message_id\)\)/);
   assert.match(app, /initialMessageId=\{pendingMentionMessageId\}/);
   assert.match(app, /navigateToMessage\(initialMessageId\)/);
   assert.match(api, /listMessageMentions/);
