@@ -26,6 +26,8 @@ assert(str_contains($handler, 'expires_at<=UTC_TIMESTAMP() AND revoked_at IS NUL
 assert(str_contains($messages, 'Download access closed. The temporary attachment download period has expired.'));
 assert(str_contains($messages, '$expire->rowCount() > 0'));
 assert(str_contains($policy, 'expires_at'));
+assert(substr_count($policy, "strtotime($row['expires_at'] . ' UTC') <= time()) return false;") === 2);
+assert(str_contains($forward, "if ($groupPermission === false) fail('Group owner has disabled forwarding for you', 403)"));
 assert(str_contains($policy, 'function group_attachment_is_admin_or_owner'));
 assert(str_contains($policy, 'role IN ("owner","admin")'));
 assert(str_contains($download, '$a[\'chat_type\'] === \'group\''));
