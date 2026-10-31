@@ -315,7 +315,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     setFontColor(key);
     setFontColorSaving(true);
     try {
-      await apiClient.request('v1/users/chat-font-color', { method: 'PUT', body: { font_color: key } });
+      await apiClient.request(ApiRoute.CHAT_FONT_COLOR, { method: 'PUT', body: { font_color: key } });
       chatFontColorCache.set(String(user?.id || ''), key);
       setFontColorOpen(false);
     } catch (saveError) {
@@ -327,7 +327,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
     let cancelled = false;
     const cacheKey = String(user?.id || '');
     if (chatFontColorCache.has(cacheKey)) { setFontColor(chatFontColorCache.get(cacheKey)); return () => { cancelled = true; }; }
-    apiClient.request('v1/users/chat-font-color', { method: 'GET' })
+    apiClient.request(ApiRoute.CHAT_FONT_COLOR, { method: 'GET' })
       .then(({ data }) => { if (!cancelled) { const value = data?.font_color || 'default'; setFontColor(value); chatFontColorCache.set(cacheKey, value); } })
       .catch(() => {});
     return () => { cancelled = true; };
