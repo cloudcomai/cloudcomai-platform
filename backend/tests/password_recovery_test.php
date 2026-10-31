@@ -24,8 +24,8 @@ function copy_backend(string $source, string $target): void {
         else copy($entry->getPathname(), $dest);
     }
 }
-function request(string $method, string $path, mixed $body = null, int $expected = 200, string $token = ''): array {
-    $headers = ['Content-Type: application/json', 'Origin: https://untrusted.example.test'];
+function request(string $method, string $path, mixed $body = null, int $expected = 200, string $token = '', string $origin = 'https://untrusted.example.test'): array {
+    $headers = ['Content-Type: application/json', 'Origin: ' . $origin];
     if ($token !== '') $headers[] = 'Authorization: Bearer ' . $token;
     $context = stream_context_create(['http' => ['method' => $method, 'header' => implode("\r\n", $headers), 'content' => $body === null ? '' : json_encode($body), 'ignore_errors' => true, 'timeout' => 15]]);
     $raw = file_get_contents('http://127.0.0.1:18766/' . $path, false, $context);
@@ -95,7 +95,7 @@ try {
     $insert->execute([4,'suspended','Suspended','suspended@example.test',null,$hash,'1990-01-01','Male','suspended']);
 
     copy_backend(dirname(__DIR__), $root);
-    $config = ['db' => ['host'=>'127.0.0.1','name'=>$database,'user'=>'root','pass'=>$password,'charset'=>'utf8mb4'], 'app'=>['token_secret'=>'integration-test-secret','allowed_origins'=>[],'web_url'=>'https://web.example.test/app/','mail_from'=>'support@example.test']];
+    $config = ['db' => ['host'=>'127.0.0.1','name'=>$database,'user'=>'root','pass'=>$password,'charset'=>'utf8mb4'], 'app'=>['token_secret'=>'integration-test-secret','allowed_origins'=>['https://web.example.test'],'web_url'=>'https://web.example.test/app/','mail_from'=>'support@example.test']];
     file_put_contents($root . '/config/config.php', '<?php return ' . var_export($config, true) . ';');
     file_put_contents($root . '/capture-mail.php', '<?php if (is_file($argv[2])) exit(1); file_put_contents($argv[1], json_encode(stream_get_contents(STDIN)).PHP_EOL, FILE_APPEND | LOCK_EX);');
     $sendmail = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/capture-mail.php') . ' ' . escapeshellarg($root . '/mail.jsonl') . ' ' . escapeshellarg($root . '/fail-mail');
@@ -109,6 +109,11 @@ try {
             usleep(100000);
         }
     }
+
+    $allowedCors = request('OPTIONS','v1/auth/reset-password',null,204,'','https://web.example.test');
+    check(str_contains(strtolower(implode("\n",$allowedCors['headers'])), 'access-control-allow-origin: https://web.example.test'), 'Configured web origin must pass the API preflight');
+    $deniedCors = request('OPTIONS','v1/auth/reset-password',null,204,'','https://untrusted.example.test');
+    check(!str_contains(strtolower(implode("\n",$deniedCors['headers'])), 'access-control-allow-origin:'), 'Untrusted origins must not receive CORS access');
 
     $session = request('POST','v1/auth/login',['identifier'=>'alice','password'=>$oldPassword])['data']['token'];
     $bobSession = request('POST','v1/auth/login',['identifier'=>'bob','password'=>$oldPassword])['data']['token'];
