@@ -334,6 +334,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
+            {ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Group admins: {members.filter(item => item.role === 'admin').length}/3 · You can appoint up to 3 admins</Text> : null}
             <Text style={[styles.note,{color:theme.colors.secondary}]}>Member Type</Text>
             <View style={styles.filterRow}>
               {[
@@ -388,7 +389,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
                   {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download access closed</Text> : null}
                 </View>
                 <View style={styles.memberActions}>
-                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
+                  {ownsGroup && role !== 'owner' && role !== 'admin' && members.filter(item => item.role === 'admin').length < 3 ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
                   {ownsGroup && role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}
                   {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', Number(member.user_id))}><Text style={[styles.link,{color:theme.colors.accent}]}>{grant ? 'Revoke download' : 'Grant download'}</Text></Pressable> : null}
                   {role === 'owner' ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text> : Number(member.user_id) === currentUserId ? (
