@@ -100,6 +100,7 @@ function App() {
     const [topInterests, setTopInterests] = useState(defaultInterests);
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
     const [privacySettings, setPrivacySettings] = useState(defaultPrivacySettings);
+    const [chatFontColor, setChatFontColor] = useState('default');
     const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
     const [pendingFocusMessageId, setPendingFocusMessageId] = useState(null);
     const chatPageRef = useRef(1);
@@ -195,6 +196,22 @@ function App() {
             .catch(error => console.warn('Unable to load preferences:', error));
         return () => { cancelled = true; };
     }, [token]);
+
+    useEffect(() => {
+        if (!token) return undefined;
+        let cancelled = false;
+        api('v1/users/chat-font-color', { method: 'GET' })
+            .then(data => { if (!cancelled) setChatFontColor(data.font_color || 'default'); })
+            .catch(error => console.warn('Unable to load chat font color:', error));
+        return () => { cancelled = true; };
+    }, [token]);
+
+    const updateChatFontColor = async color => {
+        const previous = chatFontColor;
+        setChatFontColor(color);
+        try { await api('v1/users/chat-font-color', { method: 'PUT', body: JSON.stringify({ font_color: color }) }); }
+        catch (error) { setChatFontColor(previous); throw error; }
+    };
 
     useEffect(() => {
         if (!token) return undefined;
@@ -674,7 +691,7 @@ function App() {
 
             <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
-            <ChatCanvas onLoadMessageContext={loadMessageContext} focusMessageId={pendingFocusMessageId} onFocusMessageHandled={() => setPendingFocusMessageId(null)} onLoadOlderMessages={loadOlderMessages} active={!modal} sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} onEditPoll={message => { setPollEditTarget(message); setModal('poll'); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
+            <ChatCanvas fontColor={chatFontColor} onFontColorChange={updateChatFontColor} onLoadMessageContext={loadMessageContext} focusMessageId={pendingFocusMessageId} onFocusMessageHandled={() => setPendingFocusMessageId(null)} onLoadOlderMessages={loadOlderMessages} active={!modal} sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} onEditPoll={message => { setPollEditTarget(message); setModal('poll'); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
 
             {modal && (
                 <div className="modal-backdrop">
