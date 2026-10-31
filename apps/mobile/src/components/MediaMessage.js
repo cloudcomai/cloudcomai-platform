@@ -196,9 +196,10 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
   const statusLabel = status => status === 'APPROVED' ? 'Approved' : status === 'DENIED' ? 'Rejected' : status === 'PENDING' ? 'Request Pending' : null;
   return <View>
     {showActions ? <View style={[styles.messageActions, { backgroundColor: colors.surface || colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}>
-      <MessageAction type="download" label={statusLabel(statuses.DOWNLOAD) || 'Download'} color={statuses.DOWNLOAD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.DOWNLOAD) || 'Download attachment'} onPress={() => request('DOWNLOAD')} colors={colors} />
+      {!attachment.group_download_blocked ? <MessageAction type="download" label={statusLabel(statuses.DOWNLOAD) || 'Download'} color={statuses.DOWNLOAD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.DOWNLOAD) || 'Download attachment'} onPress={() => request('DOWNLOAD')} colors={colors} /> : null}
       <MessageAction type="reply" label="Reply" color={primary} accessibilityLabel="Reply to message" onPress={onReply} colors={colors}/>
-      <MessageAction type="forward" label={statusLabel(statuses.FORWARD) || 'Forward'} color={statuses.FORWARD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.FORWARD) || 'Forward attachment'} onPress={() => request('FORWARD')} colors={colors} />
+      {!attachment.group_forward_blocked ? <MessageAction type="forward" label={statusLabel(statuses.FORWARD) || 'Forward'} color={statuses.FORWARD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.FORWARD) || 'Forward attachment'} onPress={() => request('FORWARD')} colors={colors} /> : null}
+      {attachment.group_download_blocked && attachment.group_forward_blocked ? <Text style={styles.meta}>Download and forwarding access closed</Text> : null}
       <MessageAction type="save" label={message.saved ? 'Saved' : 'Save'} color={primary} accessibilityLabel={message.saved ? 'Unsave message' : 'Save message'} onPress={onSave} colors={colors}/>
       <MessageAction type="delete" label="Delete" color={danger} accessibilityLabel="Delete message" onPress={onDelete} colors={colors}/>
     </View> : null}
