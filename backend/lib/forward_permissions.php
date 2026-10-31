@@ -37,12 +37,15 @@ function assert_forward_destination_contacts(int $chatId, int $senderId, string 
         WHERE cm.chat_id=?
           AND cm.user_id<>?
           AND cm.status="active"
-          AND cm.role<>"readonly"
     ');
     $recipients->execute([$senderId, $senderId, $senderId, $senderId, $chatId, $senderId]);
     $result = $recipients->fetch() ?: [];
-    if ((int)($result['recipient_count'] ?? 0) < 1) {
+    $recipientCount = (int)($result['recipient_count'] ?? 0);
+    if ($recipientCount < 1) {
         fail('Select a private chat or group with at least one active recipient', 403);
+    }
+    if ($chatType === 'private' && $recipientCount !== 1) {
+        fail('Private chat forwarding is limited to one added contact', 403);
     }
     if ((int)($result['unauthorized_count'] ?? 0) > 0) {
         fail('Forwarding is limited to contacts/friends you have added. Every active group member must be your accepted friend.', 403);
