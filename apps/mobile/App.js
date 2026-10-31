@@ -24,6 +24,25 @@ import {
   View,
 } from 'react-native';
 import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
+
+const chatFontColorCache = new Map();
+const isDarkThemeColor = value => {
+  const match = String(value || '').match(/^#([0-9a-f]{6})$/i);
+  if (!match) return Appearance.getColorScheme() === 'dark';
+  const number = parseInt(match[1], 16);
+  const r = (number >> 16) & 255, g = (number >> 8) & 255, b = number & 255;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 120;
+};
+const CHAT_FONT_COLORS = [
+  { key: 'default', label: 'Default', light: '#172033', dark: '#f1f5f9' },
+  { key: 'blue', label: 'Blue', light: '#1d4ed8', dark: '#93c5fd' },
+  { key: 'green', label: 'Green', light: '#047857', dark: '#6ee7b7' },
+  { key: 'purple', label: 'Purple', light: '#6d28d9', dark: '#c4b5fd' },
+  { key: 'pink', label: 'Pink', light: '#be185d', dark: '#f9a8d4' },
+  { key: 'orange', label: 'Orange', light: '#c2410c', dark: '#fdba74' },
+  { key: 'red', label: 'Red', light: '#b91c1c', dark: '#fca5a5' },
+  { key: 'teal', label: 'Teal', light: '#0f766e', dark: '#5eead4' },
+];
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as ScreenCapture from 'expo-screen-capture';
@@ -275,6 +294,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [groupOwnerId, setGroupOwnerId] = useState(chat.owner_id);
   const [muted, setMuted] = useState(Boolean(chat.notifications_muted));
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [fontColor, setFontColor] = useState('default');
+  const [fontColorOpen, setFontColorOpen] = useState(false);
+  const [fontColorSaving, setFontColorSaving] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [publicManageOpen, setPublicManageOpen] = useState(false);
@@ -285,6 +307,31 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
   const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
   const theme = { ...baseTheme, colors: { ...baseTheme.colors, accent: customAccent, outgoing: themeSettings?.accentColor || baseTheme.colors.outgoing } };
+  const selectedFontColor = CHAT_FONT_COLORS.find(option => option.key === fontColor) || CHAT_FONT_COLORS[0];
+  const isDarkChatTheme = isDarkThemeColor(theme.colors.background);
+  const fontColorValue = isDarkChatTheme ? selectedFontColor.dark : selectedFontColor.light;
+  const saveFontColor = async key => {
+    const previous = fontColor;
+    setFontColor(key);
+    setFontColorSaving(true);
+    try {
+      await apiClient.request(ApiRoute.CHAT_FONT_COLOR, { method: 'PUT', body: { font_color: key } });
+      chatFontColorCache.set(String(user?.id || ''), key);
+      setFontColorOpen(false);
+    } catch (saveError) {
+      setFontColor(previous);
+      Alert.alert('Unable to save message color', saveError.message || 'Please try again.');
+    } finally { setFontColorSaving(false); }
+  };
+  useEffect(() => {
+    let cancelled = false;
+    const cacheKey = String(user?.id || '');
+    if (chatFontColorCache.has(cacheKey)) { setFontColor(chatFontColorCache.get(cacheKey)); return () => { cancelled = true; }; }
+    apiClient.request(ApiRoute.CHAT_FONT_COLOR, { method: 'GET' })
+      .then(({ data }) => { if (!cancelled) { const value = data?.font_color || 'default'; setFontColor(value); chatFontColorCache.set(cacheKey, value); } })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.id]);
   const openPollComposer = () => { if (chat.isGroup && !chat.blocked) setPollMenuVisible(true); };
 
   useEffect(() => { setComposer(messaging?.snapshot().drafts[String(chat.id)] || ''); }, [messaging, chat.id]);
@@ -729,7 +776,8 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           renderItem={({ item }) => {
             const mine = Number(item.sender_id) === Number(user.id);
             const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
-            const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, theme.colors.text), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
+            const chosenSenderColor = CHAT_FONT_COLORS.find(option => option.key === item.sender_font_color) || CHAT_FONT_COLORS[0];
+            const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, chosenSenderColor.key === 'default' ? theme.colors.text : (isDarkChatTheme || mine ? chosenSenderColor.dark : chosenSenderColor.light)), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
             const selected = Number(selectedMessage?.id) === Number(item.id);
             if (item.type === 'moderation') return <View style={[styles.moderationMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}><Text style={styles.moderationTitle}>Community moderation</Text><Text style={styles.moderationText}>{item.body}</Text><Text style={styles.moderationTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}</Text></View>;
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
@@ -782,8 +830,20 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
         <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
       </ScrollView> : null}
       {mentionChatEnabled && mentionQuery !== null && mentionCandidates.length > 0 ? <View style={[styles.mentionSuggestions,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>{mentionCandidates.map(candidate=><Pressable key={candidate.id} accessibilityRole="button" onPress={()=>chooseMention(candidate)} style={[styles.mentionSuggestion,{borderBottomColor:theme.colors.border}]}><Text style={[styles.mentionSuggestionName,{color:theme.colors.text}]}>@{candidate.username || candidate.id}</Text><Text style={[styles.mentionSuggestionMeta,{color:theme.colors.secondary}]}>{candidate.name || 'Chat member'}</Text></Pressable>)}</View> : null}
-      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable><TextInput style={[styles.composerInput, { color: theme.colors.text, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
+      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable>{(chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type)) ? <Pressable accessibilityRole="button" accessibilityLabel="Choose message font color" onPress={() => setFontColorOpen(true)} style={[styles.emojiToggle, { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border }]}><Text style={{ color: fontColorValue, fontSize: 20, fontWeight: '800' }}>A</Text></Pressable> : null}<TextInput style={[styles.composerInput, { color: fontColor === 'default' ? theme.colors.text : fontColorValue, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
+      <Modal visible={fontColorOpen && (chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type))} transparent animationType="fade" onRequestClose={() => setFontColorOpen(false)}>
+        <Pressable onPress={() => setFontColorOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,.42)', justifyContent: 'flex-end', padding: 18 }}>
+          <Pressable onPress={event => event.stopPropagation()} style={{ backgroundColor: theme.colors.composer, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 18, padding: 18 }}>
+            <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: '800', marginBottom: 5 }}>Choose message font color</Text>
+            <Text style={{ color: theme.colors.secondary, fontSize: 12, marginBottom: 14 }}>Your selected color is used in all chats.</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 }}>
+              {CHAT_FONT_COLORS.map(option => <Pressable key={option.key} accessibilityRole="button" accessibilityLabel={option.label} disabled={fontColorSaving} onPress={() => saveFontColor(option.key)} style={{ width: '22%', alignItems: 'center', gap: 5 }}><View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: option.key === 'default' ? theme.colors.background : (isDarkChatTheme ? option.dark : option.light), borderWidth: fontColor === option.key ? 3 : 1, borderColor: fontColor === option.key ? theme.colors.accent : theme.colors.border, alignItems: 'center', justifyContent: 'center' }}>{fontColor === option.key ? <Text style={{ color: option.key === 'default' ? theme.colors.text : '#fff', fontWeight: '900' }}>✓</Text> : null}</View><Text style={{ color: theme.colors.text, fontSize: 11 }}>{option.label}</Text></Pressable>)}
+            </View>
+            <Pressable onPress={() => setFontColorOpen(false)} style={{ marginTop: 16, padding: 11, borderRadius: 10, backgroundColor: theme.colors.background, alignItems: 'center' }}><Text style={{ color: theme.colors.text, fontWeight: '700' }}>Close</Text></Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
       {chat.isGroup ? <GroupManagement
         visible={groupManagementOpen}
         group={{ ...chat, name: groupName, owner_id: groupOwnerId }}

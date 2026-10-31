@@ -114,10 +114,18 @@ try {
     }
     check($admin->query('SELECT dob FROM users WHERE id=1')->fetchColumn()==='1990-01-01','Invalid profile DOB persisted');
 
+    $fontPreference = request('GET','v1/users/chat-font-color',1)['data'];
+    check(($fontPreference['font_color'] ?? '') === 'default', 'Chat font color must default to standard');
+    request('PUT','v1/users/chat-font-color',1,['font_color'=>'blue']);
+    request('PUT','v1/users/chat-font-color',1,['font_color'=>'not-a-supported-color'],422);
     $message = request('POST','v1/messages',1,['chat_id'=>1,'body'=>'searchable hello'],201)['data']['message'];
+    check(($message['sender_font_color'] ?? '') === 'blue', 'New message did not include sender font color');
     $id = (int)$message['id'];
     request('GET','v1/messages?chat_id=1',3,null,403);
-    check(count(request('GET','v1/messages?chat_id=1&q=searchable',2)['data']['messages'])===1, 'Message search failed');
+    $searchedMessages = request('GET','v1/messages?chat_id=1&q=searchable',2)['data']['messages'];
+    check(count($searchedMessages)===1, 'Message search failed');
+    check(($searchedMessages[0]['sender_font_color'] ?? '') === 'blue', 'Message sync did not include sender font color');
+    request('PUT','v1/users/chat-font-color',1,['font_color'=>'default']);
     request('DELETE',"v1/messages?id=$id&scope=everyone",2,null,403);
     request('DELETE',"v1/messages?id=$id&scope=self",2);
     $sync = request('GET',"v1/messages?chat_id=1&after_id=$id",2)['data'];

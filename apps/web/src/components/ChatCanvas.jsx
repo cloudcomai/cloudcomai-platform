@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { parseSharedLocation, createReadTracker, parseMessageTimestamp } from '@cloudcomai/chat-core';
-import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy } from 'lucide-react';
+import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy, Palette } from 'lucide-react';
 import { formatMessageTime } from '../utils/messageTime';
 import { copyText, shareOrCopyLink } from '../utils/shareLink';
 import { resolvePollOptions } from '../utils/pollOptions';
@@ -27,7 +27,7 @@ const attachmentIconStyle = { fontSize: '24px', flex: '0 0 auto' };
 const attachmentNameStyle = { fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const attachmentDetailsStyle = { fontSize: '11px', color: 'var(--text-muted)' };
 
-export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true, focusMessageId = null, onFocusMessageHandled, onLoadMessageContext }) {
+export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMessages, setModal, replyTo, setReplyTo, editing, setEditing, composer, setComposer, onSendMessage, apiBridge, onDeleteChat, onDeleteGroup, onGroupInvite, onAttachmentUploaded, onDeleteMessage, mediaAutoDownload = false, onRead, pendingMessages = [], localMessageError, onRetryPending, onDiscardPending, onToggleSaved, sending = false, onComposerChange = setComposer, onCancelContext, onBeginEdit, onBeginReply, onEditPoll, active = true, focusMessageId = null, onFocusMessageHandled, onLoadMessageContext, fontColor = 'default', onFontColorChange }) {
   const historyRef = useRef(null);
   const pendingOlderScrollHeightRef = useRef(0);
   const olderLoadThreshold = 450;
@@ -45,6 +45,8 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [chatMuted, setChatMuted] = useState(Boolean(selectedChat?.notifications_muted));
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [fontColorOpen, setFontColorOpen] = useState(false);
+  const [fontColorSaving, setFontColorSaving] = useState(false);
   const [forwardTarget, setForwardTarget] = useState(null);
   const [readStatusTarget, setReadStatusTarget] = useState(null);
   const [profileUserId, setProfileUserId] = useState(null);
@@ -57,6 +59,9 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const mentionChatEnabled = selectedChat?.type === 'group' || selectedChat?.type === 'public' || Boolean(selectedChat?.isGroup || selectedChat?.isPublic);
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
+  const fontColorOptions = [{ key: 'default', label: 'Default', light: 'var(--text-main)', dark: 'var(--text-main)' }, { key: 'blue', label: 'Blue', light: '#1d4ed8', dark: '#93c5fd' }, { key: 'green', label: 'Green', light: '#047857', dark: '#6ee7b7' }, { key: 'purple', label: 'Purple', light: '#6d28d9', dark: '#c4b5fd' }, { key: 'pink', label: 'Pink', light: '#be185d', dark: '#f9a8d4' }, { key: 'orange', label: 'Orange', light: '#c2410c', dark: '#fdba74' }, { key: 'red', label: 'Red', light: '#b91c1c', dark: '#fca5a5' }, { key: 'teal', label: 'Teal', light: '#0f766e', dark: '#5eead4' }];
+  const selectedFontColor = fontColorOptions.find(option => option.key === fontColor) || fontColorOptions[0];
+  const isDarkTheme = document.documentElement.dataset.appTheme === 'midnight' || document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.classList.contains('dark');
 
   useEffect(() => {
     setChatMuted(Boolean(selectedChat?.notifications_muted));
@@ -319,7 +324,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           const isPoll = msg.type === 'poll';
           const isAttachment = Boolean(msg.attachment);
           const location = msg.type === 'location' ? parseSharedLocation(msg.body) : null;
-          const messageContent = msg.body || msg.text || ''; const renderedMessageContent = String(messageContent).split(/(@[a-zA-Z0-9_.-]+)/g).map((part, index) => /^@[a-zA-Z0-9_.-]+$/.test(part) ? <span key={index} className="message-mention-token">{part}</span> : part);
+          const messageContent = msg.body || msg.text || ''; const senderColor = fontColorOptions.find(option => option.key === msg.sender_font_color) || fontColorOptions[0]; const renderedMessageContent = String(messageContent).split(/(@[a-zA-Z0-9_.-]+)/g).map((part, index) => /^@[a-zA-Z0-9_.-]+$/.test(part) ? <span key={index} className="message-mention-token">{part}</span> : part);
           const poll = msg.poll;
           const visibleOptions = resolvePollOptions(poll?.options, pollVoteState[msg.poll_id || poll?.id]);
           const messageTime = formatMessageTime(msg.created_at || msg.timestamp || msg.time);
@@ -360,7 +365,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
                     </div>
                   </div>
                 </div>
-              </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content">{msg.type === 'location' ? 'Location unavailable' : renderedMessageContent}</p>}
+              </div> : location ? <a className="shared-location-card" href={location.url} target="_blank" rel="noopener noreferrer"><strong>📍 {location.label}</strong><span>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><span>Open in maps ↗</span></a> : <p className="bubble-text-content" style={{ color: senderColor.key === 'default' ? undefined : (isDarkTheme || isMine ? senderColor.dark : senderColor.light) }}>{msg.type === 'location' ? 'Location unavailable' : renderedMessageContent}</p>}
               <div className="bubble-meta-footer"><span className="bubble-time">{messageTime}</span>{msg.edited && <span className="edited-flag">· Edited</span>}</div>
               {selected && <div className="bubble-action-triggers selected-actions" onClick={event => event.stopPropagation()}><button onClick={() => onToggleSaved(msg).catch(e => alert(e.message))}>{msg.saved ? 'Unsave' : 'Save'}</button><button onClick={() => { onBeginReply(msg); setSelectedMessageId(null); }} title="Reply" aria-label="Reply"><Reply size={12} /> Reply</button><button onClick={() => { setForwardTarget(msg); setSelectedMessageId(null); }} title="Forward" aria-label="Forward message">Forward</button>{isMine && <button onClick={() => { setReadStatusTarget(msg); setSelectedMessageId(null); }} title="Message info" aria-label="Message info">Info</button>}{isMine && msg.type === 'text' && Number(msg.edit_count || 0) < 2 && (() => { const createdAt = Date.parse(msg.created_at || msg.timestamp || msg.time || ''); return Number.isFinite(createdAt) && createdAt <= Date.now() && (Date.now() - createdAt) <= 3 * 60 * 60 * 1000; })() && <button onClick={() => { onBeginEdit(msg); setSelectedMessageId(null); }} title="Edit" aria-label="Edit message"><Edit3 size={12} /> Edit</button>}<button onClick={() => { setDeleteTarget(msg); setSelectedMessageId(null); }} title="Delete" aria-label="Delete message"><Trash2 size={12} /> Delete</button></div>}
             </div>}
@@ -388,8 +393,12 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
         </div>}
         <div className="message-input-composer-bar">
           <button type="button" className="emoji-toggle-btn" onClick={() => setEmojiOpen(value => !value)} aria-label="Choose emoji">☺</button>
+          {selectedChat?.type === 'private' && <div className="chat-font-color-control" style={{ position: 'relative' }}>
+            <button type="button" className="emoji-toggle-btn" onClick={() => setFontColorOpen(value => !value)} aria-label="Choose message font color" title={`Message color: ${selectedFontColor.label}`}><Palette size={17} /></button>
+            {fontColorOpen && <div className="chat-font-color-menu" role="dialog" aria-label="Choose message font color" style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 30, width: 220, padding: 12, borderRadius: 12, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', boxShadow: '0 8px 28px rgba(0,0,0,.18)' }}><strong style={{ display: 'block', fontSize: 12, marginBottom: 9 }}>Message font color</strong><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>{fontColorOptions.map(option => <button key={option.key} type="button" disabled={fontColorSaving} title={option.label} aria-label={option.label} onClick={async () => { setFontColorSaving(true); try { await onFontColorChange?.(option.key); setFontColorOpen(false); } catch (error) { alert(error.message || 'Unable to save message color.'); } finally { setFontColorSaving(false); } }} style={{ width: 34, height: 34, borderRadius: '50%', border: fontColor === option.key ? '3px solid var(--primary-color)' : '1px solid var(--border-color)', background: option.key === 'default' ? 'var(--bg-directory)' : (isDarkTheme ? option.dark : option.light), color: option.key === 'default' ? 'var(--text-main)' : '#fff', cursor: 'pointer' }}><span aria-hidden="true">{fontColor === option.key ? '✓' : ''}</span></button>)}</div><small style={{ display: 'block', color: 'var(--text-muted)', marginTop: 8 }}>Your choice applies to all chats.</small></div>}
+          </div>}
           <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
-          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => handleComposerInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && submitWithMentions()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" />
+          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => handleComposerInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && submitWithMentions()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" style={{ color: fontColor === 'default' ? undefined : (isDarkTheme ? selectedFontColor.dark : selectedFontColor.light) }} />
           <button className="voice-mic-submit-btn" onClick={submitWithMentions} disabled={sending || !selectedChat || selectedChat.blocked || (Boolean(editing && mentionChatEnabled && mentionRecipientsLoading))} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
