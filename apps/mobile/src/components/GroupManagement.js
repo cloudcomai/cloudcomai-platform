@@ -34,6 +34,8 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const ownsGroup = members.some(member => Number(member.user_id) === currentUserId && member.role === 'owner');
   const isAdmin = members.some(member => Number(member.user_id) === currentUserId && member.role === 'admin');
   const canManageMembers = ownsGroup || isAdmin;
+  const adminCount = members.filter(member => member.role === 'admin').length;
+  const adminLimitReached = adminCount >= 3;
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
   const load = useCallback(async () => {
@@ -334,6 +336,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
+            {ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Administrators · {adminCount}/3 selected by the owner</Text> : null}
             <Text style={[styles.note,{color:theme.colors.secondary}]}>Member Type</Text>
             <View style={styles.filterRow}>
               {[
@@ -348,7 +351,8 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             <View style={styles.filterRow}>
               {[
                 ['all', 'All Permissions'], ['can_download', 'Can Download Attachments'],
-                ['cannot_download', 'Cannot Download Attachments'], ['can_message', 'Can Send Messages'], ['restricted', 'Restricted'],
+                ['cannot_download', 'Cannot Download Attachments'], ['can_forward', 'Can Forward Attachments'],
+                ['cannot_forward', 'Cannot Forward Attachments'], ['can_message', 'Can Send Messages'], ['restricted', 'Restricted'],
               ].map(([value, label]) => (
                 <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: permissionFilter === value }} onPress={() => setPermissionFilter(value)} style={[styles.filterChip, { borderColor: theme.colors.border, backgroundColor: permissionFilter === value ? theme.colors.accent : theme.colors.background }]}>
                   <Text style={{ color: permissionFilter === value ? '#fff' : theme.colors.text, fontSize: 12 }}>{label}</Text>
@@ -357,14 +361,20 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             </View>
             {members.filter(member => {
               const role = member.role || 'member';
-              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
-              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
-              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
+              const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group');
+              const memberGrantActive = Boolean(memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()));
+              const groupGrantActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(groupGrant.expires_at).getTime() > Date.now()));
+              const selectedGrant = memberGrant ? (memberGrantActive ? memberGrant : null) : (groupGrantActive ? groupGrant : null);
+              const canDownload = role === 'owner' || role === 'admin' || Boolean(selectedGrant?.download_enabled && Number(selectedGrant.download_enabled) === 1);
+              const canForward = role === 'owner' || role === 'admin' || Boolean(selectedGrant?.forward_enabled && Number(selectedGrant.forward_enabled) === 1);
               const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
               const matchesType = memberTypeFilter === 'all' || role === memberTypeFilter;
               const matchesPermission = permissionFilter === 'all'
                 || (permissionFilter === 'can_download' && canDownload)
                 || (permissionFilter === 'cannot_download' && !canDownload)
+                || (permissionFilter === 'can_forward' && canForward)
+                || (permissionFilter === 'cannot_forward' && !canForward)
                 || (permissionFilter === 'can_message' && canMessage)
                 || (permissionFilter === 'restricted' && !canMessage);
               return matchesType && matchesPermission;
@@ -373,9 +383,11 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
               const groupGrantRecord = attachmentGrants.find(item => item.grant_scope === 'group');
               const grant = memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()) ? memberGrant : null;
-              const groupGrant = groupGrantRecord && !groupGrantRecord.revoked_at && (!groupGrantRecord.expires_at || new Date(groupGrantRecord.expires_at).getTime() > Date.now()) ? groupGrantRecord : null;
+              const groupGrant = !memberGrant && groupGrantRecord && !groupGrantRecord.revoked_at && (!groupGrantRecord.expires_at || new Date(groupGrantRecord.expires_at).getTime() > Date.now()) ? groupGrantRecord : null;
               const expired = Boolean((memberGrant?.expires_at && new Date(memberGrant.expires_at).getTime() <= Date.now()) || (groupGrantRecord?.expires_at && new Date(groupGrantRecord.expires_at).getTime() <= Date.now()));
-              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
+              const selectedGrant = memberGrant ? grant : groupGrant;
+              const canDownload = role === 'owner' || role === 'admin' || Boolean(selectedGrant?.download_enabled && Number(selectedGrant.download_enabled) === 1);
+              const canForward = role === 'owner' || role === 'admin' || Boolean(selectedGrant?.forward_enabled && Number(selectedGrant.forward_enabled) === 1);
               const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
               const photoVersion = member.image_version || member.photo_version || '1';
               return <View key={`${member.user_id}-${role}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
@@ -384,11 +396,12 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
                   <Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text>
                   <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username} · ` : ''}{role.charAt(0).toUpperCase()+role.slice(1)}</Text>
                   <Text style={[styles.permissionText,{color:canDownload ? '#15803d' : theme.colors.secondary}]}>{canDownload ? 'Can download attachments' : 'Cannot download attachments'}</Text>
+                  <Text style={[styles.permissionText,{color:canForward ? '#15803d' : theme.colors.secondary}]}>{canForward ? 'Can forward attachments' : 'Cannot forward attachments'}</Text>
                   <Text style={[styles.permissionText,{color:canMessage ? '#15803d' : '#b91c1c'}]}>{canMessage ? 'Can send messages' : 'Messaging restricted'}</Text>
-                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download access closed</Text> : null}
+                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download and forwarding access closed</Text> : null}
                 </View>
                 <View style={styles.memberActions}>
-                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
+                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || adminLimitReached} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
                   {ownsGroup && role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}
                   {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', Number(member.user_id))}><Text style={[styles.link,{color:theme.colors.accent}]}>{grant ? 'Revoke download' : 'Grant download'}</Text></Pressable> : null}
                   {role === 'owner' ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text> : Number(member.user_id) === currentUserId ? (

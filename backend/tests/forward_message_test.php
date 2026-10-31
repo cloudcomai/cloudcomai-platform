@@ -7,11 +7,18 @@ assert($contract['routes']['v1/messages/forward']['handler']==='forward_message.
 assert(in_array('POST',$contract['routes']['v1/messages/forward']['methods'],true));
 
 $handler=(string)file_get_contents(__DIR__.'/../api/forward_message.php');
+$recipientPolicy=(string)file_get_contents(__DIR__.'/../lib/forward_permissions.php');
 assert(str_contains($handler,"['text', 'forwarded_text']"));
 assert(str_contains($handler,'assert_visible_message'));
 assert(str_contains($handler,'c.type IN ("private","group")'));
 assert(str_contains($handler,'forwarded_text'));
 assert(str_contains($handler,'assert_chat_allows_messages'));
+assert(str_contains($handler,"require_once __DIR__ . '/../lib/forward_permissions.php';"));
+assert(str_contains($handler,'assert_forward_destination_contacts'));
+assert(str_contains($recipientPolicy,'fr.status="accepted"'));
+assert(str_contains($recipientPolicy,'user_blocks'));
+assert(str_contains($recipientPolicy,'unauthorized_count'));
+assert(str_contains($recipientPolicy,'Private chat forwarding is limited to one added contact'));
 assert(str_contains($handler,'create_chat_notifications'));
 assert(str_contains($handler,'group_attachment_is_admin_or_owner'));
 assert(str_contains($handler,'if (!$groupAdminOrOwner)'));

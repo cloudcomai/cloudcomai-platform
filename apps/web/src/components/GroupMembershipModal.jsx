@@ -14,6 +14,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
   const isAdmin = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'admin');
   const canManageMembers = ownsGroup || isAdmin;
+  const adminCount = currentMembers.filter(member => member.role === 'admin').length;
+  const adminLimitReached = adminCount >= 3;
 
   useEffect(() => {
     if ((type === 'manage_members' || type === 'add_member') && selectedChat) {
@@ -157,6 +159,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
         {type === 'manage_members' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)' }}>Active Group Participants ({currentMembers.length})</h5>
+            {ownsGroup && <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Administrators: {adminCount}/3 selected by the owner</p>}
             <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Member Type
               <select aria-label="Member Type" value={memberTypeFilter} onChange={e => setMemberTypeFilter(e.target.value)} style={{ display: 'block', width: '100%', marginTop: '6px', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-main)' }}>
                 <option value="all">All members</option><option value="owner">Owner</option><option value="admin">Admins</option><option value="member">Members</option>
@@ -176,7 +179,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                       </div>
                       <div className="account-tool-actions">
                       {ownsGroup && !isOwner && <button disabled={loading} onClick={() => transferOwnership(m)}>Make owner</button>}
-                      {ownsGroup && !isOwner && m.role !== 'admin' && <button disabled={loading || currentMembers.filter(x => x.role === 'admin').length >= 3} onClick={() => setMemberRole(m, 'promote_admin')}>Make admin</button>}
+                      {ownsGroup && !isOwner && m.role !== 'admin' && <button disabled={loading || adminLimitReached} onClick={() => setMemberRole(m, 'promote_admin')}>Make admin</button>}
                       {ownsGroup && m.role === 'admin' && <button disabled={loading} onClick={() => setMemberRole(m, 'demote_admin')}>Remove admin</button>}
                       {isOwner ? (
                         <span style={{ color: 'var(--text-muted)', fontSize: '12px', fontWeight: '600' }}>Owner</span>

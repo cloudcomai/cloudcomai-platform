@@ -42,13 +42,16 @@ if ($targetId <= 0 || !in_array($action, ['add', 'remove', 'promote_admin', 'dem
 try {
     $pdo->beginTransaction();
     // Serialize membership actions and recheck the actor after acquiring the lock.
-    $lock = $pdo->prepare('SELECT owner_id FROM chats WHERE id=? AND type="group" FOR UPDATE');
+    $lock = $pdo->prepare('SELECT owner_id,name FROM chats WHERE id=? AND type="group" FOR UPDATE');
     $lock->execute([$chatId]);
-    $ownerId = (int)$lock->fetchColumn();
+    $group = $lock->fetch();
+    if (!$group) fail('Group not found or access denied', 403);
+    $ownerId = (int)$group['owner_id'];
+    $groupName = trim((string)($group['name'] ?? ''));
     $membership->execute([$chatId, $userId]);
     $member = $membership->fetch();
     if (!$member) fail('Group not found or access denied', 403);
-    $target = $pdo->prepare('SELECT role,status FROM chat_members WHERE chat_id=? AND user_id=?');
+    $target = $pdo->prepare('SELECT cm.role,cm.status,u.name,u.user_id AS username FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id WHERE cm.chat_id=? AND cm.user_id=?');
     $target->execute([$chatId, $targetId]);
     $existing = $target->fetch();
 
@@ -65,13 +68,26 @@ try {
             $pdo->prepare('UPDATE chat_members SET role="member" WHERE chat_id=? AND user_id=? AND status="active"')->execute([$chatId, $targetId]);
         }
     } elseif ($action === 'add') {
-        $account = $pdo->prepare('SELECT id FROM users WHERE id=? AND account_status="active"');
+        $account = $pdo->prepare('SELECT id,name,user_id FROM users WHERE id=? AND account_status="active"');
         $account->execute([$targetId]);
-        if (!$account->fetchColumn()) fail('User is unavailable', 404);
+        $targetAccount = $account->fetch();
+        if (!$targetAccount) fail('User is unavailable', 404);
         if ($existing && $existing['status'] === 'banned') fail('This member is banned from the group', 403);
-        if (!$existing || $existing['status'] !== 'active') {
+        $addedNewMember = !$existing || $existing['status'] !== 'active';
+        if ($addedNewMember) {
             $role = $targetId === $ownerId ? 'owner' : 'member';
             $pdo->prepare('INSERT INTO chat_members(chat_id,user_id,role,status,joined_at) VALUES(?,?,?,"active",UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE status="active",role=VALUES(role),joined_at=UTC_TIMESTAMP()')->execute([$chatId, $targetId, $role]);
+
+            // Welcome the newly activated member in the group timeline. Keep
+            // the event and notifications atomic with the membership change.
+            $targetName = trim((string)($targetAccount['name'] ?? ''));
+            if ($targetName === '') $targetName = trim((string)($targetAccount['user_id'] ?? 'A member'));
+            $welcomeGroupName = $groupName !== '' ? $groupName : 'the group';
+            $welcomeBody = 'Welcome ' . $targetName . ' to ' . $welcomeGroupName . '!';
+            $welcomeMessage = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())');
+            $welcomeMessage->execute([$chatId, $userId, $welcomeBody]);
+            $welcomeMessageId = (int)$pdo->lastInsertId();
+            create_chat_notifications($chatId, $userId, (string)($user['name'] ?? 'Group admin'), $welcomeBody, $welcomeMessageId);
         }
     } else {
         if (!$existing || $existing['status'] !== 'active') fail('This member is not active in the group', 404);
@@ -83,6 +99,19 @@ try {
             fail('Only the group owner or an admin can remove other members', 403);
         }
         $pdo->prepare('UPDATE chat_members SET status="removed" WHERE chat_id=? AND user_id=? AND status="active"')->execute([$chatId, $targetId]);
+
+        // Publish the membership change as a normal group system message and
+        // notify the remaining active members within the same transaction.
+        $targetName = trim((string)($existing['name'] ?? ''));
+        if ($targetName === '') $targetName = trim((string)($existing['username'] ?? 'A member'));
+        $isSelfAction = $userId === $targetId;
+        $systemBody = $isSelfAction
+            ? $targetName . ' left the group'
+            : $targetName . ' was removed from the group';
+        $systemMessage = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())');
+        $systemMessage->execute([$chatId, $userId, $systemBody]);
+        $systemMessageId = (int)$pdo->lastInsertId();
+        create_chat_notifications($chatId, $userId, (string)($user['name'] ?? 'Group admin'), $systemBody, $systemMessageId);
     }
     $pdo->commit();
     out(['status' => 'ok', 'message' => $action === 'add' ? 'Member added successfully' : ($userId === $targetId ? 'You have left the group' : 'Member removed successfully')]);
