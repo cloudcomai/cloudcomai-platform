@@ -45,7 +45,7 @@ if ($method === 'GET') {
     $after = max($after, $clearedThrough);
     if ($aroundId > 0) {
         $contextSql = <<<'SQL'
-            SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,
+            SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,COALESCE((SELECT ucp.font_color FROM user_chat_preferences ucp WHERE ucp.user_id=m.sender_id LIMIT 1),'default') AS sender_font_color,
                    CASE WHEN c.type='public' AND m.sender_id<>? AND NOT EXISTS (SELECT 1 FROM friend_requests fr WHERE fr.status='accepted' AND ((fr.requester_id=? AND fr.recipient_id=m.sender_id) OR (fr.requester_id=m.sender_id AND fr.recipient_id=?))) THEN 1 ELSE 0 END AS show_profile,
                    CASE WHEN COALESCE(rus.hidden,0)=0 AND hidden_reply.user_id IS NULL THEN r.body ELSE NULL END AS reply_to_text,
                    CASE WHEN COALESCE(rus.hidden,0)=0 AND hidden_reply.user_id IS NULL THEN ru.name ELSE NULL END AS reply_to_sender_name
@@ -67,7 +67,7 @@ if ($method === 'GET') {
 
     $sql = <<<'SQL'
         SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,
-               u.name AS sender_name,
+               u.name AS sender_name,COALESCE((SELECT ucp.font_color FROM user_chat_preferences ucp WHERE ucp.user_id=m.sender_id LIMIT 1),'default') AS sender_font_color,
                CASE WHEN c.type="public" AND m.sender_id<>? AND NOT EXISTS (
                    SELECT 1 FROM friend_requests fr
                    WHERE fr.status="accepted"
@@ -194,7 +194,7 @@ if ($method === 'POST') {
             $request->execute([$user['id'],$clientId]); $existing=$request->fetch();
             if (!hash_equals($existing['request_hash'],$fingerprint)) { $pdo->rollBack(); fail('This retry key belongs to a different message',409); }
             if ($existing['message_id']) {
-                $found=$pdo->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.created_at,m.expires_at,m.reply_to_message_id,u.name AS sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id WHERE m.id=? AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
+                $found=$pdo->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.created_at,m.expires_at,m.reply_to_message_id,u.name AS sender_name,COALESCE((SELECT ucp.font_color FROM user_chat_preferences ucp WHERE ucp.user_id=m.sender_id LIMIT 1),'default') AS sender_font_color FROM messages m INNER JOIN users u ON u.id=m.sender_id WHERE m.id=? AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
                 $found->execute([$existing['message_id']]); $replayed=$found->fetch();
                 if (!$replayed) { $pdo->rollBack(); fail('This message was already sent and is no longer available',409); }
                 assert_visible_message((int)$replayed['id'],(int)$user['id']);
@@ -217,11 +217,11 @@ if ($method === 'POST') {
         fail('Unable to send message', 500);
     }
 
-    $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
+    $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,COALESCE((SELECT ucp.font_color FROM user_chat_preferences ucp WHERE ucp.user_id=m.sender_id LIMIT 1),'default') AS sender_font_color,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
     $created->execute([$messageId]);
     $message = $created->fetch();
     out(['message' => [
-        'client_message_id'=>$clientId,'id'=>(int)$message['id'],'chat_id'=>(int)$message['chat_id'],'sender_id'=>(int)$message['sender_id'],'sender_name'=>$message['sender_name'],
+        'client_message_id'=>$clientId,'id'=>(int)$message['id'],'chat_id'=>(int)$message['chat_id'],'sender_id'=>(int)$message['sender_id'],'sender_name'=>$message['sender_name'],'sender_font_color'=>$message['sender_font_color'] ?? 'default',
         'type'=>$message['type'],'body'=>$message['body'],'reply_to_message_id'=>$message['reply_to_message_id'] !== null ? (int)$message['reply_to_message_id'] : null,
         'reply_to_text'=>$message['reply_to_text'],'reply_to_sender_name'=>$message['reply_to_sender_name'],'created_at'=>$message['created_at'],'attachments'=>[],
     ]], 201);
