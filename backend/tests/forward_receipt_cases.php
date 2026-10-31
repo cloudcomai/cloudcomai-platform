@@ -23,6 +23,10 @@ check(str_starts_with(request('GET',$receiptPath,1)['data']['read_by'][0]['read_
 
 request('POST','v1/messages/forward',2,['message_id'=>$source['id'],'chat_ids'=>[302,302]],403);
 $admin->exec("INSERT INTO friend_requests(requester_id,recipient_id,status) VALUES(2,1,'accepted'),(2,3,'accepted')");
+$recipientCheck=$admin->prepare('SELECT COUNT(*) AS recipient_count,SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM friend_requests fr WHERE fr.status="accepted" AND ((fr.requester_id=? AND fr.recipient_id=cm.user_id) OR (fr.requester_id=cm.user_id AND fr.recipient_id=?))) OR EXISTS (SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=cm.user_id) OR (b.user_id=cm.user_id AND b.blocked_user_id=?)) THEN 1 ELSE 0 END) AS unauthorized_count FROM chat_members cm WHERE cm.chat_id=? AND cm.user_id<>? AND cm.status="active"');
+$recipientCheck->execute([2,2,2,2,302,2]);
+$recipientState=$recipientCheck->fetch(PDO::FETCH_ASSOC);
+check((int)$recipientState['recipient_count']===2 && (int)$recipientState['unauthorized_count']===0,'Forward recipient friend fixture is not valid: '.json_encode($recipientState));
 $forward=request('POST','v1/messages/forward',2,['message_id'=>$source['id'],'chat_ids'=>[302,302]],201)['data'];
 check($forward['forwarded']===1,'Duplicate forward destinations were not deduplicated');
 $forwardId=(int)$forward['deliveries'][0]['id'];
