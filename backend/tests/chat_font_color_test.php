@@ -12,7 +12,7 @@ if ($route['status'] !== 200 || basename($route['handler']) !== 'chat_font_color
 }
 
 $handler = file_get_contents(__DIR__ . '/../api/chat_font_color.php');
-$migration = file_get_contents(__DIR__ . '/../sql/migrations/004_user_chat_font_color.sql');
+$migration = file_get_contents(__DIR__ . '/../database/migrations/030_user_chat_font_color.sql');
 $schema = file_get_contents(__DIR__ . '/../sql/schema.sql');
 $messages = file_get_contents(__DIR__ . '/../api/messages.php');
 
