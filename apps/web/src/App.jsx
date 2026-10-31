@@ -200,7 +200,7 @@ function App() {
     useEffect(() => {
         if (!token) return undefined;
         let cancelled = false;
-        api('v1/users/chat-font-color', { method: 'GET' })
+        api(ApiRoute.CHAT_FONT_COLOR, { method: 'GET' })
             .then(data => { if (!cancelled) setChatFontColor(data.font_color || 'default'); })
             .catch(error => console.warn('Unable to load chat font color:', error));
         return () => { cancelled = true; };
@@ -209,7 +209,7 @@ function App() {
     const updateChatFontColor = async color => {
         const previous = chatFontColor;
         setChatFontColor(color);
-        try { await api('v1/users/chat-font-color', { method: 'PUT', body: JSON.stringify({ font_color: color }) }); }
+        try { await api(ApiRoute.CHAT_FONT_COLOR, { method: 'PUT', body: JSON.stringify({ font_color: color }) }); }
         catch (error) { setChatFontColor(previous); throw error; }
     };
 
