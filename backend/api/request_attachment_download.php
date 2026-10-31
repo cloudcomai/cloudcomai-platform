@@ -22,6 +22,13 @@ if ($a['chat_type'] === 'group' && group_attachment_is_admin_or_owner((int)$a['c
     out(['status'=>'APPROVED','request_type'=>$type,'group_role_bypass'=>true]);
 }
 
+// An explicit group/member revocation overrides trusted-user status and
+// previous sender approvals for both download and forwarding.
+if ($a['chat_type'] === 'group' && (int)$a['sender_id'] !== (int)$user['id']) {
+    $groupPermission = group_attachment_permission((int)$a['chat_id'], (int)$user['id'], strtolower($type));
+    if ($groupPermission === false) fail('The group owner has disabled ' . strtolower($type) . ' access for you', 403);
+}
+
 // Trusted User is sender-controlled: sender -> recipient. A trusted recipient
 // gets download/forward access without creating an approval request.
 $trustedSender = is_trusted_user((int)$a['sender_id'], (int)$user['id']);
