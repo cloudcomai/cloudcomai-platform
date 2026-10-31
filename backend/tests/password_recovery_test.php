@@ -24,8 +24,8 @@ function copy_backend(string $source, string $target): void {
         else copy($entry->getPathname(), $dest);
     }
 }
-function request(string $method, string $path, mixed $body = null, int $expected = 200, string $token = ''): array {
-    $headers = ['Content-Type: application/json', 'Origin: https://untrusted.example.test'];
+function request(string $method, string $path, mixed $body = null, int $expected = 200, string $token = '', string $origin = 'https://untrusted.example.test'): array {
+    $headers = ['Content-Type: application/json', 'Origin: ' . $origin];
     if ($token !== '') $headers[] = 'Authorization: Bearer ' . $token;
     $context = stream_context_create(['http' => ['method' => $method, 'header' => implode("\r\n", $headers), 'content' => $body === null ? '' : json_encode($body), 'ignore_errors' => true, 'timeout' => 15]]);
     $raw = file_get_contents('http://127.0.0.1:18766/' . $path, false, $context);
@@ -95,7 +95,7 @@ try {
     $insert->execute([4,'suspended','Suspended','suspended@example.test',null,$hash,'1990-01-01','Male','suspended']);
 
     copy_backend(dirname(__DIR__), $root);
-    $config = ['db' => ['host'=>'127.0.0.1','name'=>$database,'user'=>'root','pass'=>$password,'charset'=>'utf8mb4'], 'app'=>['token_secret'=>'integration-test-secret','allowed_origins'=>[],'web_url'=>'https://web.example.test/app/','mail_from'=>'support@example.test']];
+    $config = ['db' => ['host'=>'127.0.0.1','name'=>$database,'user'=>'root','pass'=>$password,'charset'=>'utf8mb4'], 'app'=>['token_secret'=>'integration-test-secret','allowed_origins'=>['https://web.example.test'],'web_url'=>'https://web.example.test/app/','mail_from'=>'support@example.test']];
     file_put_contents($root . '/config/config.php', '<?php return ' . var_export($config, true) . ';');
     file_put_contents($root . '/capture-mail.php', '<?php if (is_file($argv[2])) exit(1); file_put_contents($argv[1], json_encode(stream_get_contents(STDIN)).PHP_EOL, FILE_APPEND | LOCK_EX);');
     $sendmail = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/capture-mail.php') . ' ' . escapeshellarg($root . '/mail.jsonl') . ' ' . escapeshellarg($root . '/fail-mail');
@@ -109,6 +109,13 @@ try {
             usleep(100000);
         }
     }
+
+    $allowedCors = request('OPTIONS','v1/auth/reset-password',null,204,'','https://web.example.test');
+    $allowedCorsHeaders = strtolower(implode("\n",$allowedCors['headers']));
+    check(str_contains($allowedCorsHeaders, 'access-control-allow-origin: https://web.example.test'), 'Configured web origin must pass the API preflight');
+    check(str_contains($allowedCorsHeaders, 'access-control-allow-headers: content-type, authorization, x-idempotency-key, x-request-id'), 'API preflight must allow the request ID header sent by the shared API client');
+    $deniedCors = request('OPTIONS','v1/auth/reset-password',null,204,'','https://untrusted.example.test');
+    check(!str_contains(strtolower(implode("\n",$deniedCors['headers'])), 'access-control-allow-origin:'), 'Untrusted origins must not receive CORS access');
 
     $session = request('POST','v1/auth/login',['identifier'=>'alice','password'=>$oldPassword])['data']['token'];
     $bobSession = request('POST','v1/auth/login',['identifier'=>'bob','password'=>$oldPassword])['data']['token'];
@@ -141,14 +148,18 @@ try {
     request('POST','v1/auth/reset-password',reset_input($secondToken,'short'),400);
     request('POST','v1/auth/reset-password',reset_input($secondToken,str_repeat('a',73)),400);
     request('POST','v1/auth/reset-password',reset_input($secondToken,"valid password\0"),400);
-    request('POST','v1/auth/reset-password',reset_input('invalid'),400);
-    request('POST','v1/auth/reset-password',reset_input(str_repeat('a',43)),400);
+    foreach (['invalid', str_repeat('a',43)] as $invalidToken) {
+        $invalidResponse = request('POST','v1/auth/reset-password',reset_input($invalidToken),400);
+        check(($invalidResponse['data']['message'] ?? '') === 'This reset link is invalid or has already been used.', 'Invalid reset links must have a safe, specific error');
+    }
     check($admin->query('SELECT password_hash FROM users WHERE id=1')->fetchColumn() === $hash, 'Invalid requests changed the password');
     $admin->exec('UPDATE password_reset_tokens SET expires_at=UTC_TIMESTAMP()-INTERVAL 1 SECOND WHERE user_id=1');
-    request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    $expiredResponse = request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    check(($expiredResponse['data']['message'] ?? '') === 'This password reset link has expired. Please request a new one.', 'Expired reset links must be distinguishable');
     $admin->exec('UPDATE password_reset_tokens SET expires_at=UTC_TIMESTAMP()+INTERVAL 30 MINUTE WHERE user_id=1');
     request('POST','v1/auth/reset-password',reset_input($firstToken));
-    request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    $reusedResponse = request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    check(($reusedResponse['data']['message'] ?? '') === 'This reset link is invalid or has already been used.', 'Used reset links must be rejected with a safe message');
     request('POST','v1/auth/reset-password',reset_input($secondToken),400);
     check((int)$admin->query('SELECT COUNT(*) FROM password_reset_tokens WHERE user_id=1 AND used_at IS NULL')->fetchColumn() === 0,'Sibling reset links remain usable');
     request('POST','v1/auth/login',['identifier'=>'alice','password'=>$oldPassword],401);

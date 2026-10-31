@@ -17,6 +17,18 @@ Use at least 8 characters. The backend rejects passwords exceeding the bcrypt
 limit of 72 UTF-8 bytes instead of silently truncating them. Confirmation must
 match. A successful reset does not sign in automatically.
 
+## Production API endpoint
+
+The web client uses `https://www.cloudcomai.com/apiapp/api` when a production
+build has no `VITE_API_BASE_URL` override. Local development retains its
+separate development endpoint. Production builds reject localhost and
+`freedev.app` API hosts so a missing or incorrect build variable cannot
+silently route password recovery to the development service.
+
+The GoDaddy production workflow explicitly injects `PRODUCTION_API_URL` as
+`VITE_API_BASE_URL`. Keep that value set to
+`https://www.cloudcomai.com/apiapp/api` (or the verified production API path).
+
 ## Hosting configuration
 
 In the server-only backend config, set:

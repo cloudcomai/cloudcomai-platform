@@ -1,13 +1,14 @@
 import { ApiRoute, createApiClient, createCloudComAiApi } from '@cloudcomai/api-client';
+import { resolveApiBaseUrl } from '../utils/apiBaseUrl.js';
 import {
   createAuthSessionManager,
   createWebStorageAdapter,
 } from '@cloudcomai/auth';
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'https://cloudcomai.freedev.app/apiapp/api';
-
-console.log('[CloudComAI] API base URL:', API_BASE_URL);
+export const API_BASE_URL = resolveApiBaseUrl({
+  configuredUrl: import.meta.env.VITE_API_BASE_URL,
+  isDevelopment: import.meta.env.DEV,
+});
 
 const storage = createWebStorageAdapter(window.localStorage);
 export const sessionManager = createAuthSessionManager({ storage });
@@ -60,7 +61,7 @@ export const fetchApiBlob = async (route, query, options = {}) => {
 };
 
 export const mediaUrl = (type, id) => {
-  const url = new URL(ApiRoute.MEDIA, `${API_BASE_URL.replace(/\/$/, '')}/`);
+  const url = new URL(ApiRoute.MEDIA, `${API_BASE_URL}/`);
   url.searchParams.set('type', type);
   url.searchParams.set('id', String(id ?? ''));
   return url.toString();
