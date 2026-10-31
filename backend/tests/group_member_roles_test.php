@@ -11,6 +11,12 @@ assert(str_contains($handler, "SELECT cm.user_id,cm.role,cm.status,u.name,u.user
 assert(str_contains($handler, 'Only the group owner or an admin can remove other members'));
 assert(str_contains($handler, '$isSelfAction = $userId === $targetId'));
 assert(str_contains($handler, 'This member is not active in the group'));
+$webManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/web/src/components/GroupMembershipModal.jsx');
+$mobileManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/GroupManagement.js');
+assert(str_contains($webManagement, 'Administrators: {adminCount}/3 selected by the owner'));
+assert(str_contains($webManagement, 'disabled={loading || adminLimitReached}'));
+assert(str_contains($mobileManagement, 'Administrators · {adminCount}/3 selected by the owner'));
+assert(str_contains($mobileManagement, 'disabled={busy || adminLimitReached}'));
 $accessHandler = (string) file_get_contents($root . '/api/group_attachment_access.php');
 assert(str_contains($accessHandler, 'Active group members may view effective attachment permission indicators'));
 assert(str_contains($accessHandler, 'Only the group owner can manage attachment access'));
