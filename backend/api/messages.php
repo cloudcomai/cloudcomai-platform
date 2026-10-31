@@ -77,6 +77,7 @@ if ($method === 'GET') {
                CASE WHEN COALESCE(rus.hidden,0)=0 THEN ru.name ELSE NULL END AS reply_to_sender_name
         FROM messages m
         LEFT JOIN users u ON u.id=m.sender_id
+        LEFT JOIN user_chat_preferences ucp ON ucp.user_id=m.sender_id
         INNER JOIN chats c ON c.id=m.chat_id
         LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.id>? AND r.deleted_for_everyone=0 AND (r.expires_at IS NULL OR r.expires_at>UTC_TIMESTAMP())
         LEFT JOIN users ru ON ru.id=r.sender_id
