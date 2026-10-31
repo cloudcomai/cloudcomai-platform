@@ -203,7 +203,7 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
       <MessageAction type="save" label={message.saved ? 'Saved' : 'Save'} color={primary} accessibilityLabel={message.saved ? 'Unsave message' : 'Save message'} onPress={onSave} colors={colors}/>
       <MessageAction type="delete" label="Delete" color={danger} accessibilityLabel="Delete message" onPress={onDelete} colors={colors}/>
     </View> : null}
-    {senderRequests.map(item => <View key={item.request_id} style={styles.senderApproval}><Text style={styles.senderApprovalText}>{item.requester_name || 'A recipient'} requested {String(item.request_type || 'DOWNLOAD').toLowerCase()} access.</Text><View style={styles.approvalActions}><Pressable onPress={() => respond(item.request_id, 'APPROVED')}><Text style={styles.link}>Approve</Text></Pressable><Pressable onPress={() => respond(item.request_id, 'DENIED')}><Text style={styles.rejectLink}>Reject</Text></Pressable></View></View>)}
+    {senderRequests.filter(item => !(item.request_type === 'DOWNLOAD' && attachment.group_download_blocked) && !(item.request_type === 'FORWARD' && attachment.group_forward_blocked)).map(item => <View key={item.request_id} style={styles.senderApproval}><Text style={styles.senderApprovalText}>{item.requester_name || 'A recipient'} requested {String(item.request_type || 'DOWNLOAD').toLowerCase()} access.</Text><View style={styles.approvalActions}><Pressable onPress={() => respond(item.request_id, 'APPROVED')}><Text style={styles.link}>Approve</Text></Pressable><Pressable onPress={() => respond(item.request_id, 'DENIED')}><Text style={styles.rejectLink}>Reject</Text></Pressable></View></View>)}
   </View>;
 }
 
