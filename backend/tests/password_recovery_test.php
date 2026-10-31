@@ -111,7 +111,9 @@ try {
     }
 
     $allowedCors = request('OPTIONS','v1/auth/reset-password',null,204,'','https://web.example.test');
-    check(str_contains(strtolower(implode("\n",$allowedCors['headers'])), 'access-control-allow-origin: https://web.example.test'), 'Configured web origin must pass the API preflight');
+    $allowedCorsHeaders = strtolower(implode("\n",$allowedCors['headers']));
+    check(str_contains($allowedCorsHeaders, 'access-control-allow-origin: https://web.example.test'), 'Configured web origin must pass the API preflight');
+    check(str_contains($allowedCorsHeaders, 'access-control-allow-headers: content-type, authorization, x-idempotency-key, x-request-id'), 'API preflight must allow the request ID header sent by the shared API client');
     $deniedCors = request('OPTIONS','v1/auth/reset-password',null,204,'','https://untrusted.example.test');
     check(!str_contains(strtolower(implode("\n",$deniedCors['headers'])), 'access-control-allow-origin:'), 'Untrusted origins must not receive CORS access');
 
