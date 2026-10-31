@@ -21,6 +21,8 @@ $admin->exec("UPDATE message_read_receipts SET read_at='2000-01-01' WHERE messag
 request('POST','v1/messages/read',2,['message_ids'=>[$source['id']]]);
 check(str_starts_with(request('GET',$receiptPath,1)['data']['read_by'][0]['read_at'],'2000-01-01'),'Repeated receipt replaced first read time');
 
+request('POST','v1/messages/forward',2,['message_id'=>$source['id'],'chat_ids'=>[302,302]],403);
+$admin->exec("INSERT INTO friend_requests(requester_id,recipient_id,status) VALUES(2,1,'accepted'),(2,3,'accepted')");
 $forward=request('POST','v1/messages/forward',2,['message_id'=>$source['id'],'chat_ids'=>[302,302]],201)['data'];
 check($forward['forwarded']===1,'Duplicate forward destinations were not deduplicated');
 $forwardId=(int)$forward['deliveries'][0]['id'];
