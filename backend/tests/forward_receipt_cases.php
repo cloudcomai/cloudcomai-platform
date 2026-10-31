@@ -71,4 +71,5 @@ foreach (["expires_at='2000-01-01'",'expires_at=NULL,deleted_for_everyone=1'] as
     request('POST','v1/messages/forward',2,['message_id'=>$source['id'],'chat_ids'=>[302]],404);
     check(request('POST','v1/messages/read',2,['message_ids'=>[$source['id']]])['data']['message_ids']===[],'Unavailable message marked read');
 }
+$admin->exec("DELETE FROM friend_requests WHERE status='accepted' AND ((requester_id=2 AND recipient_id IN (1,3)) OR (requester_id IN (1,3) AND recipient_id=2))");
 echo "Forwarding authorization, atomicity, retention, receipt visibility and migration integration cases passed\n";
