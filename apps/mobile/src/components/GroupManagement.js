@@ -398,7 +398,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
                   <Text style={[styles.permissionText,{color:canDownload ? '#15803d' : theme.colors.secondary}]}>{canDownload ? 'Can download attachments' : 'Cannot download attachments'}</Text>
                   <Text style={[styles.permissionText,{color:canForward ? '#15803d' : theme.colors.secondary}]}>{canForward ? 'Can forward attachments' : 'Cannot forward attachments'}</Text>
                   <Text style={[styles.permissionText,{color:canMessage ? '#15803d' : '#b91c1c'}]}>{canMessage ? 'Can send messages' : 'Messaging restricted'}</Text>
-                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download access closed</Text> : null}
+                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download and forwarding access closed</Text> : null}
                 </View>
                 <View style={styles.memberActions}>
                   {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || adminLimitReached} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
