@@ -9,6 +9,8 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
 
   const isSender = Number(message?.sender_id) === Number(user?.id) || Number(message?.user_id) === Number(user?.id) || message?.mine === true;
   const policy = attachment?.download_policy || 'APPROVAL_REQUIRED';
+  const groupDownloadBlocked = attachment?.group_download_blocked === true;
+  const groupForwardBlocked = attachment?.group_forward_blocked === true;
 
   useEffect(() => {
     setStatus(attachment?.download_status || '');
@@ -87,9 +89,9 @@ export default function AttachmentActions({ attachment, message, user, apiBridge
 
   if (!attachment?.id) return null;
   if (isSender && requestId && status === 'PENDING') return <span style={{ display: 'inline-flex', gap: '5px' }}><button type="button" className="composer-addon-btn" onClick={() => respond('APPROVED')} disabled={busy}>Approve</button><button type="button" className="composer-addon-btn" onClick={() => respond('DENIED')} disabled={busy}>Deny</button></span>;
-  if (isSender || policy === 'ALLOW') return <button type="button" className="composer-addon-btn" onClick={download} disabled={busy}>Download</button>;
+  if (isSender || policy === 'ALLOW') return groupDownloadBlocked ? null : <button type="button" className="composer-addon-btn" onClick={download} disabled={busy}>Download</button>;
   if (policy === 'VIEW_ONLY') return <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>View only</span>;
-  if (status === 'APPROVED') return <span style={{ display: 'inline-flex', gap: '5px' }}><button type="button" className="composer-addon-btn" onClick={download} disabled={busy}>Download</button><button type="button" className="composer-addon-btn" onClick={onForward} disabled={busy || !onForward}>Forward</button></span>;
+  if (status === 'APPROVED') return <span style={{ display: 'inline-flex', gap: '5px' }}>{!groupDownloadBlocked ? <button type="button" className="composer-addon-btn" onClick={download} disabled={busy}>Download</button> : null}{!groupForwardBlocked ? <button type="button" className="composer-addon-btn" onClick={onForward} disabled={busy || !onForward}>Forward</button> : null}</span>;
   if (status === 'PENDING') return <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Access request pending</span>;
-  return <span style={{ display: 'inline-flex', gap: '5px' }}><button type="button" className="composer-addon-btn" onClick={() => requestAccess('DOWNLOAD')} disabled={busy}>Download</button><button type="button" className="composer-addon-btn" onClick={() => requestAccess('FORWARD')} disabled={busy || !onForward}>Forward</button></span>;
+  return <span style={{ display: 'inline-flex', gap: '5px' }}>{!groupDownloadBlocked ? <button type="button" className="composer-addon-btn" onClick={() => requestAccess('DOWNLOAD')} disabled={busy}>Download</button> : null}{!groupForwardBlocked ? <button type="button" className="composer-addon-btn" onClick={() => requestAccess('FORWARD')} disabled={busy || !onForward}>Forward</button> : null}</span>;
 }
