@@ -39,6 +39,10 @@ $userProfile = $router->resolve('GET', '/api/v1/users/profile?id=17');
 expect($userProfile['status'] === 200, 'User profile route did not resolve');
 expect(basename($userProfile['handler']) === 'user_profile.php', 'User profile handler mismatch');
 
+$chatFontColor = $router->resolve('GET', '/api/v1/users/chat-font-color');
+expect($chatFontColor['status'] === 200, 'Chat font color route did not resolve');
+expect(basename($chatFontColor['handler']) === 'chat_font_color.php', 'Chat font color handler mismatch');
+
 $mentions = $router->resolve('GET', '/api/v1/mentions?action=list');
 expect($mentions['status'] === 200, 'Mentions route did not resolve');
 expect(basename($mentions['handler']) === 'mentions.php', 'Mentions handler mismatch');
