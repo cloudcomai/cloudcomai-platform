@@ -72,7 +72,7 @@ try {
         $revoke->execute([$revokedAt, $chatId]);
         if ($revoke->rowCount() > 0) {
             $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())')
-                ->execute([$chatId, $userId, 'Download access closed. The group owner has revoked temporary group-wide attachment access.']);
+                ->execute([$chatId, $userId, 'Download and forwarding access closed. The group owner has revoked temporary group-wide attachment access.']);
         }
     }
     $stmt = $pdo->prepare('INSERT INTO group_attachment_access(chat_id,grant_scope,member_id,download_enabled,forward_enabled,expires_at,revoked_at,created_by,updated_at) VALUES(?,?,?,?,?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE download_enabled=VALUES(download_enabled),forward_enabled=VALUES(forward_enabled),expires_at=VALUES(expires_at),revoked_at=VALUES(revoked_at),created_by=VALUES(created_by),updated_at=UTC_TIMESTAMP()');
