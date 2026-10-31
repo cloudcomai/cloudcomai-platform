@@ -10,7 +10,7 @@ $token = is_string($d['token'] ?? null) ? trim($d['token']) : '';
 $password = is_string($d['password'] ?? null) ? $d['password'] : '';
 
 if ($token === '' || $password === '') fail('Reset token and new password are required');
-if (!preg_match('/^[A-Za-z0-9_-]{43}$/D', $token)) fail('Reset link is invalid or expired. Request a new link.', 400);
+if (!preg_match('/^[A-Za-z0-9_-]{43}$/D', $token)) fail('This reset link is invalid or has already been used.', 400);
 if (!preg_match('/^.{8,}$/us', $password)) fail('Password must be at least 8 characters');
 if (strlen($password) > 72 || str_contains($password, "\0")) fail('Password is too long or contains unsupported characters');
 
@@ -23,9 +23,17 @@ $st = $pdo->prepare('
       AND expires_at > UTC_TIMESTAMP()
     LIMIT 1
 ');
-$st->execute([hash('sha256', $token)]);
+$tokenHash = hash('sha256', $token);
+$st->execute([$tokenHash]);
 $reset = $st->fetch();
-if (!$reset) fail('Reset link is invalid or expired. Request a new link.', 400);
+if (!$reset) {
+    $expired = $pdo->prepare('SELECT 1 FROM password_reset_tokens WHERE token_hash=? AND expires_at<=UTC_TIMESTAMP() LIMIT 1');
+    $expired->execute([$tokenHash]);
+    if ($expired->fetchColumn()) {
+        fail('This password reset link has expired. Please request a new one.', 400);
+    }
+    fail('This reset link is invalid or has already been used.', 400);
+}
 
 try {
     $passwordHash = password_hash($password, PASSWORD_DEFAULT);
@@ -35,7 +43,7 @@ try {
     $status = $account->fetchColumn();
     // Recheck validity under the account lock: concurrent requests can consume a link only once.
     $locked = $pdo->prepare('SELECT id FROM password_reset_tokens WHERE token_hash=? AND user_id=? AND used_at IS NULL AND expires_at>UTC_TIMESTAMP() FOR UPDATE');
-    $locked->execute([hash('sha256', $token), $reset['user_id']]);
+    $locked->execute([$tokenHash, $reset['user_id']]);
     if ($status !== 'active' || !$locked->fetchColumn()) {
         $pdo->rollBack();
         fail('Reset link is invalid or expired. Request a new link.', 400);
