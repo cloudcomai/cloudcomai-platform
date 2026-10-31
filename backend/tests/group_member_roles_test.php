@@ -11,6 +11,12 @@ assert(str_contains($handler, "SELECT cm.user_id,cm.role,cm.status,u.name,u.user
 assert(str_contains($handler, 'Only the group owner or an admin can remove other members'));
 assert(str_contains($handler, '$isSelfAction = $userId === $targetId'));
 assert(str_contains($handler, 'This member is not active in the group'));
+assert(str_contains($handler, 'u.name,u.user_id AS username'));
+assert(str_contains($handler, '$targetName . \' was removed from the group\''));
+assert(str_contains($handler, '$targetName . \' left the group\''));
+assert(str_contains($handler, 'INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())'));
+assert(str_contains($handler, 'create_chat_notifications($chatId, $userId'));
+assert(strpos($handler, 'UPDATE chat_members SET status="removed"') < strpos($handler, 'INSERT INTO messages(chat_id,sender_id,type,body,created_at)'));
 $webManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/web/src/components/GroupMembershipModal.jsx');
 $mobileManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/GroupManagement.js');
 assert(str_contains($webManagement, 'Administrators: {adminCount}/3 selected by the owner'));
