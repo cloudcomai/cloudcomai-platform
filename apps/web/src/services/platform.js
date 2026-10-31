@@ -61,7 +61,7 @@ export const fetchApiBlob = async (route, query, options = {}) => {
 };
 
 export const mediaUrl = (type, id) => {
-  const url = new URL(ApiRoute.MEDIA, `${API_BASE_URL.replace(/\\/$/, '')}/`);
+  const url = new URL(ApiRoute.MEDIA, `${API_BASE_URL}/`);
   url.searchParams.set('type', type);
   url.searchParams.set('id', String(id ?? ''));
   return url.toString();
