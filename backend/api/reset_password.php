@@ -46,7 +46,7 @@ try {
     $locked->execute([$tokenHash, $reset['user_id']]);
     if ($status !== 'active' || !$locked->fetchColumn()) {
         $pdo->rollBack();
-        fail('Reset link is invalid or expired. Request a new link.', 400);
+        fail('This reset link is invalid or has already been used.', 400);
     }
     $pdo->prepare('UPDATE users SET password_hash=?, updated_at=UTC_TIMESTAMP() WHERE id=?')
         ->execute([$passwordHash, $reset['user_id']]);
