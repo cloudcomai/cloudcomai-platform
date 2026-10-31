@@ -194,7 +194,7 @@ if ($method === 'POST') {
             $request->execute([$user['id'],$clientId]); $existing=$request->fetch();
             if (!hash_equals($existing['request_hash'],$fingerprint)) { $pdo->rollBack(); fail('This retry key belongs to a different message',409); }
             if ($existing['message_id']) {
-                $found=$pdo->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.created_at,m.expires_at,m.reply_to_message_id,u.name AS sender_name,COALESCE((SELECT ucp.font_color FROM user_chat_preferences ucp WHERE ucp.user_id=m.sender_id LIMIT 1),\'default\') AS sender_font_color FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN user_chat_preferences ucp ON ucp.user_id=m.sender_id WHERE m.id=? AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
+                $found=$pdo->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.created_at,m.expires_at,m.reply_to_message_id,u.name AS sender_name,COALESCE(ucp.font_color,\'default\') AS sender_font_color FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN user_chat_preferences ucp ON ucp.user_id=m.sender_id WHERE m.id=? AND m.deleted_for_everyone=0 AND (m.expires_at IS NULL OR m.expires_at>UTC_TIMESTAMP())');
                 $found->execute([$existing['message_id']]); $replayed=$found->fetch();
                 if (!$replayed) { $pdo->rollBack(); fail('This message was already sent and is no longer available',409); }
                 assert_visible_message((int)$replayed['id'],(int)$user['id']);
@@ -217,7 +217,7 @@ if ($method === 'POST') {
         fail('Unable to send message', 500);
     }
 
-    $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,COALESCE((SELECT ucp.font_color FROM user_chat_preferences ucp WHERE ucp.user_id=m.sender_id LIMIT 1),\'default\') AS sender_font_color,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN user_chat_preferences ucp ON ucp.user_id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
+    $created = db()->prepare('SELECT m.id,m.chat_id,m.sender_id,m.type,m.body,m.reply_to_message_id,m.edit_count,m.edited_at,m.created_at,m.expires_at,u.name AS sender_name,COALESCE(ucp.font_color,\'default\') AS sender_font_color,r.body AS reply_to_text,ru.name AS reply_to_sender_name FROM messages m INNER JOIN users u ON u.id=m.sender_id LEFT JOIN user_chat_preferences ucp ON ucp.user_id=m.sender_id LEFT JOIN messages r ON r.id=m.reply_to_message_id AND r.deleted_for_everyone=0 LEFT JOIN users ru ON ru.id=r.sender_id WHERE m.id=?');
     $created->execute([$messageId]);
     $message = $created->fetch();
     out(['message' => [
