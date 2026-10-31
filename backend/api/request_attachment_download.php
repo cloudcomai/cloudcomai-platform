@@ -24,7 +24,7 @@ if ($a['chat_type'] === 'group' && group_attachment_is_admin_or_owner((int)$a['c
 
 // An explicit group/member revocation overrides trusted-user status and
 // previous sender approvals for both download and forwarding.
-if ($a['chat_type'] === 'group' && (int)$a['sender_id'] !== (int)$user['id']) {
+if ($a['chat_type'] === 'group') {
     $groupPermission = group_attachment_permission((int)$a['chat_id'], (int)$user['id'], strtolower($type));
     if ($groupPermission === false) fail('The group owner has disabled ' . strtolower($type) . ' access for you', 403);
 }
