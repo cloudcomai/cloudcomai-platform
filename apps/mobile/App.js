@@ -26,6 +26,13 @@ import {
 import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
 
 const chatFontColorCache = new Map();
+const isDarkThemeColor = value => {
+  const match = String(value || '').match(/^#([0-9a-f]{6})$/i);
+  if (!match) return Appearance.getColorScheme() === 'dark';
+  const number = parseInt(match[1], 16);
+  const r = (number >> 16) & 255, g = (number >> 8) & 255, b = number & 255;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 120;
+};
 const CHAT_FONT_COLORS = [
   { key: 'default', label: 'Default', light: '#172033', dark: '#f1f5f9' },
   { key: 'blue', label: 'Blue', light: '#1d4ed8', dark: '#93c5fd' },
@@ -301,7 +308,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
   const theme = { ...baseTheme, colors: { ...baseTheme.colors, accent: customAccent, outgoing: themeSettings?.accentColor || baseTheme.colors.outgoing } };
   const selectedFontColor = CHAT_FONT_COLORS.find(option => option.key === fontColor) || CHAT_FONT_COLORS[0];
-  const isDarkChatTheme = Appearance.getColorScheme() === 'dark' || String(theme.colors.background || '').toLowerCase() === '#10131a';
+  const isDarkChatTheme = isDarkThemeColor(theme.colors.background);
   const fontColorValue = isDarkChatTheme ? selectedFontColor.dark : selectedFontColor.light;
   const saveFontColor = async key => {
     const previous = fontColor;
@@ -770,7 +777,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             const mine = Number(item.sender_id) === Number(user.id);
             const bubbleColor = mine ? theme.colors.outgoing : theme.colors.incoming;
             const chosenSenderColor = CHAT_FONT_COLORS.find(option => option.key === item.sender_font_color) || CHAT_FONT_COLORS[0];
-            const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, chosenSenderColor.key === 'default' ? theme.colors.text : (isDarkChatTheme ? chosenSenderColor.dark : chosenSenderColor.light)), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
+            const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, chosenSenderColor.key === 'default' ? theme.colors.text : (isDarkChatTheme || mine ? chosenSenderColor.dark : chosenSenderColor.light)), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
             const selected = Number(selectedMessage?.id) === Number(item.id);
             if (item.type === 'moderation') return <View style={[styles.moderationMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}><Text style={styles.moderationTitle}>Community moderation</Text><Text style={styles.moderationText}>{item.body}</Text><Text style={styles.moderationTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}</Text></View>;
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
