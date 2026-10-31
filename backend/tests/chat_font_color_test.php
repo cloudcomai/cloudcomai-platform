@@ -21,7 +21,7 @@ foreach (['default', 'blue', 'green', 'purple', 'pink', 'orange', 'red', 'teal']
         throw new RuntimeException("Chat font color allowlist is missing {$color}");
     }
 }
-if (!str_contains($handler, "in_array($color, $allowedColors, true)")) {
+if (!str_contains($handler, 'in_array($color, $allowedColors, true)')) {
     throw new RuntimeException('Chat font color input is not allowlisted');
 }
 if (!str_contains($migration, 'CREATE TABLE IF NOT EXISTS user_chat_preferences')) {
