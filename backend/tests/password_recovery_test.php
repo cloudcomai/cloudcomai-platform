@@ -141,14 +141,18 @@ try {
     request('POST','v1/auth/reset-password',reset_input($secondToken,'short'),400);
     request('POST','v1/auth/reset-password',reset_input($secondToken,str_repeat('a',73)),400);
     request('POST','v1/auth/reset-password',reset_input($secondToken,"valid password\0"),400);
-    request('POST','v1/auth/reset-password',reset_input('invalid'),400);
-    request('POST','v1/auth/reset-password',reset_input(str_repeat('a',43)),400);
+    foreach (['invalid', str_repeat('a',43)] as $invalidToken) {
+        $invalidResponse = request('POST','v1/auth/reset-password',reset_input($invalidToken),400);
+        check(($invalidResponse['data']['message'] ?? '') === 'This reset link is invalid or has already been used.', 'Invalid reset links must have a safe, specific error');
+    }
     check($admin->query('SELECT password_hash FROM users WHERE id=1')->fetchColumn() === $hash, 'Invalid requests changed the password');
     $admin->exec('UPDATE password_reset_tokens SET expires_at=UTC_TIMESTAMP()-INTERVAL 1 SECOND WHERE user_id=1');
-    request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    $expiredResponse = request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    check(($expiredResponse['data']['message'] ?? '') === 'This password reset link has expired. Please request a new one.', 'Expired reset links must be distinguishable');
     $admin->exec('UPDATE password_reset_tokens SET expires_at=UTC_TIMESTAMP()+INTERVAL 30 MINUTE WHERE user_id=1');
     request('POST','v1/auth/reset-password',reset_input($firstToken));
-    request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    $reusedResponse = request('POST','v1/auth/reset-password',reset_input($firstToken),400);
+    check(($reusedResponse['data']['message'] ?? '') === 'This reset link is invalid or has already been used.', 'Used reset links must be rejected with a safe message');
     request('POST','v1/auth/reset-password',reset_input($secondToken),400);
     check((int)$admin->query('SELECT COUNT(*) FROM password_reset_tokens WHERE user_id=1 AND used_at IS NULL')->fetchColumn() === 0,'Sibling reset links remain usable');
     request('POST','v1/auth/login',['identifier'=>'alice','password'=>$oldPassword],401);
