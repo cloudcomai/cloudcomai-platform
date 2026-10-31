@@ -262,6 +262,7 @@ function App() {
         await clearWebSession();
         setToken('');
         setUser(null);
+        setChatFontColor('default');
         setModal(null);
         setSelectedChat(null);
         setChats([]);
