@@ -14,6 +14,7 @@ if ($route['status'] !== 200 || basename($route['handler']) !== 'chat_font_color
 $handler = file_get_contents(__DIR__ . '/../api/chat_font_color.php');
 $migration = file_get_contents(__DIR__ . '/../database/migrations/030_user_chat_font_color.sql');
 $schema = file_get_contents(__DIR__ . '/../sql/schema.sql');
+$freshInstall = file_get_contents(__DIR__ . '/../database/fresh-install.sql');
 $messages = file_get_contents(__DIR__ . '/../api/messages.php');
 
 foreach (['default', 'blue', 'green', 'purple', 'pink', 'orange', 'red', 'teal'] as $color) {
@@ -29,6 +30,9 @@ if (!str_contains($migration, 'CREATE TABLE IF NOT EXISTS user_chat_preferences'
 }
 if (!str_contains($schema, 'CREATE TABLE user_chat_preferences')) {
     throw new RuntimeException('Fresh-install schema is missing chat font preferences');
+}
+if (!str_contains($freshInstall, 'CREATE TABLE IF NOT EXISTS user_chat_preferences')) {
+    throw new RuntimeException('Fresh-install database dump is missing chat font preferences');
 }
 if (!str_contains($messages, 'sender_font_color') || !str_contains($messages, 'user_chat_preferences')) {
     throw new RuntimeException('Message responses do not include the sender font color');
