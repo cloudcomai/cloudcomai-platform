@@ -26,8 +26,8 @@ function hydrate_message_attachments(array &$messages): void {
         $messageIsFromViewer = (int)($message['sender_id'] ?? 0) === (int)$viewer['id'];
         $trustedSender = !$messageIsFromViewer
             && is_trusted_user((int)$message['sender_id'], (int)$viewer['id']);
-        $groupDownloadBlocked = $isGroupChat && !$groupAdminOrOwner && !$messageIsFromViewer && $groupDownloadPermission === false;
-        $groupForwardBlocked = $isGroupChat && !$groupAdminOrOwner && !$messageIsFromViewer && $groupForwardPermission === false;
+        $groupDownloadBlocked = $isGroupChat && !$groupAdminOrOwner && $groupDownloadPermission === false;
+        $groupForwardBlocked = $isGroupChat && !$groupAdminOrOwner && $groupForwardPermission === false;
         foreach ($attachments[(int)$message['id']] ?? [] as $attachment) {
             $messageAttachments[] = [
                 'id' => (int)$attachment['id'],
