@@ -48,7 +48,7 @@ try {
     $membership->execute([$chatId, $userId]);
     $member = $membership->fetch();
     if (!$member) fail('Group not found or access denied', 403);
-    $target = $pdo->prepare('SELECT role,status FROM chat_members WHERE chat_id=? AND user_id=?');
+    $target = $pdo->prepare('SELECT cm.role,cm.status,u.name,u.user_id AS username FROM chat_members cm INNER JOIN users u ON u.id=cm.user_id WHERE cm.chat_id=? AND cm.user_id=?');
     $target->execute([$chatId, $targetId]);
     $existing = $target->fetch();
 
@@ -83,6 +83,19 @@ try {
             fail('Only the group owner or an admin can remove other members', 403);
         }
         $pdo->prepare('UPDATE chat_members SET status="removed" WHERE chat_id=? AND user_id=? AND status="active"')->execute([$chatId, $targetId]);
+
+        // Publish the membership change as a normal group system message and
+        // notify the remaining active members within the same transaction.
+        $targetName = trim((string)($existing['name'] ?? ''));
+        if ($targetName === '') $targetName = trim((string)($existing['username'] ?? 'A member'));
+        $isSelfAction = $userId === $targetId;
+        $systemBody = $isSelfAction
+            ? $targetName . ' left the group'
+            : $targetName . ' was removed from the group';
+        $systemMessage = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())');
+        $systemMessage->execute([$chatId, $userId, $systemBody]);
+        $systemMessageId = (int)$pdo->lastInsertId();
+        create_chat_notifications($chatId, $userId, (string)($user['name'] ?? 'Group admin'), $systemBody, $systemMessageId);
     }
     $pdo->commit();
     out(['status' => 'ok', 'message' => $action === 'add' ? 'Member added successfully' : ($userId === $targetId ? 'You have left the group' : 'Member removed successfully')]);
