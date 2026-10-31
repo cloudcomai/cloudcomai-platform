@@ -6,7 +6,7 @@ assert(str_contains($handler, "'promote_admin', 'demote_admin'"));
 assert(str_contains($handler, 'Only the group owner can manage administrators'));
 assert(str_contains($handler, 'at most 3 admins'));
 assert(str_contains($handler, 'COUNT(*) FROM chat_members'));
-$mobile = (string) file_get_contents(dirname($root) . '/../apps/mobile/src/components/GroupManagement.js');
+$mobile = (string) file_get_contents($root . '/../apps/mobile/src/components/GroupManagement.js');
 assert(str_contains($mobile, 'Group admins: {members.filter(item => item.role === \'admin\').length}/3'));
 assert(str_contains($mobile, "members.filter(item => item.role === 'admin').length < 3 ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'promote_admin')}"));
 assert(str_contains($mobile, "onPress={() => setMemberRole(member, 'demote_admin')}"));
