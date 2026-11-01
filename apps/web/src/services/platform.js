@@ -7,7 +7,6 @@ import {
 
 export const API_BASE_URL = resolveApiBaseUrl({
   configuredUrl: import.meta.env.VITE_API_BASE_URL,
-  isDevelopment: import.meta.env.DEV,
 });
 
 const storage = createWebStorageAdapter(window.localStorage);
