@@ -30,6 +30,17 @@ assert(str_contains($webManagement, 'Administrators: {adminCount}/3 selected by 
 assert(str_contains($webManagement, 'disabled={loading || adminLimitReached}'));
 assert(str_contains($mobileManagement, 'Administrators · {adminCount}/3 selected by the owner'));
 assert(str_contains($mobileManagement, 'disabled={busy || adminLimitReached}'));
+assert(str_contains($mobileManagement, 'Individual member permissions'));
+assert(str_contains($mobileManagement, 'Search group members by name or User ID'));
+assert(str_contains($mobileManagement, 'Can Download Attachments'));
+assert(str_contains($mobileManagement, 'Can Forward Attachments'));
+assert(str_contains($mobileManagement, "updateAttachmentAccess(active ? 'revoke_member' : 'grant_member'"));
+assert(str_contains($mobileManagement, 'Allow everyone for 24 hours'));
+assert(str_contains($mobileManagement, 'Allow everyone for 48 hours'));
+assert(str_contains($mobileManagement, 'Revoke access for the entire group'));
+assert(str_contains($mobileManagement, 'Download access closed'));
+assert(str_contains($mobileManagement, 'Delete group'));
+
 $accessHandler = (string) file_get_contents($root . '/api/group_attachment_access.php');
 assert(str_contains($accessHandler, 'Active group members may view effective attachment permission indicators'));
 assert(str_contains($accessHandler, 'Only the group owner can manage attachment access'));
