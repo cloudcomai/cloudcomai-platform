@@ -170,3 +170,22 @@ test('recognizes React Native compatible multipart bodies', async () => {
   assert.equal(captured.body, nativeForm);
   assert.equal(captured.headers.has('Content-Type'), false);
 });
+
+
+test('normalizes fetch and CORS/network failures to a safe user-facing message', async () => {
+  const client = new ApiClient({
+    baseUrl: 'https://www.cloudcomai.com/apiapp/api',
+    fetchImpl: async () => { throw new TypeError('Failed to fetch'); },
+  });
+
+  await assert.rejects(
+    () => client.post('v1/auth/reset-password', { token: 'secret-token', password: 'secret-password' }, { auth: false }),
+    error => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.code, 'NETWORK_ERROR');
+      assert.equal(error.message, 'Unable to connect to the server. Please try again.');
+      assert.equal(error.message.includes('Failed to fetch'), false);
+      return true;
+    },
+  );
+});

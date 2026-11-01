@@ -17,6 +17,21 @@ Use at least 8 characters. The backend rejects passwords exceeding the bcrypt
 limit of 72 UTF-8 bytes instead of silently truncating them. Confirmation must
 match. A successful reset does not sign in automatically.
 
+## Production API endpoint
+
+The web client requires `VITE_API_BASE_URL` to be explicitly configured for
+every build, including local development and production. There is no default
+API endpoint and no development-host fallback. The build fails immediately
+when the variable is missing, malformed, insecure, or points to a local or
+development host.
+
+The GoDaddy production workflow reads the API endpoint from the required
+GitHub Actions repository variable `PRODUCTION_API_URL` and passes it to
+Vite as `VITE_API_BASE_URL`. Set that variable to the verified production
+API path (currently `https://www.cloudcomai.com/apiapp/api`). The workflow
+fails validation if the variable is missing or does not use the expected
+HTTPS API path.
+
 ## Hosting configuration
 
 In the server-only backend config, set:

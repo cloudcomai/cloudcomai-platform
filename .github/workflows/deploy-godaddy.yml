@@ -53,7 +53,7 @@ env:
   GODADDY_API_DIR: ${{ vars.GODADDY_API_DIR }}
   GODADDY_WEB_BASE_PATH: ${{ vars.GODADDY_WEB_BASE_PATH || '/' }}
   PRODUCTION_WEB_URL: ${{ vars.PRODUCTION_WEB_URL || 'https://www.cloudcomai.com' }}
-  PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL || 'https://www.cloudcomai.com/apiapp/api' }}
+  PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
 
 jobs:
   deploy:
@@ -147,6 +147,11 @@ jobs:
               invalid=1
               ;;
           esac
+
+          if [ -z "${PRODUCTION_API_URL}" ]; then
+            echo "::error::Missing required production setting: PRODUCTION_API_URL."
+            invalid=1
+          fi
 
           case "${PRODUCTION_API_URL}" in
             https://*/apiapp/api) ;;

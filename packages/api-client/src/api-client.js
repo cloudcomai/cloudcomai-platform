@@ -117,7 +117,7 @@ export class ApiClient {
       });
       if (error?.name === 'AbortError') throw error;
       throw new ApiError(
-        `Unable to reach the CloudComAI API${error?.message ? `: ${error.message}` : ''}`,
+        'Unable to connect to the server. Please try again.',
         {
           code: 'NETWORK_ERROR',
           details: error,

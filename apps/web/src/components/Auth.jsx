@@ -90,7 +90,16 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
         await onAuth(response.user, response.token);
       }
     } catch (err) {
-      setError(err.message || 'Unable to connect to the server');
+      const message = err?.code === 'NETWORK_ERROR'
+        ? 'Unable to connect to the server. Please try again.'
+        : mode === 'reset' && err?.status === 400
+          ? (/expired/i.test(err.message || '')
+            ? 'This password reset link has expired. Please request a new one.'
+            : 'This reset link is invalid or has already been used.')
+          : err?.status >= 500
+            ? 'The server could not update your password right now. Please try again.'
+            : err.message || 'Unable to complete your request. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }

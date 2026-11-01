@@ -18,7 +18,7 @@ if ($origin && in_array($origin, $config['app']['allowed_origins'], true)) {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Vary: Origin');
 }
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Idempotency-Key');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Idempotency-Key, X-Request-Id');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
 header('Content-Type: application/json; charset=utf-8');
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
