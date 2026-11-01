@@ -19,15 +19,18 @@ match. A successful reset does not sign in automatically.
 
 ## Production API endpoint
 
-The web client uses `https://www.cloudcomai.com/apiapp/api` when a production
-build has no `VITE_API_BASE_URL` override. Local development retains its
-separate development endpoint. Production builds reject localhost and
-`freedev.app` API hosts so a missing or incorrect build variable cannot
-silently route password recovery to the development service.
+The web client requires `VITE_API_BASE_URL` to be explicitly configured for
+every build, including local development and production. There is no default
+API endpoint and no development-host fallback. The build fails immediately
+when the variable is missing, malformed, insecure, or points to a local or
+development host.
 
-The GoDaddy production workflow explicitly injects `PRODUCTION_API_URL` as
-`VITE_API_BASE_URL`. Keep that value set to
-`https://www.cloudcomai.com/apiapp/api` (or the verified production API path).
+The GoDaddy production workflow reads the API endpoint from the required
+GitHub Actions repository variable `PRODUCTION_API_URL` and passes it to
+Vite as `VITE_API_BASE_URL`. Set that variable to the verified production
+API path (currently `https://www.cloudcomai.com/apiapp/api`). The workflow
+fails validation if the variable is missing or does not use the expected
+HTTPS API path.
 
 ## Hosting configuration
 
