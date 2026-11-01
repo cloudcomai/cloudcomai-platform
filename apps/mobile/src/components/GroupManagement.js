@@ -461,9 +461,12 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               const term = attachmentSearch.trim().toLowerCase();
               const matchesSearch = !term || String(member.name || '').toLowerCase().includes(term) || String(member.username || '').toLowerCase().includes(term) || String(member.user_id || '').includes(term);
               const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+              const groupActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
               const active = Boolean(grant && !grant.revoked_at);
-              const canDownload = active && Number(grant.download_enabled) === 1;
-              const canForward = active && Number(grant.forward_enabled) === 1;
+              const effectiveGrant = grant ? (active ? grant : null) : (groupActive ? groupGrant : null);
+              const canDownload = Boolean(effectiveGrant && Number(effectiveGrant.download_enabled) === 1);
+              const canForward = Boolean(effectiveGrant && Number(effectiveGrant.forward_enabled) === 1);
               const matchesPermission = attachmentPermissionFilter === 'all'
                 || (attachmentPermissionFilter === 'can_download' && canDownload)
                 || (attachmentPermissionFilter === 'cannot_download' && !canDownload)
@@ -472,14 +475,17 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               return matchesSearch && matchesPermission;
             }).map(member => {
               const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+              const groupActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
               const active = Boolean(grant && !grant.revoked_at);
+              const includedInGroupGrant = !grant && groupActive;
               const photoVersion = member.image_version || member.photo_version || '1';
               return <View key={`attachment-${member.user_id}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
                 <Image source={{uri:mediaUrl('user',Number(member.user_id),photoVersion)}} style={styles.memberAvatar} />
                 <View style={styles.memberInfo}>
                   <Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text>
                   <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username} · ` : ''}Member</Text>
-                  <Text style={[styles.permissionText,{color:active ? '#15803d' : theme.colors.secondary}]}>{active ? 'Download and forwarding enabled' : grant?.revoked_at ? 'Access revoked' : 'No individual access grant'}</Text>
+                  <Text style={[styles.permissionText,{color:active ? '#15803d' : theme.colors.secondary}]}>{active ? 'Individual download and forwarding enabled' : includedInGroupGrant ? 'Included in active group-wide access' : grant?.revoked_at ? 'Individual access revoked' : 'No individual access grant'}</Text>
                 </View>
                 <Pressable disabled={busy} accessibilityRole="button" onPress={() => updateAttachmentAccess(active ? 'revoke_member' : 'grant_member', Number(member.user_id))} style={[styles.memberPermissionButton,{backgroundColor:active ? '#fee2e2' : '#e0eaff'}]}>
                   <Text style={{color:active ? '#b91c1c' : theme.colors.accent,fontWeight:'800'}}>{active ? 'Revoke' : 'Allow'}</Text>
