@@ -431,7 +431,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
                 <View style={styles.memberActions}>
                   <Pressable disabled={busy} style={[styles.accessAction,{borderColor:theme.colors.accent}]} onPress={() => updateAttachmentAccess('grant_group', null, 24)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 24 hours</Text></Pressable>
                   <Pressable disabled={busy} style={[styles.accessAction,{borderColor:theme.colors.accent}]} onPress={() => updateAttachmentAccess('grant_group', null, 48)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 48 hours</Text></Pressable>
-                  <Pressable disabled={busy || !groupGrantActive} style={[styles.accessAction,{borderColor:'#b91c1c'}]} onPress={() => Alert.alert('Revoke group-wide access?', 'This closes the temporary group-wide grant. Existing individual member grants remain unchanged.', [{text:'Cancel',style:'cancel'},{text:'Revoke access',style:'destructive',onPress:()=>updateAttachmentAccess('revoke_group')}])}><Text style={styles.danger}>Revoke access for the entire group</Text></Pressable>
+                  <Pressable disabled={busy} style={[styles.accessAction,{borderColor:'#b91c1c'}]} onPress={() => Alert.alert('Revoke group-wide access?', 'This closes the temporary group-wide grant. Existing individual member grants remain unchanged.', [{text:'Cancel',style:'cancel'},{text:'Revoke access',style:'destructive',onPress:()=>updateAttachmentAccess('revoke_group')}])}><Text style={styles.danger}>Revoke access for the entire group</Text></Pressable>
                 </View>
               </View>;
             })()}
@@ -457,7 +457,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               autoCapitalize="none"
               accessibilityLabel="Search group members for attachment permissions"
             />
-            {members.filter(member => Number(member.user_id) !== Number(user?.id) && member.role !== 'owner' && member.role !== 'admin').filter(member => {
+            {members.filter(member => Number(member.user_id) !== Number(user?.id) && member.role !== 'owner').filter(member => {
               const term = attachmentSearch.trim().toLowerCase();
               const matchesSearch = !term || String(member.name || '').toLowerCase().includes(term) || String(member.username || '').toLowerCase().includes(term) || String(member.user_id || '').includes(term);
               const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
