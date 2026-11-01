@@ -148,6 +148,11 @@ jobs:
               ;;
           esac
 
+          if [ -z "${PRODUCTION_API_URL}" ]; then
+            echo "::error::Missing required production setting: PRODUCTION_API_URL."
+            invalid=1
+          fi
+
           case "${PRODUCTION_API_URL}" in
             https://*/apiapp/api) ;;
             *)
