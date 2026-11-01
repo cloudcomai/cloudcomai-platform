@@ -1,28 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  DEVELOPMENT_API_BASE_URL,
-  PRODUCTION_API_BASE_URL,
-  resolveApiBaseUrl,
-} from '../src/utils/apiBaseUrl.js';
+import { resolveApiBaseUrl } from '../src/utils/apiBaseUrl.js';
 
-test('uses the CloudComAI production API when a production build has no override', () => {
-  assert.equal(resolveApiBaseUrl(), 'https://www.cloudcomai.com/apiapp/api');
-  assert.equal(resolveApiBaseUrl(), PRODUCTION_API_BASE_URL);
+test('requires an explicitly configured API URL', () => {
+  assert.throws(() => resolveApiBaseUrl(), /VITE_API_BASE_URL is required/);
+  assert.throws(() => resolveApiBaseUrl({ configuredUrl: '   ' }), /VITE_API_BASE_URL is required/);
 });
 
-test('keeps the development fallback isolated to development builds', () => {
-  assert.equal(resolveApiBaseUrl({ isDevelopment: true }), DEVELOPMENT_API_BASE_URL);
-});
-
-test('uses an explicit production API URL and removes trailing slashes', () => {
+test('uses the configured production API URL and removes trailing slashes', () => {
   assert.equal(
     resolveApiBaseUrl({ configuredUrl: 'https://www.cloudcomai.com/apiapp/api///' }),
     'https://www.cloudcomai.com/apiapp/api',
   );
 });
 
-test('rejects insecure, local, and development hosts in production', () => {
+test('rejects insecure, local, and development hosts', () => {
   for (const configuredUrl of [
     'http://www.cloudcomai.com/api',
     'http://localhost:8080/api',
