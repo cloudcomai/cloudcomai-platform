@@ -1,9 +1,17 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/group_attachment_access.php';
 
 function hydrate_message_attachments(array &$messages): void {
     if (!$messages) return;
     $viewer = auth_user();
+    $chatId = (int)($messages[0]['chat_id'] ?? 0);
+    $chatTypeStmt = db()->prepare('SELECT type FROM chats WHERE id=? LIMIT 1');
+    $chatTypeStmt->execute([$chatId]);
+    $isGroupChat = $chatTypeStmt->fetchColumn() === 'group';
+    $groupAdminOrOwner = $isGroupChat && group_attachment_is_admin_or_owner($chatId, (int)$viewer['id']);
+    $groupDownloadPermission = $isGroupChat && !$groupAdminOrOwner ? group_attachment_permission($chatId, (int)$viewer['id'], 'download') : null;
+    $groupForwardPermission = $isGroupChat && !$groupAdminOrOwner ? group_attachment_permission($chatId, (int)$viewer['id'], 'forward') : null;
     $ids = array_values(array_filter(array_map(fn($message) => (int)($message['id'] ?? 0), $messages)));
     if (!$ids) return;
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -15,8 +23,11 @@ function hydrate_message_attachments(array &$messages): void {
     }
     foreach ($messages as &$message) {
         $messageAttachments = [];
-        $trustedSender = (int)($message['sender_id'] ?? 0) !== (int)$viewer['id']
+        $messageIsFromViewer = (int)($message['sender_id'] ?? 0) === (int)$viewer['id'];
+        $trustedSender = !$messageIsFromViewer
             && is_trusted_user((int)$message['sender_id'], (int)$viewer['id']);
+        $groupDownloadBlocked = $isGroupChat && !$groupAdminOrOwner && $groupDownloadPermission === false;
+        $groupForwardBlocked = $isGroupChat && !$groupAdminOrOwner && $groupForwardPermission === false;
         foreach ($attachments[(int)$message['id']] ?? [] as $attachment) {
             $messageAttachments[] = [
                 'id' => (int)$attachment['id'],
@@ -29,6 +40,8 @@ function hydrate_message_attachments(array &$messages): void {
                 'duration_seconds' => $attachment['duration_seconds'] !== null ? (float)$attachment['duration_seconds'] : null,
                 'download_policy' => $trustedSender ? 'ALLOW' : $attachment['download_policy'],
                 'sender_trusted' => $trustedSender,
+                'group_download_blocked' => $groupDownloadBlocked,
+                'group_forward_blocked' => $groupForwardBlocked,
             ];
         }
         $message['attachments'] = $messageAttachments;

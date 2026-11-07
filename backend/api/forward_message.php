@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../lib/bootstrap.php';
 require_once __DIR__ . '/../lib/group_attachment_access.php';
+require_once __DIR__ . '/../lib/forward_permissions.php';
 $user = auth_user();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('Method not allowed', 405);
 $input = input();
@@ -75,6 +76,7 @@ try {
         $destination->execute([$user['id'], $chatId]);
         $chat = $destination->fetch();
         if (!$chat) fail('One or more selected chats are unavailable', 403);
+        assert_forward_destination_contacts((int)$chatId, (int)$user['id'], (string)$chat['type']);
         assert_chat_allows_messages($chatId, (int)$user['id']);
         $expires = $chat['retention_seconds'] ? gmdate('Y-m-d H:i:s', time() + (int)$chat['retention_seconds']) : null;
         $forwardedType = $hasAttachment ? (string)$source['type'] : 'forwarded_text';

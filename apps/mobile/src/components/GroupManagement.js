@@ -30,10 +30,15 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [results, setResults] = useState([]);
   const [memberTypeFilter, setMemberTypeFilter] = useState('all');
   const [permissionFilter, setPermissionFilter] = useState('all');
+  const [attachmentPermissionFilter, setAttachmentPermissionFilter] = useState('all');
+  const [attachmentSearch, setAttachmentSearch] = useState('');
+  const [showAttachmentPermissionFilters, setShowAttachmentPermissionFilters] = useState(false);
   const currentUserId = Number(user?.id);
   const ownsGroup = members.some(member => Number(member.user_id) === currentUserId && member.role === 'owner');
   const isAdmin = members.some(member => Number(member.user_id) === currentUserId && member.role === 'admin');
   const canManageMembers = ownsGroup || isAdmin;
+  const adminCount = members.filter(member => member.role === 'admin').length;
+  const adminLimitReached = adminCount >= 3;
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
 
   const load = useCallback(async () => {
@@ -334,6 +339,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
+            {ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Administrators · {adminCount}/3 selected by the owner</Text> : null}
             <Text style={[styles.note,{color:theme.colors.secondary}]}>Member Type</Text>
             <View style={styles.filterRow}>
               {[
@@ -348,7 +354,8 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             <View style={styles.filterRow}>
               {[
                 ['all', 'All Permissions'], ['can_download', 'Can Download Attachments'],
-                ['cannot_download', 'Cannot Download Attachments'], ['can_message', 'Can Send Messages'], ['restricted', 'Restricted'],
+                ['cannot_download', 'Cannot Download Attachments'], ['can_forward', 'Can Forward Attachments'],
+                ['cannot_forward', 'Cannot Forward Attachments'], ['can_message', 'Can Send Messages'], ['restricted', 'Restricted'],
               ].map(([value, label]) => (
                 <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: permissionFilter === value }} onPress={() => setPermissionFilter(value)} style={[styles.filterChip, { borderColor: theme.colors.border, backgroundColor: permissionFilter === value ? theme.colors.accent : theme.colors.background }]}>
                   <Text style={{ color: permissionFilter === value ? '#fff' : theme.colors.text, fontSize: 12 }}>{label}</Text>
@@ -357,38 +364,36 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             </View>
             {members.filter(member => {
               const role = member.role || 'member';
-              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
-              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && !item.revoked_at && (!item.expires_at || new Date(item.expires_at).getTime() > Date.now()));
-              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
+              const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group');
+              const memberGrantActive = Boolean(memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()));
+              const groupGrantActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(groupGrant.expires_at).getTime() > Date.now()));
+              const selectedGrant = memberGrant ? (memberGrantActive ? memberGrant : null) : (groupGrantActive ? groupGrant : null);
+              const canDownload = role === 'owner' || role === 'admin' || Boolean(selectedGrant?.download_enabled && Number(selectedGrant.download_enabled) === 1);
+              const canForward = role === 'owner' || role === 'admin' || Boolean(selectedGrant?.forward_enabled && Number(selectedGrant.forward_enabled) === 1);
               const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
               const matchesType = memberTypeFilter === 'all' || role === memberTypeFilter;
               const matchesPermission = permissionFilter === 'all'
                 || (permissionFilter === 'can_download' && canDownload)
                 || (permissionFilter === 'cannot_download' && !canDownload)
+                || (permissionFilter === 'can_forward' && canForward)
+                || (permissionFilter === 'cannot_forward' && !canForward)
                 || (permissionFilter === 'can_message' && canMessage)
                 || (permissionFilter === 'restricted' && !canMessage);
               return matchesType && matchesPermission;
             }).map(member => {
               const role = member.role || 'member';
               const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
-              const groupGrantRecord = attachmentGrants.find(item => item.grant_scope === 'group');
               const grant = memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()) ? memberGrant : null;
-              const groupGrant = groupGrantRecord && !groupGrantRecord.revoked_at && (!groupGrantRecord.expires_at || new Date(groupGrantRecord.expires_at).getTime() > Date.now()) ? groupGrantRecord : null;
-              const expired = Boolean((memberGrant?.expires_at && new Date(memberGrant.expires_at).getTime() <= Date.now()) || (groupGrantRecord?.expires_at && new Date(groupGrantRecord.expires_at).getTime() <= Date.now()));
-              const canDownload = role === 'owner' || role === 'admin' || Boolean(grant?.download_enabled && Number(grant.download_enabled) === 1) || Boolean(groupGrant?.download_enabled && Number(groupGrant.download_enabled) === 1);
-              const canMessage = member.status !== 'restricted' && member.can_send_messages !== false;
               const photoVersion = member.image_version || member.photo_version || '1';
               return <View key={`${member.user_id}-${role}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
                 <Image source={{ uri: mediaUrl('user', Number(member.user_id), photoVersion) }} style={styles.memberAvatar} onError={() => {}} />
                 <View style={styles.memberInfo}>
                   <Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text>
-                  <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username} · ` : ''}{role.charAt(0).toUpperCase()+role.slice(1)}</Text>
-                  <Text style={[styles.permissionText,{color:canDownload ? '#15803d' : theme.colors.secondary}]}>{canDownload ? 'Can download attachments' : 'Cannot download attachments'}</Text>
-                  <Text style={[styles.permissionText,{color:canMessage ? '#15803d' : '#b91c1c'}]}>{canMessage ? 'Can send messages' : 'Messaging restricted'}</Text>
-                  {grant?.expires_at ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Temporary access until {new Date(grant.expires_at).toLocaleString()}</Text> : expired ? <Text style={[styles.permissionText,{color:'#b91c1c'}]}>Download access closed</Text> : null}
+                  <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username}` : `@${member.user_id}`} · {role.charAt(0).toUpperCase()+role.slice(1)}</Text>
                 </View>
                 <View style={styles.memberActions}>
-                  {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy || members.filter(item => item.role === 'admin').length >= 3} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
+                  {ownsGroup && role !== 'owner' && role !== 'admin' && !adminLimitReached ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'promote_admin')}><Text style={[styles.link,{color:theme.colors.accent}]}>Make admin</Text></Pressable> : null}
                   {ownsGroup && role === 'admin' ? <Pressable disabled={busy} onPress={() => setMemberRole(member, 'demote_admin')}><Text style={styles.danger}>Remove admin</Text></Pressable> : null}
                   {ownsGroup && role !== 'owner' && role !== 'admin' ? <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', Number(member.user_id))}><Text style={[styles.link,{color:theme.colors.accent}]}>{grant ? 'Revoke download' : 'Grant download'}</Text></Pressable> : null}
                   {role === 'owner' ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Owner</Text> : Number(member.user_id) === currentUserId ? (
@@ -402,20 +407,81 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           {ownsGroup ? <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Attachment access</Text>
-            <Text style={[styles.note,{color:theme.colors.secondary}]}>Grant download and forwarding permissions. Member grants remain active until revoked; group-wide grants expire automatically.</Text>
-            <View style={styles.memberActions}>
-              <Pressable disabled={busy} onPress={() => updateAttachmentAccess('grant_group', null, 24)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 24 hours</Text></Pressable>
-              <Pressable disabled={busy} onPress={() => updateAttachmentAccess('grant_group', null, 48)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 48 hours</Text></Pressable>
-              <Pressable disabled={busy} onPress={() => Alert.alert('Revoke all attachment access?', 'This disables group-wide access and revokes existing member grants.', [{text:'Cancel',style:'cancel'},{text:'Revoke all',style:'destructive',onPress:()=>updateAttachmentAccess('revoke_group')}])}><Text style={styles.danger}>Revoke access for the entire group</Text></Pressable>
-            </View>
-            <Text style={[styles.heading,{color:theme.colors.text}]}>Individual member permissions</Text>
-            {members.filter(member => Number(member.user_id) !== Number(user?.id) && member.role !== 'owner').map(member => {
-              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id) && !item.revoked_at);
-              return <View key={`attachment-${member.user_id}`} style={[styles.row,{borderBottomColor:theme.colors.border}]}>
-                <View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{grant ? 'Download and forwarding enabled' : 'No persistent grant'}</Text></View>
-                <Pressable disabled={busy} onPress={() => updateAttachmentAccess(grant ? 'revoke_member' : 'grant_member', member.user_id)}><Text style={[styles.link,{color:grant ? '#b91c1c' : theme.colors.accent}]}>{grant ? 'Revoke' : 'Allow'}</Text></Pressable>
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Manage who can download and forward group attachments. Group-wide access expires automatically; individual grants stay active until revoked.</Text>
+            {(() => {
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+              const groupGrantActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+              return <View style={[styles.accessSummary,{borderColor:theme.colors.border,backgroundColor:theme.colors.background}]}>
+                <View style={styles.accessSummaryHeader}>
+                  <Text style={[styles.name,{color:theme.colors.text}]}>Group-wide attachment access</Text>
+                  <Text style={[styles.accessStatus,{color:groupGrantActive ? '#15803d' : theme.colors.secondary}]}>{groupGrantActive ? 'Active' : 'Inactive'}</Text>
+                </View>
+                {groupGrantActive ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Expires: {new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).toLocaleString()}</Text> : <Text style={[styles.note,{color:theme.colors.secondary}]}>Download access closed</Text>}
+                <View style={styles.memberActions}>
+                  <Pressable disabled={busy} style={[styles.accessAction,{borderColor:theme.colors.accent}]} onPress={() => updateAttachmentAccess('grant_group', null, 24)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 24 hours</Text></Pressable>
+                  <Pressable disabled={busy} style={[styles.accessAction,{borderColor:theme.colors.accent}]} onPress={() => updateAttachmentAccess('grant_group', null, 48)}><Text style={[styles.link,{color:theme.colors.accent}]}>Allow everyone for 48 hours</Text></Pressable>
+                  <Pressable disabled={busy} style={[styles.accessAction,{borderColor:'#b91c1c'}]} onPress={() => Alert.alert('Revoke group-wide access?', 'This closes the temporary group-wide grant. Existing individual member grants remain unchanged.', [{text:'Cancel',style:'cancel'},{text:'Revoke access',style:'destructive',onPress:()=>updateAttachmentAccess('revoke_group')}])}><Text style={styles.danger}>Revoke access for the entire group</Text></Pressable>
+                </View>
+              </View>;
+            })()}
+            <Text style={[styles.heading,{color:theme.colors.text,marginTop:16}]}>Individual member permissions</Text>
+            <Pressable accessibilityRole="button" accessibilityState={{expanded:showAttachmentPermissionFilters}} onPress={() => setShowAttachmentPermissionFilters(value => !value)} style={[styles.filterDropdown,{borderColor:theme.colors.border}]}>
+              <Text style={[styles.name,{color:theme.colors.text}]}>{({all:'All Permissions',can_download:'Can Download Attachments',cannot_download:'Cannot Download Attachments',can_forward:'Can Forward Attachments',cannot_forward:'Cannot Forward Attachments'})[attachmentPermissionFilter]}</Text>
+              <Text style={[styles.name,{color:theme.colors.secondary}]}>{showAttachmentPermissionFilters ? '⌃' : '⌄'}</Text>
+            </Pressable>
+            {showAttachmentPermissionFilters ? <View style={[styles.filterMenu,{borderColor:theme.colors.border}]}>
+              {[
+                ['all','All Permissions'],['can_download','Can Download Attachments'],
+                ['cannot_download','Cannot Download Attachments'],['can_forward','Can Forward Attachments'],
+                ['cannot_forward','Cannot Forward Attachments'],
+              ].map(([value,label]) => <Pressable key={value} accessibilityRole="button" accessibilityState={{selected:attachmentPermissionFilter===value}} onPress={() => {setAttachmentPermissionFilter(value);setShowAttachmentPermissionFilters(false);}} style={styles.filterOption}>
+                <Text style={[styles.note,{color:attachmentPermissionFilter===value ? theme.colors.accent : theme.colors.text,fontWeight:attachmentPermissionFilter===value ? '800' : '500'}]}>{label}</Text>
+              </Pressable>)}
+            </View> : null}
+            <TextInput
+              style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background,marginTop:10}]}
+              value={attachmentSearch}
+              onChangeText={setAttachmentSearch}
+              placeholder="Search group members by name or User ID"
+              autoCapitalize="none"
+              accessibilityLabel="Search group members for attachment permissions"
+            />
+            {members.filter(member => Number(member.user_id) !== Number(user?.id) && member.role !== 'owner').filter(member => {
+              const term = attachmentSearch.trim().toLowerCase();
+              const matchesSearch = !term || String(member.name || '').toLowerCase().includes(term) || String(member.username || '').toLowerCase().includes(term) || String(member.user_id || '').includes(term);
+              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+              const groupActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+              const active = Boolean(grant && !grant.revoked_at);
+              const effectiveGrant = grant ? (active ? grant : null) : (groupActive ? groupGrant : null);
+              const canDownload = Boolean(effectiveGrant && Number(effectiveGrant.download_enabled) === 1);
+              const canForward = Boolean(effectiveGrant && Number(effectiveGrant.forward_enabled) === 1);
+              const matchesPermission = attachmentPermissionFilter === 'all'
+                || (attachmentPermissionFilter === 'can_download' && canDownload)
+                || (attachmentPermissionFilter === 'cannot_download' && !canDownload)
+                || (attachmentPermissionFilter === 'can_forward' && canForward)
+                || (attachmentPermissionFilter === 'cannot_forward' && !canForward);
+              return matchesSearch && matchesPermission;
+            }).map(member => {
+              const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
+              const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+              const groupActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+              const active = Boolean(grant && !grant.revoked_at);
+              const includedInGroupGrant = !grant && groupActive;
+              const photoVersion = member.image_version || member.photo_version || '1';
+              return <View key={`attachment-${member.user_id}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
+                <Image source={{uri:mediaUrl('user',Number(member.user_id),photoVersion)}} style={styles.memberAvatar} />
+                <View style={styles.memberInfo}>
+                  <Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text>
+                  <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username} · ` : ''}Member</Text>
+                  <Text style={[styles.permissionText,{color:active ? '#15803d' : theme.colors.secondary}]}>{active ? 'Individual download and forwarding enabled' : includedInGroupGrant ? 'Included in active group-wide access' : grant?.revoked_at ? 'Individual access revoked' : 'No individual access grant'}</Text>
+                </View>
+                <Pressable disabled={busy} accessibilityRole="button" onPress={() => updateAttachmentAccess(active ? 'revoke_member' : 'grant_member', Number(member.user_id))} style={[styles.memberPermissionButton,{backgroundColor:active ? '#fee2e2' : '#e0eaff'}]}>
+                  <Text style={{color:active ? '#b91c1c' : theme.colors.accent,fontWeight:'800'}}>{active ? 'Revoke' : 'Allow'}</Text>
+                </Pressable>
               </View>;
             })}
+            {members.filter(member => Number(member.user_id) !== Number(user?.id) && member.role !== 'owner' && member.role !== 'admin').length === 0 ? <Text style={[styles.note,{color:theme.colors.secondary}]}>No eligible members available for individual attachment access.</Text> : null}
           </View> : null}
           {ownsGroup ? <Pressable style={styles.deleteButton} onPress={deleteGroup}><Text style={styles.deleteText}>Delete group</Text></Pressable> : null}
         </ScrollView>
@@ -426,6 +492,14 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
 }
 
 const styles = StyleSheet.create({
+  accessSummary: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 12 },
+  accessSummaryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  accessStatus: { fontSize: 12, fontWeight: '800' },
+  accessAction: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1, borderRadius: 10 },
+  filterDropdown: { minHeight: 46, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  filterMenu: { borderWidth: 1, borderRadius: 10, marginTop: 4, overflow: 'hidden' },
+  filterOption: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e7eb' },
+  memberPermissionButton: { minWidth: 72, minHeight: 38, paddingHorizontal: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
   filterChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
   page: { flex: 1, backgroundColor: '#f5f7fb' },

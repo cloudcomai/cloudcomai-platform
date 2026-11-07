@@ -196,13 +196,14 @@ function AttachmentApproval({ attachment, message, showActions = false, onForwar
   const statusLabel = status => status === 'APPROVED' ? 'Approved' : status === 'DENIED' ? 'Rejected' : status === 'PENDING' ? 'Request Pending' : null;
   return <View>
     {showActions ? <View style={[styles.messageActions, { backgroundColor: colors.surface || colors.composer || '#fff', borderColor: colors.border || '#dfe4ee' }]}>
-      <MessageAction type="download" label={statusLabel(statuses.DOWNLOAD) || 'Download'} color={statuses.DOWNLOAD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.DOWNLOAD) || 'Download attachment'} onPress={() => request('DOWNLOAD')} colors={colors} />
+      {!attachment.group_download_blocked ? <MessageAction type="download" label={statusLabel(statuses.DOWNLOAD) || 'Download'} color={statuses.DOWNLOAD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.DOWNLOAD) || 'Download attachment'} onPress={() => request('DOWNLOAD')} colors={colors} /> : null}
       <MessageAction type="reply" label="Reply" color={primary} accessibilityLabel="Reply to message" onPress={onReply} colors={colors}/>
-      <MessageAction type="forward" label={statusLabel(statuses.FORWARD) || 'Forward'} color={statuses.FORWARD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.FORWARD) || 'Forward attachment'} onPress={() => request('FORWARD')} colors={colors} />
+      {!attachment.group_forward_blocked ? <MessageAction type="forward" label={statusLabel(statuses.FORWARD) || 'Forward'} color={statuses.FORWARD === 'DENIED' ? danger : primary} accessibilityLabel={statusLabel(statuses.FORWARD) || 'Forward attachment'} onPress={() => request('FORWARD')} colors={colors} /> : null}
+      {attachment.group_download_blocked && attachment.group_forward_blocked ? <Text style={styles.meta}>Download and forwarding access closed</Text> : null}
       <MessageAction type="save" label={message.saved ? 'Saved' : 'Save'} color={primary} accessibilityLabel={message.saved ? 'Unsave message' : 'Save message'} onPress={onSave} colors={colors}/>
       <MessageAction type="delete" label="Delete" color={danger} accessibilityLabel="Delete message" onPress={onDelete} colors={colors}/>
     </View> : null}
-    {senderRequests.map(item => <View key={item.request_id} style={styles.senderApproval}><Text style={styles.senderApprovalText}>{item.requester_name || 'A recipient'} requested {String(item.request_type || 'DOWNLOAD').toLowerCase()} access.</Text><View style={styles.approvalActions}><Pressable onPress={() => respond(item.request_id, 'APPROVED')}><Text style={styles.link}>Approve</Text></Pressable><Pressable onPress={() => respond(item.request_id, 'DENIED')}><Text style={styles.rejectLink}>Reject</Text></Pressable></View></View>)}
+    {senderRequests.filter(item => !(item.request_type === 'DOWNLOAD' && attachment.group_download_blocked) && !(item.request_type === 'FORWARD' && attachment.group_forward_blocked)).map(item => <View key={item.request_id} style={styles.senderApproval}><Text style={styles.senderApprovalText}>{item.requester_name || 'A recipient'} requested {String(item.request_type || 'DOWNLOAD').toLowerCase()} access.</Text><View style={styles.approvalActions}><Pressable onPress={() => respond(item.request_id, 'APPROVED')}><Text style={styles.link}>Approve</Text></Pressable><Pressable onPress={() => respond(item.request_id, 'DENIED')}><Text style={styles.rejectLink}>Reject</Text></Pressable></View></View>)}
   </View>;
 }
 

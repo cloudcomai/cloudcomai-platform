@@ -35,11 +35,11 @@ if ($method === 'GET') {
     $chatTypeQuery->execute([$chatId]);
     $chatInfo = $chatTypeQuery->fetch();
     if ($chatInfo && $chatInfo['type'] === 'group') {
-        $expire = $pdo->prepare('UPDATE group_attachment_access SET revoked_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND grant_scope="group" AND member_id=0 AND download_enabled=1 AND expires_at IS NOT NULL AND expires_at<=UTC_TIMESTAMP() AND revoked_at IS NULL');
+        $expire = $pdo->prepare('UPDATE group_attachment_access SET revoked_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE chat_id=? AND grant_scope="group" AND member_id=0 AND (download_enabled=1 OR forward_enabled=1) AND expires_at IS NOT NULL AND expires_at<=UTC_TIMESTAMP() AND revoked_at IS NULL');
         $expire->execute([$chatId]);
         if ($expire->rowCount() > 0) {
             $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at) VALUES(?, ?, "system", ?, UTC_TIMESTAMP())')
-                ->execute([$chatId, (int)$chatInfo['owner_id'], 'Download access closed. The temporary attachment download period has expired.']);
+                ->execute([$chatId, (int)$chatInfo['owner_id'], 'Download and forwarding access closed. The temporary group attachment access period has expired.']);
         }
     }
     $after = max($after, $clearedThrough);
