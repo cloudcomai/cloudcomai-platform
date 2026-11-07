@@ -384,7 +384,6 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             }).map(member => {
               const role = member.role || 'member';
               const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id));
-              const groupGrantRecord = attachmentGrants.find(item => item.grant_scope === 'group');
               const grant = memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()) ? memberGrant : null;
               const photoVersion = member.image_version || member.photo_version || '1';
               return <View key={`${member.user_id}-${role}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
