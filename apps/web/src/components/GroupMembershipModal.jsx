@@ -47,7 +47,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     }
   };
 
-  const updateMemberFriendship = async () => {
+  const updateMemberFriendship = async (responseAction = 'accept') => {
     const profile = selectedMemberProfile;
     if (!profile?.id || profileBusy || Number(profile.id) === currentUserId) return;
     const relationship = profile.relationship || { status: 'none' };
@@ -56,8 +56,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     setProfileError('');
     try {
       if (relationship.status === 'pending' && relationship.direction === 'incoming') {
-        await apiBridge(ApiRoute.FRIEND_REQUESTS, { method: 'POST', body: JSON.stringify({ action: 'accept', request_id: Number(relationship.request_id) }) });
-        setSelectedMemberProfile(current => ({ ...current, relationship: { status: 'accepted' } }));
+        await apiBridge(ApiRoute.FRIEND_REQUESTS, { method: 'POST', body: JSON.stringify({ action: responseAction, request_id: Number(relationship.request_id) }) });
+        setSelectedMemberProfile(current => ({ ...current, relationship: { status: responseAction === 'accept' ? 'accepted' : 'declined', direction: 'incoming', request_id: relationship.request_id } }));
       } else if (relationship.status !== 'pending') {
         await apiBridge(ApiRoute.FRIEND_REQUESTS, { method: 'POST', body: JSON.stringify({ action: 'send', user_id: Number(profile.id) }) });
         setSelectedMemberProfile(current => ({ ...current, relationship: { status: 'pending', direction: 'outgoing' } }));
@@ -278,8 +278,11 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
             {selectedMemberProfile.relationship?.status === 'accepted' ? <p style={{ color: 'var(--primary-color)', fontWeight: 800, marginTop: '16px' }}>Already Friends</p> :
               selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'outgoing' ? <p style={{ color: 'var(--text-muted)', fontWeight: 800, marginTop: '16px' }}>Request Sent</p> :
               selectedMemberProfile.relationship?.status === 'self' ? <p style={{ color: 'var(--text-muted)', fontWeight: 800, marginTop: '16px' }}>This is you</p> : selectedMemberProfile.relationship?.status === 'unavailable' ? null : selectedMemberProfile.relationship?.status === 'blocked' ? <p role="alert" style={{ color: '#b91c1c', marginTop: '16px' }}>This profile is unavailable.</p> :
-              <button type="button" disabled={profileBusy} onClick={updateMemberFriendship} style={{ width: '100%', minHeight: '44px', marginTop: '16px', border: 0, borderRadius: '10px', background: 'var(--primary-color)', color: '#fff', fontWeight: 800, cursor: profileBusy ? 'wait' : 'pointer', opacity: profileBusy ? .65 : 1 }}>
-                {profileBusy ? 'Please wait…' : selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? 'Accept Request' : 'Add Friend'}
+              {selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? <div style={{ display: 'grid', gap: '8px', marginTop: '16px' }}>
+                <button type="button" disabled={profileBusy} onClick={() => updateMemberFriendship('accept')} style={{ width: '100%', minHeight: '44px', border: 0, borderRadius: '10px', background: 'var(--primary-color)', color: '#fff', fontWeight: 800, cursor: profileBusy ? 'wait' : 'pointer', opacity: profileBusy ? .65 : 1 }}>{profileBusy ? 'Please wait…' : 'Accept Request'}</button>
+                <button type="button" disabled={profileBusy} onClick={() => updateMemberFriendship('decline')} style={{ width: '100%', minHeight: '44px', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'transparent', color: 'var(--text-main)', fontWeight: 800, cursor: profileBusy ? 'wait' : 'pointer', opacity: profileBusy ? .65 : 1 }}>Reject Request</button>
+              </div> : <button type="button" disabled={profileBusy} onClick={updateMemberFriendship} style={{ width: '100%', minHeight: '44px', marginTop: '16px', border: 0, borderRadius: '10px', background: 'var(--primary-color)', color: '#fff', fontWeight: 800, cursor: profileBusy ? 'wait' : 'pointer', opacity: profileBusy ? .65 : 1 }}>
+                {profileBusy ? 'Please wait…' : 'Add Friend'}
               </button>}
           </>}
         </section>
