@@ -10,6 +10,11 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState('');
   const [memberTypeFilter, setMemberTypeFilter] = useState('all');
+  const [selectedMemberProfile, setSelectedMemberProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
   const currentUserId = Number(user?.id);
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
   const isAdmin = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'admin');
@@ -24,6 +29,49 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
         .catch(err => setError(err.message || "Unable to load group members."));
     }
   }, [type, selectedChat, apiBridge]);
+
+
+  const openMemberProfile = async member => {
+    const memberId = Number(member?.user_id || member?.id);
+    if (!memberId || memberId === currentUserId) return;
+    setSelectedMemberProfile({ id: memberId, name: member.name || member.username || 'Member', role: member.role || 'member' });
+    setProfileLoading(true);
+    setProfileError('');
+    try {
+      const result = await apiBridge(ApiRoute.USER_PROFILE, { query: { id: memberId } });
+      setSelectedMemberProfile(current => current?.id === memberId ? { ...result.user, role: member.role || 'member' } : current);
+    } catch (err) {
+      setProfileError(err.message || 'Unable to load this member profile.');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const updateMemberFriendship = async () => {
+    const profile = selectedMemberProfile;
+    if (!profile?.id || profileBusy) return;
+    const relationship = profile.relationship || { status: 'none' };
+    if (relationship.status === 'accepted' || relationship.status === 'blocked') return;
+    setProfileBusy(true);
+    setProfileError('');
+    try {
+      if (relationship.status === 'pending' && relationship.direction === 'incoming') {
+        await apiBridge(ApiRoute.FRIEND_REQUESTS, { method: 'POST', body: JSON.stringify({ action: 'accept', request_id: Number(relationship.request_id) }) });
+        setSelectedMemberProfile(current => ({ ...current, relationship: { status: 'accepted' } }));
+      } else if (relationship.status !== 'pending') {
+        await apiBridge(ApiRoute.FRIEND_REQUESTS, { method: 'POST', body: JSON.stringify({ action: 'send', user_id: Number(profile.id) }) });
+        setSelectedMemberProfile(current => ({ ...current, relationship: { status: 'pending', direction: 'outgoing' } }));
+      }
+    } catch (err) {
+      try {
+        const result = await apiBridge(ApiRoute.FRIEND_REQUESTS, { query: { user_id: Number(profile.id) } });
+        setSelectedMemberProfile(current => ({ ...current, relationship: result.relationship || { status: 'none' } }));
+      } catch {}
+      setProfileError(err.message || 'Unable to update friend request.');
+    } finally {
+      setProfileBusy(false);
+    }
+  };
 
   const handleSearchUsers = async () => {
     if (!searchTerm.trim()) return;
@@ -172,10 +220,15 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                 currentMembers.filter(m => memberTypeFilter === 'all' || (m.role || 'member') === memberTypeFilter).map(m => {
                   const isOwner = m.role === 'owner';
                   return (
-                    <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-directory)', borderRadius: '8px', marginBottom: '4px' }}>
-                      <div>
-                        <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>{m.name}</h5>
-                        <span style={{ fontSize: '10px', color: 'var(--text-light)', textTransform: 'uppercase' }}>Role: {m.role || 'member'}</span>
+                    <div key={m.id || m.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-directory)', borderRadius: '8px', marginBottom: '4px', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <button type="button" aria-label={`View ${m.name || 'member'} profile`} onClick={() => openMemberProfile(m)} disabled={loading} style={{ width: '42px', height: '42px', flex: '0 0 42px', borderRadius: '50%', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-main)', fontWeight: 800, cursor: 'pointer' }}>
+                          {(m.name || m.username || 'U').trim().charAt(0).toUpperCase()}
+                        </button>
+                        <div style={{ minWidth: 0 }}>
+                          <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', margin: 0 }}>{m.name || m.username || 'Member'}</h5>
+                          <span style={{ fontSize: '10px', color: 'var(--text-light)', textTransform: 'uppercase' }}>@{m.username || m.user_id || m.id} · Role: {m.role || 'member'}</span>
+                        </div>
                       </div>
                       <div className="account-tool-actions">
                       {ownsGroup && !isOwner && <button disabled={loading} onClick={() => transferOwnership(m)}>Make owner</button>}
@@ -205,6 +258,32 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
           <button onClick={close} style={{ padding: '8px 16px', background: 'var(--border-color)', color: 'var(--text-main)', borderRadius: '8px', fontSize: '13px', border: 'none' }}>Close Settings</button>
         </div>
       </div>
+      {selectedMemberProfile ? <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) { setSelectedMemberProfile(null); setProfileError(''); } }} style={{ position: 'fixed', inset: 0, zIndex: 10050, background: 'rgba(0,0,0,.58)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="group-member-profile-title" style={{ width: '100%', maxWidth: '360px', borderRadius: '18px', padding: '22px', background: 'var(--bg-primary)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 18px 55px rgba(0,0,0,.28)', textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" aria-label="Close profile" onClick={() => { setSelectedMemberProfile(null); setProfileError(''); }} style={{ border: 0, background: 'transparent', color: 'var(--text-muted)', fontSize: '26px', cursor: 'pointer' }}>×</button>
+          </div>
+          <div style={{ width: '78px', height: '78px', margin: '0 auto 12px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--bg-directory)', color: 'var(--text-main)', fontSize: '28px', fontWeight: 800, border: '1px solid var(--border-color)' }}>
+            {(selectedMemberProfile.name || 'U').trim().charAt(0).toUpperCase()}
+          </div>
+          <h3 id="group-member-profile-title" style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 800 }}>{selectedMemberProfile.name || 'CloudComAI user'}</h3>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '12px' }}>@{selectedMemberProfile.user_id || selectedMemberProfile.id} · {(selectedMemberProfile.role || 'member').charAt(0).toUpperCase()+(selectedMemberProfile.role || 'member').slice(1)}</p>
+          {profileLoading ? <p style={{ marginTop: '18px', color: 'var(--text-muted)' }}>Loading profile…</p> : <>
+            <div style={{ textAlign: 'left', marginTop: '18px', padding: '12px', borderRadius: '12px', background: 'var(--bg-directory)', display: 'grid', gap: '9px', fontSize: '13px' }}>
+              <div>Age: {selectedMemberProfile.age == null ? (selectedMemberProfile.hidden_fields?.includes('age') ? 'Private' : 'Not set') : selectedMemberProfile.age}</div>
+              <div>Gender: {selectedMemberProfile.gender || (selectedMemberProfile.hidden_fields?.includes('gender') ? 'Private' : 'Not set')}</div>
+              <div>Status: {selectedMemberProfile.online ? 'Online' : 'Offline'}</div>
+            </div>
+            {profileError && <p role="alert" style={{ color: '#b91c1c', fontSize: '12px', marginTop: '12px' }}>{profileError}</p>}
+            {selectedMemberProfile.relationship?.status === 'accepted' ? <p style={{ color: 'var(--primary-color)', fontWeight: 800, marginTop: '16px' }}>Already Friends</p> :
+              selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'outgoing' ? <p style={{ color: 'var(--text-muted)', fontWeight: 800, marginTop: '16px' }}>Request Sent</p> :
+              selectedMemberProfile.relationship?.status === 'blocked' ? <p role="alert" style={{ color: '#b91c1c', marginTop: '16px' }}>This profile is unavailable.</p> :
+              <button type="button" disabled={profileBusy} onClick={updateMemberFriendship} style={{ width: '100%', minHeight: '44px', marginTop: '16px', border: 0, borderRadius: '10px', background: 'var(--primary-color)', color: '#fff', fontWeight: 800, cursor: profileBusy ? 'wait' : 'pointer', opacity: profileBusy ? .65 : 1 }}>
+                {profileBusy ? 'Please wait…' : selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? 'Accept Request' : 'Add Friend'}
+              </button>}
+          </>}
+        </section>
+      </div> : null}
     </div>
   );
 }
