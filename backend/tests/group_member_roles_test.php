@@ -31,6 +31,13 @@ assert(str_contains($webManagement, 'disabled={loading || adminLimitReached}'));
 assert(str_contains($mobileManagement, 'Administrators · {adminCount}/3 selected by the owner'));
 assert(str_contains($mobileManagement, "role !== 'admin' && !adminLimitReached ? <Pressable disabled={busy}"));
 assert(!str_contains($mobileManagement, 'disabled={busy || adminLimitReached}'));
+assert(str_contains($mobileManagement, "member.username ? `@${member.username}` : `@${member.user_id}`"));
+assert(str_contains($mobileManagement, "{role.charAt(0).toUpperCase()+role.slice(1)}"));
+assert(!str_contains($mobileManagement, "{canDownload ? 'Can download attachments'"));
+assert(!str_contains($mobileManagement, "{canForward ? 'Can forward attachments'"));
+assert(!str_contains($mobileManagement, "{canMessage ? 'Can send messages'"));
+assert(!str_contains($mobileManagement, "Download and forwarding access closed</Text> : null}"));
+
 assert(str_contains($mobileManagement, 'Individual member permissions'));
 assert(str_contains($mobileManagement, 'Search group members by name or User ID'));
 assert(str_contains($mobileManagement, 'Can Download Attachments'));
