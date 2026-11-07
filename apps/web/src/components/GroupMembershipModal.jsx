@@ -33,8 +33,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
 
   const openMemberProfile = async member => {
     const memberId = Number(member?.user_id || member?.id);
-    if (!memberId || memberId === currentUserId) return;
-    setSelectedMemberProfile({ id: memberId, name: member.name || member.username || 'Member', role: member.role || 'member' });
+    if (!memberId) return;
+    setSelectedMemberProfile({ id: memberId, name: member.name || member.username || 'Member', role: member.role || 'member', relationship: { status: 'unavailable' } });
     setProfileLoading(true);
     setProfileError('');
     try {
@@ -49,7 +49,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
 
   const updateMemberFriendship = async () => {
     const profile = selectedMemberProfile;
-    if (!profile?.id || profileBusy) return;
+    if (!profile?.id || profileBusy || Number(profile.id) === currentUserId) return;
     const relationship = profile.relationship || { status: 'none' };
     if (relationship.status === 'accepted' || relationship.status === 'blocked') return;
     setProfileBusy(true);
@@ -277,7 +277,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
             {profileError && <p role="alert" style={{ color: '#b91c1c', fontSize: '12px', marginTop: '12px' }}>{profileError}</p>}
             {selectedMemberProfile.relationship?.status === 'accepted' ? <p style={{ color: 'var(--primary-color)', fontWeight: 800, marginTop: '16px' }}>Already Friends</p> :
               selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'outgoing' ? <p style={{ color: 'var(--text-muted)', fontWeight: 800, marginTop: '16px' }}>Request Sent</p> :
-              selectedMemberProfile.relationship?.status === 'blocked' ? <p role="alert" style={{ color: '#b91c1c', marginTop: '16px' }}>This profile is unavailable.</p> :
+              selectedMemberProfile.relationship?.status === 'self' ? <p style={{ color: 'var(--text-muted)', fontWeight: 800, marginTop: '16px' }}>This is you</p> : selectedMemberProfile.relationship?.status === 'unavailable' ? null : selectedMemberProfile.relationship?.status === 'blocked' ? <p role="alert" style={{ color: '#b91c1c', marginTop: '16px' }}>This profile is unavailable.</p> :
               <button type="button" disabled={profileBusy} onClick={updateMemberFriendship} style={{ width: '100%', minHeight: '44px', marginTop: '16px', border: 0, borderRadius: '10px', background: 'var(--primary-color)', color: '#fff', fontWeight: 800, cursor: profileBusy ? 'wait' : 'pointer', opacity: profileBusy ? .65 : 1 }}>
                 {profileBusy ? 'Please wait…' : selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? 'Accept Request' : 'Add Friend'}
               </button>}
