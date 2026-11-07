@@ -63,6 +63,12 @@ assert(str_contains($webProfile, 'ApiRoute.FRIEND_REQUESTS'));
 assert(str_contains($webProfile, "action: \'send\'"));
 assert(str_contains($webProfile, "action: \'accept\'"));
 assert(str_contains($profileHandler, 'shared_chat.type IN ("private","public","group")'));
+
+assert(str_contains($mobileProfile, "updateMemberFriendship('decline')"));
+assert(str_contains($mobileProfile, "'Reject Request'"));
+assert(str_contains($webProfile, "updateMemberFriendship('decline')"));
+assert(str_contains($webProfile, "'Reject Request'"));
+assert(str_contains($webProfile, "action: responseAction"));
 assert(str_contains($profileHandler, "'age' =>"));
 assert(str_contains($profileHandler, "'gender' =>"));
 assert(str_contains($profileHandler, "'hidden_fields' =>"));
