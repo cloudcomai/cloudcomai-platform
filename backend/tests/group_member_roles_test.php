@@ -29,7 +29,8 @@ $mobileManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobi
 assert(str_contains($webManagement, 'Administrators: {adminCount}/3 selected by the owner'));
 assert(str_contains($webManagement, 'disabled={loading || adminLimitReached}'));
 assert(str_contains($mobileManagement, 'Administrators · {adminCount}/3 selected by the owner'));
-assert(str_contains($mobileManagement, 'disabled={busy || adminLimitReached}'));
+assert(str_contains($mobileManagement, "role !== 'admin' && !adminLimitReached ? <Pressable disabled={busy}"));
+assert(!str_contains($mobileManagement, 'disabled={busy || adminLimitReached}'));
 assert(str_contains($mobileManagement, 'Individual member permissions'));
 assert(str_contains($mobileManagement, 'Search group members by name or User ID'));
 assert(str_contains($mobileManagement, 'Can Download Attachments'));
