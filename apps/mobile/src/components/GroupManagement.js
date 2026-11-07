@@ -49,8 +49,8 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
 
   const openMemberProfile = async member => {
     const memberId = Number(member?.user_id);
-    if (!memberId || memberId === currentUserId) return;
-    setSelectedMemberProfile({ id: memberId, name: member.name || member.username || 'Member', role: member.role || 'member' });
+    if (!memberId) return;
+    setSelectedMemberProfile({ id: memberId, name: member.name || member.username || 'Member', role: member.role || 'member', relationship: { status: 'unavailable' } });
     setProfileLoading(true);
     setProfileError('');
     try {
@@ -65,7 +65,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
 
   const updateMemberFriendship = async () => {
     const profile = selectedMemberProfile;
-    if (!profile?.id || profileBusy) return;
+    if (!profile?.id || profileBusy || Number(profile.id) === currentUserId) return;
     const relationship = profile.relationship || { status: 'none' };
     if (relationship.status === 'accepted' || relationship.status === 'blocked') return;
     setProfileBusy(true);
@@ -551,7 +551,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               {profileError ? <Text style={styles.profileError}>{profileError}</Text> : null}
               {selectedMemberProfile.relationship?.status === 'accepted' ? <Text style={[styles.profileFriendState,{color:theme.colors.accent}]}>Already Friends</Text> :
                 selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'outgoing' ? <Text style={[styles.profileFriendState,{color:theme.colors.secondary}]}>Request Sent</Text> :
-                selectedMemberProfile.relationship?.status === 'blocked' ? <Text style={styles.profileError}>This profile is unavailable.</Text> :
+                selectedMemberProfile.relationship?.status === 'self' ? <Text style={[styles.profileFriendState,{color:theme.colors.secondary}]}>This is you</Text> : selectedMemberProfile.relationship?.status === 'unavailable' ? null : selectedMemberProfile.relationship?.status === 'blocked' ? <Text style={styles.profileError}>This profile is unavailable.</Text> :
                 <Pressable disabled={profileBusy} onPress={updateMemberFriendship} style={[styles.profileAction,{backgroundColor:theme.colors.accent,opacity:profileBusy?0.6:1}]}>
                   <Text style={styles.profileActionText}>{profileBusy ? 'Please wait…' : selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? 'Accept Request' : 'Add Friend'}</Text>
                 </Pressable>}
