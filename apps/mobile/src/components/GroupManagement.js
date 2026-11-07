@@ -552,7 +552,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               {selectedMemberProfile.relationship?.status === 'accepted' ? <Text style={[styles.profileFriendState,{color:theme.colors.accent}]}>Already Friends</Text> :
                 selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'outgoing' ? <Text style={[styles.profileFriendState,{color:theme.colors.secondary}]}>Request Sent</Text> :
                 selectedMemberProfile.relationship?.status === 'self' ? <Text style={[styles.profileFriendState,{color:theme.colors.secondary}]}>This is you</Text> : selectedMemberProfile.relationship?.status === 'unavailable' ? null : selectedMemberProfile.relationship?.status === 'blocked' ? <Text style={styles.profileError}>This profile is unavailable.</Text> :
-                {selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? <View style={{width:'100%',gap:8,marginTop:16}}>
+                selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? <View style={{width:'100%',gap:8,marginTop:16}}>
                   <Pressable disabled={profileBusy} onPress={() => updateMemberFriendship('accept')} style={[styles.profileAction,{backgroundColor:theme.colors.accent,marginTop:0,opacity:profileBusy?0.6:1}]}>
                     <Text style={styles.profileActionText}>{profileBusy ? 'Please wait…' : 'Accept Request'}</Text>
                   </Pressable>
