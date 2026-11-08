@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, InteractionManager, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { platformApi } from '../services/platform';
+import { mediaUrl, platformApi } from '../services/platform';
+import ContactAvatar from './ContactAvatar';
 import { setApplicationBadge } from '../services/notifications';
 import { getNotificationChatId } from '../utils/notificationNavigation';
 import { loadMobileContacts } from '../utils/contacts';
@@ -14,7 +15,7 @@ export function ContactsList({ onOpenChat, themeSettings }) {
   useEffect(() => { load(); const timer=setInterval(()=>load(true),30000); return ()=>clearInterval(timer); }, [load]);
   const respond = async (request, action) => { if (!request?.id || actionId !== null) return; setActionId(Number(request.id)); setError(''); try { await platformApi.respondToFriendRequest(Number(request.id),action); setRequests(current=>current.filter(item=>Number(item.id)!==Number(request.id))); await load(true); } catch(e) { setError(e.message || 'Unable to update friend request.'); } finally { setActionId(null); } };
   const onlineItems = useMemo(()=>items.filter(item=>item.presence_status==='ONLINE'),[items]);
-  const renderContact = ({item}) => { const title=item.registered_name || item.display_name || item.email || item.phone || 'CloudComAI contact'; const status=item.presence_status || (item.online ? 'ONLINE':'OFFLINE'); return <Pressable style={[styles.row,{backgroundColor:theme.colors.background,borderBottomColor:theme.colors.border}]} onPress={()=>setSelectedContact(item)}><View style={styles.avatar}>{item.photo_url ? <Image source={{uri:item.photo_url}} style={styles.avatarImage}/> : null}<Text style={styles.avatarText}>{title[0]?.toUpperCase()||'C'}</Text></View><View style={styles.meta}><Text style={[styles.title,{color:theme.colors.text}]}>{title}</Text><Text style={[styles.sub,{color:theme.colors.secondary}]}>{status==='ONLINE'?'Online':status==='AWAY'?'Away':'Offline'}</Text></View><View style={[styles.statusDot,status==='ONLINE'?styles.onlineDot:status==='AWAY'?styles.awayDot:styles.offlineDot]}/></Pressable>; };
+  const renderContact = ({item}) => { const title=item.registered_name || item.display_name || item.email || item.phone || 'CloudComAI contact'; const status=item.presence_status || (item.online ? 'ONLINE':'OFFLINE'); const userId=item.registered_user_id || item.id; const imageUri=item.photo_url || (userId ? mediaUrl('user',userId,item.image_version || '') : null); return <Pressable style={[styles.row,{backgroundColor:theme.colors.background,borderBottomColor:theme.colors.border}]} onPress={()=>setSelectedContact(item)}><ContactAvatar userId={userId || item.user_id} name={item.registered_name || item.display_name || ''} username={item.username || item.registered_user_id_text} imageUri={imageUri} size={48}/><View style={styles.meta}><Text style={[styles.title,{color:theme.colors.text}]}>{title}</Text><Text style={[styles.sub,{color:theme.colors.secondary}]}>{status==='ONLINE'?'Online':status==='AWAY'?'Away':'Offline'}</Text></View><View style={[styles.statusDot,status==='ONLINE'?styles.onlineDot:status==='AWAY'?styles.awayDot:styles.offlineDot]}/></Pressable>; };
   if (loading) return <ActivityIndicator style={styles.loader} color="#3157d5" />;
   return <>
     {error ? <Text style={styles.error}>{error}</Text> : null}
