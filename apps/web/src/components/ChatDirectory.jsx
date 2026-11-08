@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MessageCircle, Search, UserRound } from 'lucide-react';
+import { MessageCircle, Search } from 'lucide-react';
+import { getAvatarInitial, getAvatarPalette } from '@cloudcomai/chat-core';
 import { mediaUrl, platformApi } from '../services/platform';
 
 const imageUrl = chat => chat?.image_url || mediaUrl(
@@ -121,9 +122,13 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
             </div>
           ) : visibleContacts.map(contact => {
             const registeredUserId = Number(contact.registered_user_id);
-            const imageKey = `contact-${registeredUserId}`;
+            const imageKey = `contact-${registeredUserId}-${contact.image_version || contact.photo_url || ''}`;
             const imageFailed = Boolean(failedImages[imageKey]);
-            const name = contact.display_name || [contact.given_name, contact.family_name].filter(Boolean).join(' ') || contact.registered_name || 'CloudComAI user';
+            const name = contact.display_name || [contact.given_name, contact.family_name].filter(Boolean).join(' ') || contact.registered_name || contact.username || 'CloudComAI user';
+            const avatarPalette = getAvatarPalette(contact.registered_user_id || contact.registered_user_id_text || contact.username || name);
+            const avatarInitial = getAvatarInitial(contact.display_name || [contact.given_name, contact.family_name].filter(Boolean).join(' ') || contact.registered_name, contact.username || contact.registered_user_id_text);
+            const contactImage = contact.photo_url || mediaUrl('user', registeredUserId);
+            const contactImageSrc = contact.image_version ? `${contactImage}${contactImage.includes('?') ? '&' : '?'}v=${encodeURIComponent(String(contact.image_version))}` : contactImage;
             const registeredLabel = contact.registered_user_id_text ? `@${contact.registered_user_id_text}` : contact.registered_name;
             const registeredContact = {
               id: registeredUserId,
@@ -149,10 +154,10 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
                 aria-label={`Start a chat with ${name}`}
               >
                 <div className="avatar-frame">
-                  {!imageFailed ? (
-                    <img src={mediaUrl('user', registeredUserId)} alt="" onError={() => markImageFailed(imageKey)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  {Number.isFinite(registeredUserId) && registeredUserId > 0 && !imageFailed ? (
+                    <img src={contactImageSrc} alt="" onError={() => markImageFailed(imageKey)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                   ) : (
-                    <div className="avatar-placeholder">{name[0]?.toUpperCase() || <UserRound size={18} />}</div>
+                    <div className="avatar-placeholder" style={{ backgroundColor: avatarPalette.backgroundColor, color: avatarPalette.textColor }}>{avatarInitial}</div>
                   )}
                   {contact.online && <span className="online-indicator-dot"></span>}
                 </div>
