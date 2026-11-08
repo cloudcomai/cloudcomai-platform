@@ -19,3 +19,11 @@ test('mobile contact avatar covers the circle and falls back after image errors'
 test('mobile contacts use the existing media URL when photo_url is absent', () => {
   assert.match(contacts, /item\.photo_url \|\| \(userId \? mediaUrl\('user',userId,item\.image_version \|\| ''\)/);
 });
+
+const profile = fs.readFileSync(new URL('../src/components/UserProfileModal.js', import.meta.url), 'utf8');
+
+test('mobile profile popup shares the same user-ID avatar palette and fallback', () => {
+  assert.match(profile, /getAvatarPalette\(profile\?\.id/);
+  assert.match(profile, /getAvatarInitial\(profile\?\.name/);
+  assert.match(profile, /resizeMode="cover"/);
+});
