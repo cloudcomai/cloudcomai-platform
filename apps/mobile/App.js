@@ -24,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
+import EmojiPicker from './src/components/EmojiPicker';
 
 const chatFontColorCache = new Map();
 const isDarkThemeColor = value => {
@@ -377,11 +378,33 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       .finally(() => { if (!cancelled) setMentionRecipientsLoading(false); });
     return () => { cancelled = true; };
   }, [editing?.id, mentionChatEnabled]);
-  const scrollToMessage = (messageId, list = messages) => {
-    const id=Number(messageId); const index=list.findIndex(item=>Number(item.id)===id); if(index<0)return false;
-    requestAnimationFrame(()=>listRef.current?.scrollToIndex?.({index,animated:true,viewPosition:0.5}));
-    setHighlightedMessageId(id); setTimeout(()=>setHighlightedMessageId(current=>current===id?null:current),2200); return true;
+  const pendingMessageScrollRef = useRef(null);
+  const highlightMessage = id => {
+    setHighlightedMessageId(id);
+    setTimeout(() => setHighlightedMessageId(current => current === id ? null : current), 2200);
   };
+  const scrollToMessage = (messageId, list = messages) => {
+    const id = Number(messageId);
+    const index = list.findIndex(item => Number(item.id) === id);
+    if (index < 0) return false;
+    if (list === messages) {
+      requestAnimationFrame(() => listRef.current?.scrollToIndex?.({ index, animated: true, viewPosition: 0.5 }));
+    } else {
+      // The FlatList still has the previous data until React commits setMessages.
+      // Defer the jump until the updated message array has rendered.
+      pendingMessageScrollRef.current = id;
+    }
+    highlightMessage(id);
+    return true;
+  };
+  useEffect(() => {
+    const id = pendingMessageScrollRef.current;
+    if (!id) return;
+    const index = messages.findIndex(item => Number(item.id) === Number(id));
+    if (index < 0) return;
+    pendingMessageScrollRef.current = null;
+    requestAnimationFrame(() => listRef.current?.scrollToIndex?.({ index, animated: true, viewPosition: 0.5 }));
+  }, [messages]);
   const navigateToMessage = async messageId => {
     const id = Number(messageId);
     if (!Number.isSafeInteger(id) || id <= 0) {
@@ -395,10 +418,12 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       const { data } = await platformApi.getMessageContext(Number(chat.id), id);
       const contextMessages = Array.isArray(data?.messages) ? data.messages : [];
       const merged = mergeMessageBatch(messages, contextMessages).messages;
-      setMessages(merged);
-      if (!scrollToMessage(id, merged)) {
+      if (!merged.some(item => Number(item.id) === id)) {
         throw new Error('The original message is unavailable, deleted, expired, or no longer visible to your account.');
       }
+      pendingMessageScrollRef.current = id;
+      setMessages(merged);
+      highlightMessage(id);
       return true;
     } catch (e) {
       setError(e?.message || 'Unable to open this mention. Return to Mentions and try again.');
@@ -754,6 +779,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           ref={listRef}
           onViewableItemsChanged={onMessageViewabilityChanged}
           viewabilityConfig={messageViewabilityConfig}
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            requestAnimationFrame(() => listRef.current?.scrollToOffset?.({ offset: Math.max(0, averageItemLength * index), animated: true }));
+          }}
           extraData={visibleMessageIds}
           data={searchActive ? results : messages}
           keyExtractor={item => String(item.id)}
@@ -826,9 +854,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
 {attachmentMenuOpen ? <Modal visible transparent animationType='fade' onRequestClose={() => setAttachmentMenuOpen(false)}><Pressable accessibilityRole="button" accessibilityLabel="Close attachment menu backdrop" style={styles.attachmentMenuOverlay} onPress={() => setAttachmentMenuOpen(false)}><Pressable style={styles.attachmentMenuCard} onPress={event => event.stopPropagation()}><View style={styles.attachmentMenuHeader}><Text style={styles.attachmentTitle}>Add attachment</Text><Pressable accessibilityRole="button" accessibilityLabel="Close attachment menu" hitSlop={8} onPress={() => setAttachmentMenuOpen(false)} style={styles.attachmentMenuClose}><Text style={styles.attachmentMenuCloseText}>×</Text></Pressable></View><Text style={styles.attachmentMenuHint}>Choose where the attachment should come from.</Text><View style={styles.attachmentMenuActions}><Pressable style={styles.attachmentMenuOption} onPress={() => pickImage(true)}><Text style={styles.attachmentMenuOptionText}>CAMERA</Text></Pressable><Pressable style={styles.attachmentMenuOption} onPress={() => pickImage(false)}><Text style={styles.attachmentMenuOptionText}>PHOTO LIBRARY</Text></Pressable><Pressable style={styles.attachmentMenuOption} onPress={pickDocument}><Text style={styles.attachmentMenuOptionText}>DOCUMENT</Text></Pressable></View></Pressable></Pressable></Modal> : null}
       <MediaComposer chat={chat} onMessage={onMediaMessage} onCreatePoll={openPollComposer} />
       {attachmentDraft ? <Modal visible transparent animationType='slide' onRequestClose={() => { if(uploading) cancelUpload(); else setAttachmentDraft(null); }} ><View style={styles.overlay}><View style={styles.attachmentCard}><Text style={styles.attachmentTitle}>Preview attachment</Text>{String(attachmentDraft.mimeType||'').startsWith('image/') ? <Image source={{uri:attachmentDraft.uri}} style={styles.attachmentPreview} resizeMode='contain'/> : <View style={styles.documentPreview}><Text style={styles.documentIcon}>📄</Text><Text style={styles.documentName} numberOfLines={2}>{attachmentDraft.name || 'Selected file'}</Text><Text style={styles.documentSize}>{Number(attachmentDraft.fileSize ?? attachmentDraft.size ?? 0) ? Math.round(Number(attachmentDraft.fileSize ?? attachmentDraft.size)/1024)+' KB' : 'File selected'}</Text></View>}{uploading?<View style={styles.attachmentSending}><ActivityIndicator color="#3157d5" /><Text style={styles.attachmentProgress}>Sending attachment… Please wait.</Text></View>:null}{attachmentError?<View style={styles.attachmentError}><Text style={styles.attachmentErrorText}>{attachmentError}</Text><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable></View>:null}<View style={styles.attachmentActions}><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={uploading ? 'Cancel attachment upload' : 'Cancel attachment'} accessibilityState={{ disabled: false }} hitSlop={8} onPress={() => { if(uploading){ cancelUpload(); } else { setAttachmentDraft(null); setAttachmentError(''); } }}><Text style={[styles.cancelText, uploading && styles.cancelTextActive]}>Cancel</Text></Pressable></View></View></View></Modal> : null}
-      {emojiOpen ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.emojiStrip, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]} contentContainerStyle={styles.emojiStripContent}>
-        <Pressable key="😀" onPress={() => changeComposer(value => `${value}😀`)} style={styles.emojiButton}><Text style={styles.emojiText}>😀</Text></Pressable><Pressable key="😂" onPress={() => changeComposer(value => `${value}😂`)} style={styles.emojiButton}><Text style={styles.emojiText}>😂</Text></Pressable><Pressable key="😍" onPress={() => changeComposer(value => `${value}😍`)} style={styles.emojiButton}><Text style={styles.emojiText}>😍</Text></Pressable><Pressable key="😊" onPress={() => changeComposer(value => `${value}😊`)} style={styles.emojiButton}><Text style={styles.emojiText}>😊</Text></Pressable><Pressable key="👍" onPress={() => changeComposer(value => `${value}👍`)} style={styles.emojiButton}><Text style={styles.emojiText}>👍</Text></Pressable><Pressable key="🙏" onPress={() => changeComposer(value => `${value}🙏`)} style={styles.emojiButton}><Text style={styles.emojiText}>🙏</Text></Pressable><Pressable key="❤️" onPress={() => changeComposer(value => `${value}❤️`)} style={styles.emojiButton}><Text style={styles.emojiText}>❤️</Text></Pressable><Pressable key="🎉" onPress={() => changeComposer(value => `${value}🎉`)} style={styles.emojiButton}><Text style={styles.emojiText}>🎉</Text></Pressable><Pressable key="😢" onPress={() => changeComposer(value => `${value}😢`)} style={styles.emojiButton}><Text style={styles.emojiText}>😢</Text></Pressable><Pressable key="😡" onPress={() => changeComposer(value => `${value}😡`)} style={styles.emojiButton}><Text style={styles.emojiText}>😡</Text></Pressable><Pressable key="🤔" onPress={() => changeComposer(value => `${value}🤔`)} style={styles.emojiButton}><Text style={styles.emojiText}>🤔</Text></Pressable><Pressable key="👏" onPress={() => changeComposer(value => `${value}👏`)} style={styles.emojiButton}><Text style={styles.emojiText}>👏</Text></Pressable>
-      </ScrollView> : null}
+      {emojiOpen ? <EmojiPicker theme={theme} onSelect={emoji => changeComposer(value => `${value}${emoji}`)} onDelete={() => changeComposer(value => Array.from(String(value || '')).slice(0, -1).join(''))} onClose={() => setEmojiOpen(false)} /> : null}
       {mentionChatEnabled && mentionQuery !== null && mentionCandidates.length > 0 ? <View style={[styles.mentionSuggestions,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>{mentionCandidates.map(candidate=><Pressable key={candidate.id} accessibilityRole="button" onPress={()=>chooseMention(candidate)} style={[styles.mentionSuggestion,{borderBottomColor:theme.colors.border}]}><Text style={[styles.mentionSuggestionName,{color:theme.colors.text}]}>@{candidate.username || candidate.id}</Text><Text style={[styles.mentionSuggestionMeta,{color:theme.colors.secondary}]}>{candidate.name || 'Chat member'}</Text></Pressable>)}</View> : null}
       <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => setEmojiOpen(value => !value)}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable>{(chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type)) ? <Pressable accessibilityRole="button" accessibilityLabel="Choose message font color" onPress={() => setFontColorOpen(true)} style={[styles.emojiToggle, { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border }]}><Text style={{ color: fontColorValue, fontSize: 20, fontWeight: '800' }}>A</Text></Pressable> : null}<TextInput style={[styles.composerInput, { color: fontColor === 'default' ? theme.colors.text : fontColorValue, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>

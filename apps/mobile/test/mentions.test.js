@@ -44,3 +44,10 @@ test('mobile Mentions polling cannot reinsert a mention already read in this ses
   assert.match(lists, /!dismissedMentionIds\.current\.has\(Number\(item\.mention_id\)\)/);
   assert.match(lists, /dismissedMentionIds\.current\.add\(Number\(item\.mention_id\)\)/);
 });
+
+test('mobile Mentions message-context navigation waits for the updated FlatList data before scrolling', () => {
+  assert.match(app, /pendingMessageScrollRef = useRef\(null\)/);
+  assert.match(app, /pendingMessageScrollRef\.current = id;\s*setMessages\(merged\)/);
+  assert.match(app, /useEffect\(\(\) => \{\s*const id = pendingMessageScrollRef\.current;[\s\S]*?\}, \[messages\]\)/);
+  assert.match(app, /onScrollToIndexFailed=\{\(\{ index, averageItemLength \}\) =>/);
+});

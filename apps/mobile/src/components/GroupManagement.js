@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { resolveChatTheme } from '../services/chatThemeDefinitions';
+import ContactSelectionModal from './ContactSelectionModal';
 
 export default function GroupManagement({ visible, group, user, onClose, onGroupUpdated, onGroupDeleted, themeSettings }) {
   const theme = resolveChatTheme(themeSettings);
@@ -28,6 +29,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [memberTypeFilter, setMemberTypeFilter] = useState('all');
   const [permissionFilter, setPermissionFilter] = useState('all');
   const [attachmentPermissionFilter, setAttachmentPermissionFilter] = useState('all');
@@ -40,6 +42,54 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const adminCount = members.filter(member => member.role === 'admin').length;
   const adminLimitReached = adminCount >= 3;
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
+  const [selectedMemberProfile, setSelectedMemberProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+
+
+  const openMemberProfile = async member => {
+    const memberId = Number(member?.user_id);
+    if (!memberId) return;
+    setSelectedMemberProfile({ id: memberId, name: member.name || member.username || 'Member', role: member.role || 'member', relationship: { status: 'unavailable' } });
+    setProfileLoading(true);
+    setProfileError('');
+    try {
+      const { data } = await platformApi.getUserProfile(memberId);
+      setSelectedMemberProfile(current => current?.id === memberId ? { ...data.user, role: member.role || 'member' } : current);
+    } catch (e) {
+      setProfileError(e.message || 'Unable to load this member profile.');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const updateMemberFriendship = async (responseAction = 'accept') => {
+    const profile = selectedMemberProfile;
+    if (!profile?.id || profileBusy || Number(profile.id) === currentUserId) return;
+    const relationship = profile.relationship || { status: 'none' };
+    if (relationship.status === 'accepted' || relationship.status === 'blocked') return;
+    setProfileBusy(true);
+    setProfileError('');
+    try {
+      if (relationship.status === 'pending' && relationship.direction === 'incoming') {
+        await platformApi.respondToFriendRequest(Number(relationship.request_id), responseAction);
+        setSelectedMemberProfile(current => ({ ...current, relationship: { status: responseAction === 'accept' ? 'accepted' : 'declined', direction: 'incoming', request_id: relationship.request_id } }));
+      } else if (relationship.status !== 'pending') {
+        await platformApi.sendFriendRequest(Number(profile.id));
+        setSelectedMemberProfile(current => ({ ...current, relationship: { status: 'pending', direction: 'outgoing' } }));
+      }
+    } catch (e) {
+      try {
+        const { data } = await platformApi.getFriendRelationship(Number(profile.id));
+        setSelectedMemberProfile(current => ({ ...current, relationship: data.relationship || { status: 'none' } }));
+      } catch {}
+      setProfileError(e.message || 'Unable to update friend request.');
+    } finally {
+      setProfileBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!visible || !group?.id) return;
@@ -333,9 +383,10 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Add member</Text>
-            <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background}]} value={query} onChangeText={setQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={search} />
-            <Pressable style={styles.linkButton} onPress={search}><Text style={[styles.link,{color:theme.colors.accent}]}>Search</Text></Pressable>
-            {results.map(item => <View key={item.id} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{item.name}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{item.user_id ? `@${item.user_id}` : ''}</Text></View><Pressable onPress={() => add(item)}><Text style={[styles.link,{color:theme.colors.accent}]}>Add</Text></Pressable></View>)}
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Select multiple contacts and add them together.</Text>
+            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={() => setAddMembersOpen(true)} disabled={!canManageMembers || busy}>
+              <Text style={styles.primaryText}>Choose contacts</Text>
+            </Pressable>
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
@@ -387,7 +438,9 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               const grant = memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(memberGrant.expires_at).getTime() > Date.now()) ? memberGrant : null;
               const photoVersion = member.image_version || member.photo_version || '1';
               return <View key={`${member.user_id}-${role}`} style={[styles.memberCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
-                <Image source={{ uri: mediaUrl('user', Number(member.user_id), photoVersion) }} style={styles.memberAvatar} onError={() => {}} />
+                <Pressable accessibilityRole="button" accessibilityLabel={`View ${member.name || 'member'} profile`} onPress={() => openMemberProfile(member)} disabled={busy}>
+                  <Image source={{ uri: mediaUrl('user', Number(member.user_id), photoVersion) }} style={styles.memberAvatar} onError={() => {}} />
+                </Pressable>
                 <View style={styles.memberInfo}>
                   <Text style={[styles.name,{color:theme.colors.text}]}>{member.name || member.username || 'Member'}</Text>
                   <Text style={[styles.note,{color:theme.colors.secondary}]}>{member.username ? `@${member.username}` : `@${member.user_id}`} · {role.charAt(0).toUpperCase()+role.slice(1)}</Text>
@@ -485,7 +538,48 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View> : null}
           {ownsGroup ? <Pressable style={styles.deleteButton} onPress={deleteGroup}><Text style={styles.deleteText}>Delete group</Text></Pressable> : null}
         </ScrollView>
+        {selectedMemberProfile ? <View style={styles.profileOverlay}>
+          <Pressable style={styles.profileBackdrop} accessibilityRole="button" accessibilityLabel="Close member profile" onPress={() => { setSelectedMemberProfile(null); setProfileError(''); }} />
+          <View style={[styles.profileCard,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>
+            <Pressable style={styles.profileClose} onPress={() => { setSelectedMemberProfile(null); setProfileError(''); }}><Text style={[styles.profileCloseText,{color:theme.colors.secondary}]}>×</Text></Pressable>
+            <Image source={{uri:mediaUrl('user',selectedMemberProfile.id,selectedMemberProfile.image_version || '')}} style={styles.profileAvatar} />
+            <Text style={[styles.profileName,{color:theme.colors.text}]}>{selectedMemberProfile.name || 'CloudComAI user'}</Text>
+            <Text style={[styles.profileMeta,{color:theme.colors.secondary}]}>@{selectedMemberProfile.user_id || selectedMemberProfile.id} · {(selectedMemberProfile.role || 'member').charAt(0).toUpperCase()+(selectedMemberProfile.role || 'member').slice(1)}</Text>
+            {profileLoading ? <ActivityIndicator color={theme.colors.accent} style={{marginTop:12}} /> : <>
+              <View style={styles.profileDetails}>
+                <Text style={[styles.profileDetail,{color:theme.colors.text}]}>Age: {selectedMemberProfile.age == null ? (selectedMemberProfile.hidden_fields?.includes('age') ? 'Private' : 'Not set') : selectedMemberProfile.age}</Text>
+                <Text style={[styles.profileDetail,{color:theme.colors.text}]}>Gender: {selectedMemberProfile.gender || (selectedMemberProfile.hidden_fields?.includes('gender') ? 'Private' : 'Not set')}</Text>
+                <Text style={[styles.profileDetail,{color:theme.colors.text}]}>Status: {selectedMemberProfile.online ? 'Online' : 'Offline'}</Text>
+              </View>
+              {profileError ? <Text style={styles.profileError}>{profileError}</Text> : null}
+              {selectedMemberProfile.relationship?.status === 'accepted' ? <Text style={[styles.profileFriendState,{color:theme.colors.accent}]}>Already Friends</Text> :
+                selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'outgoing' ? <Text style={[styles.profileFriendState,{color:theme.colors.secondary}]}>Request Sent</Text> :
+                selectedMemberProfile.relationship?.status === 'self' ? <Text style={[styles.profileFriendState,{color:theme.colors.secondary}]}>This is you</Text> : selectedMemberProfile.relationship?.status === 'unavailable' ? null : selectedMemberProfile.relationship?.status === 'blocked' ? <Text style={styles.profileError}>This profile is unavailable.</Text> :
+                selectedMemberProfile.relationship?.status === 'pending' && selectedMemberProfile.relationship?.direction === 'incoming' ? <View style={{width:'100%',gap:8,marginTop:16}}>
+                  <Pressable disabled={profileBusy} onPress={() => updateMemberFriendship('accept')} style={[styles.profileAction,{backgroundColor:theme.colors.accent,marginTop:0,opacity:profileBusy?0.6:1}]}>
+                    <Text style={styles.profileActionText}>{profileBusy ? 'Please wait…' : 'Accept Request'}</Text>
+                  </Pressable>
+                  <Pressable disabled={profileBusy} onPress={() => updateMemberFriendship('decline')} style={[styles.profileAction,{backgroundColor:'transparent',borderWidth:1,borderColor:theme.colors.border,marginTop:0,opacity:profileBusy?0.6:1}]}>
+                    <Text style={[styles.profileActionText,{color:theme.colors.text}]}>Reject Request</Text>
+                  </Pressable>
+                </View> : <Pressable disabled={profileBusy} onPress={updateMemberFriendship} style={[styles.profileAction,{backgroundColor:theme.colors.accent,opacity:profileBusy?0.6:1}]}>
+                  <Text style={styles.profileActionText}>{profileBusy ? 'Please wait…' : 'Add Friend'}</Text>
+                </Pressable>}
+            </>}
+          </View>
+        </View> : null}
         {busy ? <View style={styles.busy}><ActivityIndicator color={theme.colors.accent} /></View> : null}
+        <ContactSelectionModal
+          visible={addMembersOpen}
+          title="Add group members"
+          theme={theme}
+          excludeIds={members.map(member => Number(member.user_id))}
+          onCancel={() => setAddMembersOpen(false)}
+          onSave={async ids => {
+            for (const id of ids) await platformApi.updateGroupMember(group.id, id, 'add');
+            await load();
+          }}
+        />
       </SafeAreaView>
     </Modal>
   );
@@ -519,6 +613,21 @@ const styles = StyleSheet.create({
   row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
   memberCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, borderBottomWidth: 1 },
   memberAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#e5e7eb' },
+  profileOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', padding: 24, zIndex: 20 },
+  profileBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0009' },
+  profileCard: { width: '100%', maxWidth: 360, borderWidth: 1, borderRadius: 20, padding: 22, alignItems: 'center', elevation: 12 },
+  profileClose: { alignSelf: 'flex-end', paddingHorizontal: 4, marginTop: -8 },
+  profileCloseText: { fontSize: 28, lineHeight: 30 },
+  profileAvatar: { width: 82, height: 82, borderRadius: 41, backgroundColor: '#e5e7eb', marginTop: 4 },
+  profileName: { fontSize: 18, fontWeight: '800', marginTop: 12 },
+  profileMeta: { fontSize: 12, marginTop: 4 },
+  profileDetails: { width: '100%', marginTop: 18, padding: 12, borderRadius: 12, backgroundColor: 'rgba(127,127,127,0.08)', gap: 8 },
+  profileDetail: { fontSize: 13 },
+  profileFriendState: { fontSize: 13, fontWeight: '800', marginTop: 16 },
+  profileError: { color: '#b91c1c', fontSize: 12, marginTop: 12, textAlign: 'center' },
+  profileAction: { minHeight: 44, width: '100%', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
+  profileActionText: { color: '#fff', fontWeight: '800' },
+
   memberInfo: { flex: 1, minWidth: 0, paddingRight: 4 },
   permissionText: { fontSize: 11, marginTop: 4 },
   meta: { flex: 1, paddingRight: 10 },

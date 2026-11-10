@@ -49,6 +49,30 @@ assert(str_contains($mobileManagement, 'Revoke access for the entire group'));
 assert(str_contains($mobileManagement, 'Download access closed'));
 assert(str_contains($mobileManagement, 'Delete group'));
 
+
+$mobileProfile = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/GroupManagement.js');
+$webProfile = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/web/src/components/GroupMembershipModal.jsx');
+$profileHandler = (string) file_get_contents($root . '/api/user_profile.php');
+assert(str_contains($mobileProfile, 'onPress={() => openMemberProfile(member)}'));
+assert(str_contains($mobileProfile, 'platformApi.getUserProfile(memberId)'));
+assert(str_contains($mobileProfile, 'platformApi.sendFriendRequest(Number(profile.id))'));
+assert(str_contains($mobileProfile, 'platformApi.respondToFriendRequest(Number(relationship.request_id),'));
+assert(str_contains($webProfile, 'onClick={() => openMemberProfile(m)}'));
+assert(str_contains($webProfile, 'ApiRoute.USER_PROFILE'));
+assert(str_contains($webProfile, 'ApiRoute.FRIEND_REQUESTS'));
+assert(str_contains($webProfile, "action: \'send\'"));
+assert(str_contains($webProfile, "action: \'accept\'"));
+assert(str_contains($profileHandler, 'shared_chat.type IN ("private","public","group")'));
+
+assert(str_contains($mobileProfile, "updateMemberFriendship('decline')"));
+assert(str_contains($mobileProfile, "'Reject Request'"));
+assert(str_contains($webProfile, "updateMemberFriendship('decline')"));
+assert(str_contains($webProfile, "'Reject Request'"));
+assert(str_contains($webProfile, "action: responseAction"));
+assert(str_contains($profileHandler, "'age' =>"));
+assert(str_contains($profileHandler, "'gender' =>"));
+assert(str_contains($profileHandler, "'hidden_fields' =>"));
+
 $accessHandler = (string) file_get_contents($root . '/api/group_attachment_access.php');
 assert(str_contains($accessHandler, 'Active group members may view effective attachment permission indicators'));
 assert(str_contains($accessHandler, 'Only the group owner can manage attachment access'));

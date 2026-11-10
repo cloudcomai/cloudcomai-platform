@@ -155,5 +155,8 @@ export const createPollingMessageTransport = ({
   };
 };
 
+export { getAvatarInitial, getAvatarPalette } from './avatar.js';
 export { createReadTracker, pollDateExpiry } from './read-tracker.js';
 export { createMessagingStore } from './messaging-store.js';
+
+export { EMOJI_CATEGORIES, searchEmojiItems, appendEmoji } from './emoji.js';
