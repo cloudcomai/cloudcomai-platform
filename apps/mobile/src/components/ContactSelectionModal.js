@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { platformApi } from '../services/platform';
 
 export default function ContactSelectionModal({ visible, title = 'Select contacts', theme, excludeIds = [], initialSelectedIds = [], onCancel, onSave }) {

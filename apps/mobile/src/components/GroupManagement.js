@@ -576,7 +576,6 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           excludeIds={members.map(member => Number(member.user_id))}
           onCancel={() => setAddMembersOpen(false)}
           onSave={async ids => {
-            if (!canManageMembers) throw new Error('Only group owners or admins can add members.');
             for (const id of ids) await platformApi.updateGroupMember(group.id, id, 'add');
             await load();
           }}
