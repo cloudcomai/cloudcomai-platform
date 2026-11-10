@@ -378,11 +378,33 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       .finally(() => { if (!cancelled) setMentionRecipientsLoading(false); });
     return () => { cancelled = true; };
   }, [editing?.id, mentionChatEnabled]);
-  const scrollToMessage = (messageId, list = messages) => {
-    const id=Number(messageId); const index=list.findIndex(item=>Number(item.id)===id); if(index<0)return false;
-    requestAnimationFrame(()=>listRef.current?.scrollToIndex?.({index,animated:true,viewPosition:0.5}));
-    setHighlightedMessageId(id); setTimeout(()=>setHighlightedMessageId(current=>current===id?null:current),2200); return true;
+  const pendingMessageScrollRef = useRef(null);
+  const highlightMessage = id => {
+    setHighlightedMessageId(id);
+    setTimeout(() => setHighlightedMessageId(current => current === id ? null : current), 2200);
   };
+  const scrollToMessage = (messageId, list = messages) => {
+    const id = Number(messageId);
+    const index = list.findIndex(item => Number(item.id) === id);
+    if (index < 0) return false;
+    if (list === messages) {
+      requestAnimationFrame(() => listRef.current?.scrollToIndex?.({ index, animated: true, viewPosition: 0.5 }));
+    } else {
+      // The FlatList still has the previous data until React commits setMessages.
+      // Defer the jump until the updated message array has rendered.
+      pendingMessageScrollRef.current = id;
+    }
+    highlightMessage(id);
+    return true;
+  };
+  useEffect(() => {
+    const id = pendingMessageScrollRef.current;
+    if (!id) return;
+    const index = messages.findIndex(item => Number(item.id) === Number(id));
+    if (index < 0) return;
+    pendingMessageScrollRef.current = null;
+    requestAnimationFrame(() => listRef.current?.scrollToIndex?.({ index, animated: true, viewPosition: 0.5 }));
+  }, [messages]);
   const navigateToMessage = async messageId => {
     const id = Number(messageId);
     if (!Number.isSafeInteger(id) || id <= 0) {
@@ -396,10 +418,12 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       const { data } = await platformApi.getMessageContext(Number(chat.id), id);
       const contextMessages = Array.isArray(data?.messages) ? data.messages : [];
       const merged = mergeMessageBatch(messages, contextMessages).messages;
-      setMessages(merged);
-      if (!scrollToMessage(id, merged)) {
+      if (!merged.some(item => Number(item.id) === id)) {
         throw new Error('The original message is unavailable, deleted, expired, or no longer visible to your account.');
       }
+      pendingMessageScrollRef.current = id;
+      setMessages(merged);
+      highlightMessage(id);
       return true;
     } catch (e) {
       setError(e?.message || 'Unable to open this mention. Return to Mentions and try again.');
@@ -755,6 +779,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
           ref={listRef}
           onViewableItemsChanged={onMessageViewabilityChanged}
           viewabilityConfig={messageViewabilityConfig}
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            requestAnimationFrame(() => listRef.current?.scrollToOffset?.({ offset: Math.max(0, averageItemLength * index), animated: true }));
+          }}
           extraData={visibleMessageIds}
           data={searchActive ? results : messages}
           keyExtractor={item => String(item.id)}

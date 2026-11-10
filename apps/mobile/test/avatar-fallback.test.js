@@ -22,5 +22,5 @@ test('mobile profile/menu avatar shows the initial only when the image fails', (
 
 test('View Profile avatar shows the initial only when the image fails', () => {
   assert.ok(profileSource.includes('onError={() => setImageFailed(true)}'));
-  assert.ok(profileSource.includes('? <Image source={{ uri: imageSource }} style={styles.avatarImage} onError={() => setImageFailed(true)} /> : <Text style={styles.avatarFallback}>'));
+  assert.ok(profileSource.includes('!imageFailed && imageSource ? <Image source={{ uri: imageSource }} style={styles.avatarImage} resizeMode="cover" onError={() => setImageFailed(true)} /> : <Text style={[styles.avatarFallback,{color:avatarPalette.textColor}]}>{avatarInitial}</Text>'));
 });
