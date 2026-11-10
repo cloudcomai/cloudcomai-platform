@@ -381,6 +381,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             {!ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Only the group owner can edit this description.</Text> : null}
             <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save} disabled={busy}><Text style={styles.primaryText}>Save group</Text></Pressable>
           </View>
+          {canManageMembers ? (
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Add member</Text>
             <Text style={[styles.note,{color:theme.colors.secondary}]}>Select multiple contacts and add them together.</Text>
@@ -388,6 +389,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               <Text style={styles.primaryText}>Choose contacts</Text>
             </Pressable>
           </View>
+          ) : null}
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
             {ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Administrators · {adminCount}/3 selected by the owner</Text> : null}
