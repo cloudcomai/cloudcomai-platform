@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { platformApi } from '../services/platform';
+import { mediaUrl, platformApi } from '../services/platform';
 
 export default function ContactSelectionModal({ visible, title = 'Select contacts', theme, excludeIds = [], initialSelectedIds = [], onCancel, onSave }) {
   const [contacts, setContacts] = useState([]);
@@ -56,7 +56,7 @@ export default function ContactSelectionModal({ visible, title = 'Select contact
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onCancel}>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background || '#fff' }}>
         <View style={{ minHeight: 60, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.header || '#2563eb' }}>
-          <Pressable onPress={onCancel} disabled={saving}><Text style={{ color: '#fff', fontWeight: '700' }}>Cancel</Text></Pressable>
+          <Pressable onPress={onCancel} disabled={saving}><Text style={{ color: '#fff', fontWeight: '700' }}>Go Back</Text></Pressable>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800' }}>{title}</Text>
           <Pressable onPress={save} disabled={saving}><Text style={{ color: '#fff', fontWeight: '800' }}>{saving ? 'Saving…' : 'Save'}</Text></Pressable>
         </View>
@@ -75,9 +75,10 @@ export default function ContactSelectionModal({ visible, title = 'Select contact
                   <View style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: selected ? (colors.accent || '#3157d5') : (colors.border || '#cbd5e1'), backgroundColor: selected ? (colors.accent || '#3157d5') : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                     {selected ? <Text style={{ color: '#fff', fontWeight: '900' }}>✓</Text> : null}
                   </View>
+                  <Image source={{ uri: mediaUrl('user', id, contact.image_version || contact.photo_version || '') }} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#e5e7eb' }} />
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text || '#172033', fontWeight: '700' }}>{contact.name || contact.display_name || contact.user_id || 'CloudComAI contact'}</Text>
-                    <Text style={{ color: colors.secondary || '#64748b', fontSize: 12 }}>{contact.user_id ? '@' + contact.user_id : (contact.email || contact.mobile || contact.phone || '')}</Text>
+                    <Text style={{ color: colors.secondary || '#64748b', fontSize: 12 }}>User ID: @{contact.user_id || id}</Text>
                   </View>
                 </Pressable>
               );
@@ -85,6 +86,14 @@ export default function ContactSelectionModal({ visible, title = 'Select contact
             {!filtered.length && !loading ? <Text style={{ paddingVertical: 28, textAlign: 'center', color: colors.secondary || '#64748b' }}>No matching contacts found.</Text> : null}
           </ScrollView>
         )}
+        <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border || '#e5e7eb' }}>
+          <Pressable onPress={onCancel} disabled={saving} style={{ flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.border || '#cbd5e1', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: colors.text || '#172033', fontWeight: '800' }}>Go Back</Text>
+          </Pressable>
+          <Pressable onPress={save} disabled={saving || selectedIds.length === 0} style={{ flex: 1, minHeight: 48, borderRadius: 12, backgroundColor: colors.accent || '#3157d5', alignItems: 'center', justifyContent: 'center', opacity: saving || selectedIds.length === 0 ? 0.55 : 1 }}>
+            <Text style={{ color: '#fff', fontWeight: '800' }}>{saving ? 'Saving…' : ('Save' + (selectedIds.length ? ' (' + selectedIds.length + ')' : ''))}</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     </Modal>
   );
