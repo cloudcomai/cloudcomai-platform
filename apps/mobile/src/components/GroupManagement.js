@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { mediaUrl, platformApi, uploadMediaAsset } from '../services/platform';
 import { withAppLockExternalActivity } from '../utils/appLockActivity';
 import { resolveChatTheme } from '../services/chatThemeDefinitions';
+import ContactSelectionModal from './ContactSelectionModal';
 
 export default function GroupManagement({ visible, group, user, onClose, onGroupUpdated, onGroupDeleted, themeSettings }) {
   const theme = resolveChatTheme(themeSettings);
@@ -28,6 +29,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [memberTypeFilter, setMemberTypeFilter] = useState('all');
   const [permissionFilter, setPermissionFilter] = useState('all');
   const [attachmentPermissionFilter, setAttachmentPermissionFilter] = useState('all');
@@ -381,9 +383,10 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Add member</Text>
-            <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background}]} value={query} onChangeText={setQuery} placeholder="Search name, email or User ID" autoCapitalize="none" onSubmitEditing={search} />
-            <Pressable style={styles.linkButton} onPress={search}><Text style={[styles.link,{color:theme.colors.accent}]}>Search</Text></Pressable>
-            {results.map(item => <View key={item.id} style={[styles.row,{borderBottomColor:theme.colors.border}]}><View style={styles.meta}><Text style={[styles.name,{color:theme.colors.text}]}>{item.name}</Text><Text style={[styles.note,{color:theme.colors.secondary}]}>{item.user_id ? `@${item.user_id}` : ''}</Text></View><Pressable onPress={() => add(item)}><Text style={[styles.link,{color:theme.colors.accent}]}>Add</Text></Pressable></View>)}
+            <Text style={[styles.note,{color:theme.colors.secondary}]}>Select multiple contacts and add them together.</Text>
+            <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={() => setAddMembersOpen(true)} disabled={!canManageMembers || busy}>
+              <Text style={styles.primaryText}>Choose contacts</Text>
+            </Pressable>
           </View>
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
             <Text style={[styles.heading,{color:theme.colors.text}]}>Members · {members.length}</Text>
@@ -566,6 +569,18 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
           </View>
         </View> : null}
         {busy ? <View style={styles.busy}><ActivityIndicator color={theme.colors.accent} /></View> : null}
+        <ContactSelectionModal
+          visible={addMembersOpen}
+          title="Add group members"
+          theme={theme}
+          excludeIds={members.map(member => Number(member.user_id))}
+          onCancel={() => setAddMembersOpen(false)}
+          onSave={async ids => {
+            if (!canManageMembers) throw new Error('Only group owners or admins can add members.');
+            for (const id of ids) await platformApi.updateGroupMember(group.id, id, 'add');
+            await load();
+          }}
+        />
       </SafeAreaView>
     </Modal>
   );

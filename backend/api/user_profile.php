@@ -18,7 +18,7 @@ if ($targetUserId !== (int)$viewer['id']) {
         FROM chat_members viewer_membership
         INNER JOIN chats shared_chat
             ON shared_chat.id=viewer_membership.chat_id
-           AND shared_chat.type IN ("private","public","group")
+           AND shared_chat.type IN ("private","public")
         INNER JOIN chat_members target_membership
             ON target_membership.chat_id=viewer_membership.chat_id
            AND target_membership.user_id=?
