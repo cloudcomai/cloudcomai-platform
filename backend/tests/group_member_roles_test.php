@@ -6,7 +6,7 @@ assert(str_contains($handler, "'promote_admin', 'demote_admin'"));
 assert(str_contains($handler, 'Only the group owner can manage administrators'));
 assert(str_contains($handler, 'at most 3 admins'));
 assert(str_contains($handler, "Only the group owner or an admin can add members"));
-assert(str_contains($handler, "in_array($member['role'], ['owner', 'admin'], true)"));
+assert(str_contains($handler, 'in_array($member[\'role\'], [\'owner\', \'admin\'], true)'));
 $contactSelection = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/ContactSelectionModal.js');
 $groupManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/GroupManagement.js');
 assert(str_contains($groupManagement, '{canManageMembers ? ('));
