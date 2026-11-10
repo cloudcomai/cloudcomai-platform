@@ -5,6 +5,18 @@ $handler = (string) file_get_contents($root . '/api/group_members.php');
 assert(str_contains($handler, "'promote_admin', 'demote_admin'"));
 assert(str_contains($handler, 'Only the group owner can manage administrators'));
 assert(str_contains($handler, 'at most 3 admins'));
+assert(str_contains($handler, "Only the group owner or an admin can add members"));
+assert(str_contains($handler, "in_array($member['role'], ['owner', 'admin'], true)"));
+$contactSelection = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/ContactSelectionModal.js');
+$groupManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/GroupManagement.js');
+assert(str_contains($groupManagement, '{canManageMembers ? ('));
+assert(str_contains($groupManagement, 'Choose contacts'));
+assert(str_contains($contactSelection, "mediaUrl('user', id, contact.image_version || contact.photo_version || '')"));
+assert(str_contains($contactSelection, 'User ID: @{contact.user_id || id}'));
+assert(str_contains($contactSelection, '>Go Back</Text>'));
+assert(str_contains($contactSelection, "'Save' + (selectedIds.length"));
+assert(str_contains($contactSelection, 'setSelectedIds(current => current.includes(Number(id))'));
+
 assert(str_contains($handler, 'COUNT(*) FROM chat_members'));
 assert(str_contains($handler, "'image_version'"));
 assert(str_contains($handler, "SELECT cm.user_id,cm.role,cm.status,u.name,u.user_id AS username"));
