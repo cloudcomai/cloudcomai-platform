@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView,
+  ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -94,6 +94,9 @@ export default function MomentsScreen({ onBack, themeSettings }) {
         allowsEditing: false,
         quality: 0.9,
         videoMaxDuration: VIDEO_MAX_SECONDS,
+        ...(Platform.OS === 'ios' && ImagePicker.UIImagePickerPreferredAssetRepresentationMode
+          ? { preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible }
+          : {}),
       });
       if (result.canceled || !result.assets?.[0]) return;
       const picked = result.assets[0];
