@@ -37,7 +37,17 @@ function story_contact_relationship(int $ownerId, int $viewerId): bool
         INNER JOIN chat_members viewer_member ON viewer_member.chat_id=c.id AND viewer_member.user_id=? AND viewer_member.status="active"
         WHERE c.type="private" LIMIT 1');
     $private->execute([$ownerId, $viewerId]);
-    return (bool)$private->fetchColumn();
+    if ($private->fetchColumn()) return true;
+
+    // Match registered users against the owner's saved Google/phone contacts.
+    $saved = db()->prepare('SELECT 1 FROM users target
+        WHERE target.id=? AND (
+            EXISTS (SELECT 1 FROM google_contacts gc WHERE gc.user_id=? AND target.email IS NOT NULL AND LOWER(gc.email)=LOWER(target.email))
+            OR EXISTS (SELECT 1 FROM phone_contacts pc WHERE pc.user_id=? AND target.email IS NOT NULL AND LOWER(pc.email)=LOWER(target.email))
+            OR EXISTS (SELECT 1 FROM phone_contacts pc WHERE pc.user_id=? AND target.mobile IS NOT NULL AND pc.phone=target.mobile)
+        ) LIMIT 1');
+    $saved->execute([$viewerId, $ownerId, $ownerId, $ownerId]);
+    return (bool)$saved->fetchColumn();
 }
 
 function can_view_story(int $storyId, int $viewerId): bool
