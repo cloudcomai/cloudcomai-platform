@@ -18,16 +18,16 @@ if ($method === 'PUT') {
     if (count($ids) > 500) fail('You can hide status from at most 500 contacts', 422);
 
     $pdo = db();
+    foreach ($ids as $hiddenId) {
+        $valid = $pdo->prepare('SELECT 1 FROM users WHERE id=? AND account_status="active" LIMIT 1');
+        $valid->execute([$hiddenId]);
+        if (!$valid->fetchColumn() || !story_contact_relationship($userId, $hiddenId)) fail('Only active saved CloudComAI contacts can be hidden', 422);
+    }
     $pdo->beginTransaction();
     try {
         $pdo->prepare('DELETE FROM user_story_hidden_contacts WHERE user_id=?')->execute([$userId]);
         $insert = $pdo->prepare('INSERT INTO user_story_hidden_contacts(user_id,hidden_user_id,created_at) VALUES(?,?,UTC_TIMESTAMP())');
-        foreach ($ids as $hiddenId) {
-            $valid = $pdo->prepare('SELECT 1 FROM users WHERE id=? AND account_status="active" LIMIT 1');
-            $valid->execute([$hiddenId]);
-            if (!$valid->fetchColumn() || !story_contact_relationship($userId, $hiddenId)) fail('Only active saved CloudComAI contacts can be hidden', 422);
-            $insert->execute([$userId, $hiddenId]);
-        }
+        foreach ($ids as $hiddenId) $insert->execute([$userId, $hiddenId]);
         $pdo->commit();
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
