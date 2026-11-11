@@ -30,6 +30,6 @@ if ($mime === '') fail('Ring Bell media type could not be determined', 500);
 
 header('Content-Type: ' . $mime);
 header('Content-Length: ' . (string)filesize($path));
-header('Cache-Control: private, max-age=300');
+header('Cache-Control: private, no-store');
 readfile($path);
 exit;
