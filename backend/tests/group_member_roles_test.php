@@ -11,14 +11,20 @@ $contactSelection = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobi
 $groupManagement = (string) file_get_contents(dirname(__DIR__, 2) . '/apps/mobile/src/components/GroupManagement.js');
 assert(str_contains($groupManagement, '{canManageMembers ? ('));
 assert(str_contains($groupManagement, 'Number(group?.owner_id) === currentUserId'));
+assert(str_contains($groupManagement, 'editable={canEditGroupDetails && !busy}'));
 assert(str_contains($groupManagement, 'editable={ownsGroup && !busy}'));
+assert(str_contains($groupManagement, 'const canEditGroupDetails = ownsGroup || isAdmin;'));
+assert(str_contains($groupManagement, 'if (!canEditGroupDetails || !name.trim() || busy) return;'));
 assert(str_contains($groupManagement, '{ownsGroup ? <Pressable style={styles.linkButton}'));
-assert(str_contains($groupManagement, '{ownsGroup ? <Pressable style={[styles.primary'));
-assert(str_contains($groupManagement, 'if (!ownsGroup || !name.trim() || busy) return;'));
+assert(str_contains($groupManagement, '{canEditGroupDetails ? <Pressable style={[styles.primary'));
+
 assert(str_contains($groupManagement, 'if (busy || !ownsGroup) return;'));
 assert(str_contains($groupManagement, 'Choose contacts'));
 assert(str_contains($contactSelection, "mediaUrl('user', id, contact.image_version || contact.photo_version || '')"));
-assert(str_contains($contactSelection, 'User ID: @{contact.user_id || id}'));
+assert(str_contains($contactSelection, 'User ID: @{contact.registered_user_id_text || contact.user_id || \'Unavailable\'}'));
+assert(str_contains($contactSelection, 'contact.registered_user_id_text'));
+assert(str_contains($contactSelection, 'contact.display_name'));
+assert(str_contains($contactSelection, 'setSelectedIds(current => current.includes(Number(id))'));
 assert(str_contains($contactSelection, '>Go Back</Text>'));
 assert(str_contains($contactSelection, "'Save' + (selectedIds.length"));
 assert(str_contains($contactSelection, 'setSelectedIds(current => current.includes(Number(id))'));
