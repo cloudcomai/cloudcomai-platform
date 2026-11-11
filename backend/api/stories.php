@@ -163,11 +163,14 @@ if ($method === 'GET') {
         if (is_array($parsed)) {
             $row['caption'] = (string)($parsed['caption'] ?? '');
             $row['media_url'] = 'v1/stories/media?story_id=' . (int)$row['id'];
+            $row['media_extension'] = strtolower((string)pathinfo((string)($parsed['media_filename'] ?? ''), PATHINFO_EXTENSION));
+            if (!in_array($row['media_extension'], ['jpg','jpeg','png','webp','mp4','mov','webm'], true)) $row['media_extension'] = 'jpg';
         } else {
             $row['caption'] = '';
             $row['media_url'] = null;
+            $row['media_extension'] = null;
         }
-        unset($row['content']);
+        $row['content'] = is_string($row['content']) ? $row['content'] : '';
         $row['view_count'] = (int)$row['view_count'];
         $row['watched'] = (bool)$row['watched'];
         $row['is_owner'] = (bool)$row['is_owner'];
