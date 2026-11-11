@@ -37,6 +37,8 @@ request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[1]]);
 check(!in_array($contactStory,$storyIds(1),true),'Persistent Hide Status From exclusion was not enforced');
 check(request('GET','v1/stories?action=privacy',3)['data']['hidden_user_ids']===[1],'Hidden contact preference did not persist');
 request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[]]);
+$friendTwo=request('POST','v1/friend-requests',3,['action'=>'send','user_id'=>2],201)['data']['request'];
+request('POST','v1/friend-requests',2,['action'=>'accept','request_id'=>$friendTwo['id']]);
 
 $admin->exec("INSERT INTO chats(id,type,name,owner_id) VALUES(2600,'group','Moment audience group',3)");
 $admin->exec("INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(2600,3,'owner','active'),(2600,2,'member','active')");
