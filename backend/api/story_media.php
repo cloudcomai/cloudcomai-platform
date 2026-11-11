@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../lib/bootstrap.php';
 require_once __DIR__ . '/../lib/media_upload.php';
+require_once __DIR__ . '/../lib/story_access.php';
 
 $user = auth_user();
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') fail('Method not allowed', 405);
@@ -16,13 +17,7 @@ $story = $stmt->fetch();
 if (!$story) fail('Ring Bell not found or expired', 404);
 
 $ownerId = (int)$story['user_id'];
-$allowed = $ownerId === (int)$user['id'] || $story['audience'] === 'public';
-if (!$allowed) {
-    $friend = db()->prepare('SELECT 1 FROM friend_requests WHERE status="accepted" AND ((requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?)) LIMIT 1');
-    $friend->execute([(int)$user['id'], $ownerId, $ownerId, (int)$user['id']]);
-    $allowed = (bool)$friend->fetch();
-}
-if (!$allowed) fail('You cannot access this Ring Bell', 403);
+if (!can_view_story($storyId, (int)$user['id'])) fail('You cannot access this Moment', 403);
 
 $content = json_decode((string)$story['content'], true);
 $filename = basename((string)($content['media_filename'] ?? ''));
