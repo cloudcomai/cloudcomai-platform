@@ -44,8 +44,8 @@ function story_contact_relationship(int $ownerId, int $viewerId): bool
         WHERE target.id=? AND (
             EXISTS (SELECT 1 FROM google_contacts gc WHERE gc.user_id=? AND target.email IS NOT NULL AND LOWER(gc.email)=LOWER(target.email))
             OR EXISTS (SELECT 1 FROM phone_contacts pc WHERE pc.user_id=? AND target.email IS NOT NULL AND LOWER(pc.email)=LOWER(target.email))
-            OR EXISTS (SELECT 1 FROM google_contacts gc WHERE gc.user_id=? AND target.mobile IS NOT NULL AND RIGHT(REGEXP_REPLACE(gc.phone,'[^0-9]',''),10)=RIGHT(REGEXP_REPLACE(target.mobile,'[^0-9]',''),10))
-            OR EXISTS (SELECT 1 FROM phone_contacts pc WHERE pc.user_id=? AND target.mobile IS NOT NULL AND RIGHT(REGEXP_REPLACE(pc.phone,'[^0-9]',''),10)=RIGHT(REGEXP_REPLACE(target.mobile,'[^0-9]',''),10))
+            OR EXISTS (SELECT 1 FROM google_contacts gc WHERE gc.user_id=? AND target.mobile IS NOT NULL AND RIGHT(REGEXP_REPLACE(gc.phone,\\'[^0-9]\\',\\'\\'),10)=RIGHT(REGEXP_REPLACE(target.mobile,\\'[^0-9]\\',\\'\\'),10))
+            OR EXISTS (SELECT 1 FROM phone_contacts pc WHERE pc.user_id=? AND target.mobile IS NOT NULL AND RIGHT(REGEXP_REPLACE(pc.phone,\\'[^0-9]\\',\\'\\'),10)=RIGHT(REGEXP_REPLACE(target.mobile,\\'[^0-9]\\',\\'\\'),10))
         ) LIMIT 1');
     $saved->execute([$viewerId, $ownerId, $ownerId, $ownerId, $ownerId]);
     return (bool)$saved->fetchColumn();
