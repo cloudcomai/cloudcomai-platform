@@ -169,6 +169,59 @@ export default function MomentsScreen({ onBack, themeSettings }) {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Group all active Moments by author, matching WhatsApp's one-contact/one-row layout.
+  const momentGroups = useMemo(() => {
+    const grouped = new Map();
+    (stories || []).forEach(story => {
+      const key = String(story.user_id || (story.is_owner ? 'owner' : story.id));
+      if (!grouped.has(key)) grouped.set(key, {
+        key,
+        userId: story.user_id,
+        name: story.name || (story.is_owner ? 'You' : 'Contact'),
+        isOwner: Boolean(story.is_owner),
+        items: [],
+      });
+      grouped.get(key).items.push(story);
+    });
+    return Array.from(grouped.values()).map(group => {
+      const items = [...group.items].sort((a, b) =>
+        new Date(String(a.created_at).replace(' ', 'T') + 'Z').getTime()
+        - new Date(String(b.created_at).replace(' ', 'T') + 'Z').getTime()
+      );
+      return {
+        ...group,
+        items,
+        // Keep a contact in New until every currently active Moment from them is watched.
+        watched: !group.isOwner && items.length > 0 && items.every(item => Boolean(item.watched)),
+        latest: items[items.length - 1],
+      };
+    }).sort((a, b) => {
+      const aTime = new Date(String(a.latest?.created_at || '').replace(' ', 'T') + 'Z').getTime() || 0;
+      const bTime = new Date(String(b.latest?.created_at || '').replace(' ', 'T') + 'Z').getTime() || 0;
+      return bTime - aTime;
+    });
+  }, [stories]);
+
+  const ownMomentGroups = useMemo(() => momentGroups.filter(group => group.isOwner), [momentGroups]);
+  const newMomentGroups = useMemo(() => momentGroups.filter(group => !group.isOwner && !group.watched), [momentGroups]);
+  const watchedMomentGroups = useMemo(() => momentGroups.filter(group => !group.isOwner && group.watched), [momentGroups]);
+  const selectedGroup = useMemo(
+    () => momentGroups.find(group => group.items.some(item => Number(item.id) === Number(selectedStory?.id))),
+    [momentGroups, selectedStory?.id],
+  );
+
+  const openMomentGroup = group => {
+    const firstUnwatched = group.items.find(item => !item.watched);
+    setSelectedStory(firstUnwatched || group.items[0] || null);
+  };
+
+  const moveWithinMomentGroup = direction => {
+    if (!selectedGroup || !selectedStory) return;
+    const index = selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory.id));
+    const next = selectedGroup.items[index + direction];
+    if (next) setSelectedStory(next);
+  };
+
   useEffect(() => {
     if (!selectedStory || selectedStory.is_owner) return undefined;
     let active = true;
@@ -414,14 +467,38 @@ export default function MomentsScreen({ onBack, themeSettings }) {
         <View style={{ flex: 1 }}><Text style={styles.createTitle}>Add to your Moments</Text><Text style={styles.muted}>Share a photo, video or text update</Text></View>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
-      <Text style={styles.sectionTitle}>Recent Moments</Text>
-      {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.accent} /> : stories.length ? stories.map(story => (
-        <Pressable key={story.id} style={styles.storyRow} onPress={() => setSelectedStory(story)}>
-          <View style={[styles.storyRing, story.watched && styles.storyRingWatched]}><MomentAuthorAvatar userId={story.user_id} name={story.name} size={44} /></View>
-          <View style={{ flex: 1 }}><Text style={styles.storyName}>{story.name || (story.is_owner ? 'You' : 'Contact')}</Text><Text numberOfLines={2} style={styles.muted}>{story.type === 'text' ? story.content || 'Text Moment' : story.type === 'video' ? 'Video Moment' : 'Photo Moment'} · expires {new Date(String(story.expires_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
-      )) : <Text style={styles.empty}>No active Moments yet. Be the first to share one.</Text>}
+      {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.accent} /> : (
+        <>
+          {ownMomentGroups.length ? <>
+            <Text style={styles.sectionTitle}>My Moments</Text>
+            {ownMomentGroups.map(group => (
+              <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
+                <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} /></View>
+                <View style={{ flex: 1 }}><Text style={styles.storyName}>Your Moment</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} active Moment{group.items.length === 1 ? '' : 's'} · latest {new Date(String(group.latest?.created_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            ))}
+          </> : null}
+          <Text style={styles.sectionTitle}>New Moments</Text>
+          {newMomentGroups.map(group => (
+            <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
+              <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.storyName}>{group.name}</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} new Moment{group.items.length === 1 ? '' : 's'} · latest {new Date(String(group.latest?.created_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          ))}
+          {!newMomentGroups.length && !ownMomentGroups.length ? <Text style={styles.empty}>No new Moments right now.</Text> : null}
+          <Text style={styles.sectionTitle}>Viewed Moments</Text>
+          {watchedMomentGroups.map(group => (
+            <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
+              <View style={[styles.storyRing, styles.storyRingWatched]}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.storyName}>{group.name}</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} Moment{group.items.length === 1 ? '' : 's'} · viewed</Text></View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          ))}
+          {!watchedMomentGroups.length ? <Text style={styles.muted}>Viewed contacts will appear here.</Text> : null}
+        </>
+      )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Text style={styles.expiryNote}>Moments disappear 36 hours after publishing.</Text>
     </ScrollView>
@@ -437,6 +514,13 @@ export default function MomentsScreen({ onBack, themeSettings }) {
           </View>
           {selectedStory?.type === 'text' ? <Text style={styles.viewerText}>{selectedStory?.content}</Text> : selectedStory ? <MomentMedia story={selectedStory} token={token} /> : null}
           {selectedStory?.caption ? <Text style={styles.viewerCaption}>{selectedStory.caption}</Text> : null}
+          {selectedGroup?.items?.length > 1 ? <View style={styles.momentSequence}>
+            <Text style={styles.muted}>Moment {(selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory?.id)) + 1)} of {selectedGroup.items.length}</Text>
+            <View style={styles.sequenceButtons}>
+              <Pressable disabled={selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory?.id)) <= 0} onPress={() => moveWithinMomentGroup(-1)} style={styles.sequenceButton}><Text style={styles.sequenceButtonText}>‹ Previous</Text></Pressable>
+              <Pressable disabled={selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory?.id)) >= selectedGroup.items.length - 1} onPress={() => moveWithinMomentGroup(1)} style={styles.sequenceButton}><Text style={styles.sequenceButtonText}>Next ›</Text></Pressable>
+            </View>
+          </View> : null}
           {selectedStory?.is_owner ? <View style={styles.ownerActions}>
             <Pressable onPress={() => openViewers(selectedStory)} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Seen by · {selectedStory.view_count || 0}</Text></Pressable>
             <Pressable onPress={() => deleteMoment(selectedStory)} style={styles.deleteButton}><Text style={styles.deleteButtonText}>🗑 Delete</Text></Pressable>
@@ -507,6 +591,10 @@ const styles = StyleSheet.create({
   authorAvatarInitial: { color: '#3157d5', fontWeight: '800', textAlign: 'center' },
   authorHeader: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   storyRingWatched: { borderColor: '#cbd5e1' },
+  momentSequence: { gap: 8, paddingTop: 4 },
+  sequenceButtons: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  sequenceButton: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#dbe4ff', borderRadius: 10 },
+  sequenceButtonText: { color: '#3157d5', fontWeight: '800' },
   storyRingText: { color: '#3157d5', fontWeight: '800', fontSize: 18 },
   storyName: { color: '#172033', fontSize: 14, fontWeight: '800' },
   empty: { color: '#68748a', textAlign: 'center', padding: 24, backgroundColor: '#f8faff', borderRadius: 12 },
