@@ -17,6 +17,31 @@ const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VIDEO_MAX_SECONDS = 90;
 const TEXT_MAX_LENGTH = 500;
 
+function MomentAuthorAvatar({ userId, name, size = 48 }) {
+  const [failed, setFailed] = useState(false);
+  const initials = String(name || 'User').trim().charAt(0).toUpperCase() || 'U';
+  const avatarUri = Number(userId) > 0
+    ? buildApiUrl(API_BASE_URL, ApiRoute.MEDIA, { type: 'user', id: Number(userId) })
+    : '';
+
+  useEffect(() => { setFailed(false); }, [userId, avatarUri]);
+
+  return (
+    <View style={[styles.authorAvatar, { width: size, height: size, borderRadius: size / 2 }]}>
+      {avatarUri && !failed ? (
+        <Image
+          source={{ uri: avatarUri }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          resizeMode="cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Text style={[styles.authorAvatarInitial, { fontSize: Math.max(14, Math.round(size * 0.42)) }]}>{initials}</Text>
+      )}
+    </View>
+  );
+}
+
 function MomentVideo({ uri, token }) {
   const player = useVideoPlayer({ uri, headers: token ? { Authorization: `Bearer ${token}` } : {} }, instance => {
     instance.loop = false;
@@ -392,8 +417,8 @@ export default function MomentsScreen({ onBack, themeSettings }) {
       <Text style={styles.sectionTitle}>Recent Moments</Text>
       {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.accent} /> : stories.length ? stories.map(story => (
         <Pressable key={story.id} style={styles.storyRow} onPress={() => setSelectedStory(story)}>
-          <View style={[styles.storyRing, story.watched && styles.storyRingWatched]}><Text style={styles.storyRingText}>{String(story.name || 'U').slice(0,1).toUpperCase()}</Text></View>
-          <View style={{ flex: 1 }}><Text style={styles.storyName}>{story.is_owner ? 'Your Moment' : story.name || 'Contact'}</Text><Text numberOfLines={2} style={styles.muted}>{story.type === 'text' ? story.content || 'Text Moment' : story.type === 'video' ? 'Video Moment' : 'Photo Moment'} · expires {new Date(String(story.expires_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
+          <View style={[styles.storyRing, story.watched && styles.storyRingWatched]}><MomentAuthorAvatar userId={story.user_id} name={story.name} size={44} /></View>
+          <View style={{ flex: 1 }}><Text style={styles.storyName}>{story.name || (story.is_owner ? 'You' : 'Contact')}</Text><Text numberOfLines={2} style={styles.muted}>{story.type === 'text' ? story.content || 'Text Moment' : story.type === 'video' ? 'Video Moment' : 'Photo Moment'} · expires {new Date(String(story.expires_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
       )) : <Text style={styles.empty}>No active Moments yet. Be the first to share one.</Text>}
@@ -403,7 +428,13 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     <Modal visible={Boolean(selectedStory)} transparent animationType="fade" onRequestClose={() => setSelectedStory(null)}>
       <View style={styles.viewerBackdrop}>
         <View style={styles.viewerCard}>
-          <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>{selectedStory?.is_owner ? 'Your Moment' : selectedStory?.name || 'Moment'}</Text><Pressable onPress={() => setSelectedStory(null)}><Text style={styles.close}>×</Text></Pressable></View>
+          <View style={styles.viewerHeader}>
+            <View style={styles.authorHeader}>
+              {selectedStory ? <MomentAuthorAvatar userId={selectedStory.user_id} name={selectedStory.name} size={42} /> : null}
+              <View style={{ flex: 1 }}><Text style={styles.viewerTitle}>{selectedStory?.name || (selectedStory?.is_owner ? 'You' : 'Moment')}</Text><Text style={styles.muted}>{selectedStory?.is_owner ? 'Your Moment' : 'Posted a Moment'}</Text></View>
+            </View>
+            <Pressable onPress={() => setSelectedStory(null)}><Text style={styles.close}>×</Text></Pressable>
+          </View>
           {selectedStory?.type === 'text' ? <Text style={styles.viewerText}>{selectedStory?.content}</Text> : selectedStory ? <MomentMedia story={selectedStory} token={token} /> : null}
           {selectedStory?.caption ? <Text style={styles.viewerCaption}>{selectedStory.caption}</Text> : null}
           {selectedStory?.is_owner ? <View style={styles.ownerActions}>
@@ -472,6 +503,9 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.55 },
   storyRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderWidth: 1, borderColor: '#edf0f5', borderRadius: 14, backgroundColor: '#fff' },
   storyRing: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: '#3157d5', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8faff' },
+  authorAvatar: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e0e7ff' },
+  authorAvatarInitial: { color: '#3157d5', fontWeight: '800', textAlign: 'center' },
+  authorHeader: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   storyRingWatched: { borderColor: '#cbd5e1' },
   storyRingText: { color: '#3157d5', fontWeight: '800', fontSize: 18 },
   storyName: { color: '#172033', fontSize: 14, fontWeight: '800' },
