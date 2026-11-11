@@ -71,11 +71,7 @@ function can_view_story(int $storyId, int $viewerId): bool
 
     $audience = (string)$story['audience'];
     if ($audience === 'public') return true;
-    if ($audience === 'contacts') {
-        $friend = db()->prepare('SELECT 1 FROM friend_requests WHERE status="accepted" AND ((requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?)) LIMIT 1');
-        $friend->execute([$ownerId, $viewerId, $viewerId, $ownerId]);
-        return (bool)$friend->fetchColumn();
-    }
+    if ($audience === 'contacts') return story_contact_relationship($ownerId, $viewerId);
     if ($audience === 'groups') {
         $group = db()->prepare('SELECT 1 FROM story_groups sg
             INNER JOIN chat_members viewer ON viewer.chat_id=sg.chat_id AND viewer.user_id=? AND viewer.status="active"
