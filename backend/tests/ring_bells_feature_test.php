@@ -51,5 +51,8 @@ $moments = (string)file_get_contents(dirname($root) . '/apps/mobile/src/componen
 foreach (['Unwatched','Watched','Count:','Photo / Video','Optional caption','deleteStory','viewStory','listStoryViewers','Post media'] as $needle) {
     assert(str_contains($mobile, $needle), "Missing mobile Ring Bells contract: {$needle}");
 }
+foreach (['All Contacts','Selected Groups','Hide Status From','TEXT_MAX_LENGTH = 500','VIDEO_MAX_SECONDS = 90','36 hours'] as $needle) {
+    assert(str_contains($moments, $needle), "Missing Moments contract: {$needle}");
+}
 
 echo "ring_bells_feature_test.php passed\n";
