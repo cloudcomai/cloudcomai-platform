@@ -21,6 +21,10 @@ function MomentVideo({ uri, token }) {
   const player = useVideoPlayer({ uri, headers: token ? { Authorization: `Bearer ${token}` } : {} }, instance => {
     instance.loop = false;
   });
+  useEffect(() => {
+    player.play();
+    return () => { try { player.pause(); } catch {} };
+  }, [player]);
   return <VideoView player={player} style={styles.viewerMedia} nativeControls contentFit="contain" />;
 }
 
@@ -39,7 +43,8 @@ function MomentPhoto({ story, token }) {
 
         const directory = new Directory(Paths.cache, 'cloudcomai-moment-media');
         directory.create({ intermediates: true, idempotent: true });
-        const target = new File(directory, `story-${Number(story.id)}-${Date.now()}.img`);
+        const extension = String(story.media_extension || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+        const target = new File(directory, `story-${Number(story.id)}-${Date.now()}.${extension}`);
         downloadedFile = await File.downloadFileAsync(
           buildApiUrl(API_BASE_URL, ApiRoute.STORY_MEDIA, { story_id: Number(story.id) }),
           target,
@@ -103,6 +108,9 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   const [hideExpanded, setHideExpanded] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
   const [selectedStory, setSelectedStory] = useState(null);
+  const [viewers, setViewers] = useState([]);
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
@@ -135,6 +143,41 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!selectedStory || selectedStory.is_owner) return undefined;
+    let active = true;
+    platformApi.viewStory(selectedStory.id).then(response => {
+      if (!active) return;
+      setStories(current => current.map(item => Number(item.id) === Number(selectedStory.id)
+        ? { ...item, watched: true, view_count: Number(response?.data?.count ?? item.view_count ?? 0) }
+        : item));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [selectedStory?.id, selectedStory?.is_owner]);
+
+  const openViewers = async story => {
+    setViewerLoading(true);
+    setViewersOpen(true);
+    try {
+      const response = await platformApi.listStoryViewers(story.id);
+      setViewers(response?.data?.viewers || []);
+    } catch (viewerError) {
+      setError(viewerError?.message || 'Unable to load viewers.');
+      setViewers([]);
+    } finally { setViewerLoading(false); }
+  };
+
+  const deleteMoment = story => Alert.alert('Delete Moment?', 'This Moment will be removed immediately for everyone.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      try {
+        await platformApi.deleteStory(story.id);
+        setSelectedStory(null);
+        setStories(current => current.filter(item => Number(item.id) !== Number(story.id)));
+      } catch (deleteError) { setError(deleteError?.message || 'Unable to delete this Moment.'); }
+    } },
+  ]);
 
   const toggleId = (items, setter, id) => {
     const value = Number(id);
@@ -363,10 +406,25 @@ export default function MomentsScreen({ onBack, themeSettings }) {
           <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>{selectedStory?.is_owner ? 'Your Moment' : selectedStory?.name || 'Moment'}</Text><Pressable onPress={() => setSelectedStory(null)}><Text style={styles.close}>×</Text></Pressable></View>
           {selectedStory?.type === 'text' ? <Text style={styles.viewerText}>{selectedStory?.content}</Text> : selectedStory ? <MomentMedia story={selectedStory} token={token} /> : null}
           {selectedStory?.caption ? <Text style={styles.viewerCaption}>{selectedStory.caption}</Text> : null}
-          {selectedStory?.is_owner ? <Text style={styles.muted}>Viewed by {selectedStory.view_count || 0} people</Text> : null}
+          {selectedStory?.is_owner ? <View style={styles.ownerActions}>
+            <Pressable onPress={() => openViewers(selectedStory)} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Seen by · {selectedStory.view_count || 0}</Text></Pressable>
+            <Pressable onPress={() => deleteMoment(selectedStory)} style={styles.deleteButton}><Text style={styles.deleteButtonText}>🗑 Delete</Text></Pressable>
+          </View> : null}
           <Text style={styles.expiryNote}>Expires after 36 hours</Text>
         </View>
       </View>
+    </Modal>
+    <Modal visible={viewersOpen} transparent animationType="slide" onRequestClose={() => setViewersOpen(false)}>
+      <View style={styles.viewerBackdrop}><View style={styles.viewerListCard}>
+        <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>Seen By ({viewers.length})</Text><Pressable onPress={() => setViewersOpen(false)}><Text style={styles.close}>×</Text></Pressable></View>
+        {viewerLoading ? <ActivityIndicator color={theme.colors.accent} /> : <ScrollView style={styles.viewerList}>
+          {viewers.map(viewer => <View key={viewer.viewer_id} style={styles.viewerRow}>
+            <Image source={{ uri: buildApiUrl(API_BASE_URL, ApiRoute.MEDIA, { type: 'user', id: Number(viewer.viewer_id) }) }} style={styles.viewerAvatar} />
+            <View style={{ flex: 1 }}><Text style={styles.viewerName}>{viewer.name || viewer.username || 'CloudComAI user'}</Text><Text style={styles.muted}>@{viewer.username || viewer.viewer_id}</Text></View>
+          </View>)}
+          {!viewers.length && !viewerLoading ? <Text style={styles.empty}>No views yet.</Text> : null}
+        </ScrollView>}
+      </View></View>
     </Modal>
   </SafeAreaView>;
 }
@@ -420,6 +478,14 @@ const styles = StyleSheet.create({
   empty: { color: '#68748a', textAlign: 'center', padding: 24, backgroundColor: '#f8faff', borderRadius: 12 },
   viewerBackdrop: { flex: 1, justifyContent: 'center', padding: 18, backgroundColor: 'rgba(15,23,42,0.75)' },
   viewerCard: { padding: 14, borderRadius: 18, backgroundColor: '#fff', gap: 10 },
+  ownerActions: { flexDirection: 'row', gap: 8 },
+  deleteButton: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: '#ef4444', borderRadius: 10 },
+  deleteButtonText: { color: '#dc2626', fontWeight: '800' },
+  viewerListCard: { maxHeight: '70%', padding: 16, borderRadius: 18, backgroundColor: '#fff', gap: 12 },
+  viewerList: { flexGrow: 0 },
+  viewerRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  viewerAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#e2e8f0' },
+  viewerName: { color: '#172033', fontSize: 14, fontWeight: '700' },
   viewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   viewerTitle: { color: '#172033', fontSize: 16, fontWeight: '800' },
   close: { color: '#172033', fontSize: 28 },
