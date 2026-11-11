@@ -39,6 +39,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   const ownsGroup = Number(group?.owner_id) === currentUserId && members.some(member => Number(member.user_id) === currentUserId && member.role === 'owner');
   const isAdmin = members.some(member => Number(member.user_id) === currentUserId && member.role === 'admin');
   const canManageMembers = ownsGroup || isAdmin;
+  const canEditGroupDetails = ownsGroup || isAdmin;
   const adminCount = members.filter(member => member.role === 'admin').length;
   const adminLimitReached = adminCount >= 3;
   const [imageVersion, setImageVersion] = useState(group?.image_version || Date.now());
@@ -201,7 +202,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
   };
 
   const save = async () => {
-    if (!ownsGroup || !name.trim() || busy) return;
+    if (!canEditGroupDetails || !name.trim() || busy) return;
     if (description.length > 256) { setError('Group description must be 256 characters or fewer.'); return; }
     if (description !== (group?.group_description || '') && !ownsGroup) { setError('Only the group owner can edit the group description.'); return; }
     setBusy(true); setError('');
@@ -364,7 +365,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
               <Image source={{ uri: `${mediaUrl('group', group.id)}&v=${imageVersion}` }} style={styles.groupPhoto} />
               {ownsGroup ? <Pressable style={styles.linkButton} onPress={chooseGroupPhoto} disabled={busy}><Text style={[styles.link,{color:theme.colors.accent}]}>Change & crop group photo</Text></Pressable> : null}
             </View>
-            <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background,opacity:ownsGroup ? 1 : 0.75}]} value={name} onChangeText={setName} placeholder="Group name" editable={ownsGroup && !busy} />
+            <TextInput style={[styles.input,{color:theme.colors.text,borderColor:theme.colors.border,backgroundColor:theme.colors.background,opacity:canEditGroupDetails ? 1 : 0.75}]} value={name} onChangeText={setName} placeholder="Group name" editable={canEditGroupDetails && !busy} />
             <Text style={[styles.note,{color:theme.colors.secondary}]}>{group.group_category || 'Group'}</Text>
             <Text style={[styles.note,{color:theme.colors.text, marginTop: 12}]}>Group Description</Text>
             <TextInput
@@ -379,7 +380,7 @@ export default function GroupManagement({ visible, group, user, onClose, onGroup
             />
             <Text style={[styles.note,{color: description.length > 256 ? '#b91c1c' : theme.colors.secondary}]}>{description.length}/256 characters</Text>
             {!ownsGroup ? <Text style={[styles.note,{color:theme.colors.secondary}]}>Only the group owner can edit this description.</Text> : null}
-            {ownsGroup ? <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save} disabled={busy}><Text style={styles.primaryText}>Save group</Text></Pressable> : null}
+            {canEditGroupDetails ? <Pressable style={[styles.primary,{backgroundColor:theme.colors.accent}]} onPress={save} disabled={busy}><Text style={styles.primaryText}>Save group</Text></Pressable> : null}
           </View>
           {canManageMembers ? (
           <View style={[styles.card,{backgroundColor:theme.colors.background,borderColor:theme.colors.border,borderWidth:1}]}>
