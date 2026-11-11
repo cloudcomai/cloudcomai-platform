@@ -68,6 +68,9 @@ try {
             $pdo->prepare('UPDATE chat_members SET role="member" WHERE chat_id=? AND user_id=? AND status="active"')->execute([$chatId, $targetId]);
         }
     } elseif ($action === 'add') {
+        if (!in_array($member['role'], ['owner', 'admin'], true) || $userId !== $ownerId && $member['role'] !== 'admin') {
+            fail('Only the group owner or an admin can add members', 403);
+        }
         $account = $pdo->prepare('SELECT id,name,user_id FROM users WHERE id=? AND account_status="active"');
         $account->execute([$targetId]);
         $targetAccount = $account->fetch();
