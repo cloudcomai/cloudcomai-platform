@@ -39,6 +39,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [composeOpen, setComposeOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [type, setType] = useState('text');
   const [text, setText] = useState('');
   const [asset, setAsset] = useState(null);
@@ -215,6 +216,37 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     </View>
   );
 
+  if (privacyOpen) {
+    return <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={['top','bottom','left','right']}>
+      <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+        <Pressable onPress={() => setPrivacyOpen(false)} accessibilityLabel="Go back"><Text style={[styles.back, { color: theme.colors.text }]}>‹ Back</Text></Pressable>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Moments Privacy</Text>
+        <Pressable disabled={busy} onPress={savePrivacy}><Text style={[styles.publishText, busy && styles.disabled]}>{busy ? 'Saving…' : 'Save'}</Text></Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Hide Status From...</Text>
+          <Text style={styles.choiceHint}>These contacts will not see any of your current or future Moments until you remove them from this list.</Text>
+          <TextInput value={contactSearch} onChangeText={setContactSearch} placeholder="Search contacts" placeholderTextColor="#8a94a6" style={styles.searchInput} />
+          <View style={styles.nestedList}>
+            {filteredContacts.map(contact => {
+              const id = Number(contact.registered_user_id || contact.id);
+              const selected = hiddenIds.includes(id);
+              return <Pressable key={id} style={styles.checkRow} onPress={() => toggleId(hiddenIds, setHiddenIds, id)}>
+                <Text style={styles.checkMark}>{selected ? '☑' : '□'}</Text>
+                <View style={{ flex: 1 }}><Text style={styles.checkLabel}>{contact.display_name || contact.registered_name || 'Contact'}</Text><Text style={styles.muted}>@{contact.registered_user_id_text || id}</Text></View>
+              </Pressable>;
+            })}
+            {!filteredContacts.length ? <Text style={styles.muted}>No registered contacts found.</Text> : null}
+          </View>
+          <Text style={styles.muted}>{hiddenIds.length} contacts currently hidden. Clear a selection to allow that contact to see future Moments.</Text>
+        </View>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
+      <View style={styles.footer}><Pressable style={[styles.primaryButton, busy && styles.disabled]} disabled={busy} onPress={savePrivacy}><Text style={styles.primaryButtonText}>{busy ? 'Saving…' : 'Save privacy settings'}</Text></Pressable></View>
+    </SafeAreaView>;
+  }
+
   if (composeOpen) {
     return <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={['top','bottom','left','right']}>
       <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
@@ -245,7 +277,10 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
       <Pressable onPress={onBack} accessibilityLabel="Go back to Home"><Text style={[styles.back, { color: theme.colors.text }]}>‹ Back</Text></Pressable>
       <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Moments</Text>
-      <Pressable onPress={() => setComposeOpen(true)}><Text style={styles.publishText}>＋ Create</Text></Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Pressable onPress={() => setPrivacyOpen(true)}><Text style={styles.publishText}>Privacy</Text></Pressable>
+        <Pressable onPress={() => setComposeOpen(true)}><Text style={styles.publishText}>＋ Create</Text></Pressable>
+      </View>
     </View>
     <ScrollView contentContainerStyle={styles.content}>
       <Pressable style={styles.createCard} onPress={() => setComposeOpen(true)}>
