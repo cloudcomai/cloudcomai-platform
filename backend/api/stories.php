@@ -23,9 +23,9 @@ if ($method === 'PUT') {
         $pdo->prepare('DELETE FROM user_story_hidden_contacts WHERE user_id=?')->execute([$userId]);
         $insert = $pdo->prepare('INSERT INTO user_story_hidden_contacts(user_id,hidden_user_id,created_at) VALUES(?,?,UTC_TIMESTAMP())');
         foreach ($ids as $hiddenId) {
-            $valid = $pdo->prepare('SELECT 1 FROM users u INNER JOIN friend_requests fr ON fr.status="accepted" AND ((fr.requester_id=? AND fr.recipient_id=u.id) OR (fr.recipient_id=? AND fr.requester_id=u.id)) WHERE u.id=? AND u.account_status="active" LIMIT 1');
-            $valid->execute([$userId, $userId, $hiddenId]);
-            if (!$valid->fetchColumn()) fail('Only active saved CloudComAI contacts can be hidden', 422);
+            $valid = $pdo->prepare('SELECT 1 FROM users WHERE id=? AND account_status="active" LIMIT 1');
+            $valid->execute([$hiddenId]);
+            if (!$valid->fetchColumn() || !story_contact_relationship($userId, $hiddenId)) fail('Only active saved CloudComAI contacts can be hidden', 422);
             $insert->execute([$userId, $hiddenId]);
         }
         $pdo->commit();
