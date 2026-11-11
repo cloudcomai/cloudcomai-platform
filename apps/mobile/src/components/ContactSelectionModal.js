@@ -29,7 +29,7 @@ export default function ContactSelectionModal({ visible, title = 'Select contact
     if (!id || excluded.has(id)) return false;
     const needle = query.trim().toLowerCase();
     if (!needle) return true;
-    return [contact.name, contact.user_id, contact.email, contact.mobile, contact.phone]
+    return [contact.name, contact.display_name, contact.registered_name, contact.registered_user_id_text, contact.user_id, contact.email, contact.mobile, contact.phone]
       .some(value => String(value || '').toLowerCase().includes(needle));
   }), [contacts, excluded, query]);
 
@@ -77,8 +77,8 @@ export default function ContactSelectionModal({ visible, title = 'Select contact
                   </View>
                   <Image source={{ uri: mediaUrl('user', id, contact.image_version || contact.photo_version || '') }} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#e5e7eb' }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text || '#172033', fontWeight: '700' }}>{contact.name || contact.display_name || contact.user_id || 'CloudComAI contact'}</Text>
-                    <Text style={{ color: colors.secondary || '#64748b', fontSize: 12 }}>User ID: @{contact.user_id || id}</Text>
+                    <Text style={{ color: colors.text || '#172033', fontWeight: '700' }}>{contact.name || contact.display_name || contact.registered_name || 'CloudComAI contact'}</Text>
+                    <Text style={{ color: colors.secondary || '#64748b', fontSize: 12 }}>User ID: @{contact.registered_user_id_text || contact.user_id || 'Unavailable'}</Text>
                   </View>
                 </Pressable>
               );
