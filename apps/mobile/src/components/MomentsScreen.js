@@ -6,7 +6,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { Directory, File, Paths } from 'expo-file-system';
 import { ApiRoute } from '@cloudcomai/api-client';
+import { buildApiUrl } from '../utils/media';
 import { API_BASE_URL, platformApi, sessionManager, uploadMobileFile } from '../services/platform';
 import { resolveChatTheme } from '../services/chatTheme';
 
@@ -22,10 +24,63 @@ function MomentVideo({ uri, token }) {
   return <VideoView player={player} style={styles.viewerMedia} nativeControls contentFit="contain" />;
 }
 
+function MomentPhoto({ story, token }) {
+  const [localUri, setLocalUri] = useState('');
+  const [mediaError, setMediaError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let downloadedFile = null;
+
+    const downloadPhoto = async () => {
+      try {
+        const authToken = token || await sessionManager.getToken();
+        if (!authToken) throw new Error('Authentication is required to view this photo.');
+
+        const directory = new Directory(Paths.cache, 'cloudcomai-moment-media');
+        directory.create({ intermediates: true, idempotent: true });
+        const target = new File(directory, `story-${Number(story.id)}-${Date.now()}.img`);
+        downloadedFile = await File.downloadFileAsync(
+          buildApiUrl(API_BASE_URL, ApiRoute.STORY_MEDIA, { story_id: Number(story.id) }),
+          target,
+          { headers: { Authorization: `Bearer ${authToken}` } },
+        );
+
+        if (!downloadedFile?.exists || Number(downloadedFile.size || 0) <= 0) {
+          throw new Error('The photo response was empty.');
+        }
+        if (cancelled) {
+          downloadedFile.delete();
+          return;
+        }
+        setLocalUri(downloadedFile.uri);
+      } catch {
+        if (!cancelled) setMediaError(true);
+      }
+    };
+
+    void downloadPhoto();
+    return () => {
+      cancelled = true;
+      if (downloadedFile?.exists) {
+        try { downloadedFile.delete(); } catch {}
+      }
+    };
+  }, [story.id, token]);
+
+  if (mediaError) {
+    return <View style={[styles.viewerMedia, styles.viewerMediaLoading]}><Text style={styles.viewerMediaMessage}>Unable to load this photo. Close it and try again.</Text></View>;
+  }
+  if (!localUri) {
+    return <View style={[styles.viewerMedia, styles.viewerMediaLoading]}><ActivityIndicator color="#fff" /><Text style={styles.viewerMediaMessage}>Loading photo…</Text></View>;
+  }
+  return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="contain" onError={() => setMediaError(true)} />;
+}
+
 function MomentMedia({ story, token }) {
-  const uri = `${API_BASE_URL}/v1/stories/media?story_id=${Number(story.id)}`;
+  const uri = buildApiUrl(API_BASE_URL, ApiRoute.STORY_MEDIA, { story_id: Number(story.id) });
   if (story.type === 'video') return <MomentVideo uri={uri} token={token} />;
-  return <Image source={{ uri, headers: token ? { Authorization: `Bearer ${token}` } : {} }} style={styles.viewerMedia} resizeMode="contain" />;
+  return <MomentPhoto story={story} token={token} />;
 }
 
 export default function MomentsScreen({ onBack, themeSettings }) {
@@ -369,6 +424,8 @@ const styles = StyleSheet.create({
   viewerTitle: { color: '#172033', fontSize: 16, fontWeight: '800' },
   close: { color: '#172033', fontSize: 28 },
   viewerMedia: { width: '100%', height: 420, backgroundColor: '#111827', borderRadius: 12 },
+  viewerMediaLoading: { alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18 },
+  viewerMediaMessage: { color: '#fff', fontSize: 13, textAlign: 'center' },
   viewerText: { color: '#172033', fontSize: 22, lineHeight: 30, paddingVertical: 28, textAlign: 'center' },
   viewerCaption: { color: '#172033', fontSize: 14 },
 });
