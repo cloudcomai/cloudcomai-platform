@@ -111,7 +111,7 @@ function MomentPhoto({ story, token }) {
   if (!localUri) {
     return <View style={[styles.viewerMedia, styles.viewerMediaLoading]}><ActivityIndicator color="#fff" /><Text style={styles.viewerMediaMessage}>Loading photo…</Text></View>;
   }
-  return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="contain" onError={() => setMediaError(true)} />;
+  return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="cover" onError={() => setMediaError(true)} />;
 }
 
 function MomentMedia({ story, token, paused, onFinish }) {
@@ -146,6 +146,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   const [isPaused, setIsPaused] = useState(false);
   const [clockNow, setClockNow] = useState(Date.now());
   const [viewerCount, setViewerCount] = useState(0);
+  const [storyProgress, setStoryProgress] = useState(0);
 
   const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
@@ -261,9 +262,12 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   };
 
   useEffect(() => {
+    setStoryProgress(0);
     if (!selectedStory || isPaused || selectedStory.type === 'video') return undefined;
+    const startedAt = Date.now();
+    const interval = setInterval(() => setStoryProgress(Math.min(100, ((Date.now() - startedAt) / 7000) * 100)), 100);
     const timeout = setTimeout(advanceMoment, 7000);
-    return () => clearTimeout(timeout);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
   }, [selectedStory?.id, selectedStory?.type, isPaused, advanceMoment]);
 
   const formatRemaining = expiresAt => {
@@ -545,7 +549,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
           <Text style={styles.sectionTitle}>New Moments</Text>
           {newMomentGroups.map(group => (
             <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
-              <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} /></View>
+              <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} token={token} /></View>
               <View style={{ flex: 1 }}><Text style={styles.storyName}>{group.name}</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} new Moment{group.items.length === 1 ? '' : 's'} · latest {new Date(String(group.latest?.created_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
               <Text style={styles.chevron}>›</Text>
             </Pressable>
@@ -567,7 +571,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     </ScrollView>
     <Modal visible={Boolean(selectedStory)} transparent={false} animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { setSelectedStory(null); setIsPaused(false); }}>
       <View style={styles.fullscreenViewer}>
-        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: selectedStory?.type === 'video' ? '100%' : '35%' }]} /></View>
+        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${storyProgress}%` }]} /></View>
         <View style={styles.fullscreenTop}>
           <View style={styles.authorHeader}>
             {selectedStory ? <MomentAuthorAvatar userId={selectedStory.user_id} name={selectedStory.name} size={38} token={token} /> : null}
