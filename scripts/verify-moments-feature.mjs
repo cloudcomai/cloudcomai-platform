@@ -57,7 +57,7 @@ assert.match(screen, /Viewed Moments/);
 assert.match(screen, /items\.every\(item => Boolean\(item\.watched\)\)/);
 assert.match(screen, /openMomentGroup/);
 assert.match(screen, /moveWithinMomentGroup/);
-assert.match(screen, /Moment \{.*\} of/);
+assert.match(screen, /Moment \$\{orderedMoments/);
 assert.match(screen, /function MomentVideo\(\{ uri, token, paused, onFinish \}\)/);
 assert.match(screen, /nativeControls=\{false\}/);
 assert.match(screen, /playToEnd/);
