@@ -17,7 +17,7 @@ const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VIDEO_MAX_SECONDS = 90;
 const TEXT_MAX_LENGTH = 500;
 
-function MomentAuthorAvatar({ userId, name, size = 48 }) {
+function MomentAuthorAvatar({ userId, name, size = 48, token }) {
   const [failed, setFailed] = useState(false);
   const initials = String(name || 'User').trim().charAt(0).toUpperCase() || 'U';
   const avatarUri = Number(userId) > 0
@@ -30,7 +30,7 @@ function MomentAuthorAvatar({ userId, name, size = 48 }) {
     <View style={[styles.authorAvatar, { width: size, height: size, borderRadius: size / 2 }]}>
       {avatarUri && !failed ? (
         <Image
-          source={{ uri: avatarUri }}
+          source={{ uri: avatarUri, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) }}
           style={{ width: size, height: size, borderRadius: size / 2 }}
           resizeMode="cover"
           onError={() => setFailed(true)}
@@ -275,6 +275,11 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     const minutes = Math.floor((diff % 3600000) / 60000);
     return hours > 0 ? `${hours} hours ${minutes} min left` : `${minutes} min left`;
   };
+
+  useEffect(() => {
+    if (!selectedStory) { setViewerCount(0); return undefined; }
+    setViewerCount(Number(selectedStory.view_count || 0));
+  }, [selectedStory?.id]);
 
   useEffect(() => {
     if (!selectedStory || selectedStory.is_owner) return undefined;
@@ -531,7 +536,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
             <Text style={styles.sectionTitle}>My Moments</Text>
             {ownMomentGroups.map(group => (
               <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
-                <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} /></View>
+                <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} token={token} /></View>
                 <View style={{ flex: 1 }}><Text style={styles.storyName}>Your Moment</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} active Moment{group.items.length === 1 ? '' : 's'} · latest {new Date(String(group.latest?.created_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
                 <Text style={styles.chevron}>›</Text>
               </Pressable>
@@ -565,7 +570,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
         <View style={styles.progressTrack}><View style={[styles.progressFill, { width: selectedStory?.type === 'video' ? '100%' : '35%' }]} /></View>
         <View style={styles.fullscreenTop}>
           <View style={styles.authorHeader}>
-            {selectedStory ? <MomentAuthorAvatar userId={selectedStory.user_id} name={selectedStory.name} size={38} /> : null}
+            {selectedStory ? <MomentAuthorAvatar userId={selectedStory.user_id} name={selectedStory.name} size={38} token={token} /> : null}
             <View style={{ flex: 1 }}><Text style={styles.fullscreenName}>{selectedStory?.name || (selectedStory?.is_owner ? 'You' : 'Moment')}</Text><Text style={styles.fullscreenMeta}>{selectedStory?.is_owner ? 'Your Moment' : 'Moment'} · {remainingLabel}</Text></View>
           </View>
           <View style={styles.topActions}>
@@ -596,7 +601,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
         <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>Seen By ({viewers.length})</Text><Pressable onPress={() => setViewersOpen(false)}><Text style={styles.close}>×</Text></Pressable></View>
         {viewerLoading ? <ActivityIndicator color={theme.colors.accent} /> : <ScrollView style={styles.viewerList}>
           {viewers.map(viewer => <View key={viewer.viewer_id} style={styles.viewerRow}>
-            <MomentAuthorAvatar userId={viewer.viewer_id} name={viewer.name || viewer.username} size={42} />
+            <MomentAuthorAvatar userId={viewer.viewer_id} name={viewer.name || viewer.username} size={42} token={token} />
             <View style={{ flex: 1 }}><Text style={styles.viewerName}>{viewer.name || viewer.username || 'CloudComAI user'}</Text><Text style={styles.muted}>@{viewer.username || viewer.viewer_id}</Text></View>
           </View>)}
           {!viewers.length && !viewerLoading ? <Text style={styles.empty}>No views yet.</Text> : null}
