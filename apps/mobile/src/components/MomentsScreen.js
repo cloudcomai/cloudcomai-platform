@@ -42,15 +42,22 @@ function MomentAuthorAvatar({ userId, name, size = 48 }) {
   );
 }
 
-function MomentVideo({ uri, token }) {
+function MomentVideo({ uri, token, paused, onFinish }) {
   const player = useVideoPlayer({ uri, headers: token ? { Authorization: `Bearer ${token}` } : {} }, instance => {
     instance.loop = false;
   });
   useEffect(() => {
-    player.play();
-    return () => { try { player.pause(); } catch {} };
-  }, [player]);
-  return <VideoView player={player} style={styles.viewerMedia} nativeControls contentFit="contain" />;
+    if (paused) player.pause();
+    else player.play();
+  }, [player, paused]);
+  useEffect(() => {
+    const subscription = player.addListener('playToEnd', onFinish);
+    return () => {
+      subscription.remove();
+      try { player.pause(); } catch {}
+    };
+  }, [player, onFinish]);
+  return <VideoView player={player} style={styles.viewerMedia} nativeControls={false} contentFit="cover" />;
 }
 
 function MomentPhoto({ story, token }) {
@@ -107,9 +114,9 @@ function MomentPhoto({ story, token }) {
   return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="contain" onError={() => setMediaError(true)} />;
 }
 
-function MomentMedia({ story, token }) {
+function MomentMedia({ story, token, paused, onFinish }) {
   const uri = buildApiUrl(API_BASE_URL, ApiRoute.STORY_MEDIA, { story_id: Number(story.id) });
-  if (story.type === 'video') return <MomentVideo uri={uri} token={token} />;
+  if (story.type === 'video') return <MomentVideo uri={uri} token={token} paused={paused} onFinish={onFinish} />;
   return <MomentPhoto story={story} token={token} />;
 }
 
@@ -136,6 +143,9 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   const [viewers, setViewers] = useState([]);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewerLoading, setViewerLoading] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [clockNow, setClockNow] = useState(Date.now());
+  const [viewerCount, setViewerCount] = useState(0);
 
   const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
@@ -168,6 +178,11 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClockNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Group all active Moments by author, matching WhatsApp's one-contact/one-row layout.
   const momentGroups = useMemo(() => {
@@ -209,17 +224,56 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     () => momentGroups.find(group => group.items.some(item => Number(item.id) === Number(selectedStory?.id))),
     [momentGroups, selectedStory?.id],
   );
+  const orderedMoments = useMemo(() => momentGroups.flatMap(group => group.items), [momentGroups]);
+  const remainingMs = selectedStory?.expires_at
+    ? Math.max(0, new Date(/Z$|[+-]\\d\\d:\\d\\d$/.test(String(selectedStory.expires_at)) ? selectedStory.expires_at : String(selectedStory.expires_at).replace(' ', 'T') + 'Z').getTime() - clockNow)
+    : 0;
+  const remainingHours = Math.floor(remainingMs / 3600000);
+  const remainingMinutes = Math.floor((remainingMs % 3600000) / 60000);
+  const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+  const remainingLabel = remainingMs <= 0 ? 'Expired' : remainingHours > 0
+    ? `${remainingHours}h ${remainingMinutes}m left`
+    : remainingMinutes > 0 ? `${remainingMinutes}m ${remainingSeconds}s left` : `${remainingSeconds}s left`;
 
   const openMomentGroup = group => {
     const firstUnwatched = group.items.find(item => !item.watched);
     setSelectedStory(firstUnwatched || group.items[0] || null);
   };
 
+  const advanceMoment = useCallback(() => {
+    if (!selectedStory) return;
+    const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
+    const next = orderedMoments[index + 1];
+    if (next) {
+      setSelectedStory(next);
+      setIsPaused(false);
+    } else {
+      setSelectedStory(null);
+      setIsPaused(false);
+    }
+  }, [orderedMoments, selectedStory]);
+
   const moveWithinMomentGroup = direction => {
     if (!selectedGroup || !selectedStory) return;
     const index = selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory.id));
     const next = selectedGroup.items[index + direction];
-    if (next) setSelectedStory(next);
+    if (next) { setSelectedStory(next); setIsPaused(false); }
+  };
+
+  useEffect(() => {
+    if (!selectedStory || isPaused || selectedStory.type === 'video') return undefined;
+    const timeout = setTimeout(advanceMoment, 7000);
+    return () => clearTimeout(timeout);
+  }, [selectedStory?.id, selectedStory?.type, isPaused, advanceMoment]);
+
+  const formatRemaining = expiresAt => {
+    if (!expiresAt) return 'Expiry unavailable';
+    const expiry = new Date(/Z$|[+-]\\d\\d:\\d\\d$/.test(String(expiresAt)) ? expiresAt : String(expiresAt).replace(' ', 'T') + 'Z').getTime();
+    const diff = Math.max(0, expiry - clockNow);
+    if (!diff) return 'Expired';
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    return hours > 0 ? `${hours} hours ${minutes} min left` : `${minutes} min left`;
   };
 
   useEffect(() => {
@@ -227,8 +281,10 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     let active = true;
     platformApi.viewStory(selectedStory.id).then(response => {
       if (!active) return;
+      const count = Number(response?.data?.count ?? selectedStory.view_count ?? 0);
+      setViewerCount(count);
       setStories(current => current.map(item => Number(item.id) === Number(selectedStory.id)
-        ? { ...item, watched: true, view_count: Number(response?.data?.count ?? item.view_count ?? 0) }
+        ? { ...item, watched: true, view_count: count }
         : item));
     }).catch(() => {});
     return () => { active = false; };
@@ -239,7 +295,9 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     setViewersOpen(true);
     try {
       const response = await platformApi.listStoryViewers(story.id);
-      setViewers(response?.data?.viewers || []);
+      const rows = response?.data?.viewers || [];
+      setViewers(rows);
+      setViewerCount(Number(response?.data?.count ?? rows.length));
     } catch (viewerError) {
       setError(viewerError?.message || 'Unable to load viewers.');
       setViewers([]);
@@ -502,30 +560,34 @@ export default function MomentsScreen({ onBack, themeSettings }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Text style={styles.expiryNote}>Moments disappear 36 hours after publishing.</Text>
     </ScrollView>
-    <Modal visible={Boolean(selectedStory)} transparent animationType="fade" onRequestClose={() => setSelectedStory(null)}>
-      <View style={styles.viewerBackdrop}>
-        <View style={styles.viewerCard}>
-          <View style={styles.viewerHeader}>
-            <View style={styles.authorHeader}>
-              {selectedStory ? <MomentAuthorAvatar userId={selectedStory.user_id} name={selectedStory.name} size={42} /> : null}
-              <View style={{ flex: 1 }}><Text style={styles.viewerTitle}>{selectedStory?.name || (selectedStory?.is_owner ? 'You' : 'Moment')}</Text><Text style={styles.muted}>{selectedStory?.is_owner ? 'Your Moment' : 'Posted a Moment'}</Text></View>
-            </View>
-            <Pressable onPress={() => setSelectedStory(null)}><Text style={styles.close}>×</Text></Pressable>
+    <Modal visible={Boolean(selectedStory)} transparent={false} animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { setSelectedStory(null); setIsPaused(false); }}>
+      <View style={styles.fullscreenViewer}>
+        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: selectedStory?.type === 'video' ? '100%' : '35%' }]} /></View>
+        <View style={styles.fullscreenTop}>
+          <View style={styles.authorHeader}>
+            {selectedStory ? <MomentAuthorAvatar userId={selectedStory.user_id} name={selectedStory.name} size={38} /> : null}
+            <View style={{ flex: 1 }}><Text style={styles.fullscreenName}>{selectedStory?.name || (selectedStory?.is_owner ? 'You' : 'Moment')}</Text><Text style={styles.fullscreenMeta}>{selectedStory?.is_owner ? 'Your Moment' : 'Moment'} · {remainingLabel}</Text></View>
           </View>
-          {selectedStory?.type === 'text' ? <Text style={styles.viewerText}>{selectedStory?.content}</Text> : selectedStory ? <MomentMedia story={selectedStory} token={token} /> : null}
-          {selectedStory?.caption ? <Text style={styles.viewerCaption}>{selectedStory.caption}</Text> : null}
-          {selectedGroup?.items?.length > 1 ? <View style={styles.momentSequence}>
-            <Text style={styles.muted}>Moment {(selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory?.id)) + 1)} of {selectedGroup.items.length}</Text>
-            <View style={styles.sequenceButtons}>
-              <Pressable disabled={selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory?.id)) <= 0} onPress={() => moveWithinMomentGroup(-1)} style={styles.sequenceButton}><Text style={styles.sequenceButtonText}>‹ Previous</Text></Pressable>
-              <Pressable disabled={selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory?.id)) >= selectedGroup.items.length - 1} onPress={() => moveWithinMomentGroup(1)} style={styles.sequenceButton}><Text style={styles.sequenceButtonText}>Next ›</Text></Pressable>
-            </View>
-          </View> : null}
-          {selectedStory?.is_owner ? <View style={styles.ownerActions}>
-            <Pressable onPress={() => openViewers(selectedStory)} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Seen by · {selectedStory.view_count || 0}</Text></Pressable>
-            <Pressable onPress={() => deleteMoment(selectedStory)} style={styles.deleteButton}><Text style={styles.deleteButtonText}>🗑 Delete</Text></Pressable>
-          </View> : null}
-          <Text style={styles.expiryNote}>Expires after 36 hours</Text>
+          <View style={styles.topActions}>
+            {selectedStory?.is_owner ? <Pressable onPress={() => openViewers(selectedStory)}><Text style={styles.fullscreenAction}>◉ {viewerCount || selectedStory.view_count || 0}</Text></Pressable> : null}
+            <Pressable onPress={() => setIsPaused(value => !value)}><Text style={styles.fullscreenAction}>{isPaused ? '▶' : 'Ⅱ'}</Text></Pressable>
+            <Pressable onPress={() => { setSelectedStory(null); setIsPaused(false); }}><Text style={styles.fullscreenClose}>×</Text></Pressable>
+          </View>
+        </View>
+        <Pressable style={styles.fullscreenContent} onPressIn={() => setIsPaused(true)} onPressOut={() => setIsPaused(false)}>
+          {selectedStory?.type === 'text'
+            ? <Text style={styles.fullscreenText}>{selectedStory?.content}</Text>
+            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused} onFinish={advanceMoment} /> : null}
+          {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
+        </Pressable>
+        <View style={styles.fullscreenBottom}>
+          <Text style={styles.fullscreenMeta}>{selectedStory ? `Moment ${orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id)) + 1} of ${orderedMoments.length}` : ''}</Text>
+          <View style={styles.sequenceButtons}>
+            <Pressable onPress={() => moveWithinMomentGroup(-1)} style={styles.fullscreenActionButton}><Text style={styles.fullscreenAction}>‹ Previous</Text></Pressable>
+            <Pressable onPress={advanceMoment} style={styles.fullscreenActionButton}><Text style={styles.fullscreenAction}>Next ›</Text></Pressable>
+          </View>
+          {selectedStory?.is_owner ? <Pressable onPress={() => deleteMoment(selectedStory)} style={styles.fullscreenDelete}><Text style={styles.fullscreenAction}>Delete Moment</Text></Pressable> : null}
+          {selectedStory?.is_owner ? <Text style={styles.fullscreenMeta}>Seen by {viewerCount || selectedStory.view_count || 0}</Text> : null}
         </View>
       </View>
     </Modal>
@@ -534,7 +596,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
         <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>Seen By ({viewers.length})</Text><Pressable onPress={() => setViewersOpen(false)}><Text style={styles.close}>×</Text></Pressable></View>
         {viewerLoading ? <ActivityIndicator color={theme.colors.accent} /> : <ScrollView style={styles.viewerList}>
           {viewers.map(viewer => <View key={viewer.viewer_id} style={styles.viewerRow}>
-            <Image source={{ uri: buildApiUrl(API_BASE_URL, ApiRoute.MEDIA, { type: 'user', id: Number(viewer.viewer_id) }) }} style={styles.viewerAvatar} />
+            <MomentAuthorAvatar userId={viewer.viewer_id} name={viewer.name || viewer.username} size={42} />
             <View style={{ flex: 1 }}><Text style={styles.viewerName}>{viewer.name || viewer.username || 'CloudComAI user'}</Text><Text style={styles.muted}>@{viewer.username || viewer.viewer_id}</Text></View>
           </View>)}
           {!viewers.length && !viewerLoading ? <Text style={styles.empty}>No views yet.</Text> : null}
@@ -598,8 +660,22 @@ const styles = StyleSheet.create({
   storyRingText: { color: '#3157d5', fontWeight: '800', fontSize: 18 },
   storyName: { color: '#172033', fontSize: 14, fontWeight: '800' },
   empty: { color: '#68748a', textAlign: 'center', padding: 24, backgroundColor: '#f8faff', borderRadius: 12 },
+  fullscreenViewer: { flex: 1, backgroundColor: '#050505', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingBottom: Platform.OS === 'ios' ? 28 : 16 },
+  progressTrack: { height: 3, marginHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: 3, backgroundColor: '#fff' },
+  fullscreenTop: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  fullscreenName: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  fullscreenMeta: { color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 2 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  fullscreenAction: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  fullscreenClose: { color: '#fff', fontSize: 30, lineHeight: 34 },
+  fullscreenContent: { flex: 1, alignItems: 'stretch', justifyContent: 'center', backgroundColor: '#000' },
+  fullscreenText: { color: '#fff', fontSize: 28, lineHeight: 38, fontWeight: '700', textAlign: 'center', paddingHorizontal: 28 },
+  fullscreenCaption: { position: 'absolute', bottom: 16, left: 18, right: 18, color: '#fff', fontSize: 15, textShadowColor: '#000', textShadowRadius: 8 },
+  fullscreenBottom: { paddingHorizontal: 16, paddingTop: 10, gap: 10 },
+  fullscreenActionButton: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.12)' },
+  fullscreenDelete: { alignSelf: 'flex-start', paddingVertical: 8 },
   viewerBackdrop: { flex: 1, justifyContent: 'center', padding: 18, backgroundColor: 'rgba(15,23,42,0.75)' },
-  viewerCard: { padding: 14, borderRadius: 18, backgroundColor: '#fff', gap: 10 },
   ownerActions: { flexDirection: 'row', gap: 8 },
   deleteButton: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: '#ef4444', borderRadius: 10 },
   deleteButtonText: { color: '#dc2626', fontWeight: '800' },
@@ -611,7 +687,7 @@ const styles = StyleSheet.create({
   viewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   viewerTitle: { color: '#172033', fontSize: 16, fontWeight: '800' },
   close: { color: '#172033', fontSize: 28 },
-  viewerMedia: { width: '100%', height: 420, backgroundColor: '#111827', borderRadius: 12 },
+  viewerMedia: { width: '100%', height: '100%', backgroundColor: '#000' },
   viewerMediaLoading: { alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18 },
   viewerMediaMessage: { color: '#fff', fontSize: 13, textAlign: 'center' },
   viewerText: { color: '#172033', fontSize: 22, lineHeight: 30, paddingVertical: 28, textAlign: 'center' },
