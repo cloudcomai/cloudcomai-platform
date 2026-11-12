@@ -238,6 +238,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
 
   const openMomentGroup = group => {
     const firstUnwatched = group.items.find(item => !item.watched);
+    setStoryProgress(0);
     setSelectedStory(firstUnwatched || group.items[0] || null);
   };
 
@@ -246,6 +247,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
     const next = orderedMoments[index + 1];
     if (next) {
+      setStoryProgress(0);
       setSelectedStory(next);
       setIsPaused(false);
     } else {
@@ -258,10 +260,8 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     if (!selectedStory) return;
     const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
     const next = orderedMoments[index + direction];
-    if (next) { setSelectedStory(next); setIsPaused(false); }
+    if (next) { setStoryProgress(0); setSelectedStory(next); setIsPaused(false); }
   };
-
-  useEffect(() => { setStoryProgress(0); }, [selectedStory?.id]);
 
   useEffect(() => {
     if (!selectedStory || isPaused || selectedStory.type === 'video') return undefined;
