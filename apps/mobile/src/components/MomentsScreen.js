@@ -255,18 +255,24 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   }, [orderedMoments, selectedStory]);
 
   const moveWithinMomentGroup = direction => {
-    if (!selectedGroup || !selectedStory) return;
-    const index = selectedGroup.items.findIndex(item => Number(item.id) === Number(selectedStory.id));
-    const next = selectedGroup.items[index + direction];
+    if (!selectedStory) return;
+    const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
+    const next = orderedMoments[index + direction];
     if (next) { setSelectedStory(next); setIsPaused(false); }
   };
 
+  useEffect(() => { setStoryProgress(0); }, [selectedStory?.id]);
+
   useEffect(() => {
-    setStoryProgress(0);
     if (!selectedStory || isPaused || selectedStory.type === 'video') return undefined;
+    const startingProgress = storyProgress;
+    const remainingDuration = Math.max(0, 7000 * (1 - startingProgress / 100));
     const startedAt = Date.now();
-    const interval = setInterval(() => setStoryProgress(Math.min(100, ((Date.now() - startedAt) / 7000) * 100)), 100);
-    const timeout = setTimeout(advanceMoment, 7000);
+    const interval = setInterval(() => {
+      const nextProgress = startingProgress + ((Date.now() - startedAt) / 7000) * 100;
+      setStoryProgress(Math.min(100, nextProgress));
+    }, 100);
+    const timeout = setTimeout(advanceMoment, remainingDuration);
     return () => { clearInterval(interval); clearTimeout(timeout); };
   }, [selectedStory?.id, selectedStory?.type, isPaused, advanceMoment]);
 
@@ -300,6 +306,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   }, [selectedStory?.id, selectedStory?.is_owner]);
 
   const openViewers = async story => {
+    setIsPaused(true);
     setViewerLoading(true);
     setViewersOpen(true);
     try {
@@ -578,7 +585,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
             <View style={{ flex: 1 }}><Text style={styles.fullscreenName}>{selectedStory?.name || (selectedStory?.is_owner ? 'You' : 'Moment')}</Text><Text style={styles.fullscreenMeta}>{selectedStory?.is_owner ? 'Your Moment' : 'Moment'} · {remainingLabel}</Text></View>
           </View>
           <View style={styles.topActions}>
-            {selectedStory?.is_owner ? <Pressable onPress={() => openViewers(selectedStory)}><Text style={styles.fullscreenAction}>◉ {viewerCount || selectedStory.view_count || 0}</Text></Pressable> : null}
+            {selectedStory?.is_owner ? <Pressable onPress={() => openViewers(selectedStory)}><Text style={styles.fullscreenAction}>◉ {viewerCount ?? Number(selectedStory.view_count || 0)}</Text></Pressable> : null}
             <Pressable onPress={() => setIsPaused(value => !value)}><Text style={styles.fullscreenAction}>{isPaused ? '▶' : 'Ⅱ'}</Text></Pressable>
             <Pressable onPress={() => { setSelectedStory(null); setIsPaused(false); }}><Text style={styles.fullscreenClose}>×</Text></Pressable>
           </View>
@@ -600,9 +607,9 @@ export default function MomentsScreen({ onBack, themeSettings }) {
         </View>
       </View>
     </Modal>
-    <Modal visible={viewersOpen} transparent animationType="slide" onRequestClose={() => setViewersOpen(false)}>
+    <Modal visible={viewersOpen} transparent animationType="slide" onRequestClose={() => { setViewersOpen(false); setIsPaused(false); }}>
       <View style={styles.viewerBackdrop}><View style={styles.viewerListCard}>
-        <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>Seen By ({viewers.length})</Text><Pressable onPress={() => setViewersOpen(false)}><Text style={styles.close}>×</Text></Pressable></View>
+        <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>Seen By ({viewers.length})</Text><Pressable onPress={() => { setViewersOpen(false); setIsPaused(false); }}><Text style={styles.close}>×</Text></Pressable></View>
         {viewerLoading ? <ActivityIndicator color={theme.colors.accent} /> : <ScrollView style={styles.viewerList}>
           {viewers.map(viewer => <View key={viewer.viewer_id} style={styles.viewerRow}>
             <MomentAuthorAvatar userId={viewer.viewer_id} name={viewer.name || viewer.username} size={42} token={token} />
