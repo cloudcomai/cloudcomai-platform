@@ -62,7 +62,7 @@ assert.match(screen, /function MomentVideo\(\{ uri, token, paused, onFinish \}\)
 assert.match(screen, /nativeControls=\{false\}/);
 assert.match(screen, /playToEnd/);
 assert.match(screen, /const orderedMoments = useMemo/);
-assert.match(screen, /setTimeout\(advanceMoment, 7000\)/);
+assert.match(screen, /setTimeout\(advanceMoment, remainingDuration\)/);
 assert.match(screen, /setInterval\(\(\) => setClockNow\(Date\.now\(\)\), 1000\)/);
 assert.match(screen, /remainingLabel/);
 assert.match(screen, /Seen by \{viewerCount/);
