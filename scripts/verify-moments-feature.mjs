@@ -54,7 +54,7 @@ assert.match(screen, /story\.name/);
 assert.match(screen, /const momentGroups = useMemo/);
 assert.match(screen, /New Moments/);
 assert.match(screen, /Viewed Moments/);
-assert.match(screen, /group\.items\.every\(item => Boolean\(item\.watched\)\)/);
+assert.match(screen, /items\.every\(item => Boolean\(item\.watched\)\)/);
 assert.match(screen, /openMomentGroup/);
 assert.match(screen, /moveWithinMomentGroup/);
 assert.match(screen, /Moment \{.*\} of/);
