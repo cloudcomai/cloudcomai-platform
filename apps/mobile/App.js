@@ -24,7 +24,6 @@ import {
   View,
 } from 'react-native';
 import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
-import EmojiPicker from './src/components/EmojiPicker';
 
 const chatFontColorCache = new Map();
 const isDarkThemeColor = value => {
@@ -268,6 +267,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const loadingOlderRef = useRef(false);
   const olderLoadThreshold = 450;
   const listRef = useRef(null);
+  const composerInputRef = useRef(null);
   const keyboardVisibleRef = useRef(false);
   const [visibleMessageIds, setVisibleMessageIds] = useState(() => new Set());
   const onMessageViewabilityChanged = useRef(({ viewableItems }) => {
@@ -294,7 +294,6 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [groupName, setGroupName] = useState(chat.name || 'Group');
   const [groupOwnerId, setGroupOwnerId] = useState(chat.owner_id);
   const [muted, setMuted] = useState(Boolean(chat.notifications_muted));
-  const [emojiOpen, setEmojiOpen] = useState(false);
   const [fontColor, setFontColor] = useState('default');
   const [fontColorOpen, setFontColorOpen] = useState(false);
   const [fontColorSaving, setFontColorSaving] = useState(false);
@@ -648,6 +647,10 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       }
       setComposer(editing ? (messaging?.snapshot().drafts[String(chat.id)] || '') : '');
       setMentionUsers([]); setMentionQuery(null); setMentionCandidates([]);
+      requestAnimationFrame(() => {
+        composerInputRef.current?.focus?.();
+        requestAnimationFrame(() => listRef.current?.scrollToEnd?.({ animated: true }));
+      });
     } catch (sendError) {
       setError(sendError.message || (editing ? 'Unable to edit message.' : 'Unable to send message.'));
     } finally {
@@ -856,7 +859,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       {attachmentDraft ? <Modal visible transparent animationType='slide' onRequestClose={() => { if(uploading) cancelUpload(); else setAttachmentDraft(null); }} ><View style={styles.overlay}><View style={styles.attachmentCard}><Text style={styles.attachmentTitle}>Preview attachment</Text>{String(attachmentDraft.mimeType||'').startsWith('image/') ? <Image source={{uri:attachmentDraft.uri}} style={styles.attachmentPreview} resizeMode='contain'/> : <View style={styles.documentPreview}><Text style={styles.documentIcon}>📄</Text><Text style={styles.documentName} numberOfLines={2}>{attachmentDraft.name || 'Selected file'}</Text><Text style={styles.documentSize}>{Number(attachmentDraft.fileSize ?? attachmentDraft.size ?? 0) ? Math.round(Number(attachmentDraft.fileSize ?? attachmentDraft.size)/1024)+' KB' : 'File selected'}</Text></View>}{uploading?<View style={styles.attachmentSending}><ActivityIndicator color="#3157d5" /><Text style={styles.attachmentProgress}>Sending attachment… Please wait.</Text></View>:null}{attachmentError?<View style={styles.attachmentError}><Text style={styles.attachmentErrorText}>{attachmentError}</Text><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading}><Text style={styles.retry}>Retry</Text></Pressable></View>:null}<View style={styles.attachmentActions}><Pressable onPress={() => sendAttachment(attachmentDraft, () => { setAttachmentDraft(null); setAttachmentError(''); })} disabled={uploading} style={styles.attachmentSend}><Text style={styles.attachmentSendText}>{uploading?'Sending…':'Send'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={uploading ? 'Cancel attachment upload' : 'Cancel attachment'} accessibilityState={{ disabled: false }} hitSlop={8} onPress={() => { if(uploading){ cancelUpload(); } else { setAttachmentDraft(null); setAttachmentError(''); } }}><Text style={[styles.cancelText, uploading && styles.cancelTextActive]}>Cancel</Text></Pressable></View></View></View></Modal> : null}
       {emojiOpen ? <EmojiPicker theme={theme} onSelect={emoji => changeComposer(value => `${value}${emoji}`)} onDelete={() => changeComposer(value => Array.from(String(value || '')).slice(0, -1).join(''))} onClose={() => setEmojiOpen(false)} /> : null}
       {mentionChatEnabled && mentionQuery !== null && mentionCandidates.length > 0 ? <View style={[styles.mentionSuggestions,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>{mentionCandidates.map(candidate=><Pressable key={candidate.id} accessibilityRole="button" onPress={()=>chooseMention(candidate)} style={[styles.mentionSuggestion,{borderBottomColor:theme.colors.border}]}><Text style={[styles.mentionSuggestionName,{color:theme.colors.text}]}>@{candidate.username || candidate.id}</Text><Text style={[styles.mentionSuggestionMeta,{color:theme.colors.secondary}]}>{candidate.name || 'Chat member'}</Text></Pressable>)}</View> : null}
-      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.emojiToggle} onPress={() => { if (emojiOpen) { setEmojiOpen(false); } else { Keyboard.dismiss(); setEmojiOpen(true); } }}><Text style={styles.emojiToggleText}>☺</Text></Pressable><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable>{(chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type)) ? <Pressable accessibilityRole="button" accessibilityLabel="Choose message font color" onPress={() => setFontColorOpen(true)} style={[styles.emojiToggle, { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border }]}><Text style={{ color: fontColorValue, fontSize: 20, fontWeight: '800' }}>A</Text></Pressable> : null}<TextInput style={[styles.composerInput, { color: fontColor === 'default' ? theme.colors.text : fontColorValue, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; setEmojiOpen(false); }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
+      <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable>{(chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type)) ? <Pressable accessibilityRole="button" accessibilityLabel="Choose message font color" onPress={() => setFontColorOpen(true)} style={[styles.emojiToggle, { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border }]}><Text style={{ color: fontColorValue, fontSize: 20, fontWeight: '800' }}>A</Text></Pressable> : null}<TextInput ref={composerInputRef} style={[styles.composerInput, { color: fontColor === 'default' ? theme.colors.text : fontColorValue, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
       <Modal visible={fontColorOpen && (chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type))} transparent animationType="fade" onRequestClose={() => setFontColorOpen(false)}>
         <Pressable onPress={() => setFontColorOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,.42)', justifyContent: 'flex-end', padding: 18 }}>
