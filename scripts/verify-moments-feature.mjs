@@ -1,0 +1,48 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const read = path => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+const root = path => fs.readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+
+const contract = root('backend/api-contract.json');
+const stories = root('backend/api/stories.php');
+const access = root('backend/lib/story_access.php');
+const upload = root('backend/api/story_media_upload.php');
+const media = root('backend/api/story_media.php');
+const app = root('apps/mobile/App.js');
+const screen = root('apps/mobile/src/components/MomentsScreen.js');
+const migration = root('backend/database/migrations/2026-11-11-moments-audience-privacy.sql');
+const schema = root('backend/database/fresh-install.sql');
+
+assert.match(contract, /"v1\/stories"[^\n]*"PUT"/);
+assert.match(stories, /INTERVAL 36 HOUR/);
+assert.match(stories, /length > 500/);
+assert.match(stories, /'contacts', 'groups'/);
+assert.match(stories, /story_groups/);
+assert.match(stories, /user_story_hidden_contacts/);
+assert.match(access, /function can_view_story/);
+assert.match(access, /audience === 'groups'/);
+assert.match(access, /user_story_hidden_contacts/);
+assert.match(upload, /12 \* 1024 \* 1024/);
+assert.match(upload, /durationSeconds > 90/);
+assert.match(media, /can_view_story/);
+assert.match(media, /no-store/);
+assert.match(app, /accessibilityLabel="Open Moments"/);
+assert.match(app, /<MomentsScreen themeSettings=/);
+assert.match(app, /bottomNav/);
+assert.match(screen, /All Contacts/);
+assert.match(screen, /Selected Groups/);
+assert.match(screen, /Hide Status From/);
+assert.match(screen, /TEXT_MAX_LENGTH = 500/);
+assert.match(screen, /VIDEO_MAX_SECONDS = 90/);
+assert.match(screen, /PHOTO_MAX_BYTES = 12/);
+assert.match(screen, /36 hours/);
+assert.match(screen, /File\.downloadFileAsync/);
+assert.match(screen, /Authorization: `Bearer \$\{authToken\}`/);
+assert.match(screen, /source=\{\{ uri: localUri \}\}/);
+assert.match(migration, /CREATE TABLE IF NOT EXISTS story_groups/);
+assert.match(migration, /CREATE TABLE IF NOT EXISTS user_story_hidden_contacts/);
+assert.match(schema, /CREATE TABLE IF NOT EXISTS story_groups/);
+assert.match(schema, /CREATE TABLE IF NOT EXISTS user_story_hidden_contacts/);
+
+console.log('Moments feature contract checks passed.');

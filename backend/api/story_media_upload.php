@@ -18,7 +18,7 @@ if ($tmpName === '' || !is_uploaded_file($tmpName)) fail('The uploaded media cou
 
 $size = (int)($file['size'] ?? 0);
 if ($size <= 0) fail('The selected media file is empty.', 422);
-if ($size > 50 * 1024 * 1024) fail('Ring Bell media must be 50 MB or smaller.', 422);
+if ($size > 50 * 1024 * 1024) fail('Moment videos must be 50 MB or smaller.', 422);
 
 $mime = cloudcomai_detect_mime_type($tmpName);
 if ($mime === '') {
@@ -38,6 +38,14 @@ if (!isset($extensions[$mime])) {
 }
 
 [$extension, $kind] = $extensions[$mime];
+if ($kind === 'photo' && $size > 12 * 1024 * 1024) fail('Moment photos must be 12 MB or smaller.', 422);
+$durationSeconds = null;
+if ($kind === 'video') {
+    $durationSeconds = filter_var($_POST['duration_seconds'] ?? null, FILTER_VALIDATE_FLOAT);
+    if ($durationSeconds === false || $durationSeconds <= 0 || $durationSeconds > 90) {
+        fail('Moment videos must be 90 seconds or shorter. Please select the video again.', 422);
+    }
+}
 $folder = dirname(__DIR__) . '/uploads/stories/' . (int)$user['id'];
 if (!is_dir($folder) && !mkdir($folder, 0755, true) && !is_dir($folder)) {
     fail('Unable to prepare Ring Bell media storage.', 500);
@@ -56,4 +64,4 @@ if (!move_uploaded_file($tmpName, $destination)) {
     fail('Unable to save Ring Bell media. Check the server upload directory permissions.', 500);
 }
 
-out(['type' => $kind, 'mime_type' => $mime, 'filename' => $filename], 201);
+out(['type' => $kind, 'mime_type' => $mime, 'filename' => $filename, 'duration_seconds' => $durationSeconds], 201);

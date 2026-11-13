@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
 import EmojiPicker from './src/components/EmojiPicker';
+import MomentsScreen from './src/components/MomentsScreen';
 
 const chatFontColorCache = new Map();
 const isDarkThemeColor = value => {
@@ -935,6 +936,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
   const [menuInitialScreen, setMenuInitialScreen] = useState('menu');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [momentsOpen, setMomentsOpen] = useState(false);
   const lastBackPressRef = useRef(0);
   const [failedAvatarIds, setFailedAvatarIds] = useState(() => new Set());
   const chatPageRef = useRef(1);
@@ -1096,6 +1098,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         <Pressable style={styles.quickAction} onPress={() => setSection('contacts')} accessibilityLabel="Open contacts"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>👥</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Contacts</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => openMenu('poll')} accessibilityLabel="Create poll"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>▥</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Polls</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={onSettings} accessibilityLabel="Open settings"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>⚙</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Settings</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => setMomentsOpen(true)} accessibilityLabel="Open Moments"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>◉</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Moments</Text></Pressable>
       </ScrollView>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.categoryStrip,{backgroundColor:appTheme.colors.background}]} contentContainerStyle={styles.categoryTabs}>
@@ -1150,6 +1153,9 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         onChatCreated={chat => { setMenuVisible(false); setSection('private'); setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id) || item.isGroup)]); setSelectedChat(chat); }}
         onGroupCreated={group => { setMenuVisible(false); setSection('groups'); setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id) || !item.isGroup)]); setSelectedChat(group); }}
       />
+      <Modal visible={momentsOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setMomentsOpen(false)}>
+        <MomentsScreen themeSettings={themeSettings} onBack={() => setMomentsOpen(false)} />
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -30,6 +30,23 @@ $friend=request('POST','v1/friend-requests',3,['action'=>'send','user_id'=>1],20
 request('POST','v1/friend-requests',1,['action'=>'accept','request_id'=>$friend['id']]);
 check(in_array($friendStory,$storyIds(1),true),'Accepted friend cannot see Ring Bell');
 check(!in_array($friendStory,$storyIds(2),true),'Shared public room disclosed friends-only Ring Bell');
+
+$contactStory=request('POST','v1/stories',3,['content'=>'Saved contacts only','audience'=>'contacts'],201)['data']['story_id'];
+check(in_array($contactStory,$storyIds(1),true) && !in_array($contactStory,$storyIds(2),true),'All Contacts audience did not follow saved contact relationships');
+request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[1]]);
+check(!in_array($contactStory,$storyIds(1),true),'Persistent Hide Status From exclusion was not enforced');
+check(request('GET','v1/stories?action=privacy',3)['data']['hidden_user_ids']===[1],'Hidden contact preference did not persist');
+request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[]]);
+$friendTwo=request('POST','v1/friend-requests',3,['action'=>'send','user_id'=>2],201)['data']['request'];
+request('POST','v1/friend-requests',2,['action'=>'accept','request_id'=>$friendTwo['id']]);
+
+$admin->exec("INSERT INTO chats(id,type,name,owner_id) VALUES(2600,'group','Moment audience group',3)");
+$admin->exec("INSERT INTO chat_members(chat_id,user_id,role,status) VALUES(2600,3,'owner','active'),(2600,2,'member','active')");
+$groupStory=request('POST','v1/stories',3,['content'=>'Group only','audience'=>'groups','group_ids'=>[2600]],201)['data']['story_id'];
+check(in_array($groupStory,$storyIds(2),true) && !in_array($groupStory,$storyIds(1),true),'Selected Groups audience leaked outside the chosen group');
+request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[2]]);
+check(!in_array($groupStory,$storyIds(2),true),'Hide Status From did not override selected group membership');
+request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[]]);
 $admin->exec('INSERT INTO user_blocks(user_id,blocked_user_id) VALUES(1,3)');
 check(!in_array($friendStory,$storyIds(1),true) && !in_array($publicStory,$storyIds(1),true),'Blocked Ring Bells are visible');
 $admin->exec('DELETE FROM user_blocks WHERE user_id=1 AND blocked_user_id=3');
@@ -39,6 +56,6 @@ $admin->exec('DELETE FROM user_blocks WHERE user_id=3 AND blocked_user_id=1');
 check((int)$admin->query('SELECT TIMESTAMPDIFF(SECOND,created_at,expires_at) FROM stories WHERE id='.(int)$friendStory)->fetchColumn()===36*3600,'Ring Bell lifetime differs from 36 hours');
 $admin->exec('UPDATE stories SET expires_at="2000-01-01" WHERE id='.(int)$friendStory);
 check(!in_array($friendStory,$storyIds(1),true),'Expired Ring Bell remained visible');
-foreach ([['content'=>''],['content'=>str_repeat('x',701)],['content'=>['bad']],['content'=>'Hello','audience'=>'anyone'],['content'=>'Hello','type'=>'video']] as $invalid) request('POST','v1/stories',1,$invalid,422);
-request('POST','v1/stories',1,['content'=>str_repeat('😀',700)],201);
-echo "Public room leave/rejoin, banned membership and Ring Bells audience/expiry integration cases passed\n";
+foreach ([['content'=>''],['content'=>str_repeat('x',501)],['content'=>['bad']],['content'=>'Hello','audience'=>'anyone'],['content'=>'Hello','type'=>'video']] as $invalid) request('POST','v1/stories',1,$invalid,422);
+request('POST','v1/stories',1,['content'=>str_repeat('😀',500)],201);
+echo "Public room leave/rejoin, banned membership and Moments audience, privacy and expiry integration cases passed\n";

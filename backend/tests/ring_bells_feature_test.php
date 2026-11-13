@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 $contract = json_decode((string)file_get_contents($root . '/api-contract.json'), true, 512, JSON_THROW_ON_ERROR);
-assert($contract['routes']['v1/stories']['methods'] === ['GET','POST','DELETE']);
+assert($contract['routes']['v1/stories']['methods'] === ['GET','POST','PUT','DELETE']);
 assert($contract['routes']['v1/stories']['auth'] === true);
 assert($contract['routes']['v1/stories/media']['handler'] === 'story_media.php');
 assert($contract['routes']['v1/stories/media/upload']['handler'] === 'story_media_upload.php');
@@ -18,7 +18,7 @@ assert(str_contains($handler, 'ORDER BY watched ASC'));
 assert(str_contains($handler, 's.deleted_at IS NULL'));
 assert(str_contains($handler, 'storedMediaPath'));
 assert(str_contains($handler, 'unlink($storedMediaPath)'));
-assert(str_contains($handler, '], $audience])'));
+assert(str_contains($handler, 'INSERT INTO stories(user_id,type,content,audience,created_at,expires_at)'));
 
 $mediaUpload = (string)file_get_contents($root . '/api/story_media_upload.php');
 foreach (['50 * 1024 * 1024','video/mp4','image/jpeg','is_uploaded_file','cloudcomai_detect_mime_type','is_writable'] as $needle) {
@@ -27,7 +27,11 @@ foreach (['50 * 1024 * 1024','video/mp4','image/jpeg','is_uploaded_file','cloudc
 
 $media = (string)file_get_contents($root . '/api/story_media.php');
 assert(str_contains($media, 'expires_at>UTC_TIMESTAMP()'));
-assert(str_contains($media, 'friend_requests'));
+assert(str_contains($media, 'can_view_story'));
+$storyAccess = (string)file_get_contents($root . '/lib/story_access.php');
+assert(str_contains($storyAccess, 'friend_requests'));
+assert(str_contains($storyAccess, 'user_story_hidden_contacts'));
+assert(str_contains($storyAccess, 'story_groups'));
 assert(str_contains($media, 'cloudcomai_media_mime_from_extension'));
 
 $mediaHelper = (string)file_get_contents($root . '/lib/media_upload.php');
@@ -43,8 +47,12 @@ foreach ([$migration,$schema] as $sql) {
 }
 
 $mobile = (string)file_get_contents(dirname($root) . '/apps/mobile/src/components/RingBellsStatus.js');
+$moments = (string)file_get_contents(dirname($root) . '/apps/mobile/src/components/MomentsScreen.js');
 foreach (['Unwatched','Watched','Count:','Photo / Video','Optional caption','deleteStory','viewStory','listStoryViewers','Post media'] as $needle) {
     assert(str_contains($mobile, $needle), "Missing mobile Ring Bells contract: {$needle}");
+}
+foreach (['All Contacts','Selected Groups','Hide Status From','TEXT_MAX_LENGTH = 500','VIDEO_MAX_SECONDS = 90','36 hours'] as $needle) {
+    assert(str_contains($moments, $needle), "Missing Moments contract: {$needle}");
 }
 
 echo "ring_bells_feature_test.php passed\n";

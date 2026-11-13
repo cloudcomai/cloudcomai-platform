@@ -32,6 +32,7 @@ jobs:
       - run: pnpm test
       - run: pnpm verify:api
       - run: pnpm verify:trusted-user
+      - run: pnpm verify:moments
       - run: pnpm build:web
         env:
           VITE_API_BASE_URL: https://api.example.invalid/apiapp/api

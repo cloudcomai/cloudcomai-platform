@@ -14,7 +14,7 @@
 - Persisted user preference ordering
 - In-app group shortcuts
 - Poll creation
-- 24-hour stories
+- 36-hour Moments (text, photo and video) with contact/group audiences and persistent hidden-contact exclusions
 - Live-location sessions
 - Audio/video call session records and signaling token foundation
 - Retention cleanup cron
