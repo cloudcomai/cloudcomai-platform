@@ -29,7 +29,42 @@ $mime = cloudcomai_detect_mime_type($path) ?: cloudcomai_media_mime_from_extensi
 if ($mime === '') fail('Ring Bell media type could not be determined', 500);
 
 header('Content-Type: ' . $mime);
-header('Content-Length: ' . (string)filesize($path));
+header('Accept-Ranges: bytes');
 header('Cache-Control: private, no-store');
-readfile($path);
+header('X-Content-Type-Options: nosniff');
+$size = (int)filesize($path);
+$start = 0;
+$end = max(0, $size - 1);
+$status = 200;
+$range = trim((string)($_SERVER['HTTP_RANGE'] ?? ''));
+if ($range !== '' && preg_match('/^bytes=(\\d*)-(\\d*)$/', $range, $matches)) {
+    if ($matches[1] === '' && $matches[2] !== '') {
+        $suffix = (int)$matches[2];
+        $start = max(0, $size - $suffix);
+    } else {
+        $start = (int)$matches[1];
+        if ($matches[2] !== '') $end = min($end, (int)$matches[2]);
+    }
+    if ($start > $end || $start >= $size) {
+        http_response_code(416);
+        header('Content-Range: bytes */' . $size);
+        exit;
+    }
+    $status = 206;
+}
+$length = $end - $start + 1;
+http_response_code($status);
+if ($status === 206) header('Content-Range: bytes ' . $start . '-' . $end . '/' . $size);
+header('Content-Length: ' . $length);
+$handle = fopen($path, 'rb');
+if ($handle === false) fail('Moment media could not be opened', 500);
+fseek($handle, $start);
+$remaining = $length;
+while ($remaining > 0 && !feof($handle)) {
+    $chunk = fread($handle, min(1024 * 1024, $remaining));
+    if ($chunk === false || $chunk === '') break;
+    echo $chunk;
+    $remaining -= strlen($chunk);
+}
+fclose($handle);
 exit;

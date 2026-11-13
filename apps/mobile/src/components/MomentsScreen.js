@@ -17,11 +17,47 @@ const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VIDEO_MAX_SECONDS = 90;
 const TEXT_MAX_LENGTH = 500;
 
-function MomentVideo({ uri, token }) {
+function MomentAuthorAvatar({ userId, name, size = 48, token }) {
+  const [failed, setFailed] = useState(false);
+  const initials = String(name || 'User').trim().charAt(0).toUpperCase() || 'U';
+  const avatarUri = Number(userId) > 0
+    ? buildApiUrl(API_BASE_URL, ApiRoute.MEDIA, { type: 'user', id: Number(userId) })
+    : '';
+
+  useEffect(() => { setFailed(false); }, [userId, avatarUri]);
+
+  return (
+    <View style={[styles.authorAvatar, { width: size, height: size, borderRadius: size / 2 }]}>
+      {avatarUri && !failed ? (
+        <Image
+          source={{ uri: avatarUri, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          resizeMode="cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Text style={[styles.authorAvatarInitial, { fontSize: Math.max(14, Math.round(size * 0.42)) }]}>{initials}</Text>
+      )}
+    </View>
+  );
+}
+
+function MomentVideo({ uri, token, paused, onFinish }) {
   const player = useVideoPlayer({ uri, headers: token ? { Authorization: `Bearer ${token}` } : {} }, instance => {
     instance.loop = false;
   });
-  return <VideoView player={player} style={styles.viewerMedia} nativeControls contentFit="contain" />;
+  useEffect(() => {
+    if (paused) player.pause();
+    else player.play();
+  }, [player, paused]);
+  useEffect(() => {
+    const subscription = player.addListener('playToEnd', onFinish);
+    return () => {
+      subscription.remove();
+      try { player.pause(); } catch {}
+    };
+  }, [player, onFinish]);
+  return <VideoView player={player} style={styles.viewerMedia} nativeControls={false} contentFit="cover" />;
 }
 
 function MomentPhoto({ story, token }) {
@@ -39,7 +75,8 @@ function MomentPhoto({ story, token }) {
 
         const directory = new Directory(Paths.cache, 'cloudcomai-moment-media');
         directory.create({ intermediates: true, idempotent: true });
-        const target = new File(directory, `story-${Number(story.id)}-${Date.now()}.img`);
+        const extension = String(story.media_extension || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+        const target = new File(directory, `story-${Number(story.id)}-${Date.now()}.${extension}`);
         downloadedFile = await File.downloadFileAsync(
           buildApiUrl(API_BASE_URL, ApiRoute.STORY_MEDIA, { story_id: Number(story.id) }),
           target,
@@ -74,12 +111,12 @@ function MomentPhoto({ story, token }) {
   if (!localUri) {
     return <View style={[styles.viewerMedia, styles.viewerMediaLoading]}><ActivityIndicator color="#fff" /><Text style={styles.viewerMediaMessage}>Loading photo…</Text></View>;
   }
-  return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="contain" onError={() => setMediaError(true)} />;
+  return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="cover" onError={() => setMediaError(true)} />;
 }
 
-function MomentMedia({ story, token }) {
+function MomentMedia({ story, token, paused, onFinish }) {
   const uri = buildApiUrl(API_BASE_URL, ApiRoute.STORY_MEDIA, { story_id: Number(story.id) });
-  if (story.type === 'video') return <MomentVideo uri={uri} token={token} />;
+  if (story.type === 'video') return <MomentVideo uri={uri} token={token} paused={paused} onFinish={onFinish} />;
   return <MomentPhoto story={story} token={token} />;
 }
 
@@ -103,6 +140,13 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   const [hideExpanded, setHideExpanded] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
   const [selectedStory, setSelectedStory] = useState(null);
+  const [viewers, setViewers] = useState([]);
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const [viewerLoading, setViewerLoading] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [clockNow, setClockNow] = useState(Date.now());
+  const [viewerCount, setViewerCount] = useState(0);
+  const [storyProgress, setStoryProgress] = useState(0);
 
   const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
@@ -135,6 +179,157 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClockNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Group all active Moments by author, matching WhatsApp's one-contact/one-row layout.
+  const momentGroups = useMemo(() => {
+    const grouped = new Map();
+    (stories || []).forEach(story => {
+      const key = String(story.user_id || (story.is_owner ? 'owner' : story.id));
+      if (!grouped.has(key)) grouped.set(key, {
+        key,
+        userId: story.user_id,
+        name: story.name || (story.is_owner ? 'You' : 'Contact'),
+        isOwner: Boolean(story.is_owner),
+        items: [],
+      });
+      grouped.get(key).items.push(story);
+    });
+    return Array.from(grouped.values()).map(group => {
+      const items = [...group.items].sort((a, b) =>
+        new Date(String(a.created_at).replace(' ', 'T') + 'Z').getTime()
+        - new Date(String(b.created_at).replace(' ', 'T') + 'Z').getTime()
+      );
+      return {
+        ...group,
+        items,
+        // Keep a contact in New until every currently active Moment from them is watched.
+        watched: !group.isOwner && items.length > 0 && items.every(item => Boolean(item.watched)),
+        latest: items[items.length - 1],
+      };
+    }).sort((a, b) => {
+      const aTime = new Date(String(a.latest?.created_at || '').replace(' ', 'T') + 'Z').getTime() || 0;
+      const bTime = new Date(String(b.latest?.created_at || '').replace(' ', 'T') + 'Z').getTime() || 0;
+      return bTime - aTime;
+    });
+  }, [stories]);
+
+  const ownMomentGroups = useMemo(() => momentGroups.filter(group => group.isOwner), [momentGroups]);
+  const newMomentGroups = useMemo(() => momentGroups.filter(group => !group.isOwner && !group.watched), [momentGroups]);
+  const watchedMomentGroups = useMemo(() => momentGroups.filter(group => !group.isOwner && group.watched), [momentGroups]);
+  const selectedGroup = useMemo(
+    () => momentGroups.find(group => group.items.some(item => Number(item.id) === Number(selectedStory?.id))),
+    [momentGroups, selectedStory?.id],
+  );
+  const orderedMoments = useMemo(() => momentGroups.flatMap(group => group.items), [momentGroups]);
+  const remainingMs = selectedStory?.expires_at
+    ? Math.max(0, new Date(/Z$|[+-]\\d\\d:\\d\\d$/.test(String(selectedStory.expires_at)) ? selectedStory.expires_at : String(selectedStory.expires_at).replace(' ', 'T') + 'Z').getTime() - clockNow)
+    : 0;
+  const remainingHours = Math.floor(remainingMs / 3600000);
+  const remainingMinutes = Math.floor((remainingMs % 3600000) / 60000);
+  const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+  const remainingLabel = remainingMs <= 0 ? 'Expired' : remainingHours > 0
+    ? `${remainingHours}h ${remainingMinutes}m left`
+    : remainingMinutes > 0 ? `${remainingMinutes}m ${remainingSeconds}s left` : `${remainingSeconds}s left`;
+
+  const openMomentGroup = group => {
+    const firstUnwatched = group.items.find(item => !item.watched);
+    setStoryProgress(0);
+    setSelectedStory(firstUnwatched || group.items[0] || null);
+  };
+
+  const advanceMoment = useCallback(() => {
+    if (!selectedStory) return;
+    const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
+    const next = orderedMoments[index + 1];
+    if (next) {
+      setStoryProgress(0);
+      setSelectedStory(next);
+      setIsPaused(false);
+    } else {
+      setSelectedStory(null);
+      setIsPaused(false);
+    }
+  }, [orderedMoments, selectedStory]);
+
+  const moveWithinMomentGroup = direction => {
+    if (!selectedStory) return;
+    const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
+    const next = orderedMoments[index + direction];
+    if (next) { setStoryProgress(0); setSelectedStory(next); setIsPaused(false); }
+  };
+
+  useEffect(() => {
+    if (!selectedStory || isPaused || selectedStory.type === 'video') return undefined;
+    const startingProgress = storyProgress;
+    const remainingDuration = Math.max(0, 7000 * (1 - startingProgress / 100));
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      const nextProgress = startingProgress + ((Date.now() - startedAt) / 7000) * 100;
+      setStoryProgress(Math.min(100, nextProgress));
+    }, 100);
+    const timeout = setTimeout(advanceMoment, remainingDuration);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [selectedStory?.id, selectedStory?.type, isPaused, advanceMoment]);
+
+  const formatRemaining = expiresAt => {
+    if (!expiresAt) return 'Expiry unavailable';
+    const expiry = new Date(/Z$|[+-]\\d\\d:\\d\\d$/.test(String(expiresAt)) ? expiresAt : String(expiresAt).replace(' ', 'T') + 'Z').getTime();
+    const diff = Math.max(0, expiry - clockNow);
+    if (!diff) return 'Expired';
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    return hours > 0 ? `${hours} hours ${minutes} min left` : `${minutes} min left`;
+  };
+
+  useEffect(() => {
+    if (!selectedStory) { setViewerCount(0); return undefined; }
+    setViewerCount(Number(selectedStory.view_count || 0));
+  }, [selectedStory?.id]);
+
+  useEffect(() => {
+    if (!selectedStory || selectedStory.is_owner) return undefined;
+    let active = true;
+    platformApi.viewStory(selectedStory.id).then(response => {
+      if (!active) return;
+      const count = Number(response?.data?.count ?? selectedStory.view_count ?? 0);
+      setViewerCount(count);
+      setStories(current => current.map(item => Number(item.id) === Number(selectedStory.id)
+        ? { ...item, watched: true, view_count: count }
+        : item));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [selectedStory?.id, selectedStory?.is_owner]);
+
+  const openViewers = async story => {
+    setIsPaused(true);
+    setViewerLoading(true);
+    setViewersOpen(true);
+    try {
+      const response = await platformApi.listStoryViewers(story.id);
+      const rows = response?.data?.viewers || [];
+      setViewers(rows);
+      setViewerCount(Number(response?.data?.count ?? rows.length));
+    } catch (viewerError) {
+      setError(viewerError?.message || 'Unable to load viewers.');
+      setViewers([]);
+    } finally { setViewerLoading(false); }
+  };
+
+  const deleteMoment = story => Alert.alert('Delete Moment?', 'This Moment will be removed immediately for everyone.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      try {
+        await platformApi.deleteStory(story.id);
+        setSelectedStory(null);
+        setStories(current => current.filter(item => Number(item.id) !== Number(story.id)));
+      } catch (deleteError) { setError(deleteError?.message || 'Unable to delete this Moment.'); }
+    } },
+  ]);
 
   const toggleId = (items, setter, id) => {
     const value = Number(id);
@@ -346,27 +541,83 @@ export default function MomentsScreen({ onBack, themeSettings }) {
         <View style={{ flex: 1 }}><Text style={styles.createTitle}>Add to your Moments</Text><Text style={styles.muted}>Share a photo, video or text update</Text></View>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
-      <Text style={styles.sectionTitle}>Recent Moments</Text>
-      {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.accent} /> : stories.length ? stories.map(story => (
-        <Pressable key={story.id} style={styles.storyRow} onPress={() => setSelectedStory(story)}>
-          <View style={[styles.storyRing, story.watched && styles.storyRingWatched]}><Text style={styles.storyRingText}>{String(story.name || 'U').slice(0,1).toUpperCase()}</Text></View>
-          <View style={{ flex: 1 }}><Text style={styles.storyName}>{story.is_owner ? 'Your Moment' : story.name || 'Contact'}</Text><Text numberOfLines={2} style={styles.muted}>{story.type === 'text' ? story.content || 'Text Moment' : story.type === 'video' ? 'Video Moment' : 'Photo Moment'} · expires {new Date(String(story.expires_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
-      )) : <Text style={styles.empty}>No active Moments yet. Be the first to share one.</Text>}
+      {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={theme.colors.accent} /> : (
+        <>
+          {ownMomentGroups.length ? <>
+            <Text style={styles.sectionTitle}>My Moments</Text>
+            {ownMomentGroups.map(group => (
+              <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
+                <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} token={token} /></View>
+                <View style={{ flex: 1 }}><Text style={styles.storyName}>Your Moment</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} active Moment{group.items.length === 1 ? '' : 's'} · latest {new Date(String(group.latest?.created_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            ))}
+          </> : null}
+          <Text style={styles.sectionTitle}>New Moments</Text>
+          {newMomentGroups.map(group => (
+            <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
+              <View style={styles.storyRing}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} token={token} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.storyName}>{group.name}</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} new Moment{group.items.length === 1 ? '' : 's'} · latest {new Date(String(group.latest?.created_at).replace(' ', 'T') + 'Z').toLocaleString()}</Text></View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          ))}
+          {!newMomentGroups.length && !ownMomentGroups.length ? <Text style={styles.empty}>No new Moments right now.</Text> : null}
+          <Text style={styles.sectionTitle}>Viewed Moments</Text>
+          {watchedMomentGroups.map(group => (
+            <Pressable key={group.key} style={styles.storyRow} onPress={() => openMomentGroup(group)}>
+              <View style={[styles.storyRing, styles.storyRingWatched]}><MomentAuthorAvatar userId={group.userId} name={group.name} size={44} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.storyName}>{group.name}</Text><Text numberOfLines={1} style={styles.muted}>{group.items.length} Moment{group.items.length === 1 ? '' : 's'} · viewed</Text></View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          ))}
+          {!watchedMomentGroups.length ? <Text style={styles.muted}>Viewed contacts will appear here.</Text> : null}
+        </>
+      )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Text style={styles.expiryNote}>Moments disappear 36 hours after publishing.</Text>
     </ScrollView>
-    <Modal visible={Boolean(selectedStory)} transparent animationType="fade" onRequestClose={() => setSelectedStory(null)}>
-      <View style={styles.viewerBackdrop}>
-        <View style={styles.viewerCard}>
-          <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>{selectedStory?.is_owner ? 'Your Moment' : selectedStory?.name || 'Moment'}</Text><Pressable onPress={() => setSelectedStory(null)}><Text style={styles.close}>×</Text></Pressable></View>
-          {selectedStory?.type === 'text' ? <Text style={styles.viewerText}>{selectedStory?.content}</Text> : selectedStory ? <MomentMedia story={selectedStory} token={token} /> : null}
-          {selectedStory?.caption ? <Text style={styles.viewerCaption}>{selectedStory.caption}</Text> : null}
-          {selectedStory?.is_owner ? <Text style={styles.muted}>Viewed by {selectedStory.view_count || 0} people</Text> : null}
-          <Text style={styles.expiryNote}>Expires after 36 hours</Text>
+    <Modal visible={Boolean(selectedStory)} transparent={false} animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { setSelectedStory(null); setIsPaused(false); }}>
+      <View style={styles.fullscreenViewer}>
+        <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${storyProgress}%` }]} /></View>
+        <View style={styles.fullscreenTop}>
+          <View style={styles.authorHeader}>
+            {selectedStory ? <MomentAuthorAvatar userId={selectedStory.user_id} name={selectedStory.name} size={38} token={token} /> : null}
+            <View style={{ flex: 1 }}><Text style={styles.fullscreenName}>{selectedStory?.name || (selectedStory?.is_owner ? 'You' : 'Moment')}</Text><Text style={styles.fullscreenMeta}>{selectedStory?.is_owner ? 'Your Moment' : 'Moment'} · {remainingLabel}</Text></View>
+          </View>
+          <View style={styles.topActions}>
+            {selectedStory?.is_owner ? <Pressable onPress={() => openViewers(selectedStory)}><Text style={styles.fullscreenAction}>◉ {viewerCount ?? Number(selectedStory.view_count || 0)}</Text></Pressable> : null}
+            <Pressable onPress={() => setIsPaused(value => !value)}><Text style={styles.fullscreenAction}>{isPaused ? '▶' : 'Ⅱ'}</Text></Pressable>
+            <Pressable onPress={() => { setSelectedStory(null); setIsPaused(false); }}><Text style={styles.fullscreenClose}>×</Text></Pressable>
+          </View>
+        </View>
+        <Pressable style={styles.fullscreenContent} onPressIn={() => setIsPaused(true)} onPressOut={() => setIsPaused(false)}>
+          {selectedStory?.type === 'text'
+            ? <Text style={styles.fullscreenText}>{selectedStory?.content}</Text>
+            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused} onFinish={advanceMoment} /> : null}
+          {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
+        </Pressable>
+        <View style={styles.fullscreenBottom}>
+          <Text style={styles.fullscreenMeta}>{selectedStory ? `Moment ${orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id)) + 1} of ${orderedMoments.length}` : ''}</Text>
+          <View style={styles.sequenceButtons}>
+            <Pressable onPress={() => moveWithinMomentGroup(-1)} style={styles.fullscreenActionButton}><Text style={styles.fullscreenAction}>‹ Previous</Text></Pressable>
+            <Pressable onPress={advanceMoment} style={styles.fullscreenActionButton}><Text style={styles.fullscreenAction}>Next ›</Text></Pressable>
+          </View>
+          {selectedStory?.is_owner ? <Pressable onPress={() => deleteMoment(selectedStory)} style={styles.fullscreenDelete}><Text style={styles.fullscreenAction}>Delete Moment</Text></Pressable> : null}
+          {selectedStory?.is_owner ? <Text style={styles.fullscreenMeta}>Seen by {viewerCount || selectedStory.view_count || 0}</Text> : null}
         </View>
       </View>
+    </Modal>
+    <Modal visible={viewersOpen} transparent animationType="slide" onRequestClose={() => { setViewersOpen(false); setIsPaused(false); }}>
+      <View style={styles.viewerBackdrop}><View style={styles.viewerListCard}>
+        <View style={styles.viewerHeader}><Text style={styles.viewerTitle}>Seen By ({viewers.length})</Text><Pressable onPress={() => { setViewersOpen(false); setIsPaused(false); }}><Text style={styles.close}>×</Text></Pressable></View>
+        {viewerLoading ? <ActivityIndicator color={theme.colors.accent} /> : <ScrollView style={styles.viewerList}>
+          {viewers.map(viewer => <View key={viewer.viewer_id} style={styles.viewerRow}>
+            <MomentAuthorAvatar userId={viewer.viewer_id} name={viewer.name || viewer.username} size={42} token={token} />
+            <View style={{ flex: 1 }}><Text style={styles.viewerName}>{viewer.name || viewer.username || 'CloudComAI user'}</Text><Text style={styles.muted}>@{viewer.username || viewer.viewer_id}</Text></View>
+          </View>)}
+          {!viewers.length && !viewerLoading ? <Text style={styles.empty}>No views yet.</Text> : null}
+        </ScrollView>}
+      </View></View>
     </Modal>
   </SafeAreaView>;
 }
@@ -414,16 +665,45 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.55 },
   storyRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderWidth: 1, borderColor: '#edf0f5', borderRadius: 14, backgroundColor: '#fff' },
   storyRing: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: '#3157d5', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8faff' },
+  authorAvatar: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e0e7ff' },
+  authorAvatarInitial: { color: '#3157d5', fontWeight: '800', textAlign: 'center' },
+  authorHeader: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   storyRingWatched: { borderColor: '#cbd5e1' },
+  momentSequence: { gap: 8, paddingTop: 4 },
+  sequenceButtons: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  sequenceButton: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#dbe4ff', borderRadius: 10 },
+  sequenceButtonText: { color: '#3157d5', fontWeight: '800' },
   storyRingText: { color: '#3157d5', fontWeight: '800', fontSize: 18 },
   storyName: { color: '#172033', fontSize: 14, fontWeight: '800' },
   empty: { color: '#68748a', textAlign: 'center', padding: 24, backgroundColor: '#f8faff', borderRadius: 12 },
+  fullscreenViewer: { flex: 1, backgroundColor: '#050505', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingBottom: Platform.OS === 'ios' ? 28 : 16 },
+  progressTrack: { height: 3, marginHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: 3, backgroundColor: '#fff' },
+  fullscreenTop: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  fullscreenName: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  fullscreenMeta: { color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 2 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  fullscreenAction: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  fullscreenClose: { color: '#fff', fontSize: 30, lineHeight: 34 },
+  fullscreenContent: { flex: 1, alignItems: 'stretch', justifyContent: 'center', backgroundColor: '#000' },
+  fullscreenText: { color: '#fff', fontSize: 28, lineHeight: 38, fontWeight: '700', textAlign: 'center', paddingHorizontal: 28 },
+  fullscreenCaption: { position: 'absolute', bottom: 16, left: 18, right: 18, color: '#fff', fontSize: 15, textShadowColor: '#000', textShadowRadius: 8 },
+  fullscreenBottom: { paddingHorizontal: 16, paddingTop: 10, gap: 10 },
+  fullscreenActionButton: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.12)' },
+  fullscreenDelete: { alignSelf: 'flex-start', paddingVertical: 8 },
   viewerBackdrop: { flex: 1, justifyContent: 'center', padding: 18, backgroundColor: 'rgba(15,23,42,0.75)' },
-  viewerCard: { padding: 14, borderRadius: 18, backgroundColor: '#fff', gap: 10 },
+  ownerActions: { flexDirection: 'row', gap: 8 },
+  deleteButton: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: '#ef4444', borderRadius: 10 },
+  deleteButtonText: { color: '#dc2626', fontWeight: '800' },
+  viewerListCard: { maxHeight: '70%', padding: 16, borderRadius: 18, backgroundColor: '#fff', gap: 12 },
+  viewerList: { flexGrow: 0 },
+  viewerRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5' },
+  viewerAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#e2e8f0' },
+  viewerName: { color: '#172033', fontSize: 14, fontWeight: '700' },
   viewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   viewerTitle: { color: '#172033', fontSize: 16, fontWeight: '800' },
   close: { color: '#172033', fontSize: 28 },
-  viewerMedia: { width: '100%', height: 420, backgroundColor: '#111827', borderRadius: 12 },
+  viewerMedia: { width: '100%', height: '100%', backgroundColor: '#000' },
   viewerMediaLoading: { alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18 },
   viewerMediaMessage: { color: '#fff', fontSize: 13, textAlign: 'center' },
   viewerText: { color: '#172033', fontSize: 22, lineHeight: 30, paddingVertical: 28, textAlign: 'center' },
