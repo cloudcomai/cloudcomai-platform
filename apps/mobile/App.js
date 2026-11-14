@@ -206,7 +206,7 @@ function AuthScreen({ onAuthenticated }) {
             </Text>
 
             {mode === 'verify' ? (
-              <TextInput style={styles.input} value={otpCode} onChangeText={value => setOtpCode(value.replace(/[^0-9]/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="Six-digit verification code" placeholderTextColor="#7f8aa3" accessibilityLabel="Six-digit verification code" onSubmitEditing={verifyOtp} />
+              <TextInput style={styles.input} value={otpCode} onChangeText={value => setOtpCode(value.replace(/[^0-9]/g, '').slice(0, 6))} keyboardType="number-pad" autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'} textContentType="oneTimeCode" maxLength={6} placeholder="Six-digit verification code" placeholderTextColor="#7f8aa3" accessibilityLabel="Six-digit verification code" onSubmitEditing={verifyOtp} />
             ) : mode === 'login' ? (
               <>
                 <TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} placeholder="Email, phone or username" placeholderTextColor="#7f8aa3" />
