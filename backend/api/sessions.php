@@ -50,6 +50,7 @@ if ($method === 'POST' && ($payload['revoke_others'] ?? false) === true) {
         $version=$pdo->prepare('SELECT session_version FROM user_session_versions WHERE user_id=?'); $version->execute([$user['id']]);
         $pdo->prepare('UPDATE user_sessions SET revoked_at=UTC_TIMESTAMP() WHERE user_id=? AND revoked_at IS NULL')->execute([$user['id']]);
         $pdo->prepare('UPDATE notification_devices SET revoked_at=UTC_TIMESTAMP() WHERE user_id=?')->execute([$user['id']]);
+        $pdo->prepare('UPDATE trusted_login_devices SET revoked_at=COALESCE(revoked_at,UTC_TIMESTAMP()) WHERE user_id=?')->execute([$user['id']]);
         $token=token_for((int)$user['id'],(int)$version->fetchColumn());
         $pdo->commit();
     } catch (Throwable $error) { $pdo->rollBack(); throw $error; }
