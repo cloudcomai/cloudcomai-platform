@@ -84,6 +84,7 @@ function AuthScreen({ onAuthenticated }) {
   const [otpPurpose, setOtpPurpose] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [userId, setUserId] = useState('');
   const [userIdTouched, setUserIdTouched] = useState(false);
@@ -184,15 +185,23 @@ function AuthScreen({ onAuthenticated }) {
     setSuccess('');
     setPassword('');
     setConfirmPassword('');
+    setShowPassword(false);
   };
 
   return (
     <SafeAreaView style={styles.loginPage} edges={['top', 'bottom', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#eef2ff" />
-      <KeyboardAvoidingView style={styles.authKeyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        style={styles.authKeyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+        enabled
+      >
         <ScrollView
           contentContainerStyle={styles.authScroll}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.loginCard}>
@@ -210,7 +219,11 @@ function AuthScreen({ onAuthenticated }) {
             ) : mode === 'login' ? (
               <>
                 <TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} placeholder="Email, phone or username" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="Password" placeholderTextColor="#7f8aa3" onSubmitEditing={login} />
+                <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholder="Password" placeholderTextColor="#7f8aa3" onSubmitEditing={login} />
+                <Pressable style={styles.showPasswordRow} onPress={() => setShowPassword(value => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: showPassword }} accessibilityLabel="Show password">
+                  <View style={[styles.showPasswordCheckbox, showPassword && styles.showPasswordCheckboxChecked]}>{showPassword ? <Text style={styles.showPasswordCheckmark}>✓</Text> : null}</View>
+                  <Text style={styles.showPasswordText}>Show password</Text>
+                </Pressable>
                 <View style={styles.rememberRow}>
                   <Text style={styles.rememberCheck}>✓</Text>
                   <Text style={styles.rememberText}>Keep me signed in on this device</Text>
@@ -234,8 +247,12 @@ function AuthScreen({ onAuthenticated }) {
                     </Pressable>
                   ))}
                 </View>
-                <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="Password (minimum 8 characters)" placeholderTextColor="#7f8aa3" />
-                <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholder="Confirm password" placeholderTextColor="#7f8aa3" onSubmitEditing={register} />
+                <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholder="Password (minimum 8 characters)" placeholderTextColor="#7f8aa3" />
+                <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showPassword} placeholder="Confirm password" placeholderTextColor="#7f8aa3" onSubmitEditing={register} />
+                <Pressable style={styles.showPasswordRow} onPress={() => setShowPassword(value => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: showPassword }} accessibilityLabel="Show password">
+                  <View style={[styles.showPasswordCheckbox, showPassword && styles.showPasswordCheckboxChecked]}>{showPassword ? <Text style={styles.showPasswordCheckmark}>✓</Text> : null}</View>
+                  <Text style={styles.showPasswordText}>Show password</Text>
+                </Pressable>
               </>
             )}
 
@@ -1406,7 +1423,7 @@ const styles = StyleSheet.create({mentionSuggestions:{maxHeight:180,borderTopWid
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
   input: { minHeight: 50, marginBottom: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, color: '#172033', backgroundColor: '#fbfcff' },
-  userIdHint: { marginTop: -7, marginBottom: 12, color: '#68748a', fontSize: 12, lineHeight: 17 }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
+  userIdHint: { marginTop: -7, marginBottom: 12, color: '#68748a', fontSize: 12, lineHeight: 17 }, showPasswordRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 9, marginTop: -2, marginBottom: 14, minHeight: 28 }, showPasswordCheckbox: { width: 20, height: 20, borderWidth: 1.5, borderColor: '#9aa6ba', borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }, showPasswordCheckboxChecked: { borderColor: '#3157d5', backgroundColor: '#3157d5' }, showPasswordCheckmark: { color: '#fff', fontSize: 14, lineHeight: 17, fontWeight: '900' }, showPasswordText: { color: '#68748a', fontSize: 13 }, rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 14 }, rememberCheck: { width: 22, height: 22, textAlign: 'center', textAlignVertical: 'center', borderRadius: 6, overflow: 'hidden', color: '#fff', backgroundColor: '#3157d5', fontWeight: '800' }, rememberText: { flex: 1, color: '#68748a', fontSize: 12 }, genderRow: { flexDirection: 'row', gap: 10, marginBottom: 12 }, genderButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d8deea', borderRadius: 12, backgroundColor: '#fbfcff' }, genderButtonActive: { borderColor: '#3157d5', backgroundColor: '#eef2ff' }, genderButtonText: { color: '#68748a', fontWeight: '700' }, genderButtonTextActive: { color: '#3157d5' }, authSwitchRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }, authSwitchText: { color: '#68748a', fontSize: 13 }, authSwitchLink: { color: '#3157d5', fontWeight: '800', fontSize: 13 }, error: { marginBottom: 12, color: '#dc2626' }, primaryButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#3157d5' }, primaryButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 }, pressed: { opacity: 0.85 }, disabled: { opacity: 0.65 },
   mobileHome: { flex: 1, backgroundColor: '#fff' },
   mobileTopBar: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#edf0f5', backgroundColor: '#fff' },
   topIconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
