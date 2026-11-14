@@ -20,14 +20,14 @@ function otp_send_sms(string $mobile, string $message): bool {
     $deviceId = trim((string)($sms['device_id'] ?? ''));
     $url = trim((string)($sms['api_url'] ?? 'https://api.textbee.dev/api/v1/gateway/send-sms'));
     if ($apiKey === '' || $deviceId === '' || !function_exists('curl_init')) return false;
-    $payload = json_encode(['recipients' => [$mobile], 'message' => $message], JSON_UNESCAPED_SLASHES);
+    $payload = json_encode(['deviceId' => $deviceId, 'recipients' => [$mobile], 'message' => $message], JSON_UNESCAPED_SLASHES);
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 15,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-api-key: ' . $apiKey, 'device-id: ' . $deviceId],
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'x-api-key: ' . $apiKey],
         CURLOPT_POSTFIELDS => $payload,
     ]);
     $response = curl_exec($ch);
