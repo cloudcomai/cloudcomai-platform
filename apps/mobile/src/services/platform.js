@@ -11,16 +11,7 @@ export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '');
 const secureStorage = { getItem:key=>SecureStore.getItemAsync(key), setItem:(key,value)=>SecureStore.setItemAsync(key,value), removeItem:key=>SecureStore.deleteItemAsync(key) };
 const authSessionManager = createAuthSessionManager({ storage: secureStorage });
 const rememberedDeviceStorageKey = 'cloudcomai.rememberedDeviceToken';
-export const getRememberedDeviceToken = async () => {
-  let value = await SecureStore.getItemAsync(rememberedDeviceStorageKey);
-  if (!value) {
-    const bytes = new Uint8Array(32);
-    globalThis.crypto.getRandomValues(bytes);
-    value = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-    await SecureStore.setItemAsync(rememberedDeviceStorageKey, value);
-  }
-  return value;
-};
+export const getRememberedDeviceToken = () => SecureStore.getItemAsync(rememberedDeviceStorageKey);
 export const saveRememberedDeviceToken = value => (typeof value === 'string' && value.length >= 32 && value.length <= 200) ? SecureStore.setItemAsync(rememberedDeviceStorageKey, value) : Promise.resolve();
 export const clearRememberedDeviceToken = () => SecureStore.deleteItemAsync(rememberedDeviceStorageKey);
 const sessionExpirationListeners = new Set();
