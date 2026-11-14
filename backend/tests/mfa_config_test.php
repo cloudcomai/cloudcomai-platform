@@ -15,14 +15,9 @@ expect_mfa(mfa_is_enabled() === true, 'String true must enable MFA');
 $GLOBALS['config']['app']['mfa_enabled'] = 'false';
 expect_mfa(mfa_is_enabled() === false, 'String false must disable MFA');
 expect_mfa(otp_config('ttl_seconds', 300) === 300, 'OTP settings must be read from app configuration');
-expect_mfa(otp_signing_secret() === str_repeat('t', 32), 'OTP signing must reuse the existing application token secret');
-$GLOBALS['config']['app']['otp']['signing_secret'] = str_repeat('o', 48);
-expect_mfa(otp_signing_secret() === str_repeat('t', 32), 'OTP signing must ignore any separate OTP signing key');
-$GLOBALS['config']['app']['token_secret'] = 'short';
-try {
-    otp_signing_secret();
-    throw new RuntimeException('Short application token secrets must be rejected');
-} catch (RuntimeException $e) {
-    expect_mfa(str_contains($e->getMessage(), 'app.token_secret'), 'Missing-secret errors must identify the existing configuration path');
-}
+unset($GLOBALS['config']['app']['token_secret']);
+$otpHash = otp_hash_code('123456');
+expect_mfa(otp_code_matches('123456', $otpHash), 'Correct OTP must match its password hash');
+expect_mfa(!otp_code_matches('654321', $otpHash), 'Incorrect OTP must not match its password hash');
+expect_mfa(strlen($otpHash) === 60, 'OTP hashes must fit the existing CHAR(64) database column');
 echo "MFA configuration tests passed\n";
