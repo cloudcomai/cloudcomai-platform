@@ -18,23 +18,13 @@ MFA is controlled by one server-side setting in `backend/config/config.php`:
 
 The repository's `config.example.php` defaults the switch to `false`. Enable it only after email and SMS delivery are configured and tested.
 
-## Existing application signing secret
+## OTP storage and application secrets
 
-OTP codes reuse the existing server-only `app.token_secret` from `backend/config/config.php`. No additional OTP signing key is required.
-
-Ensure the existing `app.token_secret` is a real, random, stable secret of at least 32 characters—not the example placeholder—and keep it private. The same value must remain unchanged while OTP challenges are active so verification continues to work. Do not paste it into chat, commit it, or write it to logs.
-
-If the existing token secret is missing, still contains the example placeholder, or is shorter than 32 characters, OTP creation fails safely. If you need to replace an insecure placeholder, generate a strong value on the server or a trusted machine with:
-
-```sh
-php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
-```
-
-Changing `app.token_secret` can invalidate existing sessions/tokens, so coordinate any replacement with a planned deployment.
+OTP generation and verification do not depend on `app.token_secret` or any separate OTP signing secret. Each six-digit OTP is stored using a bcrypt password hash, and verification uses `password_verify()`. The existing application token secret remains dedicated to the application's existing token/session functionality and does not need to be changed for MFA.
 
 ## OTP policy
 
-The optional `app.otp` settings control expiry, failed attempts, resend cooldown, and send-rate limits. Defaults are 5 minutes, 5 attempts, 60 seconds, and 5 sends per hour. OTPs are generated with a cryptographically secure random generator, stored as HMAC hashes, expire, and can be consumed once.
+The optional `app.otp` settings control expiry, failed attempts, resend cooldown, and send-rate limits. Defaults are 5 minutes, 5 attempts, 60 seconds, and 5 sends per hour. OTPs are generated with a cryptographically secure random generator, stored as bcrypt hashes, expire, and can be consumed once.
 
 When both email and mobile are registered, the same one-time code is sent to both destinations. A challenge is not issued if a required delivery channel fails. OTP values and provider credentials are never returned by the API.
 
