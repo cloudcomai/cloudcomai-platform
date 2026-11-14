@@ -49,7 +49,7 @@ try {
             $challenge = create_otp_challenge($id, 'registration', $email ?: null, $mobile ?: null, $name);
         } catch (Throwable $e) {
             error_log('Registration OTP could not be sent for user ' . $id . ': ' . $e->getMessage());
-            fail('Your account was created, but verification delivery failed. Please contact support before retrying.', 503);
+            fail('Your account was created, but verification delivery failed. Please sign in again after the resend cooldown to request a new code.', 503);
         }
         out(['mfa_required'=>true,'challenge_id'=>$challenge,'message'=>'Verification code sent to your registered email and mobile number.'],202);
     }
