@@ -33,7 +33,7 @@ $user = $st->fetch();
 if (!$user) fail('Account unavailable', 403);
 $deviceToken = '';
 if (mfa_is_enabled() && in_array($purpose, ['registration', 'first_login'], true)) {
-    $deviceToken = random_token(32);
+    $deviceToken = bin2hex(random_bytes(32));
     $label = substr(trim((string)($_SERVER['HTTP_USER_AGENT'] ?? 'Remembered device')), 0, 160);
     $pdo->prepare('INSERT INTO trusted_login_devices(user_id,token_hash,device_label,created_at,last_used_at) VALUES(?,?,?,?,?)')
         ->execute([$userId, hash('sha256', $deviceToken), $label ?: 'Remembered device', gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s')]);
