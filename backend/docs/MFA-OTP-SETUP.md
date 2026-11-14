@@ -63,3 +63,9 @@ For an existing database, run `backend/database/migrations/031_mfa_otp.sql` once
 - First login with MFA enabled returns the same challenge response until initial verification is complete.
 - `POST v1/auth/verify-otp` verifies registration or first-login challenges and then returns the normal session token and user.
 - Mobile changes use authenticated `POST v1/users/mobile-verification` with `action=request`, followed by `action=verify`. The number is updated only after OTP verification, regardless of the master MFA switch.
+
+
+## Remembered devices
+When MFA is enabled, a device receives a random server-issued remembered-device credential only after successful OTP verification. The credential is stored in browser local storage on web and platform secure storage on mobile, so it survives browser/app restarts. Subsequent logins from that device can skip OTP while the credential remains valid. Explicit logout revokes the server-side credential and clears the local copy, so the next login requires OTP. Signing out all sessions also revokes all remembered devices. Clearing app/browser storage or using another device causes OTP verification again. The raw credential is never stored in the database; only its SHA-256 hash is stored.
+
+Run `backend/database/migrations/032_trusted_login_devices.sql` on an existing database. Fresh installations receive the trusted-device table from `backend/database/fresh-install.sql`.
