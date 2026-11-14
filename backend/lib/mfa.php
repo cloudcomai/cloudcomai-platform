@@ -11,11 +11,9 @@ function otp_config(string $key, mixed $fallback = null): mixed {
     return $config['app']['otp'][$key] ?? $fallback;
 }
 
-function otp_send_sms(string $mobile, string $message): bool {
+function otp_send_sms_textbee(string $mobile, string $message): bool {
     global $config;
     $sms = $config['app']['otp']['sms'] ?? [];
-    $provider = strtolower((string)($sms['provider'] ?? ''));
-    if ($provider !== 'textbee') return false;
     $apiKey = trim((string)($sms['api_key'] ?? ''));
     $deviceId = trim((string)($sms['device_id'] ?? ''));
     $url = trim((string)($sms['api_url'] ?? 'https://api.textbee.dev/api/v1/gateway/send-sms'));
@@ -34,6 +32,18 @@ function otp_send_sms(string $mobile, string $message): bool {
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     return $response !== false && $status >= 200 && $status < 300;
+}
+
+function otp_send_sms(string $mobile, string $message): bool {
+    global $config;
+    $provider = strtolower(trim((string)($config['app']['otp']['sms']['provider'] ?? '')));
+    switch ($provider) {
+        case 'textbee':
+            return otp_send_sms_textbee($mobile, $message);
+        default:
+            error_log('Unsupported OTP SMS provider configured: ' . ($provider !== '' ? $provider : 'not_set'));
+            return false;
+    }
 }
 
 function otp_send_email(string $email, string $name, string $code): bool {
