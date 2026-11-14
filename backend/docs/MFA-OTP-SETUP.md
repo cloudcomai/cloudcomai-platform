@@ -18,21 +18,19 @@ MFA is controlled by one server-side setting in `backend/config/config.php`:
 
 The repository's `config.example.php` defaults the switch to `false`. Enable it only after email and SMS delivery are configured and tested.
 
-## Required OTP signing secret
+## Existing application signing secret
 
-OTP codes are HMAC-signed with a dedicated, server-only secret. Add this key inside the `app.otp` array in the live `backend/config/config.php`:
+OTP codes reuse the existing server-only `app.token_secret` from `backend/config/config.php`. No additional OTP signing key is required.
 
-```php
-'signing_secret' => 'PASTE_A_NEW_RANDOM_SECRET_HERE',
-```
+Ensure the existing `app.token_secret` is a real, random, stable secret of at least 32 characters—not the example placeholder—and keep it private. The same value must remain unchanged while OTP challenges are active so verification continues to work. Do not paste it into chat, commit it, or write it to logs.
 
-Generate a 64-character hexadecimal secret on a trusted machine with:
+If the existing token secret is missing, still contains the example placeholder, or is shorter than 32 characters, OTP creation fails safely. If you need to replace an insecure placeholder, generate a strong value on the server or a trusted machine with:
 
 ```sh
 php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
 ```
 
-Use the generated value exactly as returned. Keep it stable across deployments and never commit it or share it in logs. If this key is absent, the backend can fall back to `app.token_secret` only when that existing secret is at least 32 characters; otherwise OTP creation fails safely. Set the dedicated key to avoid coupling OTP hashes to session-token signing.
+Changing `app.token_secret` can invalidate existing sessions/tokens, so coordinate any replacement with a planned deployment.
 
 ## OTP policy
 
