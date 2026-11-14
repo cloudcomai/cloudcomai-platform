@@ -246,12 +246,12 @@ function AuthScreen({ onAuthenticated }) {
             {mode === 'verify' && <Pressable style={styles.authSwitchRow} disabled={busy} onPress={() => { setMode(otpPurpose === 'registration' ? 'register' : 'login'); setOtpChallenge(null); setOtpCode(''); setError(''); setSuccess(''); }}><Text style={styles.authSwitchLink}>Back</Text></Pressable>}
             {mode === 'login' && <Pressable style={styles.authSwitchRow} disabled={busy} onPress={() => changeMode('forgot')}><Text style={styles.authSwitchLink}>Forgot password?</Text></Pressable>}
 
-            <View style={styles.authSwitchRow}>
+            {mode !== 'verify' && <View style={styles.authSwitchRow}>
               <Text style={styles.authSwitchText}>{mode === 'login' ? "Don't have an account?" : 'Already have an account?'}</Text>
               <Pressable disabled={busy} onPress={() => changeMode(mode === 'login' ? 'register' : 'login')}>
                 <Text style={styles.authSwitchLink}>{mode === 'login' ? 'Register' : 'Sign in'}</Text>
               </Pressable>
-            </View>
+            </View>}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
