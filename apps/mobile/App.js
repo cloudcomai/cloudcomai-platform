@@ -79,6 +79,9 @@ const normalizeChats = (items, isGroup) => (items || []).map(chat => ({
 
 function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState('login');
+  const [otpChallenge, setOtpChallenge] = useState(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpPurpose, setOtpPurpose] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -107,6 +110,7 @@ function AuthScreen({ onAuthenticated }) {
     setError('');
     try {
       const { data } = await platformApi.login(identifier.trim(), password);
+      if (data?.mfa_required) { setOtpChallenge(data.challenge_id); setOtpPurpose('first_login'); setOtpCode(''); setMode('verify'); setSuccess(data.message || 'Enter the verification code sent to your registered contacts.'); return; }
       await persistAuthenticatedSession(data);
     } catch (loginError) {
       setError(loginError.message || 'Unable to sign in.');
@@ -136,12 +140,23 @@ function AuthScreen({ onAuthenticated }) {
         gender,
         password,
       });
+      if (data?.mfa_required) { setOtpChallenge(data.challenge_id); setOtpPurpose('registration'); setOtpCode(''); setMode('verify'); setSuccess(data.message || 'Enter the verification code sent to your registered contacts.'); return; }
       await persistAuthenticatedSession(data);
     } catch (registerError) {
       setError(registerError.message || 'Unable to create your account.');
     } finally {
       setBusy(false);
     }
+  };
+
+  const verifyOtp = async () => {
+    if (!otpChallenge || !/^\d{6}$/.test(otpCode) || busy) { setError('Enter the six-digit verification code.'); return; }
+    setBusy(true); setError('');
+    try {
+      const { data } = await platformApi.verifyOtp(otpChallenge, otpCode, otpPurpose);
+      await persistAuthenticatedSession(data);
+    } catch (verifyError) { setError(verifyError.message || 'Unable to verify the code.'); }
+    finally { setBusy(false); }
   };
 
   const forgotPassword = async () => {
@@ -180,15 +195,17 @@ function AuthScreen({ onAuthenticated }) {
         >
           <View style={styles.loginCard}>
             <Image source={require('./assets/splash-logo.png')} style={styles.authLogo} resizeMode="contain" />
-            <Text style={styles.title}>{mode === 'login' ? 'Welcome back' : mode === 'forgot' ? 'Reset your password' : 'Create your account'}</Text>
+            <Text style={styles.title}>{mode === 'login' ? 'Welcome back' : mode === 'forgot' ? 'Reset your password' : mode === 'verify' ? 'Verify your account' : 'Create your account'}</Text>
             <Text style={styles.subtitle}>
               {mode === 'login'
                 ? 'Sign in once and CloudComAI will keep you signed in securely on this device.'
                 : mode === 'forgot' ? 'We’ll email a reset link to your registered address. Open it in your browser, choose a new password, then return here to sign in.'
-                : 'Create your CloudComAI account to start secure conversations.'}
+                : mode === 'verify' ? 'Enter the six-digit code sent to your registered email and mobile number.' : 'Create your CloudComAI account to start secure conversations.'}
             </Text>
 
-            {mode === 'login' ? (
+            {mode === 'verify' ? (
+              <TextInput style={styles.input} value={otpCode} onChangeText={value => setOtpCode(value.replace(/[^0-9]/g, '').slice(0, 6))} keyboardType="number-pad" maxLength={6} placeholder="Six-digit verification code" placeholderTextColor="#7f8aa3" accessibilityLabel="Six-digit verification code" onSubmitEditing={verifyOtp} />
+            ) : mode === 'login' ? (
               <>
                 <TextInput style={styles.input} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false} placeholder="Email, phone or username" placeholderTextColor="#7f8aa3" />
                 <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="Password" placeholderTextColor="#7f8aa3" onSubmitEditing={login} />
@@ -222,10 +239,11 @@ function AuthScreen({ onAuthenticated }) {
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {success ? <Text style={styles.success} accessibilityLiveRegion="polite">{success}</Text> : null}
-            <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={mode === 'login' ? login : mode === 'forgot' ? forgotPassword : register} disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{mode === 'login' ? 'Sign in' : mode === 'forgot' ? 'Send reset instructions' : 'Register'}</Text>}
+            <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, busy && styles.disabled]} onPress={mode === 'login' ? login : mode === 'forgot' ? forgotPassword : mode === 'verify' ? verifyOtp : register} disabled={busy}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{mode === 'login' ? 'Sign in' : mode === 'forgot' ? 'Send reset instructions' : mode === 'verify' ? 'Verify code' : 'Register'}</Text>}
             </Pressable>
 
+            {mode === 'verify' && <Pressable style={styles.authSwitchRow} disabled={busy} onPress={() => { setMode(otpPurpose === 'registration' ? 'register' : 'login'); setOtpChallenge(null); setOtpCode(''); setError(''); setSuccess(''); }}><Text style={styles.authSwitchLink}>Back</Text></Pressable>}
             {mode === 'login' && <Pressable style={styles.authSwitchRow} disabled={busy} onPress={() => changeMode('forgot')}><Text style={styles.authSwitchLink}>Forgot password?</Text></Pressable>}
 
             <View style={styles.authSwitchRow}>
