@@ -42,6 +42,16 @@ try {
     $st->execute([$userId ?: null,$name,$email ?: null,$mobile ?: null,password_hash($password,PASSWORD_DEFAULT),$dob,$gender,$email?0:1,$mobile?0:1,'active']);
     $id = (int)$pdo->lastInsertId();
     $pdo->commit();
+    if (mfa_is_enabled()) {
+        if (!$email && !$mobile) fail('Registration with MFA enabled requires an email address or mobile number', 422);
+        try {
+            $challenge = create_otp_challenge($id, 'registration', $email ?: null, $mobile ?: null, $name);
+        } catch (Throwable $e) {
+            error_log('Registration OTP could not be sent for user ' . $id . ': ' . $e->getMessage());
+            fail('Your account was created, but verification delivery failed. Please contact support before retrying.', 503);
+        }
+        out(['mfa_required'=>true,'challenge_id'=>$challenge,'message'=>'Verification code sent to your registered email and mobile number.'],202);
+    }
     out(['token'=>token_for($id),'user'=>['id'=>$id,'name'=>$name,'user_id'=>$userId,'email'=>$email,'mobile'=>$mobile,'gender'=>$gender]],201);
 } catch (PDOException $e) {
     if (db()->inTransaction()) db()->rollBack();
