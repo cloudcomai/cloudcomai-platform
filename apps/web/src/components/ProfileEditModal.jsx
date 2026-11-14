@@ -5,6 +5,10 @@ import { Camera, X } from 'lucide-react';
 export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated }) {
   const fileRef = useRef(null);
   const [name, setName] = useState(user?.name || '');
+  const [mobile, setMobile] = useState(user?.mobile || '');
+  const [mobileChallenge, setMobileChallenge] = useState('');
+  const [mobileCode, setMobileCode] = useState('');
+  const [mobileVerified, setMobileVerified] = useState(true);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,16 +22,37 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
     setPreview(URL.createObjectURL(next));
   };
 
+  const requestMobileCode = async () => {
+    if (!mobile.trim() || mobile.trim() === (user?.mobile || '')) return;
+    setLoading(true);
+    try {
+      const result = await apiBridge(ApiRoute.MOBILE_VERIFICATION, { method: 'POST', body: JSON.stringify({ action: 'request', mobile: mobile.trim() }) });
+      setMobileChallenge(result.challenge_id); setMobileVerified(false); alert(result.message || 'Verification code sent to the new mobile number.');
+    } catch (err) { alert(err.message || 'Unable to send verification code.'); }
+    finally { setLoading(false); }
+  };
+
+  const verifyMobileCode = async () => {
+    if (!mobileChallenge || !/^\\d{6}$/.test(mobileCode)) return alert('Enter the six-digit verification code.');
+    setLoading(true);
+    try {
+      await apiBridge(ApiRoute.MOBILE_VERIFICATION, { method: 'POST', body: JSON.stringify({ action: 'verify', challenge_id: mobileChallenge, code: mobileCode }) });
+      setMobileVerified(true); setMobileChallenge(''); alert('Mobile number verified.');
+    } catch (err) { alert(err.message || 'Unable to verify mobile number.'); }
+    finally { setLoading(false); }
+  };
+
   const save = async event => {
     event.preventDefault();
     if (!name.trim() || loading) return;
+    if (mobile.trim() !== (user?.mobile || '') && !mobileVerified) return alert('Verify the new mobile number before saving.');
     setLoading(true);
     try {
       const response = await apiBridge(ApiRoute.PROFILE, {
         method: 'PUT',
         body: JSON.stringify({ name: name.trim() })
       });
-      let nextUser = response.user;
+      let nextUser = { ...response.user, mobile: mobile.trim() || null };
       if (file) {
         const formData = new FormData();
         formData.append('type', 'user');
@@ -63,6 +88,12 @@ export default function ProfileEditModal({ user, apiBridge, close, onUserUpdated
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={chooseImage}/>
         </div>
         <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-light)', marginTop: -10, marginBottom: 18 }}>Optional profile image, max 12 MB</div>
+
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Mobile Number</label>
+        <input value={mobile} onChange={e => { setMobile(e.target.value); setMobileChallenge(''); setMobileCode(''); setMobileVerified(e.target.value.trim() === (user?.mobile || '')); }} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 8 }} />
+        {mobile.trim() !== (user?.mobile || '') && !mobileVerified && !mobileChallenge && <button type="button" className="filter-pill" onClick={requestMobileCode} disabled={loading}>Send verification code</button>}
+        {mobileChallenge && !mobileVerified && <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}><input inputMode="numeric" maxLength={6} placeholder="6-digit code" value={mobileCode} onChange={e => setMobileCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} disabled={loading} /><button type="button" className="filter-pill" onClick={verifyMobileCode} disabled={loading}>Verify</button></div>}
+        {mobileVerified && mobile.trim() !== (user?.mobile || '') && <div style={{ color: 'var(--success-color)', fontSize: 12, marginBottom: 12 }}>Mobile number verified</div>}
 
         <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Display Name</label>
         <input required value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 20 }} />

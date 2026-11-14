@@ -4,6 +4,9 @@ export class CloudComAiApi {
   constructor(client) { if (!client?.request) throw new TypeError('An ApiClient instance is required'); this.client = client; }
   login(identifier, password, options = {}) { return this.client.post(ApiRoute.LOGIN, { identifier, password }, { ...options, auth: false }); }
   register(input, options = {}) { return this.client.post(ApiRoute.REGISTER, input, { ...options, auth: false }); }
+  verifyOtp(challengeId, code, purpose, options = {}) { return this.client.post(ApiRoute.VERIFY_OTP, { challenge_id: challengeId, code, purpose }, { ...options, auth: false }); }
+  requestMobileVerification(mobile, options = {}) { return this.client.post(ApiRoute.MOBILE_VERIFICATION, { action: 'request', mobile }, options); }
+  verifyMobileChange(challengeId, code, options = {}) { return this.client.post(ApiRoute.MOBILE_VERIFICATION, { action: 'verify', challenge_id: challengeId, code }, options); }
   forgotPassword(identifier, options = {}) { return this.client.post(ApiRoute.FORGOT_PASSWORD, { identifier }, { ...options, auth: false }); }
   resetPassword(token, password, options = {}) { return this.client.post(ApiRoute.RESET_PASSWORD, { token, password }, { ...options, auth: false }); }
   listSessions(options = {}) { return this.client.get(ApiRoute.SESSIONS, options); }

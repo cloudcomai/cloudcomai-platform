@@ -50,6 +50,16 @@ expect(basename($mentions['handler']) === 'mentions.php', 'Mentions handler mism
 $queryPath = ApiRouter::normalizePath('/api/v1/messages?chat_id=7&after_id=10');
 expect($queryPath === 'v1/messages', 'Query string was not removed');
 
+$otpVerification = $router->resolve('POST', '/api/v1/auth/verify-otp');
+expect($otpVerification['status'] === 200, 'OTP verification route did not resolve');
+expect(basename($otpVerification['handler']) === 'verify_otp.php', 'OTP verification handler mismatch');
+expect(($otpVerification['definition']['auth'] ?? null) === false, 'OTP verification must be available before login');
+
+$mobileVerification = $router->resolve('POST', '/api/v1/users/mobile-verification');
+expect($mobileVerification['status'] === 200, 'Mobile verification route did not resolve');
+expect(basename($mobileVerification['handler']) === 'mobile_verification.php', 'Mobile verification handler mismatch');
+expect(($mobileVerification['definition']['auth'] ?? null) === true, 'Mobile verification must require authentication');
+
 $wrongMethod = $router->resolve('GET', '/api/v1/auth/login');
 expect($wrongMethod['status'] === 405, 'Wrong method was not rejected');
 

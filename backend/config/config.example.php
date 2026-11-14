@@ -13,6 +13,21 @@ return [
         'web_url' => 'https://www.cloudcomai.com',
         // A real sender mailbox accepted by this hosting account's PHP mail transport.
         'mail_from' => 'support@cloudcomai.com',
+        // Master switch for registration and first-login OTP. Keep false until delivery is configured.
+        'mfa_enabled' => false,
+        // OTP policy and provider credentials. Keep real credentials only in config.php on the server.
+        'otp' => [
+            'ttl_seconds' => 300,
+            'max_attempts' => 5,
+            'resend_cooldown_seconds' => 60,
+            'max_sends_per_hour' => 5,
+            'sms' => [
+                'provider' => 'textbee',
+                'api_url' => 'https://api.textbee.dev/api/v1/gateway/send-sms',
+                'api_key' => '',
+                'device_id' => '',
+            ],
+        ],
         'allowed_origins' => [
             'https://www.cloudcomai.com',
             'https://cloudcomai.com',
