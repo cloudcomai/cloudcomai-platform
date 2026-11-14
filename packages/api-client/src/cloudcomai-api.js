@@ -2,7 +2,7 @@ import { ApiRoute } from './endpoints.js';
 
 export class CloudComAiApi {
   constructor(client) { if (!client?.request) throw new TypeError('An ApiClient instance is required'); this.client = client; }
-  login(identifier, password, options = {}) { return this.client.post(ApiRoute.LOGIN, { identifier, password }, { ...options, auth: false }); }
+  login(identifier, password, options = {}) { const { deviceToken, ...requestOptions } = options; return this.client.post(ApiRoute.LOGIN, { identifier, password, ...(deviceToken ? { device_token: deviceToken } : {}) }, { ...requestOptions, auth: false }); }
   register(input, options = {}) { return this.client.post(ApiRoute.REGISTER, input, { ...options, auth: false }); }
   verifyOtp(challengeId, code, purpose, options = {}) { return this.client.post(ApiRoute.VERIFY_OTP, { challenge_id: challengeId, code, purpose }, { ...options, auth: false }); }
   requestMobileVerification(mobile, options = {}) { return this.client.post(ApiRoute.MOBILE_VERIFICATION, { action: 'request', mobile }, options); }
@@ -11,6 +11,7 @@ export class CloudComAiApi {
   resetPassword(token, password, options = {}) { return this.client.post(ApiRoute.RESET_PASSWORD, { token, password }, { ...options, auth: false }); }
   listSessions(options = {}) { return this.client.get(ApiRoute.SESSIONS, options); }
   revokeSession(id, options = {}) { return this.client.delete(ApiRoute.SESSIONS, { ...options, query: { ...options.query, id } }); }
+  logoutSession(deviceToken, options = {}) { return this.client.post(ApiRoute.SESSIONS, { action: 'logout', ...(deviceToken ? { device_token: deviceToken } : {}) }, options); }
   revokeOtherSessions(options = {}) { return this.client.post(ApiRoute.SESSIONS, { revoke_others: true }, options); }
   listSavedMessages(options = {}) { return this.client.get(ApiRoute.SAVED_MESSAGES, options); }
   saveMessage(messageId, options = {}) { return this.client.post(ApiRoute.SAVED_MESSAGES, { message_id: messageId }, options); }
