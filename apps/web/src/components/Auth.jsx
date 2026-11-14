@@ -76,7 +76,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
         response = (await authApi.forgotPassword(form.email.trim())).data;
         setSuccess(response?.message || 'If the account exists, password reset instructions have been sent.');
       } else if (mode === 'verify') {
-        if (!otpChallenge || !/^\\d{6}$/.test(otpCode)) throw new Error('Enter the six-digit verification code.');
+        if (!otpChallenge || !/^[0-9]{6}$/.test(otpCode)) throw new Error('Enter the six-digit verification code.');
         response = (await authApi.verifyOtp(otpChallenge, otpCode, otpPurpose)).data;
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
         let nextUser = response.user;
