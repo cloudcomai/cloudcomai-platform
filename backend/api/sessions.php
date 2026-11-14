@@ -41,7 +41,7 @@ if ($method === 'POST') {
         out(['logged_out'=>true]);
     }
 }
-if ($method === 'POST' && (input()['revoke_others'] ?? false) === true) {
+if ($method === 'POST' && ($payload['revoke_others'] ?? false) === true) {
     $pdo->beginTransaction();
     try {
         // Same account lock as password reset; the version also invalidates unseen legacy tokens.
