@@ -53,7 +53,7 @@ import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import AccountTools from './src/components/AccountTools';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
-import { apiClient, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration } from './src/services/platform';
+import { apiClient, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration , getRememberedDeviceToken, saveRememberedDeviceToken, clearRememberedDeviceToken } from './src/services/platform';
 import { useAttachmentUpload } from './src/hooks/useAttachmentUpload';
 import { isAppLockEnabled, verifyAppLockPin } from './src/services/appLock';
 import { isAppLockResumeSuppressed, withAppLockExternalActivity } from './src/utils/appLockActivity';
@@ -100,6 +100,7 @@ function AuthScreen({ onAuthenticated }) {
   const persistAuthenticatedSession = async data => {
     if (!data?.token || !data?.user) throw new Error('Invalid authentication response.');
     const session = { token: data.token, user: data.user };
+    if (data.device_token) await saveRememberedDeviceToken(data.device_token);
     await sessionManager.setSession(session);
     onAuthenticated(session);
   };
@@ -109,7 +110,8 @@ function AuthScreen({ onAuthenticated }) {
     setBusy(true);
     setError('');
     try {
-      const { data } = await platformApi.login(identifier.trim(), password);
+      const deviceToken = await getRememberedDeviceToken();
+      const { data } = await platformApi.login(identifier.trim(), password, { deviceToken });
       if (data?.mfa_required) { setOtpChallenge(data.challenge_id); setOtpPurpose('first_login'); setOtpCode(''); setMode('verify'); setSuccess(data.message || 'Enter the verification code sent to your registered contacts.'); return; }
       await persistAuthenticatedSession(data);
     } catch (loginError) {
@@ -1336,7 +1338,8 @@ function AppContent() {
     messaging?.stop();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4000);
-    try { await platformApi.revokeSession(undefined, { signal: controller.signal }); } catch {}
+    try { await platformApi.logoutSession(await getRememberedDeviceToken(), { signal: controller.signal }); } catch {}
+    await clearRememberedDeviceToken();
     finally { clearTimeout(timer); }
     await setApplicationBadge(0);
     await sessionManager.clearSession();
