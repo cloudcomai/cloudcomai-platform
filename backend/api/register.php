@@ -11,6 +11,7 @@ $dob = (string)($d['dob'] ?? '');
 $gender = (string)($d['gender'] ?? '');
 if ($name === '' || strlen($password) < 8) fail('Name and a password of at least 8 characters are required');
 if (!$email && !$mobile && !$userId) fail('Email, mobile or User ID is required');
+if (mfa_is_enabled() && !$email && !$mobile) fail('Registration with MFA enabled requires an email address or mobile number');
 if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Invalid email');
 if ($mobile && !preg_match('/^\+?[0-9]{7,15}$/', $mobile)) fail('Invalid mobile number');
 if ($userId && !preg_match('/^[a-z0-9_]{3,30}$/', $userId)) fail('User ID must contain 3-30 letters, numbers or underscores');
