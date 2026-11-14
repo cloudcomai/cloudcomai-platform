@@ -53,7 +53,7 @@ import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import AccountTools from './src/components/AccountTools';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
-import { apiClient, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration , getRememberedDeviceToken, saveRememberedDeviceToken, clearRememberedDeviceToken } from './src/services/platform';
+import { apiClient, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, getRememberedDeviceToken, saveRememberedDeviceToken, clearRememberedDeviceToken } from './src/services/platform';
 import { useAttachmentUpload } from './src/hooks/useAttachmentUpload';
 import { isAppLockEnabled, verifyAppLockPin } from './src/services/appLock';
 import { isAppLockResumeSuppressed, withAppLockExternalActivity } from './src/utils/appLockActivity';
