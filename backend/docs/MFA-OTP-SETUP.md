@@ -11,7 +11,7 @@ MFA is controlled by one server-side setting in `backend/config/config.php`:
 ],
 ```
 
-- Set `true` to require OTP verification during registration and the first successful sign-in.
+- Set `true` to require OTP verification during registration for new accounts and on the first sign-in for existing accounts that have not completed initial verification. Subsequent sign-ins use the normal login flow.
 - Set `false` to bypass registration/login MFA and preserve the existing authentication flow.
 - The setting is read by the PHP API at request time. No frontend build or code deployment is required; a PHP-FPM/OPcache restart may be needed if the host caches PHP files.
 - Changing this switch does not disable OTP verification for a user's mobile-number change.
