@@ -21,6 +21,9 @@ return [
             'max_attempts' => 5,
             'resend_cooldown_seconds' => 60,
             'max_sends_per_hour' => 5,
+            // Generate with: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+            // Keep this stable and private; do not commit the real value.
+            'signing_secret' => '',
             'sms' => [
                 'provider' => 'textbee',
                 'api_url' => 'https://api.textbee.dev/api/v1/gateway/send-sms',
