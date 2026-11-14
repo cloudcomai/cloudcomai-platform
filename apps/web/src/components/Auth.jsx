@@ -4,6 +4,7 @@ import PrivacyPolicyModal from './PrivacyPolicyModal';
 import BrandLogo from './BrandLogo';
 import { Camera } from 'lucide-react';
 import { isPasswordResetToken } from '../utils/passwordRecovery';
+import { getRememberedDeviceToken } from '../services/platform';
 
 export default function Auth({ onAuth, authApi, initialMode = 'login', resetToken = '', initialMessage = '', onPasswordReset, onNavigateHome, onModeChange }) {
   const [mode, setMode] = useState(initialMode);
@@ -70,7 +71,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
           const upload = uploadResult.data;
           nextUser = { ...nextUser, image_url: upload.image_url, image_version: upload.updated_at };
         }
-        await onAuth(nextUser, response.token);
+        await onAuth(nextUser, response.token, response.device_token);
       } else if (mode === 'forgot') {
         if (!form.email.trim()) throw new Error('Enter your registered email, mobile number or User ID.');
         response = (await authApi.forgotPassword(form.email.trim())).data;
@@ -100,7 +101,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
           setSuccess('Password updated. Sign in with your new password.');
         }
       } else {
-        response = (await authApi.login(form.email, form.password)).data;
+        response = (await authApi.login(form.email, form.password, { deviceToken: getRememberedDeviceToken() })).data;
         if (response?.mfa_required) { setOtpChallenge(response.challenge_id); setOtpPurpose('first_login'); setOtpCode(''); setMode('verify'); setSuccess(response.message || 'Enter the verification code sent to your registered contacts.'); return; }
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
         await onAuth(response.user, response.token);
