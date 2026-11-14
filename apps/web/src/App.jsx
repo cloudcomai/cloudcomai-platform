@@ -260,8 +260,8 @@ function App() {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 4000);
         try { await platformApi.logoutSession(getRememberedDeviceToken(), { signal: controller.signal }); } catch {}
-        clearRememberedDeviceToken();
         finally { clearTimeout(timer); }
+        clearRememberedDeviceToken();
         await clearWebSession();
         setToken('');
         setUser(null);
