@@ -24,8 +24,11 @@ if ($action === 'verify') {
     $challengeId = trim((string)($d['challenge_id'] ?? ''));
     $code = trim((string)($d['code'] ?? ''));
     if ($challengeId === '' || $code === '') fail('Challenge ID and verification code are required');
+    $ownership = db()->prepare('SELECT user_id FROM otp_challenges WHERE challenge_hash=? AND purpose=? LIMIT 1');
+    $ownership->execute([hash('sha256', $challengeId), 'mobile_change']);
+    if ((int)$ownership->fetchColumn() !== (int)$user['id']) fail('Verification challenge does not belong to this account', 403);
     $row = verify_otp_challenge($challengeId, $code, 'mobile_change');
-    if ((int)$row['user_id'] !== (int)$user['id'] || !$row['destination_mobile']) fail('Verification challenge does not belong to this account', 403);
+    if (!$row['destination_mobile']) fail('Verification challenge is invalid', 400);
     try {
         $st = db()->prepare('UPDATE users SET mobile=?,mobile_verified=1,updated_at=UTC_TIMESTAMP() WHERE id=?');
         $st->execute([$row['destination_mobile'], (int)$user['id']]);
