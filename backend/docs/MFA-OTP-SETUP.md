@@ -18,6 +18,22 @@ MFA is controlled by one server-side setting in `backend/config/config.php`:
 
 The repository's `config.example.php` defaults the switch to `false`. Enable it only after email and SMS delivery are configured and tested.
 
+## Required OTP signing secret
+
+OTP codes are HMAC-signed with a dedicated, server-only secret. Add this key inside the `app.otp` array in the live `backend/config/config.php`:
+
+```php
+'signing_secret' => 'PASTE_A_NEW_RANDOM_SECRET_HERE',
+```
+
+Generate a 64-character hexadecimal secret on a trusted machine with:
+
+```sh
+php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+```
+
+Use the generated value exactly as returned. Keep it stable across deployments and never commit it or share it in logs. If this key is absent, the backend can fall back to `app.token_secret` only when that existing secret is at least 32 characters; otherwise OTP creation fails safely. Set the dedicated key to avoid coupling OTP hashes to session-token signing.
+
 ## OTP policy
 
 The optional `app.otp` settings control expiry, failed attempts, resend cooldown, and send-rate limits. Defaults are 5 minutes, 5 attempts, 60 seconds, and 5 sends per hour. OTPs are generated with a cryptographically secure random generator, stored as HMAC hashes, expire, and can be consumed once.
