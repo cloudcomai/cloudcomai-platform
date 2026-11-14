@@ -1339,8 +1339,8 @@ function AppContent() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4000);
     try { await platformApi.logoutSession(await getRememberedDeviceToken(), { signal: controller.signal }); } catch {}
-    await clearRememberedDeviceToken();
     finally { clearTimeout(timer); }
+    await clearRememberedDeviceToken();
     await setApplicationBadge(0);
     await sessionManager.clearSession();
     setSession(null); setAccountTool(null); setShowNotificationSettings(false); setShowPrivacySettings(false); setInitialChatId(null); setDeliveredMessage(null);
