@@ -13,16 +13,7 @@ const storage = createWebStorageAdapter(window.localStorage);
 export const sessionManager = createAuthSessionManager({ storage });
 
 const rememberedDeviceStorageKey = 'cloudcomai.rememberedDeviceToken';
-export const getRememberedDeviceToken = () => {
-  let value = window.localStorage.getItem(rememberedDeviceStorageKey);
-  if (!value) {
-    const bytes = new Uint8Array(32);
-    window.crypto.getRandomValues(bytes);
-    value = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-    window.localStorage.setItem(rememberedDeviceStorageKey, value);
-  }
-  return value;
-};
+export const getRememberedDeviceToken = () => window.localStorage.getItem(rememberedDeviceStorageKey);
 export const saveRememberedDeviceToken = value => {
   if (typeof value === 'string' && value.length >= 32 && value.length <= 200) window.localStorage.setItem(rememberedDeviceStorageKey, value);
 };
