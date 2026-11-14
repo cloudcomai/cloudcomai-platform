@@ -17,6 +17,9 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(initialMessage);
   const [loading, setLoading] = useState(false);
+  const [otpChallenge, setOtpChallenge] = useState('');
+  const [otpPurpose, setOtpPurpose] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const fileRef = useRef(null);
 
   const chooseAvatar = event => {
@@ -52,6 +55,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
           gender: form.gender
         });
         response = result.data;
+        if (response?.mfa_required) { setOtpChallenge(response.challenge_id); setOtpPurpose('registration'); setOtpCode(''); setMode('verify'); setSuccess(response.message || 'Enter the verification code sent to your registered contacts.'); return; }
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
 
         let nextUser = response.user;
@@ -71,6 +75,17 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
         if (!form.email.trim()) throw new Error('Enter your registered email, mobile number or User ID.');
         response = (await authApi.forgotPassword(form.email.trim())).data;
         setSuccess(response?.message || 'If the account exists, password reset instructions have been sent.');
+      } else if (mode === 'verify') {
+        if (!otpChallenge || !/^\\d{6}$/.test(otpCode)) throw new Error('Enter the six-digit verification code.');
+        response = (await authApi.verifyOtp(otpChallenge, otpCode, otpPurpose)).data;
+        if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
+        let nextUser = response.user;
+        if (avatarFile && otpPurpose === 'registration') {
+          const formData = new FormData(); formData.append('type', 'user'); formData.append('id', String(response.user.id)); formData.append('image', avatarFile);
+          const uploadResult = await authApi.uploadMedia(formData, { headers: { Authorization: `Bearer ${response.token}` } });
+          const upload = uploadResult.data; nextUser = { ...nextUser, image_url: upload.image_url, image_version: upload.updated_at };
+        }
+        await onAuth(nextUser, response.token);
       } else if (mode === 'reset') {
         if (!isPasswordResetToken(resetToken)) throw new Error('This reset link is missing or invalid. Request a new link below.');
         if ([...form.password].length < 8) throw new Error('Password must be at least 8 characters.');
@@ -86,6 +101,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
         }
       } else {
         response = (await authApi.login(form.email, form.password)).data;
+        if (response?.mfa_required) { setOtpChallenge(response.challenge_id); setOtpPurpose('first_login'); setOtpCode(''); setMode('verify'); setSuccess(response.message || 'Enter the verification code sent to your registered contacts.'); return; }
         if (!response?.user || !response?.token) throw new Error('Invalid response received from server');
         await onAuth(response.user, response.token);
       }
@@ -124,13 +140,15 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
         <div className="brand center auth-brand">
           <BrandLogo variant="dark" className="auth-brand-image" />
         </div>
-        <h1>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your account' : mode === 'forgot' ? 'Reset your password' : 'Choose a new password'}</h1>
+        <h1>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your account' : mode === 'forgot' ? 'Reset your password' : mode === 'verify' ? 'Verify your account' : 'Choose a new password'}</h1>
         {mode === 'forgot' && <p>We’ll send a link to your account’s registered email address. Open it in your browser to choose a new password, then sign in on web or mobile.</p>}
         {mode === 'reset' && <p>Reset links expire after 30 minutes. Choose a password with at least 8 characters.</p>}
+        {mode === 'verify' && <p>Enter the six-digit code sent to your registered email and mobile number.</p>}
         {mode === 'reset' && !isPasswordResetToken(resetToken) && <div className="error" role="alert">This reset link is missing or invalid. Request a new link below.</div>}
 
         <form onSubmit={submit}>
           <fieldset disabled={loading} style={{ border: 0, padding: 0, margin: 0, display: 'contents' }}>
+          {mode === 'verify' && <input required inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" placeholder="Six-digit verification code" value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}/>}
           {mode === 'register' && <>
             <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 4px' }}>
               <button type="button" onClick={() => fileRef.current?.click()} style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer' }} aria-label="Choose profile image (optional)">
@@ -149,7 +167,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
             <input required placeholder="Mobile number" value={form.mobile} onChange={e => setForm({...form, mobile:e.target.value})}/>
           </>}
 
-          {mode !== 'reset' && <input required placeholder={mode === 'forgot' ? 'Registered email, mobile or User ID' : 'Email, mobile or User ID'} value={form.email} onChange={e => setForm({...form, email:e.target.value})}/>} 
+          {mode !== 'reset' && mode !== 'verify' && <input required placeholder={mode === 'forgot' ? 'Registered email, mobile or User ID' : 'Email, mobile or User ID'} value={form.email} onChange={e => setForm({...form, email:e.target.value})}/>} 
           {(mode === 'login' || mode === 'register') && <input required type="password" placeholder="Password" value={form.password} onChange={e => setForm({...form, password:e.target.value})}/>} 
           {mode === 'reset' && <>
             <input required type="password" autoComplete="new-password" minLength="8" placeholder="New password" aria-label="New password" value={form.password} onChange={e => setForm({...form, password:e.target.value})}/>
@@ -163,7 +181,7 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
 
           {error && <div className="error" role="alert">{error}</div>}
           {success && <div className="success" role="status">{success}</div>}
-          <button type="submit" className="primary wide" disabled={loading || (mode === 'reset' && !isPasswordResetToken(resetToken))}>{loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : mode === 'register' ? 'Register' : mode === 'forgot' ? 'Send Reset Instructions' : 'Update Password'}</button>
+          <button type="submit" className="primary wide" disabled={loading || (mode === 'reset' && !isPasswordResetToken(resetToken))}>{loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : mode === 'register' ? 'Register' : mode === 'forgot' ? 'Send Reset Instructions' : mode === 'verify' ? 'Verify Code' : 'Update Password'}</button>
           </fieldset>
         </form>
 
@@ -171,7 +189,8 @@ export default function Auth({ onAuth, authApi, initialMode = 'login', resetToke
         {mode === 'forgot' && <button type="button" className="link" onClick={() => switchMode('login')}>Back to Sign In</button>}
         {mode === 'reset' && <button type="button" className="link" onClick={() => switchMode('login')}>Back to Sign In</button>}
         {mode === 'reset' && <button type="button" className="link" onClick={() => switchMode('forgot')}>Request a new reset link</button>}
-        {mode !== 'forgot' && mode !== 'reset' && <button type="button" className="link" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}>{mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}</button>}
+        {mode === 'verify' && <button type="button" className="link" onClick={() => { setMode(otpPurpose === 'registration' ? 'register' : 'login'); setOtpChallenge(''); setOtpCode(''); setSuccess(''); setError(''); }}>Back</button>}
+        {mode !== 'forgot' && mode !== 'reset' && mode !== 'verify' && <button type="button" className="link" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}>{mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}</button>}
 
         {showTerms && <TermsModal onClose={() => setShowTerms(false)}/>} 
         {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)}/>} 
