@@ -25,6 +25,22 @@ if ($method === 'DELETE') {
     } catch (Throwable $error) { $pdo->rollBack(); throw $error; }
     out(['revoked'=>true,'current'=>$id===$currentId]);
 }
+if ($method === 'POST') {
+    $payload = input();
+    if (($payload['action'] ?? '') === 'logout') {
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare('UPDATE user_sessions SET revoked_at=COALESCE(revoked_at,UTC_TIMESTAMP()) WHERE id=? AND user_id=?')->execute([$currentId,$user['id']]);
+            $deviceToken = trim((string)($payload['device_token'] ?? ''));
+            if ($deviceToken !== '') {
+                $pdo->prepare('UPDATE trusted_login_devices SET revoked_at=COALESCE(revoked_at,UTC_TIMESTAMP()) WHERE user_id=? AND token_hash=?')->execute([$user['id'],hash('sha256',$deviceToken)]);
+            }
+            $pdo->prepare('UPDATE notification_devices d INNER JOIN user_session_devices sd ON sd.device_id=d.id SET d.revoked_at=UTC_TIMESTAMP() WHERE sd.session_id=? AND d.user_id=?')->execute([$currentId,$user['id']]);
+            $pdo->commit();
+        } catch (Throwable $error) { $pdo->rollBack(); throw $error; }
+        out(['logged_out'=>true]);
+    }
+}
 if ($method === 'POST' && (input()['revoke_others'] ?? false) === true) {
     $pdo->beginTransaction();
     try {
