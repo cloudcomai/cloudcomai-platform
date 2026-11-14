@@ -12,6 +12,16 @@ if(!$u||!password_verify($password,$u['password_hash'])) {
 }
 mfa_log('Login credentials accepted', ['user_id' => (int)$u['id']]);
 if($u['account_status']!=='active') fail('Account unavailable',403);
+$deviceToken = trim((string)($d['device_token'] ?? ''));
+if (mfa_is_enabled() && $deviceToken !== '' && strlen($deviceToken) <= 200) {
+    $trusted = db()->prepare('SELECT id FROM trusted_login_devices WHERE user_id=? AND token_hash=? AND revoked_at IS NULL LIMIT 1');
+    $trusted->execute([(int)$u['id'], hash('sha256', $deviceToken)]);
+    if ($trusted->fetchColumn()) {
+        db()->prepare('UPDATE trusted_login_devices SET last_used_at=UTC_TIMESTAMP() WHERE user_id=? AND token_hash=? AND revoked_at IS NULL')->execute([(int)$u['id'], hash('sha256', $deviceToken)]);
+        mfa_log('Remembered device accepted; OTP skipped', ['user_id' => (int)$u['id']]);
+        out(['token'=>token_for((int)$u['id'], (int)$u['session_version']),'user'=>['id'=>(int)$u['id'],'name'=>$u['name'],'user_id'=>$u['user_id'],'email'=>$u['email'],'mobile'=>$u['mobile'],'gender'=>$u['gender']]]);
+    }
+}
 if (mfa_is_enabled()) {
     mfa_log('MFA is enabled for login', ['user_id' => (int)$u['id']]);
     // Require a fresh OTP challenge on every successful login while MFA is enabled.
