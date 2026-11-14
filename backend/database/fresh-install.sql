@@ -32,6 +32,43 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_users_updated_at (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS otp_challenges (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    challenge_hash CHAR(64) NOT NULL,
+    user_id BIGINT UNSIGNED NULL,
+    purpose ENUM('registration','first_login','mobile_change') NOT NULL,
+    destination_email VARCHAR(190) NULL,
+    destination_mobile VARCHAR(30) NULL,
+    otp_hash CHAR(64) NOT NULL,
+    attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    expires_at DATETIME NOT NULL,
+    consumed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_otp_challenges_user_purpose (user_id, purpose, created_at),
+    INDEX idx_otp_challenges_expiry (expires_at),
+    UNIQUE KEY uq_otp_challenges_hash (challenge_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_mfa_state (
+    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    first_login_verified_at DATETIME NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Persistent trusted-device records for MFA login.
+-- A device stays trusted across app/browser restarts and is untrusted on explicit logout.
+CREATE TABLE IF NOT EXISTS trusted_login_devices (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    device_label VARCHAR(160) NOT NULL DEFAULT 'Remembered device',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at DATETIME NULL,
+    UNIQUE KEY uq_trusted_login_devices_token (token_hash),
+    INDEX idx_trusted_login_devices_user (user_id, revoked_at, last_used_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS user_chat_preferences (
     user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
     font_color VARCHAR(20) NOT NULL DEFAULT 'default',

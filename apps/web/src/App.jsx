@@ -30,7 +30,9 @@ import {
     requestApi as api,
     loadWebSession,
     platformApi,
-    saveWebSession
+    saveWebSession,
+    getRememberedDeviceToken,
+    clearRememberedDeviceToken
 } from './services/platform';
 
 const groupTypes = ['Family Group', 'Friend Group', 'Fan Group', 'Study Group', 'College Group', 'Class Group', 'Department Group', 'Project Group', 'Club Group', 'Alumni Group', 'Workplace Group', 'Neighborhood Group', 'Event Group', 'Staff Group'];
@@ -244,8 +246,8 @@ function App() {
 
     const chooseAppTheme = id => { const saved = saveAppTheme(id); setAppTheme(saved); };
 
-    const auth = async (u, t) => {
-        await saveWebSession({ user: u, token: t });
+    const auth = async (u, t, deviceToken) => {
+        await saveWebSession({ user: u, token: t, device_token: deviceToken });
         setUser(u);
         setToken(t);
         if (pendingInviteToken) navigateTo('invite', { replace: true, inviteToken: pendingInviteToken });
@@ -257,8 +259,9 @@ function App() {
         messaging?.stop();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 4000);
-        try { await platformApi.revokeSession(undefined, { signal: controller.signal }); } catch {}
+        try { await platformApi.logoutSession(getRememberedDeviceToken(), { signal: controller.signal }); } catch {}
         finally { clearTimeout(timer); }
+        clearRememberedDeviceToken();
         await clearWebSession();
         setToken('');
         setUser(null);

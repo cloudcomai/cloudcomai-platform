@@ -10,6 +10,10 @@ if (!configuredApiBaseUrl) throw new Error('EXPO_PUBLIC_API_BASE_URL is required
 export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '');
 const secureStorage = { getItem:key=>SecureStore.getItemAsync(key), setItem:(key,value)=>SecureStore.setItemAsync(key,value), removeItem:key=>SecureStore.deleteItemAsync(key) };
 const authSessionManager = createAuthSessionManager({ storage: secureStorage });
+const rememberedDeviceStorageKey = 'cloudcomai.rememberedDeviceToken';
+export const getRememberedDeviceToken = () => SecureStore.getItemAsync(rememberedDeviceStorageKey);
+export const saveRememberedDeviceToken = value => (typeof value === 'string' && value.length >= 32 && value.length <= 200) ? SecureStore.setItemAsync(rememberedDeviceStorageKey, value) : Promise.resolve();
+export const clearRememberedDeviceToken = () => SecureStore.deleteItemAsync(rememberedDeviceStorageKey);
 const sessionExpirationListeners = new Set();
 const restorePromptedEmails = new Set();
 let presenceTimer = null; let presenceInFlight = false; let appState = AppState.currentState || 'active'; let appStateSubscription = null;

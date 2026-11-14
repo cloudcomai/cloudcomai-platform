@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/user_validation.php';
 require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/sessions.php';
+require_once __DIR__ . '/mfa.php';
 
 $configFile = __DIR__ . '/../config/config.php';
 if (!file_exists($configFile)) {

@@ -12,7 +12,15 @@ export const API_BASE_URL = resolveApiBaseUrl({
 const storage = createWebStorageAdapter(window.localStorage);
 export const sessionManager = createAuthSessionManager({ storage });
 
+const rememberedDeviceStorageKey = 'cloudcomai.rememberedDeviceToken';
+export const getRememberedDeviceToken = () => window.localStorage.getItem(rememberedDeviceStorageKey);
+export const saveRememberedDeviceToken = value => {
+  if (typeof value === 'string' && value.length >= 32 && value.length <= 200) window.localStorage.setItem(rememberedDeviceStorageKey, value);
+};
+export const clearRememberedDeviceToken = () => window.localStorage.removeItem(rememberedDeviceStorageKey);
+
 export const saveWebSession = async (session) => {
+  if (session?.device_token) saveRememberedDeviceToken(session.device_token);
   await sessionManager.setSession(session);
   return session;
 };
