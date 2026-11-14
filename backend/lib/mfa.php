@@ -11,6 +11,17 @@ function otp_config(string $key, mixed $fallback = null): mixed {
     return $config['app']['otp'][$key] ?? $fallback;
 }
 
+function otp_signing_secret(): string {
+    global $config;
+    // Prefer a dedicated OTP key; fall back to the existing application token secret
+    // for deployments that already have a stable, sufficiently strong token secret.
+    $secret = trim((string)($config['app']['otp']['signing_secret'] ?? $config['app']['token_secret'] ?? ''));
+    if (strlen($secret) < 32 || str_starts_with($secret, 'GENERATE_')) {
+        throw new RuntimeException('OTP signing secret is missing or too short. Set app.otp.signing_secret (at least 32 characters) in backend/config/config.php.');
+    }
+    return $secret;
+}
+
 function otp_send_sms_textbee(string $mobile, string $message): bool {
     global $config;
     $sms = $config['app']['otp']['sms'] ?? [];
@@ -85,9 +96,7 @@ function create_otp_challenge(?int $userId, string $purpose, ?string $email, ?st
     }
     $code = (string)random_int(100000, 999999);
     $challenge = random_token(32);
-    $secret = (string)($config['app']['token_secret'] ?? '');
-    if (strlen($secret) < 32) throw new RuntimeException('OTP signing secret is not configured');
-    $otpHash = hash_hmac('sha256', $code, $secret);
+    $otpHash = hash_hmac('sha256', $code, otp_signing_secret());
     $challengeHash = hash('sha256', $challenge);
     $ttl = max(60, min(900, (int)otp_config('ttl_seconds', 300)));
     $st = $pdo->prepare('INSERT INTO otp_challenges (challenge_hash,user_id,purpose,destination_email,destination_mobile,otp_hash,expires_at,created_at) VALUES (?,?,?,?,?,?,UTC_TIMESTAMP() + INTERVAL ? SECOND,UTC_TIMESTAMP())');
@@ -122,7 +131,7 @@ function verify_otp_challenge(string $challenge, string $code, string $purpose):
             $pdo->commit();
             fail('Too many incorrect attempts. Request a new code.', 429);
         }
-        $expected = hash_hmac('sha256', $code, (string)$config['app']['token_secret']);
+        $expected = hash_hmac('sha256', $code, otp_signing_secret());
         if (!hash_equals((string)$row['otp_hash'], $expected)) {
             $pdo->prepare('UPDATE otp_challenges SET attempts=attempts+1 WHERE id=?')->execute([$row['id']]);
             $pdo->commit();
