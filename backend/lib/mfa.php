@@ -13,11 +13,10 @@ function otp_config(string $key, mixed $fallback = null): mixed {
 
 function otp_signing_secret(): string {
     global $config;
-    // Prefer a dedicated OTP key; fall back to the existing application token secret
-    // for deployments that already have a stable, sufficiently strong token secret.
-    $secret = trim((string)($config['app']['otp']['signing_secret'] ?? $config['app']['token_secret'] ?? ''));
+    // Reuse the existing application token secret; do not maintain a second signing key.
+    $secret = trim((string)($config['app']['token_secret'] ?? ''));
     if (strlen($secret) < 32 || str_starts_with($secret, 'GENERATE_')) {
-        throw new RuntimeException('OTP signing secret is missing or too short. Set app.otp.signing_secret (at least 32 characters) in backend/config/config.php.');
+        throw new RuntimeException('The existing app.token_secret is missing or too short. Configure a stable secret of at least 32 characters in backend/config/config.php.');
     }
     return $secret;
 }
