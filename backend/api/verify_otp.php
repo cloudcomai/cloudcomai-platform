@@ -31,4 +31,13 @@ $st = $pdo->prepare('SELECT u.id,u.name,u.user_id,u.email,u.mobile,u.gender,COAL
 $st->execute([$userId]);
 $user = $st->fetch();
 if (!$user) fail('Account unavailable', 403);
-out(['token'=>token_for($userId,(int)$user['session_version']),'user'=>['id'=>$userId,'name'=>$user['name'],'user_id'=>$user['user_id'],'email'=>$user['email'],'mobile'=>$user['mobile'],'gender'=>$user['gender']]]);
+$deviceToken = '';
+if (mfa_is_enabled() && in_array($purpose, ['registration', 'first_login'], true)) {
+    $deviceToken = random_token(32);
+    $label = substr(trim((string)($_SERVER['HTTP_USER_AGENT'] ?? 'Remembered device')), 0, 160);
+    $pdo->prepare('INSERT INTO trusted_login_devices(user_id,token_hash,device_label,created_at,last_used_at) VALUES(?,?,?,?,?)')
+        ->execute([$userId, hash('sha256', $deviceToken), $label ?: 'Remembered device', gmdate('Y-m-d H:i:s'), gmdate('Y-m-d H:i:s')]);
+}
+$response = ['token'=>token_for($userId,(int)$user['session_version']),'user'=>['id'=>$userId,'name'=>$user['name'],'user_id'=>$user['user_id'],'email'=>$user['email'],'mobile'=>$user['mobile'],'gender'=>$user['gender']]];
+if ($deviceToken !== '') $response['device_token'] = $deviceToken;
+out($response);
