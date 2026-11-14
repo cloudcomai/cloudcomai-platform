@@ -2,6 +2,7 @@
 require __DIR__ . '/../lib/bootstrap.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('Method not allowed', 405);
 $d = input();
+mfa_log('Registration request received');
 $name = trim((string)($d['name'] ?? ''));
 $email = strtolower(trim((string)($d['email'] ?? '')));
 $mobile = normalize_mobile_identifier((string)($d['mobile'] ?? ''));
@@ -43,7 +44,9 @@ try {
     $st->execute([$userId ?: null,$name,$email ?: null,$mobile ?: null,password_hash($password,PASSWORD_DEFAULT),$dob,$gender,$email?0:1,$mobile?0:1,'active']);
     $id = (int)$pdo->lastInsertId();
     $pdo->commit();
+    mfa_log('Registration user record created', ['user_id' => $id]);
     if (mfa_is_enabled()) {
+        mfa_log('MFA is enabled for registration', ['user_id' => $id]);
         if (!$email && !$mobile) fail('Registration with MFA enabled requires an email address or mobile number', 422);
         try {
             $challenge = create_otp_challenge($id, 'registration', $email ?: null, $mobile ?: null, $name);
@@ -51,6 +54,7 @@ try {
             error_log('Registration OTP could not be sent for user ' . $id . ': ' . $e->getMessage());
             fail('Your account was created, but verification delivery failed. Please sign in again after the resend cooldown to request a new code.', 503);
         }
+        mfa_log('Registration OTP challenge returned to client', ['user_id' => $id]);
         out(['mfa_required'=>true,'challenge_id'=>$challenge,'message'=>'Verification code sent to your registered email and mobile number.'],202);
     }
     out(['token'=>token_for($id),'user'=>['id'=>$id,'name'=>$name,'user_id'=>$userId,'email'=>$email,'mobile'=>$mobile,'gender'=>$gender]],201);
