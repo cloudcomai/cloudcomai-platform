@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Image, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Animated, Image, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -708,6 +708,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
       <Text style={styles.expiryNote}>Moments disappear 36 hours after publishing.</Text>
     </ScrollView>
     <Modal visible={Boolean(selectedStory)} transparent={false} animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { setSelectedStory(null); setIsPaused(false); }}>
+      <KeyboardAvoidingView style={styles.keyboardAvoidingViewer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
       <View style={styles.fullscreenViewer}>
         <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${storyProgress}%` }]} /></View>
         <View style={styles.fullscreenTop}>
@@ -749,7 +750,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
           </View>
         </View> : null}
         {floatingEmoji ? <Animated.View key={floatingEmojiKey} pointerEvents="none" style={[styles.floatingReaction, { opacity: floatingEmojiOpacity, transform: [{ translateY: floatingEmojiY }] }]}><Text style={styles.floatingReactionEmoji}>{floatingEmoji}</Text></Animated.View> : null}
-        <View style={styles.fullscreenBottom}>
+        {!keyboardVisible ? <View style={styles.fullscreenBottom}>
           <Text style={styles.fullscreenMeta}>{selectedStory ? `Moment ${orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id)) + 1} of ${orderedMoments.length}` : ''}</Text>
           <View style={styles.sequenceButtons}>
             <Pressable onPress={() => moveWithinMomentGroup(-1)} style={styles.fullscreenActionButton}><Text style={styles.fullscreenAction}>‹ Previous</Text></Pressable>
@@ -757,8 +758,9 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
           </View>
           {selectedStory?.is_owner ? <Pressable onPress={() => deleteMoment(selectedStory)} style={styles.fullscreenDelete}><Text style={styles.fullscreenAction}>Delete Moment</Text></Pressable> : null}
           {selectedStory?.is_owner ? <Text style={styles.fullscreenMeta}>Seen by {viewerCount || selectedStory.view_count || 0}</Text> : null}
-        </View>
+        </View> : null}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
     <Modal visible={viewersOpen} transparent animationType="slide" onRequestClose={() => { setViewersOpen(false); setIsPaused(false); }}>
       <View style={styles.viewerBackdrop}><View style={styles.viewerListCard}>
@@ -829,7 +831,8 @@ const styles = StyleSheet.create({
   storyRingText: { color: '#3157d5', fontWeight: '800', fontSize: 18 },
   storyName: { color: '#172033', fontSize: 14, fontWeight: '800' },
   empty: { color: '#68748a', textAlign: 'center', padding: 24, backgroundColor: '#f8faff', borderRadius: 12 },
-  fullscreenViewer: { flex: 1, backgroundColor: '#050505', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingBottom: Platform.OS === 'ios' ? 28 : 16 },
+  keyboardAvoidingViewer: { flex: 1, backgroundColor: '#050505' },
+  fullscreenViewer: { flex: 1, backgroundColor: '#050505', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingBottom: Platform.OS === 'ios' ? 12 : 8 },
   progressTrack: { height: 3, marginHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: 3, backgroundColor: '#fff' },
   fullscreenTop: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
