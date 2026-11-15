@@ -60,10 +60,23 @@ function MomentAuthorAvatar({ userId, name, size = 48, token }) {
 function MomentVideo({ uri, token, paused, onFinish }) {
   const player = useVideoPlayer({ uri, headers: token ? { Authorization: `Bearer ${token}` } : {} }, instance => {
     instance.loop = false;
+    // Start as soon as the native player is prepared; Moments should behave
+    // like stories and must not require a tap to begin video playback.
+    instance.play();
   });
   useEffect(() => {
-    if (paused) player.pause();
-    else player.play();
+    if (paused) {
+      player.pause();
+      return undefined;
+    }
+
+    // Calling play before the source is ready is not sufficient on every
+    // Android device. Resume again when the native player reports readiness.
+    const statusSubscription = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay') player.play();
+    });
+    player.play();
+    return () => statusSubscription.remove();
   }, [player, paused]);
   useEffect(() => {
     const subscription = player.addListener('playToEnd', onFinish);
