@@ -715,7 +715,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
         <View style={styles.fullscreenContent} onTouchStart={() => setTouchHolding(true)} onTouchEnd={event => { if (!(event.nativeEvent.touches || []).length) setTouchHolding(false); }} onTouchCancel={() => setTouchHolding(false)}>
           {selectedStory?.type === 'text'
             ? <Text style={styles.fullscreenText}>{selectedStory?.content}</Text>
-            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
+            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !touchHolding && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
           {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
         </View>
         {selectedStory && !selectedStory.is_owner ? <View style={styles.momentReplyPanel}>
