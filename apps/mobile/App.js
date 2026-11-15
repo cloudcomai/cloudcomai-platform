@@ -852,8 +852,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
               {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <Pressable onPress={() => navigateToMessage(item.reply_to_message_id)} accessibilityRole='button' accessibilityLabel='Jump to original message'><View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View></Pressable> : null}
+              {String(item.body || '').match(/\\[moment:(\\d+)\\]/) ? <Pressable onPress={() => { setMomentsTargetStoryId(Number(String(item.body).match(/\\[moment:(\\d+)\\]/)[1])); setMomentsOpen(true); }} accessibilityRole="button" accessibilityLabel="Open the Moment this message replied to" style={{ paddingVertical: 5 }}><Text style={{ color: theme.colors.accent, fontWeight: '700', fontSize: 12 }}>View original Moment ↗</Text></Pressable> : null}
               <MediaMessage
-                message={item}
+                message={item.body && /\\[moment:\\d+\\]/.test(item.body) ? { ...item, body: item.body.replace(/\\s*\\[moment:\\d+\\]/, '') } : item}
                 autoDownload={privacy.media_auto_download}
                 colors={messageColors}
                 textScale={Number(themeSettings?.textScale || 1)}
@@ -976,6 +977,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [momentsOpen, setMomentsOpen] = useState(false);
+  const [momentsTargetStoryId, setMomentsTargetStoryId] = useState(null);
   const lastBackPressRef = useRef(0);
   const [failedAvatarIds, setFailedAvatarIds] = useState(() => new Set());
   const chatPageRef = useRef(1);
@@ -1193,7 +1195,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         onGroupCreated={group => { setMenuVisible(false); setSection('groups'); setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id) || !item.isGroup)]); setSelectedChat(group); }}
       />
       <Modal visible={momentsOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setMomentsOpen(false)}>
-        <MomentsScreen themeSettings={themeSettings} onBack={() => setMomentsOpen(false)} />
+        <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); }} />
       </Modal>
     </SafeAreaView>
   );
