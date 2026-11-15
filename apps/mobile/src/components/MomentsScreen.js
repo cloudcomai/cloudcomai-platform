@@ -97,6 +97,13 @@ function MomentPhoto({ story, token }) {
       const touches = event.nativeEvent.touches || [];
       if (touches.length > 1) {
         const distance = Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
+        if (pinchGesture.current.initialDistance <= 0) {
+          pinchGesture.current.initialDistance = distance;
+          pinchGesture.current.initialScale = zoomScaleValue.current;
+          pinchGesture.current.startX = panXValue.current;
+          pinchGesture.current.startY = panYValue.current;
+          return;
+        }
         const nextScale = Math.max(1, Math.min(4, pinchGesture.current.initialScale * (distance / Math.max(1, pinchGesture.current.initialDistance))));
         zoomScaleValue.current = nextScale;
         zoomScale.setValue(nextScale);
@@ -334,6 +341,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
 
   const advanceMoment = useCallback(() => {
     if (!selectedStory) return;
+    setTouchHolding(false);
     const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
     const next = orderedMoments[index + 1];
     if (next) {
@@ -348,6 +356,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
 
   const moveWithinMomentGroup = direction => {
     if (!selectedStory) return;
+    setTouchHolding(false);
     const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
     const next = orderedMoments[index + direction];
     if (next) { setStoryProgress(0); setSelectedStory(next); setIsPaused(false); }
