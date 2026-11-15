@@ -47,7 +47,7 @@ if ($method === 'GET') {
                   AND (m.expires_at IS NULL OR m.expires_at > UTC_TIMESTAMP())
             ) AS last_message_at,
             (
-                SELECT CASE WHEN lm.body LIKE 'Replied to your status:% [moment:%' THEN CONCAT('Replied to your status with ', TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(lm.body,'[moment:',1),': ',-1))) ELSE lm.body END
+                SELECT CASE WHEN lm.body LIKE \'Replied to your status:% [moment:%\' THEN CONCAT(\'Replied to your status with \', TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(lm.body,\'[moment:\',1),\': \',-1))) ELSE lm.body END
                 FROM messages lm
                 LEFT JOIN message_user_states lmus ON lmus.message_id=lm.id AND lmus.user_id=cm.user_id
                 WHERE lm.chat_id=c.id
