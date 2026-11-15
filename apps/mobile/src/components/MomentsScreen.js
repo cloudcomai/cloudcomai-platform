@@ -645,7 +645,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
         </Pressable>
         {selectedStory && !selectedStory.is_owner ? <View style={styles.momentReplyPanel}>
           <View style={styles.momentQuickReactions}>
-            {['❤️', '😂', '😮', '👍'].map(emoji => <Pressable key={emoji} disabled={replySending} onPress={() => { playReaction(emoji); sendMomentReply(emoji); }} style={styles.momentQuickReaction}><Text style={styles.momentQuickEmoji}>{emoji}</Text></Pressable>)}
+            {['❤️', '😂', '😮', '👍'].map(emoji => <Pressable key={emoji} disabled={replySending} onPress={() => sendMomentReply(emoji)} style={styles.momentQuickReaction}><Text style={styles.momentQuickEmoji}>{emoji}</Text></Pressable>)}
           </View>
           <View style={styles.momentReplyRow}>
             <TextInput value={momentReply} onChangeText={setMomentReply} placeholder="Send a reply..." placeholderTextColor="#94a3b8" multiline maxLength={1000} style={styles.momentReplyInput} returnKeyType="send" onSubmitEditing={() => sendMomentReply()} />
