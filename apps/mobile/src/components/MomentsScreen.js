@@ -224,9 +224,9 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
 
   const matchingEmojiCategories = useMemo(() => {
     const query = emojiSearch.trim();
-    if (query) return MOMENT_EMOJI_CATEGORIES.map(category => ({ ...category, items: category.emojis.split(/\\s+/).filter(emoji => emoji.includes(query)) })).filter(category => category.items.length);
+    if (query) return MOMENT_EMOJI_CATEGORIES.map(category => ({ ...category, items: category.emojis.split(/\s+/).filter(emoji => emoji.includes(query)) })).filter(category => category.items.length);
     const category = MOMENT_EMOJI_CATEGORIES.find(item => item.name === emojiCategory) || MOMENT_EMOJI_CATEGORIES[0];
-    return [{ ...category, items: category.emojis.split(/\\s+/).filter(Boolean) }];
+    return [{ ...category, items: category.emojis.split(/\s+/).filter(Boolean) }];
   }, [emojiSearch, emojiCategory]);
 
   // Group all active Moments by author, matching WhatsApp's one-contact/one-row layout.
@@ -669,7 +669,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
         <Pressable style={styles.fullscreenContent} onPressIn={() => setIsPaused(true)} onPressOut={() => setIsPaused(false)}>
           {selectedStory?.type === 'text'
             ? <Text style={styles.fullscreenText}>{selectedStory?.content}</Text>
-            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused} onFinish={advanceMoment} /> : null}
+            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
           {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
         </Pressable>
         {selectedStory && !selectedStory.is_owner ? <View style={styles.momentReplyPanel}>
