@@ -47,6 +47,17 @@ if ($method === 'GET') {
                   AND (m.expires_at IS NULL OR m.expires_at > UTC_TIMESTAMP())
             ) AS last_message_at,
             (
+                SELECT lm.body
+                FROM messages lm
+                LEFT JOIN message_user_states lmus ON lmus.message_id=lm.id AND lmus.user_id=cm.user_id
+                WHERE lm.chat_id=c.id
+                  AND lm.id > COALESCE(cus.cleared_through_message_id,0)
+                  AND lm.deleted_for_everyone=0
+                  AND COALESCE(lmus.hidden,0)=0
+                  AND (lm.expires_at IS NULL OR lm.expires_at > UTC_TIMESTAMP())
+                ORDER BY lm.id DESC LIMIT 1
+            ) AS preview,
+            (
                 SELECT COUNT(*)
                 FROM messages um
                 LEFT JOIN message_user_states umus ON umus.message_id=um.id AND umus.user_id=cm.user_id
