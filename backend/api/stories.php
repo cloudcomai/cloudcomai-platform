@@ -40,6 +40,49 @@ if ($method === 'POST') {
     $data = input();
     $action = strtolower(trim((string)($data['action'] ?? 'create')));
 
+    if ($action === 'reply') {
+        $storyId = (int)($data['story_id'] ?? 0);
+        $replyBody = trim((string)($data['body'] ?? ''));
+        if ($storyId <= 0 || $replyBody === '' || mb_strlen($replyBody) > 1000) fail('A valid Moment reply is required', 422);
+        $story = findVisibleStory($storyId, $userId);
+        if (!$story || (int)$story['user_id'] === $userId) fail('This Moment cannot be replied to', 404);
+        $ownerId = (int)$story['user_id'];
+        if (users_block_state($userId, $ownerId)['blocked']) fail('This contact is blocked', 403);
+        $pdo = db();
+        $target = $pdo->prepare('SELECT id,name,account_status FROM users WHERE id=? LIMIT 1');
+        $target->execute([$ownerId]);
+        $owner = $target->fetch();
+        if (!$owner || $owner['account_status'] !== 'active') fail('Moment owner is unavailable', 404);
+        $pdo->beginTransaction();
+        try {
+            $existing = $pdo->prepare('SELECT c.id FROM chats c INNER JOIN chat_members a ON a.chat_id=c.id AND a.user_id=? AND a.status="active" INNER JOIN chat_members b ON b.chat_id=c.id AND b.user_id=? AND b.status="active" WHERE c.type="private" LIMIT 1');
+            $existing->execute([$userId, $ownerId]);
+            $chatId = (int)($existing->fetchColumn() ?: 0);
+            if (!$chatId) {
+                $retention = chat_retention_seconds('private');
+                $create = $pdo->prepare('INSERT INTO chats(type,name,owner_id,retention_seconds,created_at) VALUES("private",NULL,?,?,UTC_TIMESTAMP())');
+                $create->execute([$userId, $retention]);
+                $chatId = (int)$pdo->lastInsertId();
+                $member = $pdo->prepare('INSERT INTO chat_members(chat_id,user_id,role,status,joined_at) VALUES(?,?,"member","active",UTC_TIMESTAMP())');
+                $member->execute([$chatId, $userId]);
+                $member->execute([$chatId, $ownerId]);
+            }
+            assert_chat_allows_messages($chatId, $userId);
+            $messageBody = 'Replied to your status: ' . $replyBody . '  [moment:' . $storyId . ']';
+            $expiry = gmdate('Y-m-d H:i:s', time() + chat_retention_seconds('private'));
+            $insert = $pdo->prepare('INSERT INTO messages(chat_id,sender_id,type,body,created_at,expires_at) VALUES(?,?, "text", ?, UTC_TIMESTAMP(), ?)');
+            $insert->execute([$chatId, $userId, $messageBody, $expiry]);
+            $messageId = (int)$pdo->lastInsertId();
+            create_chat_notifications($chatId, $userId, (string)$user['name'], $messageBody, $messageId);
+            $pdo->commit();
+        } catch (Throwable $error) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Moment reply failed: ' . $error->getMessage());
+            fail('Unable to send Moment reply', 500);
+        }
+        out(['story_id' => $storyId, 'chat_id' => $chatId, 'message_id' => $messageId, 'owner_id' => $ownerId, 'body' => $messageBody], 201);
+    }
+
     if ($action === 'view') {
         $storyId = (int)($data['story_id'] ?? 0);
         if ($storyId <= 0 || !can_view_story($storyId, $userId)) fail('Moment not found or expired', 404);
