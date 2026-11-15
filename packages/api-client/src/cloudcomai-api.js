@@ -102,6 +102,7 @@ export class CloudComAiApi {
   viewStory(storyId, options = {}) { return this.client.post(ApiRoute.STORIES, { action: 'view', story_id: storyId }, options); }
   deleteStory(storyId, options = {}) { return this.client.delete(ApiRoute.STORIES, { ...options, query: { ...options.query, id: storyId } }); }
   listStoryViewers(storyId, options = {}) { return this.client.get(ApiRoute.STORIES, { ...options, query: { ...options.query, action: 'viewers', story_id: storyId } }); }
+  replyToStory(storyId, body, options = {}) { return this.client.post(ApiRoute.STORIES, { action: 'reply', story_id: storyId, body }, options); }
   getStoryPrivacy(options = {}) { return this.client.get(ApiRoute.STORIES, { ...options, query: { ...options.query, action: 'privacy' } }); }
   updateStoryPrivacy(hiddenUserIds, options = {}) { return this.client.put(ApiRoute.STORIES, { action: 'privacy', hidden_user_ids: hiddenUserIds }, options); }
 }

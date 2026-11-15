@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Animated, Image, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,21 @@ const PHOTO_MAX_BYTES = 12 * 1024 * 1024;
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VIDEO_MAX_SECONDS = 90;
 const TEXT_MAX_LENGTH = 500;
+
+const MOMENT_EMOJI_CATEGORIES = [
+  { name: 'Smileys & People', icon: '😊', emojis: '😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😋 😛 😜 🤪 🤗 🤭 🤔 😐 😏 🙄 😴 😷 🤒 🤢 🥵 🥶 😎 🥳 😕 😟 😢 😭 😱 😡 🤬 😈 💀 👻 👽 🤖 👋 👍 👎 👏 🙌 🫶 🙏 💪 👀 👄 💅' },
+  { name: 'Animals & Nature', icon: '🐻', emojis: '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐔 🐧 🐦 🦆 🦅 🦉 🐺 🐴 🦄 🐝 🦋 🐌 🐞 🐜 🕷️ 🦂 🐢 🐍 🦎 🦖 🐙 🦑 🦐 🦀 🐠 🐟 🐬 🦈 🐳 🐊 🐅 🐆 🦓 🦍 🐘 🦛 🦏 🐪 🦒 🦘 🦬 🐄 🐎 🐖 🐑 🦙 🐐 🦌 🐕 🐈 🐇 🦝 🦦 🐿️ 🌵 🌲 🌴 🌱 🌿 🍀 🍃 🍂 🍁 🍄 🌷 🌹 🥀 🌺 🌸 🌼 🌻' },
+  { name: 'Food & Drink', icon: '🍕', emojis: '🍇 🍈 🍉 🍊 🍋 🍌 🍍 🥭 🍎 🍐 🍑 🍒 🍓 🫐 🥝 🍅 🫒 🥥 🥑 🍆 🥔 🥕 🌽 🌶️ 🥒 🥬 🥦 🧄 🧅 🥜 🍞 🥐 🥖 🥨 🥯 🥞 🧇 🧀 🍖 🍗 🥩 🥓 🍔 🍟 🍕 🌭 🥪 🌮 🌯 🥙 🥚 🍳 🥘 🍲 🥗 🍿 🍱 🍙 🍚 🍛 🍜 🍝 🍣 🍤 🥟 🍦 🍧 🍨 🍩 🍪 🎂 🍰 🧁 🍫 🍬 🍭 ☕ 🍵 🧋 🥤 🧃 🍷 🍸 🍹 🍺 🥂' },
+  { name: 'Activities', icon: '⚽', emojis: '⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🏓 🏸 🏒 🏑 🏏 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛼 ⛸️ 🥌 🎿 ⛷️ 🏂 🏋️ 🤼 🤸 ⛹️ 🤺 🤾 🏌️ 🏇 🧘 🏄 🏊 🚣 🚴 🏆 🥇 🥈 🥉 🏅 🎖️ 🎫 🎪 🤹 🎭 🩰 🎨 🎬 🎤 🎧 🎼 🎹 🥁 🎷 🎺 🎸 🎻 🎲 ♟️ 🎯 🎳 🎮 🧩' },
+  { name: 'Travel & Places', icon: '🚗', emojis: '🚗 🚕 🚙 🚌 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚜 🛵 🏍️ 🚲 🛴 🚏 🛣️ ⛽ ⚓ ⛵ 🚤 🚢 ✈️ 🛫 🛬 🚁 🚀 🛸 🌍 🌎 🌏 🗺️ 🧭 🏔️ ⛰️ 🌋 🏕️ 🏖️ 🏜️ 🏝️ 🏞️ 🏟️ 🏛️ 🏗️ 🏘️ 🏠 🏡 🏢 🏥 🏨 🏫 🏬 🏭 🏯 🏰 💒 🗼 🗽 ⛪ 🕌 🛕 🕍 ⛩️ ⛲ 🌃 🌄 🌅 🌆 🌇 🌉' },
+  { name: 'Objects', icon: '💡', emojis: '⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 💽 💾 💿 📷 📸 📹 🎥 📞 ☎️ 📺 📻 🎙️ ⏰ ⌛ 🔋 🔌 💡 🔦 🕯️ 💸 💵 💶 💷 💰 💳 💎 🔧 🔨 🛠️ ⚙️ 🧲 🔫 💣 🔪 🛡️ 🔮 📿 🧿 🔬 🧪 🧬 💊 💉 🩹 🧹 🧺 🚽 🚿 🛁 🧼 🪥 🔑 🚪 🪑 🛋️ 🛏️ 🧸 🖼️ 🛍️ 🛒 🎁 🎈 🎀 🎉 ✉️ 📧 💌 📦 📚 📖 📝 ✏️ 🖊️ 🔍 🔒 🔓' },
+  { name: 'Symbols', icon: '💯', emojis: '❤️ 🧡 💛 💚 💙 🩵 💜 🤎 🖤 🩶 🤍 💔 ❤️‍🔥 ❤️‍🩹 💕 💞 💓 💗 💖 💘 💝 💟 ❣️ 💯 💢 💥 💫 💦 💨 💬 💭 💤 🔔 🔕 🎵 🎶 ♿ ⚠️ 🚫 ⛔ 🚭 🔞 ☢️ ☣️ ⬆️ ➡️ ⬇️ ⬅️ ↔️ ↕️ 🔃 🔄 ▶️ ⏸️ ⏹️ ➕ ➖ ➗ ✖️ ♾️ ‼️ ⁉️ ❓ ❗ ♻️ 🔰 🔱 🆕 🆒 🆓 ℹ️ 🆘 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ 🟥 🟧 🟨 🟩 🟦 🟪 ⬛ ⬜ 🔶 🔷' },
+  { name: 'Flags', icon: '🏳️', emojis: '🏁 🚩 🎌 🏴 🏳️ 🏳️‍🌈 🏳️‍⚧️ 🏴‍☠️ 🇮🇳 🇺🇸 🇬🇧 🇨🇦 🇦🇺 🇳🇿 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇫🇮 🇯🇵 🇨🇳 🇰🇷 🇧🇷 🇲🇽 🇿🇦 🇸🇬 🇦🇪 🇸🇦 🇵🇰 🇱🇰 🇳🇵 🇧🇩 🇶🇦 🇹🇷 🇺🇦 🇷🇺 🇵🇹 🇳🇱 🇸🇪 🇳🇴 🇩🇰 🇮🇪 🇬🇷 🇹🇭 🇮🇩 🇲🇾 🇵🇭 🇻🇳 🇪🇬 🇳🇬 🇰🇪 🇦🇷 🇨🇱 🇨🇴 🇵🇪 🇨🇺 🇯🇲 🇺🇳' },
+];
+
+const MOMENT_EMOJI_KEYWORDS = {
+  '😀': 'grinning smile happy', '😂': 'joy laugh tears funny', '🥰': 'love hearts affection', '😍': 'heart eyes love', '😊': 'smile happy', '😉': 'wink', '😎': 'cool sunglasses', '🥳': 'party celebration', '😭': 'cry sad tears', '😡': 'angry mad', '🤔': 'thinking', '😴': 'sleep tired', '❤️': 'heart love red', '💔': 'broken heart', '💕': 'hearts love', '👍': 'thumbs up like approve', '👎': 'thumbs down dislike', '🙏': 'pray thanks please', '👏': 'clap applause', '🔥': 'fire hot', '✨': 'sparkles', '🎉': 'party celebration', '🎂': 'birthday cake', '🌹': 'rose flower', '🌻': 'sunflower', '🐶': 'dog puppy', '🐱': 'cat kitten', '🐼': 'panda', '🦁': 'lion', '🐸': 'frog', '🦋': 'butterfly', '🐝': 'bee', '🐬': 'dolphin', '🍎': 'apple fruit', '🍕': 'pizza food', '🍔': 'burger food', '🍟': 'fries food', '🍩': 'donut dessert', '☕': 'coffee drink', '🍵': 'tea drink', '🚗': 'car vehicle', '✈️': 'airplane flight', '🚀': 'rocket space', '🏠': 'house home', '🏖️': 'beach holiday', '⚽': 'soccer football', '🏀': 'basketball', '🎮': 'game gaming', '🎵': 'music note', '🎸': 'guitar music', '💡': 'light bulb idea', '📱': 'phone mobile', '💻': 'computer laptop', '🎁': 'gift present', '🇮🇳': 'india flag', '🇺🇸': 'usa america flag', '🇬🇧': 'uk britain flag', '🇨🇦': 'canada flag', '🇦🇺': 'australia flag',
+};
 
 function MomentAuthorAvatar({ userId, name, size = 48, token }) {
   const [failed, setFailed] = useState(false);
@@ -63,6 +78,52 @@ function MomentVideo({ uri, token, paused, onFinish }) {
 function MomentPhoto({ story, token }) {
   const [localUri, setLocalUri] = useState('');
   const [mediaError, setMediaError] = useState(false);
+  const zoomScale = React.useRef(new Animated.Value(1)).current;
+  const zoomScaleValue = React.useRef(1);
+  const panX = React.useRef(new Animated.Value(0)).current;
+  const panY = React.useRef(new Animated.Value(0)).current;
+  const panXValue = React.useRef(0);
+  const panYValue = React.useRef(0);
+  const pinchGesture = React.useRef({ initialDistance: 0, initialScale: 1, startX: 0, startY: 0 });
+  const photoPanResponder = React.useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: event => (event.nativeEvent.touches || []).length > 1 || zoomScaleValue.current > 1,
+    onMoveShouldSetPanResponder: event => (event.nativeEvent.touches || []).length > 1 || zoomScaleValue.current > 1,
+    onPanResponderGrant: event => {
+      const touches = event.nativeEvent.touches || [];
+      const distance = touches.length > 1 ? Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY) : 0;
+      pinchGesture.current = { initialDistance: distance, initialScale: zoomScaleValue.current, startX: panXValue.current, startY: panYValue.current };
+    },
+    onPanResponderMove: (event, gestureState) => {
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length > 1) {
+        const distance = Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
+        if (pinchGesture.current.initialDistance <= 0) {
+          pinchGesture.current.initialDistance = distance;
+          pinchGesture.current.initialScale = zoomScaleValue.current;
+          pinchGesture.current.startX = panXValue.current;
+          pinchGesture.current.startY = panYValue.current;
+          return;
+        }
+        const nextScale = Math.max(1, Math.min(4, pinchGesture.current.initialScale * (distance / Math.max(1, pinchGesture.current.initialDistance))));
+        zoomScaleValue.current = nextScale;
+        zoomScale.setValue(nextScale);
+        if (nextScale === 1) { panXValue.current = 0; panYValue.current = 0; panX.setValue(0); panY.setValue(0); }
+      } else if (zoomScaleValue.current > 1) {
+        const nextX = pinchGesture.current.startX + gestureState.dx;
+        const nextY = pinchGesture.current.startY + gestureState.dy;
+        panXValue.current = nextX; panYValue.current = nextY;
+        panX.setValue(nextX); panY.setValue(nextY);
+      }
+    },
+    onPanResponderRelease: () => { pinchGesture.current.initialDistance = 0; },
+    onPanResponderTerminate: () => { pinchGesture.current.initialDistance = 0; },
+    onPanResponderTerminationRequest: () => false,
+  }), []);
+
+  useEffect(() => {
+    zoomScaleValue.current = 1; panXValue.current = 0; panYValue.current = 0;
+    zoomScale.setValue(1); panX.setValue(0); panY.setValue(0);
+  }, [story.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +172,9 @@ function MomentPhoto({ story, token }) {
   if (!localUri) {
     return <View style={[styles.viewerMedia, styles.viewerMediaLoading]}><ActivityIndicator color="#fff" /><Text style={styles.viewerMediaMessage}>Loading photo…</Text></View>;
   }
-  return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="cover" onError={() => setMediaError(true)} />;
+  return <View style={styles.photoZoomViewport} {...photoPanResponder.panHandlers}>
+    <Animated.Image source={{ uri: localUri }} style={[styles.viewerMedia, { transform: [{ translateX: panX }, { translateY: panY }, { scale: zoomScale }] }]} resizeMode="contain" onError={() => setMediaError(true)} />
+  </View>;
 }
 
 function MomentMedia({ story, token, paused, onFinish }) {
@@ -120,7 +183,7 @@ function MomentMedia({ story, token, paused, onFinish }) {
   return <MomentPhoto story={story} token={token} />;
 }
 
-export default function MomentsScreen({ onBack, themeSettings }) {
+export default function MomentsScreen({ onBack, themeSettings, initialStoryId = null }) {
   const theme = resolveChatTheme(themeSettings);
   const [stories, setStories] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -144,9 +207,21 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewerLoading, setViewerLoading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [touchHolding, setTouchHolding] = useState(false);
   const [clockNow, setClockNow] = useState(Date.now());
   const [viewerCount, setViewerCount] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
+  const [momentReply, setMomentReply] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replyFocused, setReplyFocused] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [emojiSearch, setEmojiSearch] = useState('');
+  const [emojiCategory, setEmojiCategory] = useState('Smileys & People');
+  const [floatingEmoji, setFloatingEmoji] = useState('');
+  const [floatingEmojiKey, setFloatingEmojiKey] = useState(0);
+  const floatingEmojiY = React.useRef(new Animated.Value(0)).current;
+  const floatingEmojiOpacity = React.useRef(new Animated.Value(0)).current;
 
   const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
@@ -179,11 +254,33 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!initialStoryId || !stories.length) return;
+    const target = stories.find(item => Number(item.id) === Number(initialStoryId));
+    if (target) {
+      setSelectedStory(target);
+      setStoryProgress(0);
+      setIsPaused(false);
+    }
+  }, [initialStoryId, stories]);
 
   useEffect(() => {
     const timer = setInterval(() => setClockNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  const matchingEmojiCategories = useMemo(() => {
+    const query = emojiSearch.trim();
+    if (query) return MOMENT_EMOJI_CATEGORIES.map(category => ({ ...category, items: category.emojis.split(/\s+/).filter(emoji => emoji.includes(query) || (MOMENT_EMOJI_KEYWORDS[emoji] || '').includes(query.toLowerCase())) })).filter(category => category.items.length);
+    const category = MOMENT_EMOJI_CATEGORIES.find(item => item.name === emojiCategory) || MOMENT_EMOJI_CATEGORIES[0];
+    return [{ ...category, items: category.emojis.split(/\s+/).filter(Boolean) }];
+  }, [emojiSearch, emojiCategory]);
 
   // Group all active Moments by author, matching WhatsApp's one-contact/one-row layout.
   const momentGroups = useMemo(() => {
@@ -244,6 +341,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
 
   const advanceMoment = useCallback(() => {
     if (!selectedStory) return;
+    setTouchHolding(false);
     const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
     const next = orderedMoments[index + 1];
     if (next) {
@@ -258,13 +356,14 @@ export default function MomentsScreen({ onBack, themeSettings }) {
 
   const moveWithinMomentGroup = direction => {
     if (!selectedStory) return;
+    setTouchHolding(false);
     const index = orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id));
     const next = orderedMoments[index + direction];
     if (next) { setStoryProgress(0); setSelectedStory(next); setIsPaused(false); }
   };
 
   useEffect(() => {
-    if (!selectedStory || isPaused || selectedStory.type === 'video') return undefined;
+    if (!selectedStory || isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen || selectedStory.type === 'video') return undefined;
     const startingProgress = storyProgress;
     const remainingDuration = Math.max(0, 7000 * (1 - startingProgress / 100));
     const startedAt = Date.now();
@@ -274,7 +373,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     }, 100);
     const timeout = setTimeout(advanceMoment, remainingDuration);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [selectedStory?.id, selectedStory?.type, isPaused, advanceMoment]);
+  }, [selectedStory?.id, selectedStory?.type, isPaused, touchHolding, replyFocused, keyboardVisible, emojiPickerOpen, advanceMoment]);
 
   const formatRemaining = expiresAt => {
     if (!expiresAt) return 'Expiry unavailable';
@@ -304,6 +403,38 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     }).catch(() => {});
     return () => { active = false; };
   }, [selectedStory?.id, selectedStory?.is_owner]);
+
+  const playReaction = useCallback(emoji => {
+    setFloatingEmoji(emoji);
+    setFloatingEmojiKey(value => value + 1);
+    floatingEmojiY.setValue(0);
+    floatingEmojiOpacity.setValue(1);
+    Animated.parallel([
+      Animated.timing(floatingEmojiY, { toValue: -190, duration: 2000, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(floatingEmojiOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(floatingEmojiOpacity, { toValue: 0, duration: 1750, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, [floatingEmojiOpacity, floatingEmojiY]);
+
+  const sendMomentReply = async (value = momentReply) => {
+    const body = String(value || '').trim();
+    if (!selectedStory || selectedStory.is_owner || !body || replySending) return;
+    setReplySending(true);
+    try {
+      const response = await platformApi.replyToStory(Number(selectedStory.id), body);
+      playReaction([...body].find(char => /\p{Extended_Pictographic}/u.test(char)) || '💬');
+      setMomentReply('');
+      if (response?.data?.chat_id) {
+        // The reply is delivered through the existing private-chat message pipeline.
+      }
+    } catch (replyError) {
+      setError(replyError?.message || 'Unable to send your Moment reply.');
+    } finally {
+      setReplySending(false);
+    }
+  };
 
   const openViewers = async story => {
     setIsPaused(true);
@@ -577,6 +708,7 @@ export default function MomentsScreen({ onBack, themeSettings }) {
       <Text style={styles.expiryNote}>Moments disappear 36 hours after publishing.</Text>
     </ScrollView>
     <Modal visible={Boolean(selectedStory)} transparent={false} animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { setSelectedStory(null); setIsPaused(false); }}>
+      <KeyboardAvoidingView style={styles.keyboardAvoidingViewer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
       <View style={styles.fullscreenViewer}>
         <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${storyProgress}%` }]} /></View>
         <View style={styles.fullscreenTop}>
@@ -590,13 +722,35 @@ export default function MomentsScreen({ onBack, themeSettings }) {
             <Pressable onPress={() => { setSelectedStory(null); setIsPaused(false); }}><Text style={styles.fullscreenClose}>×</Text></Pressable>
           </View>
         </View>
-        <Pressable style={styles.fullscreenContent} onPressIn={() => setIsPaused(true)} onPressOut={() => setIsPaused(false)}>
+        <View style={styles.fullscreenContent} onTouchStart={() => setTouchHolding(true)} onTouchEnd={event => { if (!(event.nativeEvent.touches || []).length) setTouchHolding(false); }} onTouchCancel={() => setTouchHolding(false)}>
           {selectedStory?.type === 'text'
             ? <Text style={styles.fullscreenText}>{selectedStory?.content}</Text>
-            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused} onFinish={advanceMoment} /> : null}
+            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !touchHolding && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
           {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
-        </Pressable>
-        <View style={styles.fullscreenBottom}>
+        </View>
+        {selectedStory && !selectedStory.is_owner ? <View style={styles.momentReplyPanel}>
+          <View style={styles.momentQuickReactions}>
+            {['❤️', '😂', '😮', '👍'].map(emoji => <Pressable key={emoji} disabled={replySending} onPress={() => sendMomentReply(emoji)} style={styles.momentQuickReaction}><Text style={styles.momentQuickEmoji}>{emoji}</Text></Pressable>)}
+          </View>
+          <View style={styles.momentReplyRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open emoji picker" onPress={() => { Keyboard.dismiss(); setReplyFocused(false); setEmojiSearch(''); setEmojiPickerOpen(true); }} style={styles.momentEmojiPickerButton}><Text style={styles.momentEmojiPickerIcon}>☺</Text></Pressable>
+            <TextInput value={momentReply} onChangeText={setMomentReply} placeholder="Send a reply..." placeholderTextColor="#94a3b8" multiline maxLength={1000} style={styles.momentReplyInput} returnKeyType="send" onFocus={() => setReplyFocused(true)} onBlur={() => setReplyFocused(false)} onSubmitEditing={() => { void sendMomentReply(); Keyboard.dismiss(); }} />
+            <Pressable disabled={!momentReply.trim() || replySending} onPress={() => { void sendMomentReply(); Keyboard.dismiss(); }} style={[styles.momentSendButton, (!momentReply.trim() || replySending) && { opacity: 0.5 }]}><Text style={styles.momentSendText}>{replySending ? '…' : 'Send'}</Text></Pressable>
+          </View>
+        </View> : null}
+        {emojiPickerOpen ? <View style={styles.emojiPickerBackdrop}>
+          <View style={styles.emojiPickerPanel}>
+            <View style={styles.emojiPickerHeader}><Text style={styles.emojiPickerTitle}>Choose an emoji</Text><Pressable accessibilityRole="button" accessibilityLabel="Close emoji picker" onPress={() => setEmojiPickerOpen(false)}><Text style={styles.emojiPickerClose}>×</Text></Pressable></View>
+            <TextInput value={emojiSearch} onChangeText={setEmojiSearch} placeholder="Search emojis..." placeholderTextColor="#94a3b8" style={styles.emojiSearchInput} autoCorrect={false} />
+            {!emojiSearch.trim() ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiCategoryTabs} contentContainerStyle={styles.emojiCategoryTabsContent}>{MOMENT_EMOJI_CATEGORIES.map(category => <Pressable key={category.name} onPress={() => setEmojiCategory(category.name)} style={[styles.emojiCategoryTab, emojiCategory === category.name && styles.emojiCategoryTabActive]}><Text style={styles.emojiCategoryIcon}>{category.icon}</Text></Pressable>)}</ScrollView> : null}
+            <ScrollView style={styles.emojiGridScroll} contentContainerStyle={styles.emojiGrid} keyboardShouldPersistTaps="always">
+              {matchingEmojiCategories.map(category => <React.Fragment key={category.name}>{emojiSearch.trim() ? <Text style={styles.emojiCategoryHeading}>{category.name}</Text> : null}{category.items.map((emoji, index) => <Pressable key={`${category.name}-${index}-${emoji}`} accessibilityRole="button" accessibilityLabel={`React with ${emoji}`} onPress={() => { setEmojiPickerOpen(false); setEmojiSearch(''); void sendMomentReply(emoji); }} style={styles.emojiCell}><Text style={styles.emojiCellText}>{emoji}</Text></Pressable>)}</React.Fragment>)}
+              {!matchingEmojiCategories.length ? <Text style={styles.emojiEmpty}>No matching emojis</Text> : null}
+            </ScrollView>
+          </View>
+        </View> : null}
+        {floatingEmoji ? <Animated.View key={floatingEmojiKey} pointerEvents="none" style={[styles.floatingReaction, { opacity: floatingEmojiOpacity, transform: [{ translateY: floatingEmojiY }] }]}><Text style={styles.floatingReactionEmoji}>{floatingEmoji}</Text></Animated.View> : null}
+        {!keyboardVisible ? <View style={styles.fullscreenBottom}>
           <Text style={styles.fullscreenMeta}>{selectedStory ? `Moment ${orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id)) + 1} of ${orderedMoments.length}` : ''}</Text>
           <View style={styles.sequenceButtons}>
             <Pressable onPress={() => moveWithinMomentGroup(-1)} style={styles.fullscreenActionButton}><Text style={styles.fullscreenAction}>‹ Previous</Text></Pressable>
@@ -604,8 +758,9 @@ export default function MomentsScreen({ onBack, themeSettings }) {
           </View>
           {selectedStory?.is_owner ? <Pressable onPress={() => deleteMoment(selectedStory)} style={styles.fullscreenDelete}><Text style={styles.fullscreenAction}>Delete Moment</Text></Pressable> : null}
           {selectedStory?.is_owner ? <Text style={styles.fullscreenMeta}>Seen by {viewerCount || selectedStory.view_count || 0}</Text> : null}
-        </View>
+        </View> : null}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
     <Modal visible={viewersOpen} transparent animationType="slide" onRequestClose={() => { setViewersOpen(false); setIsPaused(false); }}>
       <View style={styles.viewerBackdrop}><View style={styles.viewerListCard}>
@@ -676,7 +831,8 @@ const styles = StyleSheet.create({
   storyRingText: { color: '#3157d5', fontWeight: '800', fontSize: 18 },
   storyName: { color: '#172033', fontSize: 14, fontWeight: '800' },
   empty: { color: '#68748a', textAlign: 'center', padding: 24, backgroundColor: '#f8faff', borderRadius: 12 },
-  fullscreenViewer: { flex: 1, backgroundColor: '#050505', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingBottom: Platform.OS === 'ios' ? 28 : 16 },
+  keyboardAvoidingViewer: { flex: 1, backgroundColor: '#050505' },
+  fullscreenViewer: { flex: 1, backgroundColor: '#050505', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingBottom: Platform.OS === 'ios' ? 12 : 8 },
   progressTrack: { height: 3, marginHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: 3, backgroundColor: '#fff' },
   fullscreenTop: { minHeight: 62, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -686,8 +842,38 @@ const styles = StyleSheet.create({
   fullscreenAction: { color: '#fff', fontWeight: '700', fontSize: 14 },
   fullscreenClose: { color: '#fff', fontSize: 30, lineHeight: 34 },
   fullscreenContent: { flex: 1, alignItems: 'stretch', justifyContent: 'center', backgroundColor: '#000' },
+  photoZoomViewport: { width: '100%', height: '100%', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   fullscreenText: { color: '#fff', fontSize: 28, lineHeight: 38, fontWeight: '700', textAlign: 'center', paddingHorizontal: 28 },
   fullscreenCaption: { position: 'absolute', bottom: 16, left: 18, right: 18, color: '#fff', fontSize: 15, textShadowColor: '#000', textShadowRadius: 8 },
+  momentReplyPanel: { paddingHorizontal: 14, paddingTop: 8, gap: 8, backgroundColor: 'rgba(0,0,0,0.82)' },
+  momentQuickReactions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  momentQuickReaction: { width: 38, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)' },
+  momentQuickEmoji: { fontSize: 21 },
+  momentReplyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42 },
+  momentEmojiPickerButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
+  momentEmojiPickerIcon: { color: '#fff', fontSize: 25, fontWeight: '700' },
+  emojiPickerBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 40, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' },
+  emojiPickerPanel: { height: '58%', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#171923' },
+  emojiPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  emojiPickerTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  emojiPickerClose: { color: '#fff', fontSize: 28, lineHeight: 30, paddingHorizontal: 8 },
+  emojiSearchInput: { minHeight: 40, borderRadius: 10, paddingHorizontal: 12, color: '#fff', backgroundColor: 'rgba(255,255,255,0.12)', marginBottom: 8 },
+  emojiCategoryTabs: { maxHeight: 42, flexGrow: 0, marginBottom: 8 },
+  emojiCategoryTabsContent: { gap: 8, alignItems: 'center' },
+  emojiCategoryTab: { width: 38, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.08)' },
+  emojiCategoryTabActive: { backgroundColor: '#3157d5' },
+  emojiCategoryIcon: { color: '#fff', fontSize: 20 },
+  emojiGridScroll: { flex: 1 },
+  emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', paddingBottom: 12 },
+  emojiCategoryHeading: { width: '100%', color: '#cbd5e1', fontSize: 12, fontWeight: '700', paddingVertical: 8 },
+  emojiCell: { width: '12.5%', minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  emojiCellText: { fontSize: 25 },
+  emojiEmpty: { color: '#cbd5e1', textAlign: 'center', padding: 20 },
+  momentReplyInput: { flex: 1, minHeight: 40, maxHeight: 86, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, color: '#fff', backgroundColor: 'rgba(255,255,255,0.14)' },
+  momentSendButton: { minWidth: 54, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' },
+  momentSendText: { color: '#fff', fontWeight: '800' },
+  floatingReaction: { position: 'absolute', zIndex: 20, bottom: 180, alignSelf: 'center', left: '44%' },
+  floatingReactionEmoji: { fontSize: 54, textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 12 },
   fullscreenBottom: { paddingHorizontal: 16, paddingTop: 10, gap: 10 },
   fullscreenActionButton: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.12)' },
   fullscreenDelete: { alignSelf: 'flex-start', paddingVertical: 8 },

@@ -341,6 +341,8 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [attachmentDraft, setAttachmentDraft] = useState(null);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [pollMenuVisible, setPollMenuVisible] = useState(false);
+  const [momentsOpen, setMomentsOpen] = useState(false);
+  const [momentsTargetStoryId, setMomentsTargetStoryId] = useState(null);
   const searchActive = searchOpen && query.trim().length > 0;
   const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
   const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
@@ -852,8 +854,9 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
               {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <Pressable onPress={() => navigateToMessage(item.reply_to_message_id)} accessibilityRole='button' accessibilityLabel='Jump to original message'><View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View></Pressable> : null}
+              {String(item.body || '').match(/\[moment:(\d+)\]/) ? <Pressable onPress={() => { setMomentsTargetStoryId(Number(String(item.body).match(/\[moment:(\d+)\]/)[1])); setMomentsOpen(true); }} accessibilityRole="button" accessibilityLabel="Open the Moment this message replied to" style={{ paddingVertical: 5 }}><Text style={{ color: theme.colors.accent, fontWeight: '700', fontSize: 12 }}>View original Moment ↗</Text></Pressable> : null}
               <MediaMessage
-                message={item}
+                message={item.body && /\[moment:\d+\]/.test(item.body) ? { ...item, body: item.body.replace(/\s*\[moment:\d+\]/, '') } : item}
                 autoDownload={privacy.media_auto_download}
                 colors={messageColors}
                 textScale={Number(themeSettings?.textScale || 1)}
@@ -898,6 +901,11 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       {mentionChatEnabled && mentionQuery !== null && mentionCandidates.length > 0 ? <View style={[styles.mentionSuggestions,{backgroundColor:theme.colors.background,borderColor:theme.colors.border}]}>{mentionCandidates.map(candidate=><Pressable key={candidate.id} accessibilityRole="button" onPress={()=>chooseMention(candidate)} style={[styles.mentionSuggestion,{borderBottomColor:theme.colors.border}]}><Text style={[styles.mentionSuggestionName,{color:theme.colors.text}]}>@{candidate.username || candidate.id}</Text><Text style={[styles.mentionSuggestionMeta,{color:theme.colors.secondary}]}>{candidate.name || 'Chat member'}</Text></Pressable>)}</View> : null}
       <View style={[styles.composer, { backgroundColor: theme.colors.composer, borderTopColor: theme.colors.border }]}><Pressable style={styles.attachButton} onPress={openAttachmentPicker} disabled={uploading || chat.blocked} accessibilityLabel="Add photo or document"><Text style={styles.attachText}>{uploading ? '…' : '＋'}</Text></Pressable>{(chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type)) ? <Pressable accessibilityRole="button" accessibilityLabel="Choose message font color" onPress={() => setFontColorOpen(true)} style={[styles.emojiToggle, { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border }]}><Text style={{ color: fontColorValue, fontSize: 20, fontWeight: '800' }}>A</Text></Pressable> : null}<TextInput ref={composerInputRef} style={[styles.composerInput, { color: fontColor === 'default' ? theme.colors.text : fontColorValue, borderColor: theme.colors.border, fontSize: 15 * Number(themeSettings?.textScale || 1) }]} value={composer} onChangeText={handleComposerInput} editable={!sending && !chat.blocked} placeholder="Type a message..." placeholderTextColor="#7f8aa3" multiline onFocus={() => { keyboardVisibleRef.current = true; }} onSubmitEditing={sendMessage} /><Pressable style={[styles.sendButton, { backgroundColor: theme.colors.accent }, sending && styles.disabled]} onPress={sendMessage} disabled={sending || chat.blocked || Boolean(editing && mentionChatEnabled && mentionRecipientsLoading)}><Text style={styles.sendText}>Send</Text></Pressable></View>
       </KeyboardAvoidingView>
+      {momentsOpen ? (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
+          <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); }} />
+        </View>
+      ) : null}
       <Modal visible={fontColorOpen && (chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type))} transparent animationType="fade" onRequestClose={() => setFontColorOpen(false)}>
         <Pressable onPress={() => setFontColorOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,.42)', justifyContent: 'flex-end', padding: 18 }}>
           <Pressable onPress={event => event.stopPropagation()} style={{ backgroundColor: theme.colors.composer, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 18, padding: 18 }}>
@@ -976,6 +984,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [momentsOpen, setMomentsOpen] = useState(false);
+  const [momentsTargetStoryId, setMomentsTargetStoryId] = useState(null);
   const lastBackPressRef = useRef(0);
   const [failedAvatarIds, setFailedAvatarIds] = useState(() => new Set());
   const chatPageRef = useRef(1);
@@ -1192,9 +1201,11 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         onChatCreated={chat => { setMenuVisible(false); setSection('private'); setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id) || item.isGroup)]); setSelectedChat(chat); }}
         onGroupCreated={group => { setMenuVisible(false); setSection('groups'); setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id) || !item.isGroup)]); setSelectedChat(group); }}
       />
-      <Modal visible={momentsOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setMomentsOpen(false)}>
-        <MomentsScreen themeSettings={themeSettings} onBack={() => setMomentsOpen(false)} />
-      </Modal>
+      {momentsOpen ? (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
+          <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); }} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
