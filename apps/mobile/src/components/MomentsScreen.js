@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Animated, Image, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -147,6 +147,12 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   const [clockNow, setClockNow] = useState(Date.now());
   const [viewerCount, setViewerCount] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
+  const [momentReply, setMomentReply] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [floatingEmoji, setFloatingEmoji] = useState('');
+  const [floatingEmojiKey, setFloatingEmojiKey] = useState(0);
+  const floatingEmojiY = React.useRef(new Animated.Value(0)).current;
+  const floatingEmojiOpacity = React.useRef(new Animated.Value(0)).current;
 
   const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
@@ -304,6 +310,38 @@ export default function MomentsScreen({ onBack, themeSettings }) {
     }).catch(() => {});
     return () => { active = false; };
   }, [selectedStory?.id, selectedStory?.is_owner]);
+
+  const playReaction = useCallback(emoji => {
+    setFloatingEmoji(emoji);
+    setFloatingEmojiKey(value => value + 1);
+    floatingEmojiY.setValue(0);
+    floatingEmojiOpacity.setValue(1);
+    Animated.parallel([
+      Animated.timing(floatingEmojiY, { toValue: -190, duration: 2000, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(floatingEmojiOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(floatingEmojiOpacity, { toValue: 0, duration: 1750, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, [floatingEmojiOpacity, floatingEmojiY]);
+
+  const sendMomentReply = async (value = momentReply) => {
+    const body = String(value || '').trim();
+    if (!selectedStory || selectedStory.is_owner || !body || replySending) return;
+    setReplySending(true);
+    try {
+      const response = await platformApi.replyToStory(Number(selectedStory.id), body);
+      playReaction([...body].find(char => /\\p{Extended_Pictographic}/u.test(char)) || '💬');
+      setMomentReply('');
+      if (response?.data?.chat_id) {
+        // The reply is delivered through the existing private-chat message pipeline.
+      }
+    } catch (replyError) {
+      setError(replyError?.message || 'Unable to send your Moment reply.');
+    } finally {
+      setReplySending(false);
+    }
+  };
 
   const openViewers = async story => {
     setIsPaused(true);
@@ -596,6 +634,16 @@ export default function MomentsScreen({ onBack, themeSettings }) {
             : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused} onFinish={advanceMoment} /> : null}
           {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
         </Pressable>
+        {selectedStory && !selectedStory.is_owner ? <View style={styles.momentReplyPanel}>
+          <View style={styles.momentQuickReactions}>
+            {['❤️', '😂', '😮', '👍'].map(emoji => <Pressable key={emoji} disabled={replySending} onPress={() => { playReaction(emoji); sendMomentReply(emoji); }} style={styles.momentQuickReaction}><Text style={styles.momentQuickEmoji}>{emoji}</Text></Pressable>)}
+          </View>
+          <View style={styles.momentReplyRow}>
+            <TextInput value={momentReply} onChangeText={setMomentReply} placeholder="Send a reply..." placeholderTextColor="#94a3b8" multiline maxLength={1000} style={styles.momentReplyInput} returnKeyType="send" onSubmitEditing={() => sendMomentReply()} />
+            <Pressable disabled={!momentReply.trim() || replySending} onPress={() => sendMomentReply()} style={[styles.momentSendButton, (!momentReply.trim() || replySending) && { opacity: 0.5 }]}><Text style={styles.momentSendText}>{replySending ? '…' : 'Send'}</Text></Pressable>
+          </View>
+        </View> : null}
+        {floatingEmoji ? <Animated.View key={floatingEmojiKey} pointerEvents="none" style={[styles.floatingReaction, { opacity: floatingEmojiOpacity, transform: [{ translateY: floatingEmojiY }] }]}><Text style={styles.floatingReactionEmoji}>{floatingEmoji}</Text></Animated.View> : null}
         <View style={styles.fullscreenBottom}>
           <Text style={styles.fullscreenMeta}>{selectedStory ? `Moment ${orderedMoments.findIndex(item => Number(item.id) === Number(selectedStory.id)) + 1} of ${orderedMoments.length}` : ''}</Text>
           <View style={styles.sequenceButtons}>
@@ -688,6 +736,16 @@ const styles = StyleSheet.create({
   fullscreenContent: { flex: 1, alignItems: 'stretch', justifyContent: 'center', backgroundColor: '#000' },
   fullscreenText: { color: '#fff', fontSize: 28, lineHeight: 38, fontWeight: '700', textAlign: 'center', paddingHorizontal: 28 },
   fullscreenCaption: { position: 'absolute', bottom: 16, left: 18, right: 18, color: '#fff', fontSize: 15, textShadowColor: '#000', textShadowRadius: 8 },
+  momentReplyPanel: { paddingHorizontal: 14, paddingTop: 8, gap: 8, backgroundColor: 'rgba(0,0,0,0.82)' },
+  momentQuickReactions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  momentQuickReaction: { width: 38, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)' },
+  momentQuickEmoji: { fontSize: 21 },
+  momentReplyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42 },
+  momentReplyInput: { flex: 1, minHeight: 40, maxHeight: 86, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, color: '#fff', backgroundColor: 'rgba(255,255,255,0.14)' },
+  momentSendButton: { minWidth: 54, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' },
+  momentSendText: { color: '#fff', fontWeight: '800' },
+  floatingReaction: { position: 'absolute', zIndex: 20, bottom: 180, alignSelf: 'center', left: '44%' },
+  floatingReactionEmoji: { fontSize: 54, textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 12 },
   fullscreenBottom: { paddingHorizontal: 16, paddingTop: 10, gap: 10 },
   fullscreenActionButton: { flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.12)' },
   fullscreenDelete: { alignSelf: 'flex-start', paddingVertical: 8 },
