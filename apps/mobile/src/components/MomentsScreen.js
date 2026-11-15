@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Image, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Animated, Image, Keyboard, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,17 @@ const PHOTO_MAX_BYTES = 12 * 1024 * 1024;
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VIDEO_MAX_SECONDS = 90;
 const TEXT_MAX_LENGTH = 500;
+
+const MOMENT_EMOJI_CATEGORIES = [
+  { name: 'Smileys & People', icon: '😊', emojis: '😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😋 😛 😜 🤪 🤗 🤭 🤔 😐 😏 🙄 😴 😷 🤒 🤢 🥵 🥶 😎 🥳 😕 😟 😢 😭 😱 😡 🤬 😈 💀 👻 👽 🤖 👋 👍 👎 👏 🙌 🫶 🙏 💪 👀 👄 💅' },
+  { name: 'Animals & Nature', icon: '🐻', emojis: '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🐔 🐧 🐦 🦆 🦅 🦉 🐺 🐴 🦄 🐝 🦋 🐌 🐞 🐜 🕷️ 🦂 🐢 🐍 🦎 🦖 🐙 🦑 🦐 🦀 🐠 🐟 🐬 🦈 🐳 🐊 🐅 🐆 🦓 🦍 🐘 🦛 🦏 🐪 🦒 🦘 🦬 🐄 🐎 🐖 🐑 🦙 🐐 🦌 🐕 🐈 🐇 🦝 🦦 🐿️ 🌵 🌲 🌴 🌱 🌿 🍀 🍃 🍂 🍁 🍄 🌷 🌹 🥀 🌺 🌸 🌼 🌻' },
+  { name: 'Food & Drink', icon: '🍕', emojis: '🍇 🍈 🍉 🍊 🍋 🍌 🍍 🥭 🍎 🍐 🍑 🍒 🍓 🫐 🥝 🍅 🫒 🥥 🥑 🍆 🥔 🥕 🌽 🌶️ 🥒 🥬 🥦 🧄 🧅 🥜 🍞 🥐 🥖 🥨 🥯 🥞 🧇 🧀 🍖 🍗 🥩 🥓 🍔 🍟 🍕 🌭 🥪 🌮 🌯 🥙 🥚 🍳 🥘 🍲 🥗 🍿 🍱 🍙 🍚 🍛 🍜 🍝 🍣 🍤 🥟 🍦 🍧 🍨 🍩 🍪 🎂 🍰 🧁 🍫 🍬 🍭 ☕ 🍵 🧋 🥤 🧃 🍷 🍸 🍹 🍺 🥂' },
+  { name: 'Activities', icon: '⚽', emojis: '⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🏓 🏸 🏒 🏑 🏏 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛼 ⛸️ 🥌 🎿 ⛷️ 🏂 🏋️ 🤼 🤸 ⛹️ 🤺 🤾 🏌️ 🏇 🧘 🏄 🏊 🚣 🚴 🏆 🥇 🥈 🥉 🏅 🎖️ 🎫 🎪 🤹 🎭 🩰 🎨 🎬 🎤 🎧 🎼 🎹 🥁 🎷 🎺 🎸 🎻 🎲 ♟️ 🎯 🎳 🎮 🧩' },
+  { name: 'Travel & Places', icon: '🚗', emojis: '🚗 🚕 🚙 🚌 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚜 🛵 🏍️ 🚲 🛴 🚏 🛣️ ⛽ ⚓ ⛵ 🚤 🚢 ✈️ 🛫 🛬 🚁 🚀 🛸 🌍 🌎 🌏 🗺️ 🧭 🏔️ ⛰️ 🌋 🏕️ 🏖️ 🏜️ 🏝️ 🏞️ 🏟️ 🏛️ 🏗️ 🏘️ 🏠 🏡 🏢 🏥 🏨 🏫 🏬 🏭 🏯 🏰 💒 🗼 🗽 ⛪ 🕌 🛕 🕍 ⛩️ ⛲ 🌃 🌄 🌅 🌆 🌇 🌉' },
+  { name: 'Objects', icon: '💡', emojis: '⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 💽 💾 💿 📷 📸 📹 🎥 📞 ☎️ 📺 📻 🎙️ ⏰ ⌛ 🔋 🔌 💡 🔦 🕯️ 💸 💵 💶 💷 💰 💳 💎 🔧 🔨 🛠️ ⚙️ 🧲 🔫 💣 🔪 🛡️ 🔮 📿 🧿 🔬 🧪 🧬 💊 💉 🩹 🧹 🧺 🚽 🚿 🛁 🧼 🪥 🔑 🚪 🪑 🛋️ 🛏️ 🧸 🖼️ 🛍️ 🛒 🎁 🎈 🎀 🎉 ✉️ 📧 💌 📦 📚 📖 📝 ✏️ 🖊️ 🔍 🔒 🔓' },
+  { name: 'Symbols', icon: '💯', emojis: '❤️ 🧡 💛 💚 💙 🩵 💜 🤎 🖤 🩶 🤍 💔 ❤️‍🔥 ❤️‍🩹 💕 💞 💓 💗 💖 💘 💝 💟 ❣️ 💯 💢 💥 💫 💦 💨 💬 💭 💤 🔔 🔕 🎵 🎶 ♿ ⚠️ 🚫 ⛔ 🚭 🔞 ☢️ ☣️ ⬆️ ➡️ ⬇️ ⬅️ ↔️ ↕️ 🔃 🔄 ▶️ ⏸️ ⏹️ ➕ ➖ ➗ ✖️ ♾️ ‼️ ⁉️ ❓ ❗ ♻️ 🔰 🔱 🆕 🆒 🆓 ℹ️ 🆘 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ 🟥 🟧 🟨 🟩 🟦 🟪 ⬛ ⬜ 🔶 🔷' },
+  { name: 'Flags', icon: '🏳️', emojis: '🏁 🚩 🎌 🏴 🏳️ 🏳️‍🌈 🏳️‍⚧️ 🏴‍☠️ 🇮🇳 🇺🇸 🇬🇧 🇨🇦 🇦🇺 🇳🇿 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇫🇮 🇯🇵 🇨🇳 🇰🇷 🇧🇷 🇲🇽 🇿🇦 🇸🇬 🇦🇪 🇸🇦 🇵🇰 🇱🇰 🇳🇵 🇧🇩 🇶🇦 🇹🇷 🇺🇦 🇷🇺 🇵🇹 🇳🇱 🇸🇪 🇳🇴 🇩🇰 🇮🇪 🇬🇷 🇹🇭 🇮🇩 🇲🇾 🇵🇭 🇻🇳 🇪🇬 🇳🇬 🇰🇪 🇦🇷 🇨🇱 🇨🇴 🇵🇪 🇨🇺 🇯🇲 🇺🇳' },
+];
 
 function MomentAuthorAvatar({ userId, name, size = 48, token }) {
   const [failed, setFailed] = useState(false);
@@ -149,6 +160,11 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
   const [storyProgress, setStoryProgress] = useState(0);
   const [momentReply, setMomentReply] = useState('');
   const [replySending, setReplySending] = useState(false);
+  const [replyFocused, setReplyFocused] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [emojiSearch, setEmojiSearch] = useState('');
+  const [emojiCategory, setEmojiCategory] = useState('Smileys & People');
   const [floatingEmoji, setFloatingEmoji] = useState('');
   const [floatingEmojiKey, setFloatingEmojiKey] = useState(0);
   const floatingEmojiY = React.useRef(new Animated.Value(0)).current;
@@ -199,6 +215,19 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
     const timer = setInterval(() => setClockNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  const matchingEmojiCategories = useMemo(() => {
+    const query = emojiSearch.trim();
+    if (query) return MOMENT_EMOJI_CATEGORIES.map(category => ({ ...category, items: category.emojis.split(/\\s+/).filter(emoji => emoji.includes(query)) })).filter(category => category.items.length);
+    const category = MOMENT_EMOJI_CATEGORIES.find(item => item.name === emojiCategory) || MOMENT_EMOJI_CATEGORIES[0];
+    return [{ ...category, items: category.emojis.split(/\\s+/).filter(Boolean) }];
+  }, [emojiSearch, emojiCategory]);
 
   // Group all active Moments by author, matching WhatsApp's one-contact/one-row layout.
   const momentGroups = useMemo(() => {
@@ -279,7 +308,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
   };
 
   useEffect(() => {
-    if (!selectedStory || isPaused || selectedStory.type === 'video') return undefined;
+    if (!selectedStory || isPaused || replyFocused || keyboardVisible || emojiPickerOpen || selectedStory.type === 'video') return undefined;
     const startingProgress = storyProgress;
     const remainingDuration = Math.max(0, 7000 * (1 - startingProgress / 100));
     const startedAt = Date.now();
@@ -289,7 +318,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
     }, 100);
     const timeout = setTimeout(advanceMoment, remainingDuration);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [selectedStory?.id, selectedStory?.type, isPaused, advanceMoment]);
+  }, [selectedStory?.id, selectedStory?.type, isPaused, replyFocused, keyboardVisible, emojiPickerOpen, advanceMoment]);
 
   const formatRemaining = expiresAt => {
     if (!expiresAt) return 'Expiry unavailable';
@@ -648,8 +677,20 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
             {['❤️', '😂', '😮', '👍'].map(emoji => <Pressable key={emoji} disabled={replySending} onPress={() => sendMomentReply(emoji)} style={styles.momentQuickReaction}><Text style={styles.momentQuickEmoji}>{emoji}</Text></Pressable>)}
           </View>
           <View style={styles.momentReplyRow}>
-            <TextInput value={momentReply} onChangeText={setMomentReply} placeholder="Send a reply..." placeholderTextColor="#94a3b8" multiline maxLength={1000} style={styles.momentReplyInput} returnKeyType="send" onSubmitEditing={() => sendMomentReply()} />
-            <Pressable disabled={!momentReply.trim() || replySending} onPress={() => sendMomentReply()} style={[styles.momentSendButton, (!momentReply.trim() || replySending) && { opacity: 0.5 }]}><Text style={styles.momentSendText}>{replySending ? '…' : 'Send'}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open emoji picker" onPress={() => { Keyboard.dismiss(); setReplyFocused(false); setEmojiSearch(''); setEmojiPickerOpen(true); }} style={styles.momentEmojiPickerButton}><Text style={styles.momentEmojiPickerIcon}>☺</Text></Pressable>
+            <TextInput value={momentReply} onChangeText={setMomentReply} placeholder="Send a reply..." placeholderTextColor="#94a3b8" multiline maxLength={1000} style={styles.momentReplyInput} returnKeyType="send" onFocus={() => setReplyFocused(true)} onBlur={() => setReplyFocused(false)} onSubmitEditing={() => { void sendMomentReply(); Keyboard.dismiss(); }} />
+            <Pressable disabled={!momentReply.trim() || replySending} onPress={() => { void sendMomentReply(); Keyboard.dismiss(); }} style={[styles.momentSendButton, (!momentReply.trim() || replySending) && { opacity: 0.5 }]}><Text style={styles.momentSendText}>{replySending ? '…' : 'Send'}</Text></Pressable>
+          </View>
+        </View> : null}
+        {emojiPickerOpen ? <View style={styles.emojiPickerBackdrop}>
+          <View style={styles.emojiPickerPanel}>
+            <View style={styles.emojiPickerHeader}><Text style={styles.emojiPickerTitle}>Choose an emoji</Text><Pressable accessibilityRole="button" accessibilityLabel="Close emoji picker" onPress={() => setEmojiPickerOpen(false)}><Text style={styles.emojiPickerClose}>×</Text></Pressable></View>
+            <TextInput value={emojiSearch} onChangeText={setEmojiSearch} placeholder="Search emojis..." placeholderTextColor="#94a3b8" style={styles.emojiSearchInput} autoCorrect={false} />
+            {!emojiSearch.trim() ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiCategoryTabs} contentContainerStyle={styles.emojiCategoryTabsContent}>{MOMENT_EMOJI_CATEGORIES.map(category => <Pressable key={category.name} onPress={() => setEmojiCategory(category.name)} style={[styles.emojiCategoryTab, emojiCategory === category.name && styles.emojiCategoryTabActive]}><Text style={styles.emojiCategoryIcon}>{category.icon}</Text></Pressable>)}</ScrollView> : null}
+            <ScrollView style={styles.emojiGridScroll} contentContainerStyle={styles.emojiGrid} keyboardShouldPersistTaps="always">
+              {matchingEmojiCategories.map(category => <React.Fragment key={category.name}>{emojiSearch.trim() ? <Text style={styles.emojiCategoryHeading}>{category.name}</Text> : null}{category.items.map((emoji, index) => <Pressable key={`${category.name}-${index}-${emoji}`} accessibilityRole="button" accessibilityLabel={`React with ${emoji}`} onPress={() => { setEmojiPickerOpen(false); setEmojiSearch(''); void sendMomentReply(emoji); }} style={styles.emojiCell}><Text style={styles.emojiCellText}>{emoji}</Text></Pressable>)}</React.Fragment>)}
+              {!matchingEmojiCategories.length ? <Text style={styles.emojiEmpty}>No matching emojis</Text> : null}
+            </ScrollView>
           </View>
         </View> : null}
         {floatingEmoji ? <Animated.View key={floatingEmojiKey} pointerEvents="none" style={[styles.floatingReaction, { opacity: floatingEmojiOpacity, transform: [{ translateY: floatingEmojiY }] }]}><Text style={styles.floatingReactionEmoji}>{floatingEmoji}</Text></Animated.View> : null}
@@ -750,6 +791,25 @@ const styles = StyleSheet.create({
   momentQuickReaction: { width: 38, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)' },
   momentQuickEmoji: { fontSize: 21 },
   momentReplyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42 },
+  momentEmojiPickerButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
+  momentEmojiPickerIcon: { color: '#fff', fontSize: 25, fontWeight: '700' },
+  emojiPickerBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 40, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' },
+  emojiPickerPanel: { height: '58%', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#171923' },
+  emojiPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  emojiPickerTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  emojiPickerClose: { color: '#fff', fontSize: 28, lineHeight: 30, paddingHorizontal: 8 },
+  emojiSearchInput: { minHeight: 40, borderRadius: 10, paddingHorizontal: 12, color: '#fff', backgroundColor: 'rgba(255,255,255,0.12)', marginBottom: 8 },
+  emojiCategoryTabs: { maxHeight: 42, flexGrow: 0, marginBottom: 8 },
+  emojiCategoryTabsContent: { gap: 8, alignItems: 'center' },
+  emojiCategoryTab: { width: 38, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.08)' },
+  emojiCategoryTabActive: { backgroundColor: '#3157d5' },
+  emojiCategoryIcon: { color: '#fff', fontSize: 20 },
+  emojiGridScroll: { flex: 1 },
+  emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', paddingBottom: 12 },
+  emojiCategoryHeading: { width: '100%', color: '#cbd5e1', fontSize: 12, fontWeight: '700', paddingVertical: 8 },
+  emojiCell: { width: '12.5%', minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  emojiCellText: { fontSize: 25 },
+  emojiEmpty: { color: '#cbd5e1', textAlign: 'center', padding: 20 },
   momentReplyInput: { flex: 1, minHeight: 40, maxHeight: 86, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, color: '#fff', backgroundColor: 'rgba(255,255,255,0.14)' },
   momentSendButton: { minWidth: 54, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' },
   momentSendText: { color: '#fff', fontWeight: '800' },
