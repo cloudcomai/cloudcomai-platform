@@ -340,7 +340,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
     setReplySending(true);
     try {
       const response = await platformApi.replyToStory(Number(selectedStory.id), body);
-      playReaction([...body].find(char => /\\p{Extended_Pictographic}/u.test(char)) || '💬');
+      playReaction([...body].find(char => /\p{Extended_Pictographic}/u.test(char)) || '💬');
       setMomentReply('');
       if (response?.data?.chat_id) {
         // The reply is delivered through the existing private-chat message pipeline.
