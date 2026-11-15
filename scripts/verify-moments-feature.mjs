@@ -14,6 +14,20 @@ const screen = root('apps/mobile/src/components/MomentsScreen.js');
 const migration = root('backend/database/migrations/2026-11-11-moments-audience-privacy.sql');
 const schema = root('backend/database/fresh-install.sql');
 
+const chats = root('backend/api/chats.php');
+const apiClient = root('packages/api-client/src/cloudcomai-api.js');
+assert.match(stories, /action === 'reply'/);
+assert.match(stories, /findVisibleStory\(\$storyId, \$userId\)/);
+assert.match(stories, /create_chat_notifications/);
+assert.match(stories, /Replied to your status/);
+assert.match(chats, /AS preview/);
+assert.match(apiClient, /replyToStory\(storyId, body/);
+assert.match(screen, /Send a reply/);
+assert.match(screen, /momentQuickReactions/);
+assert.match(screen, /Animated\.timing\(floatingEmojiY, \{ toValue: -190, duration: 2000/);
+assert.match(app, /View original Moment/);
+assert.match(app, /initialStoryId=\{momentsTargetStoryId\}/);
+
 assert.match(contract, /"v1\/stories"[^\n]*"PUT"/);
 assert.match(stories, /INTERVAL 36 HOUR/);
 assert.match(stories, /length > 500/);
