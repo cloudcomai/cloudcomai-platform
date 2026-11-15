@@ -35,7 +35,7 @@ assert.match(screen, /Animals & Nature/);
 assert.match(screen, /Food & Drink/);
 assert.match(screen, /Travel & Places/);
 assert.match(screen, /Flags/);
-assert.match(screen, /paused=\{isPaused \|\| replyFocused \|\| keyboardVisible \|\| emojiPickerOpen\}/);
+assert.match(screen, /paused=\{isPaused \|\| touchHolding \|\| replyFocused \|\| keyboardVisible \|\| emojiPickerOpen\}/);
 assert.match(screen, /resizeMode="contain"/);
 assert.match(screen, /PanResponder\.create/);
 assert.match(screen, /Math\.max\(1, Math\.min\(4,/);
