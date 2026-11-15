@@ -28,6 +28,10 @@ const MOMENT_EMOJI_CATEGORIES = [
   { name: 'Flags', icon: '🏳️', emojis: '🏁 🚩 🎌 🏴 🏳️ 🏳️‍🌈 🏳️‍⚧️ 🏴‍☠️ 🇮🇳 🇺🇸 🇬🇧 🇨🇦 🇦🇺 🇳🇿 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇫🇮 🇯🇵 🇨🇳 🇰🇷 🇧🇷 🇲🇽 🇿🇦 🇸🇬 🇦🇪 🇸🇦 🇵🇰 🇱🇰 🇳🇵 🇧🇩 🇶🇦 🇹🇷 🇺🇦 🇷🇺 🇵🇹 🇳🇱 🇸🇪 🇳🇴 🇩🇰 🇮🇪 🇬🇷 🇹🇭 🇮🇩 🇲🇾 🇵🇭 🇻🇳 🇪🇬 🇳🇬 🇰🇪 🇦🇷 🇨🇱 🇨🇴 🇵🇪 🇨🇺 🇯🇲 🇺🇳' },
 ];
 
+const MOMENT_EMOJI_KEYWORDS = {
+  '😀': 'grinning smile happy', '😂': 'joy laugh tears funny', '🥰': 'love hearts affection', '😍': 'heart eyes love', '😊': 'smile happy', '😉': 'wink', '😎': 'cool sunglasses', '🥳': 'party celebration', '😭': 'cry sad tears', '😡': 'angry mad', '🤔': 'thinking', '😴': 'sleep tired', '❤️': 'heart love red', '💔': 'broken heart', '💕': 'hearts love', '👍': 'thumbs up like approve', '👎': 'thumbs down dislike', '🙏': 'pray thanks please', '👏': 'clap applause', '🔥': 'fire hot', '✨': 'sparkles', '🎉': 'party celebration', '🎂': 'birthday cake', '🌹': 'rose flower', '🌻': 'sunflower', '🐶': 'dog puppy', '🐱': 'cat kitten', '🐼': 'panda', '🦁': 'lion', '🐸': 'frog', '🦋': 'butterfly', '🐝': 'bee', '🐬': 'dolphin', '🍎': 'apple fruit', '🍕': 'pizza food', '🍔': 'burger food', '🍟': 'fries food', '🍩': 'donut dessert', '☕': 'coffee drink', '🍵': 'tea drink', '🚗': 'car vehicle', '✈️': 'airplane flight', '🚀': 'rocket space', '🏠': 'house home', '🏖️': 'beach holiday', '⚽': 'soccer football', '🏀': 'basketball', '🎮': 'game gaming', '🎵': 'music note', '🎸': 'guitar music', '💡': 'light bulb idea', '📱': 'phone mobile', '💻': 'computer laptop', '🎁': 'gift present', '🇮🇳': 'india flag', '🇺🇸': 'usa america flag', '🇬🇧': 'uk britain flag', '🇨🇦': 'canada flag', '🇦🇺': 'australia flag',
+};
+
 function MomentAuthorAvatar({ userId, name, size = 48, token }) {
   const [failed, setFailed] = useState(false);
   const initials = String(name || 'User').trim().charAt(0).toUpperCase() || 'U';
@@ -224,7 +228,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
 
   const matchingEmojiCategories = useMemo(() => {
     const query = emojiSearch.trim();
-    if (query) return MOMENT_EMOJI_CATEGORIES.map(category => ({ ...category, items: category.emojis.split(/\s+/).filter(emoji => emoji.includes(query)) })).filter(category => category.items.length);
+    if (query) return MOMENT_EMOJI_CATEGORIES.map(category => ({ ...category, items: category.emojis.split(/\s+/).filter(emoji => emoji.includes(query) || (MOMENT_EMOJI_KEYWORDS[emoji] || '').includes(query.toLowerCase())) })).filter(category => category.items.length);
     const category = MOMENT_EMOJI_CATEGORIES.find(item => item.name === emojiCategory) || MOMENT_EMOJI_CATEGORIES[0];
     return [{ ...category, items: category.emojis.split(/\s+/).filter(Boolean) }];
   }, [emojiSearch, emojiCategory]);
