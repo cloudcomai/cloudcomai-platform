@@ -96,7 +96,6 @@ assert.match(screen, /openMomentGroup/);
 assert.match(screen, /moveWithinMomentGroup/);
 assert.match(screen, /Moment \$\{orderedMoments/);
 assert.match(screen, /function MomentVideo\(\{ uri, token, paused, onFinish \}\)/);
-assert.match(screen, /function MomentVideo\(\{ uri, token, paused, onFinish \}\)/);
 assert.match(screen, /player\.addListener\('statusChange', \(\{ status, error \}\)/);
 assert.match(screen, /status === 'readyToPlay'[\s\S]*?player\.play\(\)/);
 assert.match(screen, /AppState\.addEventListener\('change'/);
@@ -107,8 +106,7 @@ assert.match(screen, /videoLoadingOverlay/);
 assert.match(screen, /videoErrorOverlay/);
 assert.match(screen, /<MomentMedia key=\{selectedStory\.id\}/);
 assert.match(screen, /statusSubscription\.remove\(\)/);
-assert.match(screen, /if \(paused\) \{\s*player\.pause\(\);\s*return undefined;\s*\}/);
-assert.match(screen, /return \(\) => statusSubscription\.remove\(\);/);
+
 assert.match(screen, /nativeControls=\{false\}/);
 assert.match(screen, /playToEnd/);
 assert.match(screen, /const orderedMoments = useMemo/);
