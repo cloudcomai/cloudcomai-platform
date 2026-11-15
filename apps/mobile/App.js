@@ -1194,9 +1194,11 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         onChatCreated={chat => { setMenuVisible(false); setSection('private'); setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id) || item.isGroup)]); setSelectedChat(chat); }}
         onGroupCreated={group => { setMenuVisible(false); setSection('groups'); setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id) || !item.isGroup)]); setSelectedChat(group); }}
       />
-      <Modal visible={momentsOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setMomentsOpen(false)}>
-        <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); }} />
-      </Modal>
+      {momentsOpen ? (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
+          <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); }} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
