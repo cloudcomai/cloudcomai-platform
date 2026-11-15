@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Image, Keyboard, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Animated, Image, Keyboard, Modal, PanResponder, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -78,6 +78,45 @@ function MomentVideo({ uri, token, paused, onFinish }) {
 function MomentPhoto({ story, token }) {
   const [localUri, setLocalUri] = useState('');
   const [mediaError, setMediaError] = useState(false);
+  const zoomScale = React.useRef(new Animated.Value(1)).current;
+  const zoomScaleValue = React.useRef(1);
+  const panX = React.useRef(new Animated.Value(0)).current;
+  const panY = React.useRef(new Animated.Value(0)).current;
+  const panXValue = React.useRef(0);
+  const panYValue = React.useRef(0);
+  const pinchGesture = React.useRef({ initialDistance: 0, initialScale: 1, startX: 0, startY: 0 });
+  const photoPanResponder = React.useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: event => (event.nativeEvent.touches || []).length > 1 || zoomScaleValue.current > 1,
+    onMoveShouldSetPanResponder: event => (event.nativeEvent.touches || []).length > 1 || zoomScaleValue.current > 1,
+    onPanResponderGrant: event => {
+      const touches = event.nativeEvent.touches || [];
+      const distance = touches.length > 1 ? Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY) : 0;
+      pinchGesture.current = { initialDistance: distance, initialScale: zoomScaleValue.current, startX: panXValue.current, startY: panYValue.current };
+    },
+    onPanResponderMove: (event, gestureState) => {
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length > 1) {
+        const distance = Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
+        const nextScale = Math.max(1, Math.min(4, pinchGesture.current.initialScale * (distance / Math.max(1, pinchGesture.current.initialDistance))));
+        zoomScaleValue.current = nextScale;
+        zoomScale.setValue(nextScale);
+        if (nextScale === 1) { panXValue.current = 0; panYValue.current = 0; panX.setValue(0); panY.setValue(0); }
+      } else if (zoomScaleValue.current > 1) {
+        const nextX = pinchGesture.current.startX + gestureState.dx;
+        const nextY = pinchGesture.current.startY + gestureState.dy;
+        panXValue.current = nextX; panYValue.current = nextY;
+        panX.setValue(nextX); panY.setValue(nextY);
+      }
+    },
+    onPanResponderRelease: () => { pinchGesture.current.initialDistance = 0; },
+    onPanResponderTerminate: () => { pinchGesture.current.initialDistance = 0; },
+    onPanResponderTerminationRequest: () => false,
+  }), []);
+
+  useEffect(() => {
+    zoomScaleValue.current = 1; panXValue.current = 0; panYValue.current = 0;
+    zoomScale.setValue(1); panX.setValue(0); panY.setValue(0);
+  }, [story.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,7 +165,9 @@ function MomentPhoto({ story, token }) {
   if (!localUri) {
     return <View style={[styles.viewerMedia, styles.viewerMediaLoading]}><ActivityIndicator color="#fff" /><Text style={styles.viewerMediaMessage}>Loading photo…</Text></View>;
   }
-  return <Image source={{ uri: localUri }} style={styles.viewerMedia} resizeMode="cover" onError={() => setMediaError(true)} />;
+  return <View style={styles.photoZoomViewport} {...photoPanResponder.panHandlers}>
+    <Animated.Image source={{ uri: localUri }} style={[styles.viewerMedia, { transform: [{ translateX: panX }, { translateY: panY }, { scale: zoomScale }] }]} resizeMode="contain" onError={() => setMediaError(true)} />
+  </View>;
 }
 
 function MomentMedia({ story, token, paused, onFinish }) {
@@ -159,6 +200,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
   const [viewersOpen, setViewersOpen] = useState(false);
   const [viewerLoading, setViewerLoading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [touchHolding, setTouchHolding] = useState(false);
   const [clockNow, setClockNow] = useState(Date.now());
   const [viewerCount, setViewerCount] = useState(0);
   const [storyProgress, setStoryProgress] = useState(0);
@@ -312,7 +354,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
   };
 
   useEffect(() => {
-    if (!selectedStory || isPaused || replyFocused || keyboardVisible || emojiPickerOpen || selectedStory.type === 'video') return undefined;
+    if (!selectedStory || isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen || selectedStory.type === 'video') return undefined;
     const startingProgress = storyProgress;
     const remainingDuration = Math.max(0, 7000 * (1 - startingProgress / 100));
     const startedAt = Date.now();
@@ -322,7 +364,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
     }, 100);
     const timeout = setTimeout(advanceMoment, remainingDuration);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [selectedStory?.id, selectedStory?.type, isPaused, replyFocused, keyboardVisible, emojiPickerOpen, advanceMoment]);
+  }, [selectedStory?.id, selectedStory?.type, isPaused, touchHolding, replyFocused, keyboardVisible, emojiPickerOpen, advanceMoment]);
 
   const formatRemaining = expiresAt => {
     if (!expiresAt) return 'Expiry unavailable';
@@ -670,12 +712,12 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
             <Pressable onPress={() => { setSelectedStory(null); setIsPaused(false); }}><Text style={styles.fullscreenClose}>×</Text></Pressable>
           </View>
         </View>
-        <Pressable style={styles.fullscreenContent} onPressIn={() => setIsPaused(true)} onPressOut={() => setIsPaused(false)}>
+        <View style={styles.fullscreenContent} onTouchStart={() => setTouchHolding(true)} onTouchEnd={event => { if (!(event.nativeEvent.touches || []).length) setTouchHolding(false); }} onTouchCancel={() => setTouchHolding(false)}>
           {selectedStory?.type === 'text'
             ? <Text style={styles.fullscreenText}>{selectedStory?.content}</Text>
-            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
+            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
           {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
-        </Pressable>
+        </View>
         {selectedStory && !selectedStory.is_owner ? <View style={styles.momentReplyPanel}>
           <View style={styles.momentQuickReactions}>
             {['❤️', '😂', '😮', '👍'].map(emoji => <Pressable key={emoji} disabled={replySending} onPress={() => sendMomentReply(emoji)} style={styles.momentQuickReaction}><Text style={styles.momentQuickEmoji}>{emoji}</Text></Pressable>)}
@@ -788,6 +830,7 @@ const styles = StyleSheet.create({
   fullscreenAction: { color: '#fff', fontWeight: '700', fontSize: 14 },
   fullscreenClose: { color: '#fff', fontSize: 30, lineHeight: 34 },
   fullscreenContent: { flex: 1, alignItems: 'stretch', justifyContent: 'center', backgroundColor: '#000' },
+  photoZoomViewport: { width: '100%', height: '100%', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   fullscreenText: { color: '#fff', fontSize: 28, lineHeight: 38, fontWeight: '700', textAlign: 'center', paddingHorizontal: 28 },
   fullscreenCaption: { position: 'absolute', bottom: 16, left: 18, right: 18, color: '#fff', fontSize: 15, textShadowColor: '#000', textShadowRadius: 8 },
   momentReplyPanel: { paddingHorizontal: 14, paddingTop: 8, gap: 8, backgroundColor: 'rgba(0,0,0,0.82)' },
