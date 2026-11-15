@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Image, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Animated, AppState, Image, Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,35 +57,93 @@ function MomentAuthorAvatar({ userId, name, size = 48, token }) {
   );
 }
 
+let activeMomentPlayer = null;
+
 function MomentVideo({ uri, token, paused, onFinish }) {
   const player = useVideoPlayer({ uri, headers: token ? { Authorization: `Bearer ${token}` } : {} }, instance => {
     instance.loop = false;
-    // Start as soon as the native player is prepared; Moments should behave
-    // like stories and must not require a tap to begin video playback.
-    instance.play();
   });
+  const [playerStatus, setPlayerStatus] = useState(player.status);
+  const [playbackError, setPlaybackError] = useState('');
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState == null || AppState.currentState === 'active',
+  );
+
   useEffect(() => {
-    if (paused) {
-      player.pause();
-      return undefined;
+    const subscription = AppState.addEventListener('change', nextState => {
+      setAppIsActive(nextState === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const syncPlayback = (status, error) => {
+      if (!mounted) return;
+      setPlayerStatus(status);
+      if (status === 'error') {
+        setPlaybackError(error?.message || 'This video could not be played.');
+      } else {
+        setPlaybackError('');
+      }
+
+      if (paused || !appIsActive || status === 'error') {
+        if (activeMomentPlayer === player) activeMomentPlayer = null;
+        try { player.pause(); } catch {}
+        return;
+      }
+
+      // Wait for the native decoder/source to be ready before requesting
+      // playback. This avoids losing the initial play request on slower devices.
+      if (status === 'readyToPlay') {
+        if (activeMomentPlayer && activeMomentPlayer !== player) {
+          try { activeMomentPlayer.pause(); } catch {}
+        }
+        activeMomentPlayer = player;
+        try { player.play(); } catch (error) {
+          setPlaybackError(error?.message || 'Unable to start this video.');
+        }
+      }
+    };
+
+    const statusSubscription = player.addListener('statusChange', ({ status, error }) => {
+      syncPlayback(status, error);
+    });
+
+    if (paused || !appIsActive) {
+      try { player.pause(); } catch {}
+    } else {
+      syncPlayback(player.status);
     }
 
-    // Calling play before the source is ready is not sufficient on every
-    // Android device. Resume again when the native player reports readiness.
-    const statusSubscription = player.addListener('statusChange', ({ status }) => {
-      if (status === 'readyToPlay') player.play();
-    });
-    player.play();
-    return () => statusSubscription.remove();
-  }, [player, paused]);
+    return () => {
+      mounted = false;
+      statusSubscription.remove();
+      try { player.pause(); } catch {}
+      if (activeMomentPlayer === player) activeMomentPlayer = null;
+    };
+  }, [player, paused, appIsActive]);
+
   useEffect(() => {
     const subscription = player.addListener('playToEnd', onFinish);
-    return () => {
-      subscription.remove();
-      try { player.pause(); } catch {}
-    };
+    return () => subscription.remove();
   }, [player, onFinish]);
-  return <VideoView player={player} style={styles.viewerMedia} nativeControls={false} contentFit="cover" />;
+
+  return (
+    <View style={styles.videoPlayerContainer}>
+      <VideoView player={player} style={styles.viewerMedia} nativeControls={false} contentFit="cover" />
+      {playerStatus !== 'readyToPlay' && !playbackError ? (
+        <View pointerEvents="none" style={styles.videoLoadingOverlay}>
+          <ActivityIndicator color="#fff" />
+        </View>
+      ) : null}
+      {playbackError ? (
+        <View pointerEvents="none" style={styles.videoErrorOverlay}>
+          <Text style={styles.viewerMediaMessage}>{playbackError}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 function MomentPhoto({ story, token }) {
@@ -738,7 +796,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
         <View style={styles.fullscreenContent} onTouchStart={() => setTouchHolding(true)} onTouchEnd={event => { if (!(event.nativeEvent.touches || []).length) setTouchHolding(false); }} onTouchCancel={() => setTouchHolding(false)}>
           {selectedStory?.type === 'text'
             ? <Text style={styles.fullscreenText}>{selectedStory?.content}</Text>
-            : selectedStory ? <MomentMedia story={selectedStory} token={token} paused={isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !touchHolding && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
+            : selectedStory ? <MomentMedia key={selectedStory.id} story={selectedStory} token={token} paused={isPaused || touchHolding || replyFocused || keyboardVisible || emojiPickerOpen} onFinish={() => { if (!isPaused && !touchHolding && !replyFocused && !keyboardVisible && !emojiPickerOpen) advanceMoment(); }} /> : null}
           {selectedStory?.caption ? <Text style={styles.fullscreenCaption}>{selectedStory.caption}</Text> : null}
         </View>
         {selectedStory && !selectedStory.is_owner ? <View style={styles.momentReplyPanel}>
@@ -902,6 +960,9 @@ const styles = StyleSheet.create({
   viewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   viewerTitle: { color: '#172033', fontSize: 16, fontWeight: '800' },
   close: { color: '#172033', fontSize: 28 },
+  videoPlayerContainer: { width: '100%', height: '100%', backgroundColor: '#000' },
+  videoLoadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)' },
+  videoErrorOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.72)' },
   viewerMedia: { width: '100%', height: '100%', backgroundColor: '#000' },
   viewerMediaLoading: { alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18 },
   viewerMediaMessage: { color: '#fff', fontSize: 13, textAlign: 'center' },
