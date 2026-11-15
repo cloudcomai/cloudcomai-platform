@@ -120,7 +120,7 @@ function MomentMedia({ story, token, paused, onFinish }) {
   return <MomentPhoto story={story} token={token} />;
 }
 
-export default function MomentsScreen({ onBack, themeSettings }) {
+export default function MomentsScreen({ onBack, themeSettings, initialStoryId = null }) {
   const theme = resolveChatTheme(themeSettings);
   const [stories, setStories] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -185,6 +185,15 @@ export default function MomentsScreen({ onBack, themeSettings }) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!initialStoryId || !stories.length) return;
+    const target = stories.find(item => Number(item.id) === Number(initialStoryId));
+    if (target) {
+      setSelectedStory(target);
+      setStoryProgress(0);
+      setIsPaused(false);
+    }
+  }, [initialStoryId, stories]);
 
   useEffect(() => {
     const timer = setInterval(() => setClockNow(Date.now()), 1000);
