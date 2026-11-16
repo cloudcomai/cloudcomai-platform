@@ -104,7 +104,7 @@ if ($method === 'POST') {
     $type = strtolower(trim((string)($data['type'] ?? 'text')));
     $audience = strtolower(trim((string)($data['audience'] ?? 'contacts')));
     if (!in_array($type, ['text', 'photo', 'video'], true)) fail('Invalid Moment type', 422);
-    if (!in_array($audience, ['contacts', 'groups', 'friends', 'public'], true)) fail('Invalid Moments audience', 422);
+    if (!in_array($audience, ['contacts', 'groups', 'friends'], true)) fail('Moments can only be shared with saved contacts or selected groups', 422);
     $groupIds = $data['group_ids'] ?? [];
     if (!is_array($groupIds)) fail('Selected groups must be a list', 422);
     $groupIds = array_values(array_unique(array_filter(array_map('intval', $groupIds), static fn(int $id): bool => $id > 0)));
