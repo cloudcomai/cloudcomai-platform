@@ -31,14 +31,6 @@ function story_contact_relationship(int $ownerId, int $viewerId): bool
     $friend = db()->prepare('SELECT 1 FROM friend_requests WHERE status="accepted" AND ((requester_id=? AND recipient_id=?) OR (requester_id=? AND recipient_id=?)) LIMIT 1');
     $friend->execute([$ownerId, $viewerId, $viewerId, $ownerId]);
     if ($friend->fetchColumn()) return true;
-    // Preserve visibility for existing private conversations created before friend requests existed.
-    $private = db()->prepare('SELECT 1 FROM chats c
-        INNER JOIN chat_members owner_member ON owner_member.chat_id=c.id AND owner_member.user_id=? AND owner_member.status="active"
-        INNER JOIN chat_members viewer_member ON viewer_member.chat_id=c.id AND viewer_member.user_id=? AND viewer_member.status="active"
-        WHERE c.type="private" LIMIT 1');
-    $private->execute([$ownerId, $viewerId]);
-    if ($private->fetchColumn()) return true;
-
     // Match registered users against the owner's saved Google/phone contacts.
     $saved = db()->prepare('SELECT 1 FROM users target
         WHERE target.id=? AND (
@@ -70,7 +62,7 @@ function can_view_story(int $storyId, int $viewerId): bool
     if ($hidden->fetchColumn()) return false;
 
     $audience = (string)$story['audience'];
-    if ($audience === 'public') return true;
+    // Moments are limited to saved contacts and explicitly selected groups; public stories are not exposed.
     if ($audience === 'contacts') return story_contact_relationship($ownerId, $viewerId);
     if ($audience === 'groups') {
         $group = db()->prepare('SELECT 1 FROM story_groups sg
