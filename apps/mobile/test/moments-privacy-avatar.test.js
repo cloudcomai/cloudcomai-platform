@@ -3,6 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 
 const screen = fs.readFileSync(new URL('../src/components/MomentsScreen.js', import.meta.url), 'utf8');
+const avatar = fs.readFileSync(new URL('../src/components/ContactAvatar.js', import.meta.url), 'utf8');
 const storyAccess = fs.readFileSync(new URL('../../../backend/lib/story_access.php', import.meta.url), 'utf8');
 const storiesApi = fs.readFileSync(new URL('../../../backend/api/stories.php', import.meta.url), 'utf8');
 
