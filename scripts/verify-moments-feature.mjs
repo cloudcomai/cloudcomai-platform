@@ -7,6 +7,7 @@ const root = path => fs.readFileSync(new URL('../' + path, import.meta.url), 'ut
 const contract = root('backend/api-contract.json');
 const stories = root('backend/api/stories.php');
 const access = root('backend/lib/story_access.php');
+const contactMatching = root('backend/lib/contact_matching.php');
 const upload = root('backend/api/story_media_upload.php');
 const media = root('backend/api/story_media.php');
 const app = root('apps/mobile/App.js');
@@ -69,6 +70,8 @@ assert.match(stories, /story_groups/);
 assert.match(stories, /user_story_hidden_contacts/);
 assert.match(screen, /import ContactAvatar from '\.\/ContactAvatar'/);
 assert.match(screen, /mediaUrl\('user', id, contact\.image_version \|\| contact\.photo_version \|\| ''\)/);
+assert.match(contactMatching, /'image_version' => contact_profile_image_version\(\$id\)/);
+assert.match(contactMatching, /filemtime\(\$path\)[\s\S]*?filesize\(\$path\)/);
 assert.match(screen, /filter\(contact => Number\(contact\.registered_user_id\) > 0\)/);
 assert.match(access, /friend_requests WHERE status="accepted"/);
 assert.match(access, /google_contacts gc/);
