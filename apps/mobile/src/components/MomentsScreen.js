@@ -671,7 +671,8 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
             const selected = hiddenIds.includes(id);
             return <Pressable key={id} style={styles.checkRow} onPress={() => toggleId(hiddenIds, setHiddenIds, id)}>
               <Text style={styles.checkMark}>{selected ? '☑' : '□'}</Text>
-              <View style={{ flex: 1 }}><Text style={styles.checkLabel}>{contact.display_name || contact.registered_name || 'Contact'}</Text><Text style={styles.muted}>@{contact.registered_user_id_text || id}</Text></View>
+              <MomentAuthorAvatar userId={id} name={contact.display_name || contact.registered_name || 'Contact'} size={38} token={token} />
+              <View style={styles.privacyContactCopy}><Text style={styles.checkLabel}>{contact.display_name || contact.registered_name || 'Contact'}</Text><Text style={styles.muted}>@{contact.registered_user_id_text || id}</Text></View>
             </Pressable>;
           })}
           {!filteredContacts.length ? <Text style={styles.muted}>No registered contacts found.</Text> : null}
@@ -885,6 +886,7 @@ const styles = StyleSheet.create({
   choiceHint: { color: '#68748a', fontSize: 12, marginTop: 2 },
   nestedList: { paddingLeft: 8, borderTopWidth: 1, borderTopColor: '#edf0f5' },
   checkRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#f0f2f6' },
+  privacyContactCopy: { flex: 1, minWidth: 0, justifyContent: 'center' },
   checkMark: { color: '#3157d5', fontSize: 20 },
   checkLabel: { color: '#172033', fontSize: 14, fontWeight: '600' },
   muted: { color: '#68748a', fontSize: 12, marginTop: 2 },
