@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
 import MomentsScreen from './src/components/MomentsScreen';
+import { extractFirstEmojiGrapheme } from './src/utils/momentReaction';
 
 const chatFontColorCache = new Map();
 const isDarkThemeColor = value => {
@@ -343,6 +344,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
   const [pollMenuVisible, setPollMenuVisible] = useState(false);
   const [momentsOpen, setMomentsOpen] = useState(false);
   const [momentsTargetStoryId, setMomentsTargetStoryId] = useState(null);
+  const [momentsTargetReactionEmoji, setMomentsTargetReactionEmoji] = useState('');
   const searchActive = searchOpen && query.trim().length > 0;
   const baseTheme = resolveChatTheme(themeSettings, Appearance.getColorScheme());
   const customAccent = themeSettings?.accentColor || baseTheme.colors.accent;
@@ -850,11 +852,12 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
             const chosenSenderColor = CHAT_FONT_COLORS.find(option => option.key === item.sender_font_color) || CHAT_FONT_COLORS[0];
             const messageColors = { ...theme.colors, text: readableMessageColor(bubbleColor, chosenSenderColor.key === 'default' ? theme.colors.text : (isDarkChatTheme || mine ? chosenSenderColor.dark : chosenSenderColor.light)), secondary: readableMessageColor(bubbleColor, theme.colors.secondary) };
             const selected = Number(selectedMessage?.id) === Number(item.id);
+            const momentMatch = String(item.body || '').match(/\[moment:(\d+)\]/);
             if (item.type === 'moderation') return <View style={[styles.moderationMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}><Text style={styles.moderationTitle}>Community moderation</Text><Text style={styles.moderationText}>{item.body}</Text><Text style={styles.moderationTime}>{formatMessageTimestamp(item.created_at || item.timestamp || item.time)}</Text></View>;
             return <Pressable onPress={() => setSelectedMessage(current => Number(current?.id) === Number(item.id) ? null : item)} onLongPress={() => setSelectedMessage(item)} style={[styles.messageBubble, mine && styles.myMessage, { backgroundColor: mine ? theme.colors.outgoing : theme.colors.incoming, borderColor: theme.colors.border }, selected && styles.selectedMessage, highlightedMessageId === Number(item.id) && styles.highlightedMessage]}>
               {(chat.isGroup || chat.isPublic) && <Text style={[styles.sender, { color: messageColors.text }]}>{mine ? 'You' : (item.sender_name || 'Member')}</Text>}
               {item.reply_to_text ? <Pressable onPress={() => navigateToMessage(item.reply_to_message_id)} accessibilityRole='button' accessibilityLabel='Jump to original message'><View style={[styles.replyPreview, { backgroundColor: theme.colors.background, borderLeftColor: theme.colors.accent }]}><Text style={[styles.replySender, { color: theme.colors.text }]}>{item.reply_to_sender_name || 'Member'}</Text><Text numberOfLines={2} style={[styles.replyText, { color: theme.colors.text }]}>{item.reply_to_text}</Text></View></Pressable> : null}
-              {String(item.body || '').match(/\[moment:(\d+)\]/) ? <Pressable onPress={() => { setMomentsTargetStoryId(Number(String(item.body).match(/\[moment:(\d+)\]/)[1])); setMomentsOpen(true); }} accessibilityRole="button" accessibilityLabel="Open the Moment this message replied to" style={{ paddingVertical: 5 }}><Text style={{ color: theme.colors.accent, fontWeight: '700', fontSize: 12 }}>View original Moment ↗</Text></Pressable> : null}
+              {momentMatch ? <Pressable onPress={() => { const replyText = String(item.body || '').replace(/^Replied to your status:\s*/i, '').replace(/\s*\[moment:\d+\]\s*$/, ''); setMomentsTargetStoryId(Number(momentMatch[1])); setMomentsTargetReactionEmoji(extractFirstEmojiGrapheme(replyText)); setMomentsOpen(true); }} accessibilityRole="button" accessibilityLabel="Open the Moment this message replied to" style={{ paddingVertical: 5 }}><Text style={{ color: theme.colors.accent, fontWeight: '700', fontSize: 12 }}>View original Moment ↗</Text></Pressable> : null}
               <MediaMessage
                 message={item.body && /\[moment:\d+\]/.test(item.body) ? { ...item, body: item.body.replace(/\s*\[moment:\d+\]/, '') } : item}
                 autoDownload={privacy.media_auto_download}
@@ -903,7 +906,7 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       </KeyboardAvoidingView>
       {momentsOpen ? (
         <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
-          <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); }} />
+          <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} initialReactionEmoji={momentsTargetReactionEmoji} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); setMomentsTargetReactionEmoji(''); }} />
         </View>
       ) : null}
       <Modal visible={fontColorOpen && (chat.type === 'private' || (!chat.isGroup && !chat.isPublic && !chat.type))} transparent animationType="fade" onRequestClose={() => setFontColorOpen(false)}>
