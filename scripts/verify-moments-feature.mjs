@@ -13,6 +13,8 @@ const app = root('apps/mobile/App.js');
 const screen = root('apps/mobile/src/components/MomentsScreen.js');
 const migration = root('backend/database/migrations/2026-11-11-moments-audience-privacy.sql');
 const schema = root('backend/database/fresh-install.sql');
+const reactionHelper = root('apps/mobile/src/utils/momentReaction.js');
+const reactionTests = root('apps/mobile/test/momentReaction.test.js');
 
 const chats = root('backend/api/chats.php');
 const apiClient = root('packages/api-client/src/cloudcomai-api.js');
@@ -50,6 +52,14 @@ assert.match(screen, /onTouchEnd=\{event => \{ if \(!\(event\.nativeEvent\.touch
 assert.match(screen, /Animated\.timing\(floatingEmojiY, \{ toValue: -190, duration: 2000/);
 assert.match(app, /View original Moment/);
 assert.match(app, /initialStoryId=\{momentsTargetStoryId\}/);
+assert.match(app, /initialReactionEmoji=\{momentsTargetReactionEmoji\}/);
+assert.match(app, /extractFirstEmojiGrapheme\(replyText\)/);
+assert.match(screen, /initialReactionEmoji = ''/);
+assert.match(screen, /playReaction\(initialReactionEmoji\)/);
+assert.match(screen, /extractFirstEmojiGrapheme\(body\)/);
+assert.match(reactionHelper, /Intl\.Segmenter/);
+assert.match(reactionTests, /👨‍👩‍👧‍👦/);
+assert.match(reactionTests, /🏳️‍🌈/);
 
 assert.match(contract, /"v1\/stories"[^\n]*"PUT"/);
 assert.match(stories, /INTERVAL 36 HOUR/);
