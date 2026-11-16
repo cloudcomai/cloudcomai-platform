@@ -11,7 +11,8 @@ test('Moments privacy rows use the shared contact avatar and profile media URL i
   assert.match(screen, /import ContactAvatar from '\.\/ContactAvatar'/);
   assert.match(screen, /import \{ API_BASE_URL, mediaUrl, platformApi, sessionManager, uploadMobileFile \} from '\.\.\/services\/platform'/);
   assert.equal((screen.match(/<ContactAvatar userId=\{id\} name=\{name\} username=\{contact\.registered_user_id_text\} imageUri=\{mediaUrl\('user', id, contact\.image_version \|\| contact\.photo_version \|\| ''\)\} size=\{38\} \/>/g) || []).length, 2);
-  assert.match(screen, /ContactAvatar\([\s\S]*?showImage/);
+  assert.match(avatar, /showImage/);
+  assert.match(avatar, /onError=\{\(\) => setFailedUri\(imageUri\)\}/);
 });
 
 test('Moments privacy selection contains only registered accounts from the saved contacts API', () => {
