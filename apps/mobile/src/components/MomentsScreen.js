@@ -11,6 +11,7 @@ import { ApiRoute } from '@cloudcomai/api-client';
 import { buildApiUrl } from '../utils/media';
 import { API_BASE_URL, platformApi, sessionManager, uploadMobileFile } from '../services/platform';
 import { resolveChatTheme } from '../services/chatTheme';
+import { extractFirstEmojiGrapheme } from '../utils/momentReaction';
 
 const PHOTO_MAX_BYTES = 12 * 1024 * 1024;
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -254,7 +255,7 @@ function MomentMedia({ story, token, paused, onFinish }) {
   return <MomentPhoto story={story} token={token} />;
 }
 
-export default function MomentsScreen({ onBack, themeSettings, initialStoryId = null }) {
+export default function MomentsScreen({ onBack, themeSettings, initialStoryId = null, initialReactionEmoji = '' }) {
   const theme = resolveChatTheme(themeSettings);
   const [stories, setStories] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -293,6 +294,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
   const [floatingEmojiKey, setFloatingEmojiKey] = useState(0);
   const floatingEmojiY = React.useRef(new Animated.Value(0)).current;
   const floatingEmojiOpacity = React.useRef(new Animated.Value(0)).current;
+  const initialReactionPlayedRef = React.useRef('');
 
   const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
@@ -489,13 +491,21 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
     ]).start();
   }, [floatingEmojiOpacity, floatingEmojiY]);
 
+  useEffect(() => {
+    if (!initialStoryId || !initialReactionEmoji || !selectedStory || Number(selectedStory.id) !== Number(initialStoryId)) return;
+    const replayKey = `${Number(initialStoryId)}:${initialReactionEmoji}`;
+    if (initialReactionPlayedRef.current === replayKey) return;
+    initialReactionPlayedRef.current = replayKey;
+    playReaction(initialReactionEmoji);
+  }, [initialStoryId, initialReactionEmoji, selectedStory?.id, playReaction]);
+
   const sendMomentReply = async (value = momentReply) => {
     const body = String(value || '').trim();
     if (!selectedStory || selectedStory.is_owner || !body || replySending) return;
     setReplySending(true);
     try {
       const response = await platformApi.replyToStory(Number(selectedStory.id), body);
-      playReaction([...body].find(char => /\p{Extended_Pictographic}/u.test(char)) || '💬');
+      playReaction(extractFirstEmojiGrapheme(body) || '💬');
       setMomentReply('');
       if (response?.data?.chat_id) {
         // The reply is delivered through the existing private-chat message pipeline.
