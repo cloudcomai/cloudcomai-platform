@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const screen = fs.readFileSync(new URL('../src/components/MomentsScreen.js', import.meta.url), 'utf8');
 const avatar = fs.readFileSync(new URL('../src/components/ContactAvatar.js', import.meta.url), 'utf8');
+const contactMatching = fs.readFileSync(new URL('../../../backend/lib/contact_matching.php', import.meta.url), 'utf8');
 const storyAccess = fs.readFileSync(new URL('../../../backend/lib/story_access.php', import.meta.url), 'utf8');
 const storiesApi = fs.readFileSync(new URL('../../../backend/api/stories.php', import.meta.url), 'utf8');
 
@@ -13,6 +14,8 @@ test('Moments privacy rows use the shared contact avatar and profile media URL i
   assert.equal((screen.match(/<ContactAvatar userId=\{id\} name=\{name\} username=\{contact\.registered_user_id_text\} imageUri=\{mediaUrl\('user', id, contact\.image_version \|\| contact\.photo_version \|\| ''\)\} size=\{38\} \/>/g) || []).length, 2);
   assert.match(avatar, /showImage/);
   assert.match(avatar, /onError=\{\(\) => setFailedUri\(imageUri\)\}/);
+  assert.match(contactMatching, /'image_version' => contact_profile_image_version\(\$id\)/);
+  assert.match(contactMatching, /filemtime\(\$path\)[\s\S]*?filesize\(\$path\)/);
 });
 
 test('Moments privacy selection contains only registered accounts from the saved contacts API', () => {
