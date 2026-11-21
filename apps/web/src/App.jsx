@@ -96,7 +96,6 @@ function App() {
     const [modal, setModal] = useState(null);
     const [pollEditTarget, setPollEditTarget] = useState(null);
     const [chatFilter, setChatFilter] = useState('all');
-    const [isDarkMode, setIsDarkMode] = useState(false);
     const [appTheme, setAppTheme] = useState(() => getStoredAppTheme());
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('chats');
@@ -691,8 +690,8 @@ function App() {
     if (screen === 'interests') return <InterestsScreen interests={interests} topInterests={topInterests} saveAndContinue={savePreferences} cancel={() => navigateTo('app', { replace: true })} />;
 
     return (
-        <div className={`app-container ${isDarkMode ? 'dark-theme' : ''} ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
-            <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
+        <div className={`app-container ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
+            <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
             <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
@@ -704,7 +703,7 @@ function App() {
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
-                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} apiBridge={api} />
+                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} appTheme={appTheme} onThemeChange={chooseAppTheme} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel onOpenChat={openExistingChat} apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
                     : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
                     : modal === 'moments' ? <MomentsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />

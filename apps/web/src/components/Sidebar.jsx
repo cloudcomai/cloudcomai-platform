@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Bell, MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X, Globe2, Camera } from 'lucide-react';
+import { Bell, MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, X, Globe2, Camera } from 'lucide-react';
 import { mediaUrl } from '../services/platform';
 import BrandLogo from './BrandLogo';
 
 const profileImageUrl = user => user?.image_url || mediaUrl('user', user?.id);
 
-export default function Sidebar({ user, setModal, notificationUnreadCount = 0, isDarkMode, setIsDarkMode, onLogout, isSidebarOpen, setIsSidebarOpen, activeTab, onTabChange, setScreen }) {
+export default function Sidebar({ user, setModal, notificationUnreadCount = 0, onLogout, isSidebarOpen, setIsSidebarOpen, activeTab, onTabChange, setScreen }) {
   const [imageFailed, setImageFailed] = useState(false);
   const nav = tab => onTabChange(tab);
 
@@ -69,8 +69,7 @@ export default function Sidebar({ user, setModal, notificationUnreadCount = 0, i
         <div className="store-buttons"><button className="store-btn">Google Play</button><button className="store-btn">App Store</button></div>
       </div>
 
-      <div className="sidebar-footer-toggle" style={{ position: 'sticky', bottom: 0, zIndex: 5, background: 'var(--bg-sidebar, var(--bg-primary))', borderTop: '1px solid var(--border-color)' }}>
-        <button className="theme-toggle-btn" onClick={() => setIsDarkMode(!isDarkMode)}>{isDarkMode ? <Sun size={18}/> : <Moon size={18}/>}<span>Theme</span></button>
+      <div className="sidebar-footer" style={{ position: 'sticky', bottom: 0, zIndex: 5, background: 'var(--bg-sidebar, var(--bg-primary))', borderTop: '1px solid var(--border-color)' }}>
         <button className="logout-btn" onClick={onLogout}>Sign Out</button>
       </div>
     </aside>
