@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X, Globe2, Radio } from 'lucide-react';
+import { Bell, MessageCircle, Users, UserCheck, Bookmark, BarChart3, Settings, Sun, Moon, X, Globe2, Camera } from 'lucide-react';
 import { mediaUrl } from '../services/platform';
 import BrandLogo from './BrandLogo';
 
@@ -55,11 +55,8 @@ export default function Sidebar({ user, setModal, notificationUnreadCount = 0, i
       <nav className="sidebar-navigation">
         <button className={`nav-item ${activeTab === 'chats' ? 'active' : ''}`} onClick={() => nav('chats')}><MessageCircle size={20}/><span>Chats</span></button>
         <button className={`nav-item ${activeTab === 'groups' ? 'active' : ''}`} onClick={() => nav('groups')}><Users size={20}/><span>Groups</span></button>
-        {/* Calls, Status, and Stories are temporarily hidden until their functionality is completed. */}
-        {/* <button className="nav-item"><Phone size={20}/><span>Calls</span></button> */}
-        {/* <button className="nav-item"><Camera size={20}/><span>Status</span></button> */}
-        {/* <button className="nav-item"><Video size={20}/><span>Stories</span></button> */}
-        <button className="nav-item" onClick={() => setModal('public_chats')}><Globe2 size={20}/><span>Public Chats</span></button><button className="nav-item" onClick={() => setModal('ring_bells')}><Radio size={20}/><span>Ring Bells</span></button>
+        <button className="nav-item" onClick={() => setModal('moments')}><Camera size={20}/><span>Moments</span></button>
+        <button className="nav-item" onClick={() => setModal('public_chats')}><Globe2 size={20}/><span>Public Chats</span></button>
         <button className={`nav-item ${activeTab === 'people' ? 'active' : ''}`} onClick={() => nav('people')}><UserCheck size={20}/><span>People & Contacts</span></button>
         <button className="nav-item" onClick={() => setModal('saved_messages')}><Bookmark size={20}/><span>Saved Messages</span></button>
         <button className="nav-item" onClick={() => setScreen('interests')}><UserCheck size={20}/><span>Edit Preferences</span></button>
