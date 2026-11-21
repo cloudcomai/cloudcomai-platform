@@ -96,7 +96,6 @@ function App() {
     const [modal, setModal] = useState(null);
     const [pollEditTarget, setPollEditTarget] = useState(null);
     const [chatFilter, setChatFilter] = useState('all');
-    const [isDarkMode, setIsDarkMode] = useState(false);
     const [appTheme, setAppTheme] = useState(() => getStoredAppTheme());
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('chats');
@@ -691,8 +690,8 @@ function App() {
     if (screen === 'interests') return <InterestsScreen interests={interests} topInterests={topInterests} saveAndContinue={savePreferences} cancel={() => navigateTo('app', { replace: true })} />;
 
     return (
-        <div className={`app-container ${isDarkMode ? 'dark-theme' : ''} ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
-            <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
+        <div className={`app-container ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'}`}>
+            <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
             <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
