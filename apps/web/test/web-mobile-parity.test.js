@@ -11,20 +11,20 @@ test('web exposes mobile message actions', () => {
   assert.match(canvas, /MessageReadStatusDialog/);
   assert.match(canvas, /aria-label="Forward message"/);
   assert.match(canvas, /aria-label="Message info"/);
-  assert.match(parity, /platformApi\\.forwardMessage/);
-  assert.match(parity, /platformApi\\.getMessageReadStatus/);
+  assert.match(parity, /platformApi\.forwardMessage/);
+  assert.match(parity, /platformApi\.getMessageReadStatus/);
 });
 
 test('web exposes mobile profile and friend relationship flow', () => {
   assert.match(canvas, /UserProfileDialog/);
-  assert.match(parity, /platformApi\\.getUserProfile/);
-  assert.match(parity, /platformApi\\.getFriendRelationship/);
-  assert.match(parity, /platformApi\\.sendFriendRequest/);
+  assert.match(parity, /platformApi\.getUserProfile/);
+  assert.match(parity, /platformApi\.getFriendRelationship/);
+  assert.match(parity, /platformApi\.sendFriendRequest/);
 });
 
 test('web supports per-chat themes like mobile', () => {
   assert.match(canvas, /ChatThemeControl/);
-  assert.match(parity, /cloudcomai\\.web\\.chat-theme/);
+  assert.match(parity, /cloudcomai\.web\.chat-theme/);
   for (const theme of ['ocean','forest','sunset','midnight']) assert.match(styles, new RegExp(`data-chat-theme="${theme}"`));
 });
 
@@ -33,15 +33,15 @@ test('web exposes Moments, public chats and saved messages', async () => {
   const community = await readFile(new URL('../src/components/WebCommunityPanels.jsx', import.meta.url), 'utf8');
   const sidebar = await readFile(new URL('../src/components/Sidebar.jsx', import.meta.url), 'utf8');
 
-  assert.match(moments, /platformApi\\.listStories/);
-  assert.match(moments, /platformApi\\.createStory/);
-  assert.match(moments, /platformApi\\.replyToStory/);
-  assert.match(moments, /platformApi\\.deleteStory/);
-  assert.match(community, /platformApi\\.listPublicChats/);
-  assert.match(community, /platformApi\\.joinPublicChat/);
-  assert.match(community, /platformApi\\.leavePublicChat/);
-  assert.match(sidebar, /setModal\\('moments'\\)/);
-  assert.match(sidebar, /setModal\\('public_chats'\\)/);
-  assert.match(sidebar, /setModal\\('saved_messages'\\)/);
-  assert.doesNotMatch(sidebar, /setModal\\('ring_bells'\\)/);
+  assert.match(moments, /platformApi\.listStories/);
+  assert.match(moments, /platformApi\.createStory/);
+  assert.match(moments, /platformApi\.replyToStory/);
+  assert.match(moments, /platformApi\.deleteStory/);
+  assert.match(community, /platformApi\.listPublicChats/);
+  assert.match(community, /platformApi\.joinPublicChat/);
+  assert.match(community, /platformApi\.leavePublicChat/);
+  assert.match(sidebar, /setModal\('moments'\)/);
+  assert.match(sidebar, /setModal\('public_chats'\)/);
+  assert.match(sidebar, /setModal\('saved_messages'\)/);
+  assert.doesNotMatch(sidebar, /setModal\('ring_bells'\)/);
 });
