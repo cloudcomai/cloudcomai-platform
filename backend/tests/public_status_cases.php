@@ -22,14 +22,18 @@ $admin->exec("UPDATE chat_members SET status='banned' WHERE chat_id=2500 AND use
 request('POST','v1/public-chats',2,['room_id'=>2500],403);
 
 $friendStory=request('POST','v1/stories',3,['content'=>'Friends only 😀','audience'=>'friends'],201)['data']['story_id'];
-$publicStory=request('POST','v1/stories',3,['content'=>'Public update','audience'=>'public'],201)['data']['story_id'];
+request('POST','v1/stories',3,['content'=>'Public update','audience'=>'public'],422);
 $storyIds=static fn(int $viewer): array => array_map('intval',array_column(request('GET','v1/stories',$viewer)['data']['stories'],'id'));
 check(in_array($friendStory,$storyIds(3),true),'Author cannot see own Ring Bell');
-check(!in_array($friendStory,$storyIds(1),true) && in_array($publicStory,$storyIds(1),true),'Ring Bells ignored audience privacy');
+check(!in_array($friendStory,$storyIds(1),true),'Unaccepted user saw a contacts-only Ring Bell');
 $friend=request('POST','v1/friend-requests',3,['action'=>'send','user_id'=>1],201)['data']['request'];
 request('POST','v1/friend-requests',1,['action'=>'accept','request_id'=>$friend['id']]);
-check(in_array($friendStory,$storyIds(1),true),'Accepted friend cannot see Ring Bell');
-check(!in_array($friendStory,$storyIds(2),true),'Shared public room disclosed friends-only Ring Bell');
+check(in_array($friendStory,$storyIds(1),true),'Accepted contact cannot see Ring Bell');
+check(!in_array($friendStory,$storyIds(2),true),'Non-contact in a shared public room saw a contacts-only Ring Bell');
+
+// A private chat by itself must not qualify as a saved Moments contact.
+$privateChatStory=request('POST','v1/stories',1,['content'=>'Private chat is not a saved contact','audience'=>'contacts'],201)['data']['story_id'];
+check(!in_array($privateChatStory,$storyIds(2),true),'Private-chat-only user saw a contacts-only Moment');
 
 $contactStory=request('POST','v1/stories',3,['content'=>'Saved contacts only','audience'=>'contacts'],201)['data']['story_id'];
 check(in_array($contactStory,$storyIds(1),true) && !in_array($contactStory,$storyIds(2),true),'All Contacts audience did not follow saved contact relationships');
@@ -48,7 +52,7 @@ request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[2]]);
 check(!in_array($groupStory,$storyIds(2),true),'Hide Status From did not override selected group membership');
 request('PUT','v1/stories',3,['action'=>'privacy','hidden_user_ids'=>[]]);
 $admin->exec('INSERT INTO user_blocks(user_id,blocked_user_id) VALUES(1,3)');
-check(!in_array($friendStory,$storyIds(1),true) && !in_array($publicStory,$storyIds(1),true),'Blocked Ring Bells are visible');
+check(!in_array($friendStory,$storyIds(1),true),'Blocked contacts can still see Ring Bells');
 $admin->exec('DELETE FROM user_blocks WHERE user_id=1 AND blocked_user_id=3');
 $admin->exec('INSERT INTO user_blocks(user_id,blocked_user_id) VALUES(3,1)');
 check(!in_array($friendStory,$storyIds(1),true),'Author block was ignored');
@@ -56,6 +60,6 @@ $admin->exec('DELETE FROM user_blocks WHERE user_id=3 AND blocked_user_id=1');
 check((int)$admin->query('SELECT TIMESTAMPDIFF(SECOND,created_at,expires_at) FROM stories WHERE id='.(int)$friendStory)->fetchColumn()===36*3600,'Ring Bell lifetime differs from 36 hours');
 $admin->exec('UPDATE stories SET expires_at="2000-01-01" WHERE id='.(int)$friendStory);
 check(!in_array($friendStory,$storyIds(1),true),'Expired Ring Bell remained visible');
-foreach ([['content'=>''],['content'=>str_repeat('x',501)],['content'=>['bad']],['content'=>'Hello','audience'=>'anyone'],['content'=>'Hello','type'=>'video']] as $invalid) request('POST','v1/stories',1,$invalid,422);
+foreach ([['content'=>''],['content'=>str_repeat('x',501)],['content'=>['bad']],['content'=>'Hello','audience'=>'anyone'],['content'=>'Hello','audience'=>'public'],['content'=>'Hello','type'=>'video']] as $invalid) request('POST','v1/stories',1,$invalid,422);
 request('POST','v1/stories',1,['content'=>str_repeat('😀',500)],201);
 echo "Public room leave/rejoin, banned membership and Moments audience, privacy and expiry integration cases passed\n";

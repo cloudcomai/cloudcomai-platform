@@ -31,6 +31,19 @@ function presence_status(?string $updatedAt, bool $hidden = false): string
  * keyed collection. Direct CloudComAI friends are trusted by account id; phone
  * and Google sources require an exact normalized email or phone match.
  */
+function contact_profile_image_version(int $userId): string
+{
+    if ($userId <= 0) return '';
+    $folder = dirname(__DIR__) . '/uploads/users';
+    foreach (['jpg', 'jpeg', 'png', 'webp'] as $extension) {
+        $path = $folder . '/' . $userId . '.' . $extension;
+        if (is_file($path)) {
+            return (string)(filemtime($path) ?: 0) . '-' . (string)filesize($path);
+        }
+    }
+    return '';
+}
+
 function merge_contact_sources(array $googleContacts, array $phoneContacts, array $friends, array $registeredUsers, int $currentUserId): array
 {
     $usersById = [];
@@ -55,6 +68,7 @@ function merge_contact_sources(array $googleContacts, array $phoneContacts, arra
             'registered_name' => $registeredUser['name'] ?? null,
             'registered_user_id' => $id,
             'registered_user_id_text' => $registeredUser['user_id'] ?? null,
+            'image_version' => contact_profile_image_version($id),
             'email' => $registeredUser['email'] ?? null,
             'phone' => $registeredUser['mobile'] ?? null,
             'photo_url' => null,
