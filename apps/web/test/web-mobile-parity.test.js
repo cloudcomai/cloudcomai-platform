@@ -45,3 +45,13 @@ test('web exposes Moments, public chats and saved messages', async () => {
   assert.match(sidebar, /setModal\('saved_messages'\)/);
   assert.doesNotMatch(sidebar, /setModal\('ring_bells'\)/);
 });
+test('web public chat room entry opens the selected room and dismisses the picker', async () => {
+  const community = await readFile(new URL('../src/components/WebCommunityPanels.jsx', import.meta.url), 'utf8');
+  const app = await readFile(new URL('../src/App.jsx', import.meta.url), 'utf8');
+
+  assert.match(community, /await platformApi\.joinPublicChat\(roomId\)/);
+  assert.match(community, /await onOpenChat\?\.\(roomId\)/);
+  assert.match(community, /onClick=\{\(\) => void openRoom\(room\)\}/);
+  assert.match(app, /onOpenChat=\{async id => \{ await openExistingChat\(id\); setModal\(null\); \}\}/);
+  assert.match(app, /setSelectedChat\(\{ \.\.\.chat, id: Number\(id\), isGroup: chat\.type === 'group', isPublic: chat\.type === 'public' \|\| chat\.isPublic \}\)/);
+});
