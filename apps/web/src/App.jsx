@@ -22,7 +22,8 @@ import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
 import InvitationPage from './components/InvitationPage';
 import PrivacyAccountPanel from './components/PrivacyAccountPanel';
-import { PublicChatsPanel, RingBellsPanel } from './components/WebCommunityPanels';
+import { PublicChatsPanel } from './components/WebCommunityPanels';
+import MomentsPanel from './components/MomentsPanel';
 import { inviteUrlFromResponse } from './utils/shareLink';
 import { passwordResetLink, privatePasswordResetUrl } from './utils/passwordRecovery';
 import {
@@ -706,7 +707,7 @@ function App() {
                     : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel onOpenChat={openExistingChat} apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
                     : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
-                    : modal === 'ring_bells' ? <RingBellsPanel close={() => setModal(null)} />
+                    : modal === 'moments' ? <MomentsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
                     : modal === 'saved_messages' || modal === 'sessions' ? <AccountToolsPanel key={modal} mode={modal} close={() => setModal(null)} onOpenChat={openExistingChat} onSessionRotated={acceptRotatedSession} onLogout={logout} onUnsave={id => setMessages(current => current.map(item => Number(item.id) === Number(id) ? { ...item, saved: false } : item))} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'privacy_account' ? <PrivacyAccountPanel privacyApi={platformApi} close={() => setModal(null)} onSettingsChanged={handlePrivacySettingsChanged} />
