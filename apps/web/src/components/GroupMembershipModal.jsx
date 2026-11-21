@@ -18,6 +18,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [profileError, setProfileError] = useState('');
   const [savedContacts, setSavedContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [contactsQuery, setContactsQuery] = useState('');
   const [failedAvatars, setFailedAvatars] = useState({});
 
@@ -41,9 +42,11 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
 
   useEffect(() => {
     if ((type === 'manage_members' || type === 'add_member') && selectedChat) {
+      setMembersLoading(true);
       apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } })
         .then(data => { if (data.members) setCurrentMembers(data.members); })
-        .catch(err => setError(err.message || "Unable to load group members."));
+        .catch(err => setError(err.message || "Unable to load group members."))
+        .finally(() => setMembersLoading(false));
     }
   }, [type, selectedChat, apiBridge]);
 
@@ -180,7 +183,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>Choose from your contacts</div>
             <input type="search" placeholder="Filter saved contacts..." value={contactsQuery} onChange={e => setContactsQuery(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-main)' }} />
             <div style={{ maxHeight: '190px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '4px' }}>
-              {contactsLoading ? <p style={{ padding: 12, color: 'var(--text-muted)' }}>Loading contacts…</p> : savedContacts.filter(c => Number(c.registered_user_id) > 0 && !currentMembers.some(m => Number(m.user_id || m.id) === Number(c.registered_user_id)) && [c.display_name,c.given_name,c.family_name,c.registered_name,c.registered_user_id_text,c.email,c.phone].some(v => String(v || '').toLowerCase().includes(contactsQuery.trim().toLowerCase()))).map(c => {
+              {contactsLoading || membersLoading ? <p style={{ padding: 12, color: 'var(--text-muted)' }}>Loading contacts…</p> : savedContacts.filter(c => Number(c.registered_user_id) > 0 && !currentMembers.some(m => Number(m.user_id || m.id) === Number(c.registered_user_id)) && [c.display_name,c.given_name,c.family_name,c.registered_name,c.registered_user_id_text,c.email,c.phone].some(v => String(v || '').toLowerCase().includes(contactsQuery.trim().toLowerCase()))).map(c => {
                 const id = Number(c.registered_user_id);
                 const displayName = c.display_name || [c.given_name,c.family_name].filter(Boolean).join(' ') || c.registered_name || 'CloudComAI contact';
                 const imageKey = `contact-${id}-${c.image_version || ''}`;
@@ -192,7 +195,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                   <button type="button" onClick={() => executeMemberAction(id,'add')} disabled={loading} style={{ color:'var(--primary-color)',background:'transparent',border:0,fontWeight:700 }}>+ Add</button>
                 </div>;
               })}
-              {!contactsLoading && !savedContacts.some(c => Number(c.registered_user_id)>0 && !currentMembers.some(m => Number(m.user_id || m.id)===Number(c.registered_user_id)) && [c.display_name,c.given_name,c.family_name,c.registered_name,c.registered_user_id_text,c.email,c.phone].some(v => String(v || '').toLowerCase().includes(contactsQuery.trim().toLowerCase()))) && <p style={{padding:12,textAlign:'center',fontSize:12,color:'var(--text-muted)'}}>No eligible saved contacts found.</p>}
+              {!contactsLoading && !membersLoading && !savedContacts.some(c => Number(c.registered_user_id)>0 && !currentMembers.some(m => Number(m.user_id || m.id)===Number(c.registered_user_id)) && [c.display_name,c.given_name,c.family_name,c.registered_name,c.registered_user_id_text,c.email,c.phone].some(v => String(v || '').toLowerCase().includes(contactsQuery.trim().toLowerCase()))) && <p style={{padding:12,textAlign:'center',fontSize:12,color:'var(--text-muted)'}}>No eligible saved contacts found.</p>}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -298,8 +301,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button type="button" aria-label="Close profile" onClick={() => { setSelectedMemberProfile(null); setProfileError(''); }} style={{ border: 0, background: 'transparent', color: 'var(--text-muted)', fontSize: '26px', cursor: 'pointer' }}>×</button>
           </div>
-          <div style={{ width: '78px', height: '78px', margin: '0 auto 12px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--bg-directory)', color: 'var(--text-main)', fontSize: '28px', fontWeight: 800, border: '1px solid var(--border-color)' }}>
-            {(selectedMemberProfile.name || 'U').trim().charAt(0).toUpperCase()}
+          <div style={{ width: '78px', height: '78px', margin: '0 auto 12px', borderRadius: '50%', display: 'grid', placeItems: 'center', overflow:'hidden', background: 'var(--bg-directory)', color: 'var(--text-main)', fontSize: '28px', fontWeight: 800, border: '1px solid var(--border-color)' }}>
+            {selectedMemberProfile.image_version && !failedAvatars[`profile-${selectedMemberProfile.id}-${selectedMemberProfile.image_version}`] ? <img src={mediaUrl('user', selectedMemberProfile.id) + `&v=${encodeURIComponent(selectedMemberProfile.image_version)}`} alt="" onError={() => setFailedAvatars(prev => ({...prev,[`profile-${selectedMemberProfile.id}-${selectedMemberProfile.image_version}`]:true}))} style={{width:'100%',height:'100%',objectFit:'cover'}} /> : <span>{getAvatarInitial(selectedMemberProfile.name,selectedMemberProfile.user_id)}</span>}
           </div>
           <h3 id="group-member-profile-title" style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 800 }}>{selectedMemberProfile.name || 'CloudComAI user'}</h3>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '12px' }}>@{selectedMemberProfile.user_id || selectedMemberProfile.id} · {(selectedMemberProfile.role || 'member').charAt(0).toUpperCase()+(selectedMemberProfile.role || 'member').slice(1)}</p>
