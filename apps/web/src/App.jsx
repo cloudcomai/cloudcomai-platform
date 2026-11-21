@@ -703,7 +703,7 @@ function App() {
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
-                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} apiBridge={api} />
+                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} appTheme={appTheme} onThemeChange={chooseAppTheme} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel onOpenChat={openExistingChat} apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
                     : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
                     : modal === 'moments' ? <MomentsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
