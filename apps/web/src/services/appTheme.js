@@ -52,8 +52,36 @@ export function saveAppTheme(id){ const safe=APP_THEMES[id] ? id : DEFAULT_APP_T
 export function applyAppTheme(id){
   const theme=resolveAppTheme(id);
   const root=document.documentElement;
+  const { colors } = theme;
   root.dataset.appTheme=theme.id;
   root.style.colorScheme=theme.id==='midnight'?'dark':'light';
-  for (const [key,value] of Object.entries(theme.colors)) root.style.setProperty(`--app-${key.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`)}`,value);
+
+  // Keep the complete palette available as semantic app tokens.
+  for (const [key,value] of Object.entries(colors)) {
+    root.style.setProperty(`--app-${key.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`)}`,value);
+  }
+
+  // The existing web components use these established CSS variables.
+  // Bridge the selected global palette into them so every screen updates.
+  const webTokens = {
+    '--bg-primary': colors.surface,
+    '--bg-sidebar': colors.navigationBackground,
+    '--bg-directory': colors.surfaceSecondary,
+    '--bg-canvas': colors.background,
+    '--text-main': colors.textPrimary,
+    '--text-muted': colors.textSecondary,
+    '--text-light': colors.textMuted,
+    '--primary-color': colors.primary,
+    '--primary-light': colors.primaryLight,
+    '--border-color': colors.border,
+    '--bubble-outgoing': colors.outgoingBubble,
+    '--bubble-incoming': colors.incomingBubble,
+    '--accent': colors.accent,
+    '--panel': colors.surface,
+    '--panel2': colors.surfaceSecondary,
+    '--border': colors.border,
+    '--muted': colors.textMuted,
+  };
+  for (const [name,value] of Object.entries(webTokens)) root.style.setProperty(name,value);
   return theme;
 }
