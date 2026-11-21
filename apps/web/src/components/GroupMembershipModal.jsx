@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { UserPlus, UserMinus, Search, X } from 'lucide-react';
+import { getAvatarInitial, getAvatarPalette } from '@cloudcomai/chat-core';
+import { mediaUrl, platformApi } from '../services/platform';
 
 export default function GroupMembershipModal({ type, selectedChat, apiBridge, close, onActionComplete, user, onGroupUpdated }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,6 +16,10 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [savedContacts, setSavedContacts] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [contactsQuery, setContactsQuery] = useState('');
+  const [failedAvatars, setFailedAvatars] = useState({});
 
   const currentUserId = Number(user?.id);
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
@@ -21,6 +27,17 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const canManageMembers = ownsGroup || isAdmin;
   const adminCount = currentMembers.filter(member => member.role === 'admin').length;
   const adminLimitReached = adminCount >= 3;
+
+  useEffect(() => {
+    if (type !== 'add_member') return;
+    let cancelled = false;
+    setContactsLoading(true);
+    platformApi.listContacts(1, 500)
+      .then(({ data }) => { if (!cancelled) setSavedContacts(Array.isArray(data.contacts) ? data.contacts : []); })
+      .catch(err => { if (!cancelled) setError(err.message || 'Unable to load your contacts.'); })
+      .finally(() => { if (!cancelled) setContactsLoading(false); });
+    return () => { cancelled = true; };
+  }, [type]);
 
   useEffect(() => {
     if ((type === 'manage_members' || type === 'add_member') && selectedChat) {
@@ -100,6 +117,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
       });
       alert(actionType === 'add' ? 'User successfully added to group.' : Number(targetUserId) === currentUserId ? 'You have left the group.' : 'Member removed from group.');
       setSearchTerm('');
+      setContactsQuery('');
       setSearchResults([]);
       setHasSearched(false);
       onActionComplete();
@@ -159,6 +177,23 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
 
         {type === 'add_member' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>Choose from your contacts</div>
+            <input type="search" placeholder="Filter saved contacts..." value={contactsQuery} onChange={e => setContactsQuery(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-primary)', color: 'var(--text-main)' }} />
+            <div style={{ maxHeight: '190px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '4px' }}>
+              {contactsLoading ? <p style={{ padding: 12, color: 'var(--text-muted)' }}>Loading contacts…</p> : savedContacts.filter(c => Number(c.registered_user_id) > 0 && !currentMembers.some(m => Number(m.user_id || m.id) === Number(c.registered_user_id)) && [c.display_name,c.given_name,c.family_name,c.registered_name,c.registered_user_id_text,c.email,c.phone].some(v => String(v || '').toLowerCase().includes(contactsQuery.trim().toLowerCase()))).map(c => {
+                const id = Number(c.registered_user_id);
+                const displayName = c.display_name || [c.given_name,c.family_name].filter(Boolean).join(' ') || c.registered_name || 'CloudComAI contact';
+                const imageKey = `contact-${id}-${c.image_version || ''}`;
+                const palette = getAvatarPalette(id || displayName);
+                return <div key={id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 8px', borderBottom:'1px solid var(--border-color)' }}>
+                  <img src={mediaUrl('user', id) + (c.image_version ? `&v=${encodeURIComponent(c.image_version)}` : '')} alt="" onError={e => { e.currentTarget.style.display='none'; setFailedAvatars(prev => ({...prev,[imageKey]:true})); }} style={{ display: failedAvatars[imageKey] ? 'none' : 'block', width:38,height:38,borderRadius:'50%',objectFit:'cover',background:'var(--bg-directory)' }} />
+                  {failedAvatars[imageKey] && <span style={{ width:38,height:38,borderRadius:'50%',display:'grid',placeItems:'center',background:palette.backgroundColor,color:palette.textColor,fontWeight:800 }}>{getAvatarInitial(displayName,c.registered_user_id_text)}</span>}
+                  <div style={{ flex:1,minWidth:0 }}><div style={{ color:'var(--text-main)',fontWeight:600,fontSize:13 }}>{displayName}</div><div style={{ color:'var(--text-muted)',fontSize:11 }}>@{c.registered_user_id_text || c.registered_name || id}</div></div>
+                  <button type="button" onClick={() => executeMemberAction(id,'add')} disabled={loading} style={{ color:'var(--primary-color)',background:'transparent',border:0,fontWeight:700 }}>+ Add</button>
+                </div>;
+              })}
+              {!contactsLoading && !savedContacts.some(c => Number(c.registered_user_id)>0 && !currentMembers.some(m => Number(m.user_id || m.id)===Number(c.registered_user_id)) && [c.display_name,c.given_name,c.family_name,c.registered_name,c.registered_user_id_text,c.email,c.phone].some(v => String(v || '').toLowerCase().includes(contactsQuery.trim().toLowerCase()))) && <p style={{padding:12,textAlign:'center',fontSize:12,color:'var(--text-muted)'}}>No eligible saved contacts found.</p>}
+            </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
@@ -176,7 +211,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
             <div style={{ maxHeight: '200px', overflowY: 'auto', marginTop: '8px' }}>
               {!hasSearched && searchResults.length === 0 && (
                 <p style={{ fontSize: '12px', color: 'var(--text-light)', textAlign: 'center', padding: '12px' }}>
-                  Type a name or email address above to begin searching.
+                  Search CloudComAI users by name, email or User ID.
                 </p>
               )}
 
@@ -222,8 +257,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                   return (
                     <div key={m.id || m.user_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-directory)', borderRadius: '8px', marginBottom: '4px', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                        <button type="button" aria-label={`View ${m.name || 'member'} profile`} onClick={() => openMemberProfile(m)} disabled={loading} style={{ width: '42px', height: '42px', flex: '0 0 42px', borderRadius: '50%', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-main)', fontWeight: 800, cursor: 'pointer' }}>
-                          {(m.name || m.username || 'U').trim().charAt(0).toUpperCase()}
+                        <button type="button" aria-label={`View ${m.name || 'member'} profile`} onClick={() => openMemberProfile(m)} disabled={loading} style={{ width: '42px', height: '42px', flex: '0 0 42px', borderRadius: '50%', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-main)', fontWeight: 800, cursor: 'pointer', padding:0, overflow:'hidden' }}>
+                          {m.image_version && !failedAvatars[`member-${m.user_id || m.id}-${m.image_version}`] ? <img src={mediaUrl('user', m.user_id || m.id) + `&v=${encodeURIComponent(m.image_version)}`} alt="" onError={() => setFailedAvatars(prev => ({...prev,[`member-${m.user_id || m.id}-${m.image_version}`]:true}))} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}} /> : <span style={{display:'grid',placeItems:'center',width:'100%',height:'100%',background:getAvatarPalette(m.user_id || m.id).backgroundColor,color:getAvatarPalette(m.user_id || m.id).textColor}}>{getAvatarInitial(m.name,m.username)}</span>}
                         </button>
                         <div style={{ minWidth: 0 }}>
                           <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', margin: 0 }}>{m.name || m.username || 'Member'}</h5>
