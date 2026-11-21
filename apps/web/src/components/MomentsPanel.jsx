@@ -44,6 +44,26 @@ export default function MomentsPanel({ close, onOpenChat }) {
     } catch (e) { setError(e.message || 'Unable to load Moments.'); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  const [mediaSource, setMediaSource] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+    setMediaSource('');
+    if (!activeStory || !['photo', 'video'].includes(activeStory.type)) return undefined;
+    const loadMedia = async () => {
+      try {
+        const token = await sessionManager.getToken();
+        const response = await fetch(mediaUrl(activeStory.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!response.ok) throw new Error('Unable to load this Moment media.');
+        const blob = await response.blob();
+        if (!blob.size) throw new Error('Moment media is empty.');
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setMediaSource(objectUrl);
+      } catch (e) { if (!cancelled) setError(e.message || 'Unable to load Moment media.'); }
+    };
+    loadMedia();
+    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [activeStory?.id, activeStory?.type]);
 
   const filteredContacts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -109,7 +129,7 @@ export default function MomentsPanel({ close, onOpenChat }) {
     try {
       const result = await platformApi.replyToStory(Number(activeStory.id), reply.trim());
       setReply('');
-      if (result?.data?.chat_id) onOpenChat?.(Number(result.data.chat_id));
+      if (result?.data?.chat_id) await onOpenChat?.(Number(result.data.chat_id));
     } catch (e) { setError(e.message || 'Unable to send your reply.'); }
     finally { setBusy(false); }
   };
@@ -142,7 +162,7 @@ export default function MomentsPanel({ close, onOpenChat }) {
       </div>
       <div className="moments-feed-card"><div className="moments-feed-heading"><h3>Recent Moments</h3><button onClick={load}>Refresh</button></div>
         {stories.length===0?<div className="moments-empty"><span>◌</span><strong>No Moments yet</strong><p>When your contacts share updates, they’ll appear here.</p></div>:<div className="moments-feed">{stories.map(story=><article key={story.id} className={Number(activeStory?.id)===Number(story.id)?'moment-row selected':'moment-row'}><button className="moment-open" onClick={async()=>{setActiveStory(story);try{await platformApi.viewStory(story.id);}catch{}}}><span className="moment-avatar">{String(story.user_name||story.name||'U').slice(0,1).toUpperCase()}</span><span className="moment-meta"><strong>{story.user_name||story.name||'CloudComAI user'}{story.is_owner?' · You':''}</strong><small>{story.type==='video'?'Video':story.type==='photo'?'Photo':story.content||story.caption||'Text Moment'}</small></span><span className="moment-time">{story.view_count||0} views</span></button>{story.is_owner&&<button className="moment-delete" onClick={()=>removeStory(story)}>Delete</button>}</article>)}</div>}
-        {activeStory && <div className="moment-detail"><div className="moment-detail-head"><strong>{activeStory.user_name||activeStory.name||'Moment'}</strong><button onClick={()=>setActiveStory(null)}>Close</button></div>{activeStory.type==='photo'?<img src={mediaUrl(activeStory.id)} alt="Moment"/>:activeStory.type==='video'?<video src={mediaUrl(activeStory.id)} controls playsInline autoPlay muted />:<p>{activeStory.content||activeStory.caption}</p>}{!activeStory.is_owner&&<div className="moment-reply"><input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Send a reply…"/><button disabled={busy||!reply.trim()} onClick={sendReply}>Send</button></div>}</div>}
+        {activeStory && <div className="moment-detail"><div className="moment-detail-head"><strong>{activeStory.user_name||activeStory.name||'Moment'}</strong><button onClick={()=>setActiveStory(null)}>Close</button></div>{activeStory.type==='photo'?{mediaSource ? <img src={mediaSource} alt="Moment"/> : <p>Loading photo…</p>}:activeStory.type==='video'?{mediaSource ? <video src={mediaSource} controls playsInline autoPlay muted /> : <p>Loading video…</p>}:<p>{activeStory.content||activeStory.caption}</p>}{!activeStory.is_owner&&<div className="moment-reply"><input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Send a reply…"/><button disabled={busy||!reply.trim()} onClick={sendReply}>Send</button></div>}</div>}
       </div>
     </div>
     {privacyOpen && <div className="moments-privacy"><div className="moments-privacy-head"><strong>Hide Moments from</strong><button onClick={()=>setPrivacyOpen(false)}>×</button></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search your contacts"/><div className="moments-contact-list">{filteredContacts.map(person=>{const id=Number(person.registered_user_id||person.id);return <label key={id}><input type="checkbox" checked={hiddenIds.includes(id)} onChange={e=>setHiddenIds(current=>e.target.checked?[...current,id]:current.filter(value=>value!==id))}/><span>{person.display_name||person.registered_name||person.name||'Contact'}</span></label>;})}</div><button className="moments-publish" disabled={busy} onClick={savePrivacy}>Save privacy</button></div>}
