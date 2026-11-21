@@ -2,7 +2,8 @@ import React, { useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { Camera, X } from 'lucide-react';
 
-export default function GroupEditModal({ group, groupTypes, apiBridge, close, onGroupUpdated }) {
+export default function GroupEditModal({ group, user, groupTypes, apiBridge, close, onGroupUpdated }) {
+  const isOwner = Number(group?.owner_id) === Number(user?.id);
   const fileRef = useRef(null);
   const [name, setName] = useState(group?.name || '');
   const [category, setCategory] = useState(group?.group_category || groupTypes?.[0] || 'Family Group');
@@ -28,7 +29,7 @@ export default function GroupEditModal({ group, groupTypes, apiBridge, close, on
       const response = await apiBridge(ApiRoute.GROUPS, {
         method: 'PUT',
         query: { id: group.id },
-        body: JSON.stringify({ name: name.trim(), group_category: category, group_description: description.trim() })
+        body: JSON.stringify({ name: name.trim(), group_category: category, ...(isOwner ? { group_description: description.trim() } : {}) })
       });
       let nextGroup = { ...group, ...(response.group || {}) };
       if (file) {
@@ -71,8 +72,8 @@ export default function GroupEditModal({ group, groupTypes, apiBridge, close, on
         <input required value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 14 }} />
 
         <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Group Description</label>
-        <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={256} rows={3} disabled={loading} placeholder="Add a description for this group" style={{ width:'100%', marginTop:6, marginBottom:14, resize:'vertical' }} />
-        <div style={{ textAlign:'right', fontSize:11, color:'var(--text-light)', marginTop:-10, marginBottom:12 }}>{description.length}/256</div>
+        <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={256} rows={3} disabled={loading || !isOwner} placeholder="Add a description for this group" style={{ width:'100%', marginTop:6, marginBottom:14, resize:'vertical' }} />
+        <div style={{ textAlign:'right', fontSize:11, color:'var(--text-light)', marginTop:-10, marginBottom:12 }}>{isOwner ? `${description.length}/256` : 'Only the group owner can edit the description'}</div>
 
         <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>Category</label>
         <select value={category} onChange={e => setCategory(e.target.value)} disabled={loading} style={{ width: '100%', marginTop: 6, marginBottom: 20 }}>
