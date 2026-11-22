@@ -701,11 +701,11 @@ function App() {
                 <div className="modal-backdrop">
                     {modal === 'add_member' || modal === 'manage_members' ? <GroupMembershipModal type={modal} user={user} onGroupUpdated={handleGroupUpdated} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} />
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
-                    : modal === 'edit_group' ? <GroupEditModal group={selectedChat} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
+                    : modal === 'edit_group' ? <GroupEditModal group={selectedChat} user={user} groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
                     : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} appTheme={appTheme} onThemeChange={chooseAppTheme} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel onOpenChat={openExistingChat} apiBridge={api} close={() => setModal(null)} onUnreadChange={setNotificationUnreadCount} />
-                    : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
+                    : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={async id => { await openExistingChat(id); setModal(null); }} />
                     : modal === 'moments' ? <MomentsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
                     : modal === 'saved_messages' || modal === 'sessions' ? <AccountToolsPanel key={modal} mode={modal} close={() => setModal(null)} onOpenChat={openExistingChat} onSessionRotated={acceptRotatedSession} onLogout={logout} onUnsave={id => setMessages(current => current.map(item => Number(item.id) === Number(id) ? { ...item, saved: false } : item))} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
