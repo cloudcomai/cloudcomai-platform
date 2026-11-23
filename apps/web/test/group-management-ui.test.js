@@ -71,3 +71,13 @@ test('web group conversation avatars use readable initials when the group image 
   assert.match(directory, /conversation-name-group/);
   assert.match(designSystem, /conversation-name-group/);
 });
+
+
+test('web Manage Group uses a wide scrollable desktop modal without nested member-list scroll traps', () => {
+  assert.match(members, /group-manage-backdrop/);
+  assert.match(members, /group-manage-modal/);
+  assert.match(members, /group-manage-member-list/);
+  assert.match(designSystem, /\.group-manage-modal\{width:min\(1180px/);
+  assert.match(designSystem, /\.group-manage-modal \.web-member-permissions-list\{max-height:none!important;overflow:visible!important\}/);
+  assert.match(designSystem, /\.group-manage-backdrop\{align-items:flex-start/);
+});
