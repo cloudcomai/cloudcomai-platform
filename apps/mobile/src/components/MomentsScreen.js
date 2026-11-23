@@ -9,7 +9,8 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { Directory, File, Paths } from 'expo-file-system';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { buildApiUrl } from '../utils/media';
-import { API_BASE_URL, platformApi, sessionManager, uploadMobileFile } from '../services/platform';
+import { API_BASE_URL, mediaUrl, platformApi, sessionManager, uploadMobileFile } from '../services/platform';
+import ContactAvatar from './ContactAvatar';
 import { resolveChatTheme } from '../services/chatTheme';
 import { extractFirstEmojiGrapheme } from '../utils/momentReaction';
 
@@ -296,7 +297,7 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
   const floatingEmojiOpacity = React.useRef(new Animated.Value(0)).current;
   const initialReactionPlayedRef = React.useRef('');
 
-  const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id || contact.id) > 0), [contacts]);
+  const registeredContacts = useMemo(() => (contacts || []).filter(contact => Number(contact.registered_user_id) > 0), [contacts]);
   const filteredContacts = useMemo(() => {
     const query = contactSearch.trim().toLowerCase();
     if (!query) return registeredContacts;
@@ -667,11 +668,13 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
         <TextInput value={contactSearch} onChangeText={setContactSearch} placeholder="Search contacts" placeholderTextColor="#8a94a6" style={styles.searchInput} />
         <View style={styles.nestedList}>
           {filteredContacts.map(contact => {
-            const id = Number(contact.registered_user_id || contact.id);
+            const id = Number(contact.registered_user_id);
+            const name = contact.display_name || contact.registered_name || 'Contact';
             const selected = hiddenIds.includes(id);
             return <Pressable key={id} style={styles.checkRow} onPress={() => toggleId(hiddenIds, setHiddenIds, id)}>
               <Text style={styles.checkMark}>{selected ? '☑' : '□'}</Text>
-              <View style={{ flex: 1 }}><Text style={styles.checkLabel}>{contact.display_name || contact.registered_name || 'Contact'}</Text><Text style={styles.muted}>@{contact.registered_user_id_text || id}</Text></View>
+              <ContactAvatar userId={id} name={name} username={contact.registered_user_id_text} imageUri={mediaUrl('user', id, contact.image_version || contact.photo_version || '')} size={38} />
+              <View style={styles.privacyContactCopy}><Text style={styles.checkLabel}>{name}</Text><Text style={styles.muted}>@{contact.registered_user_id_text || id}</Text></View>
             </Pressable>;
           })}
           {!filteredContacts.length ? <Text style={styles.muted}>No registered contacts found.</Text> : null}
@@ -695,11 +698,13 @@ export default function MomentsScreen({ onBack, themeSettings, initialStoryId = 
           <TextInput value={contactSearch} onChangeText={setContactSearch} placeholder="Search contacts" placeholderTextColor="#8a94a6" style={styles.searchInput} />
           <View style={styles.nestedList}>
             {filteredContacts.map(contact => {
-              const id = Number(contact.registered_user_id || contact.id);
+              const id = Number(contact.registered_user_id);
+              const name = contact.display_name || contact.registered_name || 'Contact';
               const selected = hiddenIds.includes(id);
               return <Pressable key={id} style={styles.checkRow} onPress={() => toggleId(hiddenIds, setHiddenIds, id)}>
                 <Text style={styles.checkMark}>{selected ? '☑' : '□'}</Text>
-                <View style={{ flex: 1 }}><Text style={styles.checkLabel}>{contact.display_name || contact.registered_name || 'Contact'}</Text><Text style={styles.muted}>@{contact.registered_user_id_text || id}</Text></View>
+                <ContactAvatar userId={id} name={name} username={contact.registered_user_id_text} imageUri={mediaUrl('user', id, contact.image_version || contact.photo_version || '')} size={38} />
+                <View style={styles.privacyContactCopy}><Text style={styles.checkLabel}>{name}</Text><Text style={styles.muted}>@{contact.registered_user_id_text || id}</Text></View>
               </Pressable>;
             })}
             {!filteredContacts.length ? <Text style={styles.muted}>No registered contacts found.</Text> : null}
@@ -885,6 +890,7 @@ const styles = StyleSheet.create({
   choiceHint: { color: '#68748a', fontSize: 12, marginTop: 2 },
   nestedList: { paddingLeft: 8, borderTopWidth: 1, borderTopColor: '#edf0f5' },
   checkRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#f0f2f6' },
+  privacyContactCopy: { flex: 1, minWidth: 0, justifyContent: 'center' },
   checkMark: { color: '#3157d5', fontSize: 20 },
   checkLabel: { color: '#172033', fontSize: 14, fontWeight: '600' },
   muted: { color: '#68748a', fontSize: 12, marginTop: 2 },
