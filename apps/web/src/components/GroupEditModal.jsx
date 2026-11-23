@@ -74,7 +74,7 @@ export default function GroupEditModal({ group, user, groupTypes, apiBridge, clo
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
           <button type="button" onClick={() => fileRef.current?.click()} style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer' }} aria-label="Change group image">
             <div className="avatar-frame" style={{ width: 92, height: 92, position: 'relative' }}>
-              {preview ? <img src={preview} alt="Group preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder" style={{ fontSize: 30 }}>{(group?.name || 'Group').trim().split(/\\s+/).slice(0,2).map(word => word[0]).join('').toUpperCase()}</div>}
+              {preview ? <img src={preview} alt="Group preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder" style={{ fontSize: 30 }}>{(group?.name || 'Group').trim().split(/\s+/).slice(0,2).map(word => word[0]).join('').toUpperCase()}</div>}
               <span style={{ position: 'absolute', right: -3, bottom: -3, background: 'var(--primary-color)', color: '#fff', width: 30, height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center' }}><Camera size={16}/></span>
             </div>
           </button>
