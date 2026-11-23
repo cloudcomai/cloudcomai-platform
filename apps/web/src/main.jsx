@@ -4,6 +4,7 @@ import { logger } from '@cloudcomai/api-client';
 import App from './App.jsx';
 import './styles.css';
 import './global-theme.css';
+import './web-design-system.css';
 
 const rootElement = document.getElementById('root');
 const root = createRoot(rootElement);
