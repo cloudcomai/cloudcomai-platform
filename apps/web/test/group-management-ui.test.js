@@ -90,7 +90,7 @@ test('group-wide 24h and 48h actions grant the selected duration even when acces
   assert.match(members, /if \(scope === 'group'\)/);
   assert.match(members, /if \(durationHours\) await platformApi\.grantGroupAttachmentAccess/);
   assert.match(members, /else await platformApi\.revokeGroupAttachmentAccess/);
-  assert.match(members, /formatRemaining\(groupGrant\.expires_at\)/);
+  assert.match(members, /formatRemaining\(groupGrant\.expires_at, clockNow\)/);
   assert.match(members, /activeIndividualGrantCount/);
 });
 
