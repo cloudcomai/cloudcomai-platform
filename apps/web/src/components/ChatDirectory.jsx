@@ -208,7 +208,7 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
                 {!imageFailed ? (
                   <img src={`${src}${src.includes('?') ? '&' : '?'}v=${chat.image_version || ''}`} alt="" onError={() => markImageFailed(imageKey)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                 ) : (
-                  <div className="avatar-placeholder" style={chat.isGroup ? (() => { const palette = getAvatarPalette(chat.id || chat.name); return { backgroundColor: palette.backgroundColor, color: palette.textColor }; })() : undefined}>{chat.isGroup ? getAvatarInitial(chat.name, chat.username) : getAvatarInitial(chat.name, chat.username)}</div>
+                  <div className="avatar-placeholder" style={(() => { const palette = getAvatarPalette(chat.id || chat.name); return { backgroundColor: palette.backgroundColor, color: palette.textColor }; })()}>{getAvatarInitial(chat.name, chat.username)}</div>
                 )}
                 {chat.online && <span className="online-indicator-dot"></span>}
               </div>
