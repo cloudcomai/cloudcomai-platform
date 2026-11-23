@@ -42,7 +42,8 @@ test('web group management exposes owner-only group-wide and individual attachme
   assert.match(members, /Allow everyone for 24 hours/);
   assert.match(members, /Allow everyone for 48 hours/);
   assert.match(members, /Revoke group-wide access/);
-  assert.match(members, /!ownsGroup \? <div className="group-access-owner-note"/);\n  assert.match(members, /group-wide-access-panel/);
+  assert.match(members, /!ownsGroup \? <div className="group-access-owner-note"/);
+  assert.match(members, /group-wide-access-panel/);
 });
 
 test('web group composer keeps attachment and recording controls available with multipart-safe uploads', () => {
