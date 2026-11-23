@@ -217,7 +217,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     if (loading) return;
     const label = action === 'promote_admin' ? 'make this member an admin' : 'remove admin privileges from this member';
     if (!window.confirm(`Are you sure you want to ${label}?`)) return;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setSuccess('');
     try {
       await apiBridge(ApiRoute.GROUP_MEMBERS, {
         method: 'POST',
@@ -232,7 +232,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
 
   const transferOwnership = async member => {
     if (loading || !window.confirm(`Make ${member.name || 'this member'} the group owner? You will become an admin and existing invite links will stop working.`)) return;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setSuccess('');
     try {
       const data = await apiBridge(ApiRoute.GROUPS, { method: 'POST', query: { action: 'transfer', id: selectedChat.id }, body: { user_id: Number(member.user_id || member.id) } });
       onGroupUpdated?.({ ...selectedChat, owner_id: data.owner_id });
