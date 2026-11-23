@@ -10,9 +10,9 @@ const directory = read('../src/components/ChatDirectory.jsx');
 const designSystem = read('../src/web-design-system.css');
 
 test('web group member rows render versioned profile images with avatar fallback', () => {
-  assert.match(members, /mediaUrl\('user', m\.user_id \|\| m\.id\)/);
-  assert.match(members, /m\.image_version/);
-  assert.match(members, /getAvatarInitial\(m\.name,m\.username\)/);
+  assert.match(members, /mediaUrl\('user', memberId\)/);
+  assert.match(members, /member\.image_version/);
+  assert.match(members, /getAvatarInitial\(member\.name, member\.username\)/);
 });
 
 test('web add-member picker loads saved contacts and only offers registered non-members', () => {
