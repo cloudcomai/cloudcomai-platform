@@ -84,6 +84,7 @@ test('web Group Management exposes a wide member dashboard and responsive role c
   assert.match(members, /Remove member/);
   assert.match(members, /window\.confirm\(isSelf/);
   assert.match(members, /adminLimitReached/);
+  assert.match(members, /Transfer would exceed the three-admin limit/);
   assert.match(members, /setSuccess\(/);
 });
 
