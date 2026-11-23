@@ -3,6 +3,7 @@ import { ApiRoute } from '@cloudcomai/api-client';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm', 'video/3gpp', 'application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation']);
+const ALLOWED_EXTENSIONS = new Set(['jpg','jpeg','png','webp','gif','mp4','mov','webm','3gp','pdf','txt','doc','docx','xls','xlsx','ppt','pptx']);
 const ACCEPT = [
   'image/jpeg',
   'image/png',
@@ -47,7 +48,8 @@ export default function AttachmentControls({ selectedChat, apiBridge, onUploaded
       return;
     }
 
-    if (!ALLOWED_TYPES.has(file.type)) {
+    const extension = String(file.name || '').split('.').pop().toLowerCase();
+    if (!ALLOWED_TYPES.has(file.type) && !(file.type === '' && ALLOWED_EXTENSIONS.has(extension))) {
       alert('Unsupported file type. Choose an image, supported video, PDF, TXT, Word, Excel or PowerPoint file.');
       return;
     }
