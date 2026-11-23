@@ -11,10 +11,10 @@ const parseGrantExpiry = value => {
   return Number.isFinite(timestamp) ? timestamp : null;
 };
 const isGrantActive = grant => Boolean(grant && !grant.revoked_at && (!grant.expires_at || (parseGrantExpiry(grant.expires_at) || 0) > Date.now()));
-const formatRemaining = expiry => {
+const formatRemaining = (expiry, now = Date.now()) => {
   const timestamp = parseGrantExpiry(expiry);
   if (!timestamp) return 'Expiry unavailable';
-  const minutes = Math.max(0, Math.ceil((timestamp - clockNow) / 60000));
+  const minutes = Math.max(0, Math.ceil((timestamp - now) / 60000));
   if (!minutes) return 'Expiring now';
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
@@ -437,7 +437,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                       <div className="group-access-state-grid">
                         <div><Download size={16}/><span>Download access</span><strong className={groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'status-open' : 'status-closed'}>{groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'Open' : 'Closed'}</strong></div>
                         <div><Share2 size={16}/><span>Forward access</span><strong className={groupGrantActive && Number(groupGrant.forward_enabled) === 1 ? 'status-open' : 'status-closed'}>{groupGrantActive && Number(groupGrant.forward_enabled) === 1 ? 'Open' : 'Closed'}</strong></div>
-                        {groupGrantActive && groupGrant.expires_at ? <div className="group-access-expiry"><Clock3 size={16}/><span>Expires in</span><strong>{formatRemaining(groupGrant.expires_at)}</strong></div> : null}
+                        {groupGrantActive && groupGrant.expires_at ? <div className="group-access-expiry"><Clock3 size={16}/><span>Expires in</span><strong>{formatRemaining(groupGrant.expires_at, clockNow)}</strong></div> : null}
                       </div>
                       <div className="group-access-actions">
                         <button type="button" disabled={attachmentBusy} onClick={() => updateAttachmentAccess(null, 'group', 24)}><Clock3 size={17}/>{attachmentBusy ? 'Updating…' : 'Allow everyone for 24 hours'}</button>
