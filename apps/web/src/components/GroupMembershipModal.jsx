@@ -52,6 +52,18 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     return () => clearInterval(timer);
   }, [type]);
 
+  useEffect(() => {
+    if (type !== 'manage_members' || !selectedChat?.id) return undefined;
+    let cancelled = false;
+    platformApi.listGroups().then(({ data }) => {
+      const latest = (data.groups || []).find(item => Number(item.id) === Number(selectedChat.id));
+      if (!cancelled && latest) onGroupUpdated?.({ ...selectedChat, ...latest });
+    }).catch(() => {
+      // Keep the group data already supplied by the conversation list if refresh is unavailable.
+    });
+    return () => { cancelled = true; };
+  }, [type, selectedChat?.id]);
+
   const currentUserId = Number(user?.id);
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
   const isAdmin = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'admin');
@@ -256,7 +268,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const groupImageSrc = groupImageUrl ? groupImageUrl + (groupImageUrl.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(selectedChat.image_version || '') : '';
   const userImageUrl = user && user.image_url ? user.image_url : mediaUrl('user', user && user.id);
   const userImageKey = 'dashboard-user-' + (user && user.id);
-  const groupHandle = selectedChat.username || selectedChat.user_id || ('group-' + selectedChat.id);
+  const groupHandle = selectedChat.username || selectedChat.user_id || '';
   const groupDescription = selectedChat.group_description || selectedChat.description || 'No group description has been added yet.';
 
   return (
@@ -365,7 +377,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                 </div>
                 <div className="group-summary-copy">
                   <div className="group-summary-title-row"><h1>{selectedChat.name || 'Group'}</h1><span className="group-summary-verified" aria-label="Group"><Users size={15}/></span></div>
-                  <div className="group-summary-meta">@{groupHandle} <span>•</span> {currentMembers.length} Members</div>
+                  <div className="group-summary-meta">{groupHandle ? '@' + groupHandle : 'Group ID #' + selectedChat.id} <span>•</span> {currentMembers.length} Members</div>
                   <p>{groupDescription}</p>
                 </div>
                 <div className="group-summary-actions">
