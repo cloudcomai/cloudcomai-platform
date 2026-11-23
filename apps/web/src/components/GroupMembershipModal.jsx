@@ -7,7 +7,7 @@ import { mediaUrl, platformApi } from '../services/platform';
 const parseGrantExpiry = value => {
   if (!value) return null;
   const normalized = String(value).trim().replace(' ', 'T');
-  const timestamp = Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : normalized + 'Z');
+  const timestamp = Date.parse(/[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized) ? normalized : normalized + 'Z');
   return Number.isFinite(timestamp) ? timestamp : null;
 };
 const isGrantActive = grant => Boolean(grant && !grant.revoked_at && (!grant.expires_at || (parseGrantExpiry(grant.expires_at) || 0) > Date.now()));
