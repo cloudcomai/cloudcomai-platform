@@ -59,7 +59,6 @@ export default function Sidebar({ user, setModal, notificationUnreadCount = 0, o
         <button className="nav-item" onClick={() => setModal('public_chats')}><Globe2 size={20}/><span>Public Chats</span></button>
         <button className={`nav-item ${activeTab === 'people' ? 'active' : ''}`} onClick={() => nav('people')}><UserCheck size={20}/><span>People & Contacts</span></button>
         <button className="nav-item" onClick={() => setModal('saved_messages')}><Bookmark size={20}/><span>Saved Messages</span></button>
-        <button className="nav-item" onClick={() => setScreen('interests')}><UserCheck size={20}/><span>Edit Preferences</span></button>
         <button className="nav-item" onClick={() => setModal('poll')}><BarChart3 size={20}/><span>Polls</span></button>
         <button className="nav-item" onClick={() => setModal('settings')}><Settings size={20}/><span>Settings</span></button>
       </nav>

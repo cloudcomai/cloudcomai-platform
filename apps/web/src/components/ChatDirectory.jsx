@@ -8,7 +8,7 @@ const imageUrl = chat => chat?.image_url || mediaUrl(
   chat?.isGroup ? chat?.id : chat?.other_user_id || chat?.id,
 );
 
-export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab, topInterests, onEditPreferences }) {
+export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab }) {
   const [failedImages, setFailedImages] = useState({});
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -67,18 +67,6 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
     ].filter(Boolean).some(value => String(value).toLowerCase().includes(query)));
   }, [contacts, searchQuery, contactsView]);
 
-  const preferenceStrip = (
-    <div className="directory-preferences">
-      <div className="directory-preferences-heading">
-        <strong>Your preferences</strong>
-        <button type="button" onClick={onEditPreferences}>Edit</button>
-      </div>
-      <div className="directory-preference-chips">
-        {topInterests.map(interest => <span key={interest}>{interest}</span>)}
-      </div>
-    </div>
-  );
-
   if (activeTab === 'people') {
     return (
       <section className="chats-directory">
@@ -97,8 +85,6 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
             <input type="text" placeholder="Search contacts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           </div>
         </header>
-
-        {preferenceStrip}
 
         <div style={{ margin: '10px 12px 0' }}>
           <button type="button" aria-expanded={contactsView === 'online'} onClick={() => setContactsView('online')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'var(--bg-primary)', color: 'var(--text-main)', fontWeight: 700 }}>
@@ -192,8 +178,6 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
           <div className="search-box-wrapper" style={{ flex: 1, position: 'relative' }}><Search size={18} className="search-icon"/><input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
         </div>
       </header>
-
-      {preferenceStrip}
 
       <div className="filter-pill-row"><button className={`filter-pill ${chatFilter === 'all' ? 'active' : ''}`} onClick={() => setChatFilter('all')}>All</button><button className={`filter-pill ${chatFilter === 'unread' ? 'active' : ''}`} onClick={() => setChatFilter('unread')}>Unread</button></div>
 
