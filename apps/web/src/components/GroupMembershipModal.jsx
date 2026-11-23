@@ -1,10 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
-import { UserPlus, UserMinus, Search, X } from 'lucide-react';
+import { UserPlus, UserMinus, Search, X, ArrowLeft, Bell, ChevronRight, Clock3, Crown, Download, MoreHorizontal, Settings, Share2, ShieldCheck, Users } from 'lucide-react';
 import { getAvatarInitial, getAvatarPalette } from '@cloudcomai/chat-core';
 import { mediaUrl, platformApi } from '../services/platform';
 
-export default function GroupMembershipModal({ type, selectedChat, apiBridge, close, onActionComplete, user, onGroupUpdated }) {
+const parseGrantExpiry = value => {
+  if (!value) return null;
+  const normalized = String(value).trim().replace(' ', 'T');
+  const timestamp = Date.parse(/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(normalized) ? normalized : normalized + 'Z');
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+const isGrantActive = grant => Boolean(grant && !grant.revoked_at && (!grant.expires_at || (parseGrantExpiry(grant.expires_at) || 0) > Date.now()));
+const formatRemaining = expiry => {
+  const timestamp = parseGrantExpiry(expiry);
+  if (!timestamp) return 'Expiry unavailable';
+  const minutes = Math.max(0, Math.ceil((timestamp - Date.now()) / 60000));
+  if (!minutes) return 'Expiring now';
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours ? hours + 'h ' + remainingMinutes + 'm remaining' : remainingMinutes + 'm remaining';
+};
+
+export default function GroupMembershipModal({ type, selectedChat, apiBridge, close, onActionComplete, user, onGroupUpdated, onEditGroup, onOpenNotifications }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [currentMembers, setCurrentMembers] = useState([]);
@@ -25,6 +42,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [attachmentSearch, setAttachmentSearch] = useState('');
   const [attachmentPermissionFilter, setAttachmentPermissionFilter] = useState('all');
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
+  const [success, setSuccess] = useState('');
 
   const currentUserId = Number(user?.id);
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
@@ -67,12 +86,12 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const updateAttachmentAccess = async (memberId, scope = 'member', durationHours = null) => {
     if (attachmentBusy || !ownsGroup) return;
     const existing = attachmentGrants.find(item => item.grant_scope === scope && (scope !== 'member' || Number(item.member_id) === Number(memberId)));
-    const active = Boolean(existing && !existing.revoked_at && (!existing.expires_at || new Date(String(existing.expires_at).replace(' ', 'T') + (String(existing.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
-    setAttachmentBusy(true); setError('');
+    const active = isGrantActive(existing);
+    setAttachmentBusy(true); setError(''); setSuccess('');
     try {
       if (scope === 'group') {
-        if (active) await platformApi.revokeGroupAttachmentAccess(selectedChat.id);
-        else await platformApi.grantGroupAttachmentAccess(selectedChat.id, Number(durationHours || 24));
+        if (durationHours) await platformApi.grantGroupAttachmentAccess(selectedChat.id, Number(durationHours));
+        else await platformApi.revokeGroupAttachmentAccess(selectedChat.id);
       } else if (active) {
         await platformApi.revokeGroupMemberAttachmentAccess(selectedChat.id, Number(memberId));
       } else {
@@ -80,6 +99,9 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
       }
       const { data } = await platformApi.getGroupAttachmentAccess(selectedChat.id);
       setAttachmentGrants(Array.isArray(data.grants) ? data.grants : []);
+      setSuccess(scope === 'group'
+        ? (durationHours ? 'Group-wide download and forwarding access enabled for ' + durationHours + ' hours.' : 'Group-wide attachment access revoked.')
+        : (active ? 'Individual attachment access revoked.' : 'Individual attachment access granted.'));
     } catch (err) {
       setError(err.message || 'Unable to update attachment permissions.');
     } finally { setAttachmentBusy(false); }
@@ -142,24 +164,28 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   };
 
   const executeMemberAction = async (targetUserId, actionType) => {
-    setLoading(true);
+    const isRemoval = actionType === 'remove';
+    const isSelf = Number(targetUserId) === currentUserId;
+    if (loading || (isRemoval && !window.confirm(isSelf ? 'Leave this group? You may need an invitation to rejoin.' : 'Remove this member from the group?'))) return;
+    setLoading(true); setError(''); setSuccess('');
     try {
       await apiBridge(ApiRoute.GROUP_MEMBERS, {
         method: 'POST',
-        body: JSON.stringify({
-          chat_id: selectedChat.id,
-          user_id: targetUserId,
-          action: actionType
-        })
+        body: JSON.stringify({ chat_id: selectedChat.id, user_id: targetUserId, action: actionType })
       });
-      alert(actionType === 'add' ? 'User successfully added to group.' : Number(targetUserId) === currentUserId ? 'You have left the group.' : 'Member removed from group.');
-      setSearchTerm('');
-      setContactsQuery('');
-      setSearchResults([]);
-      setHasSearched(false);
-      onActionComplete();
+      setSearchTerm(''); setContactsQuery(''); setSearchResults([]); setHasSearched(false);
+      if (type === 'manage_members' && isRemoval && !isSelf) {
+        const result = await apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } });
+        setCurrentMembers(result.members || []);
+        setSuccess('Member removed from the group.');
+      } else if (type === 'manage_members' && isSelf) {
+        onActionComplete();
+      } else {
+        setSuccess(actionType === 'add' ? 'User successfully added to the group.' : 'Membership updated.');
+        onActionComplete();
+      }
     } catch (err) {
-      alert(err.message || "Failed to update membership states.");
+      setError(err.message || 'Failed to update group membership.');
     } finally {
       setLoading(false);
     }
@@ -177,6 +203,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
       });
       const result = await apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } });
       setCurrentMembers(result.members || []);
+      setSuccess(action === 'promote_admin' ? 'Member promoted to admin.' : 'Admin privileges removed.');
     } catch (e) { setError(e.message || 'Unable to update member role.'); }
     finally { setLoading(false); }
   };
@@ -189,6 +216,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
       onGroupUpdated?.({ ...selectedChat, owner_id: data.owner_id });
       const result = await apiBridge(ApiRoute.GROUP_MEMBERS, { query: { chat_id: selectedChat.id } });
       setCurrentMembers(result.members || []);
+      setSuccess((member.name || 'Member') + ' is now the group owner.');
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   };
