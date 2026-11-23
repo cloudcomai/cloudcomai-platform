@@ -48,15 +48,17 @@ export default function MediaMessageControls({ selectedChat, apiBridge, onUpload
   };
   const record = async type => {
     if (disabled) return;
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { alert('Recording requires a supported browser and HTTPS. You can also choose a video file.'); return; }
+    const MediaRecorderCtor = window.MediaRecorder;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorderCtor !== 'function') { alert('Recording requires a supported browser and HTTPS. You can also choose a video file.'); return; }
     setBusy('permission');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' ? { width: { ideal: 640 }, height: { ideal: 480 } } : false });
       if (!active.current) { stream.getTracks().forEach(track => track.stop()); return; }
       streamRef.current = stream;
       const candidates = type === 'voice' ? ['audio/webm;codecs=opus', 'audio/mp4'] : ['video/webm;codecs=vp8,opus', 'video/mp4', 'video/webm'];
-      const mimeType = candidates.find(value => MediaRecorder.isTypeSupported(value));
-      const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), ...(type === 'video' ? { videoBitsPerSecond: 1500000 } : {}) });
+      const mimeType = candidates.find(value => typeof MediaRecorderCtor.isTypeSupported === 'function' && MediaRecorderCtor.isTypeSupported(value));
+      const recorderOptions = { ...(mimeType ? { mimeType } : {}), ...(type === 'video' ? { videoBitsPerSecond: 1500000 } : {}) };
+      const recorder = mimeType ? new MediaRecorderCtor(stream, recorderOptions) : new MediaRecorderCtor(stream);
       recorderRef.current = recorder;
       const chunks = [];
       let total = 0;
