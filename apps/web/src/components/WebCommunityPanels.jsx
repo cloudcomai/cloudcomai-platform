@@ -16,35 +16,54 @@ const roomSearchText = room => [
 
 export function PublicChatsPanel({ close, onOpenChat }) {
   const [rooms, setRooms] = useState([]);
+  const [favorites, setFavorites] = useState([]);
   const [query, setQuery] = useState('');
   const [busyRoomId, setBusyRoomId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [cityRoomsOpen, setCityRoomsOpen] = useState(false);
+  const [languageRoomsOpen, setLanguageRoomsOpen] = useState(false);
 
-  const load = async () => {
+  const load = React.useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const { data } = await platformApi.listPublicChats({ query: { q: query.trim() } });
-      setRooms(Array.isArray(data.rooms) ? data.rooms : Array.isArray(data.favorites) ? data.favorites : Array.isArray(data.chats) ? data.chats : []);
+      setRooms(Array.isArray(data.rooms) ? data.rooms : []);
+      setFavorites(Array.isArray(data.favorites) ? data.favorites : []);
     } catch (err) {
-      setError(err.message || 'Unable to load public chat rooms.');
+      if (!silent) setError(err.message || 'Unable to load public chat rooms.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [query]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => void load(), query ? 200 : 0);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(() => void load(true), 10000);
+    return () => clearInterval(timer);
+  }, [load]);
 
   const visibleRooms = useMemo(() => {
     const term = query.trim().toLowerCase();
     return term ? rooms.filter(room => roomSearchText(room).includes(term)) : rooms;
   }, [rooms, query]);
+  const cityRooms = useMemo(() => visibleRooms.filter(room => (room.room_type || 'city') === 'city'), [visibleRooms]);
+  const languageRooms = useMemo(() => visibleRooms.filter(room => room.room_type === 'language'), [visibleRooms]);
+  const visibleFavorites = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return term ? favorites.filter(room => roomSearchText(room).includes(term)) : favorites;
+  }, [favorites, query]);
 
   const openRoom = async room => {
     const roomId = Number(room?.id || room?.chat_id);
     if (!Number.isInteger(roomId) || roomId <= 0 || busyRoomId !== null) return;
-    setBusyRoomId(roomId);
-    setError('');
+    setBusyRoomId(roomId); setError('');
     try {
       await onOpenChat?.(roomId);
     } catch (err) {
@@ -57,12 +76,12 @@ export function PublicChatsPanel({ close, onOpenChat }) {
   const joinRoom = async room => {
     const roomId = Number(room?.id);
     if (!Number.isInteger(roomId) || roomId <= 0 || busyRoomId !== null) return;
-    setBusyRoomId(roomId);
-    setError('');
+    setBusyRoomId(roomId); setError('');
     try {
       const { data } = await platformApi.joinPublicChat(roomId);
       const joinedRoom = { ...room, ...(data.chat || {}), id: roomId, joined: true, type: 'public', isPublic: true };
       setRooms(current => current.map(item => Number(item.id) === roomId ? joinedRoom : item));
+      setFavorites(current => [joinedRoom, ...current.filter(item => Number(item.id) !== roomId)]);
       await onOpenChat?.(roomId);
     } catch (err) {
       setError(err.message || 'Unable to join public chat room.');
@@ -74,11 +93,12 @@ export function PublicChatsPanel({ close, onOpenChat }) {
   const leaveRoom = async room => {
     const roomId = Number(room?.id);
     if (!Number.isInteger(roomId) || roomId <= 0 || busyRoomId !== null) return;
-    setBusyRoomId(roomId);
-    setError('');
+    if (!window.confirm('Leave this public chat room?')) return;
+    setBusyRoomId(roomId); setError('');
     try {
       await platformApi.leavePublicChat(roomId);
       setRooms(current => current.map(item => Number(item.id) === roomId ? { ...item, joined: false, is_member: false } : item));
+      setFavorites(current => current.filter(item => Number(item.id) !== roomId));
     } catch (err) {
       setError(err.message || 'Unable to leave public chat room.');
     } finally {
@@ -86,41 +106,43 @@ export function PublicChatsPanel({ close, onOpenChat }) {
     }
   };
 
+  const renderRoom = room => {
+    const roomId = Number(room.id);
+    const joined = Boolean(room.joined || room.is_member);
+    const busy = busyRoomId === roomId;
+    return <article key={roomId} className="parity-room">
+      <div>
+        <strong>{room.name}</strong>
+        <small>{[room.city, room.language || room.language_code, room.category || room.group_category].filter(Boolean).join(' · ')}</small>
+        <small><span className="public-room-live-indicator">● Live room</span> · 👥 {Number(room.joined_count || 0)} Joined · 🟢 {Number(room.online_count || 0)} Online</small>
+      </div>
+      <div>
+        {joined ? <>
+          <button type="button" disabled={busy || busyRoomId !== null} onClick={() => void openRoom(room)}>{busy ? 'Opening…' : 'Open'}</button>
+          <button type="button" disabled={busy || busyRoomId !== null} onClick={() => void leaveRoom(room)}>Leave</button>
+        </> : <button type="button" disabled={busyRoomId !== null} onClick={() => void joinRoom(room)}>{busy ? 'Joining…' : 'Join'}</button>}
+      </div>
+    </article>;
+  };
+
   return (
     <div className="modal-content-card parity-community-panel">
-      <h3>Public Chat Rooms</h3>
+      <div className="public-rooms-title-row"><div><h3>Public Chats</h3><p>Browse live city, town and language rooms</p></div><div><span className="public-rooms-count">{visibleRooms.length}</span><button type="button" onClick={() => void load()} disabled={loading}>Refresh</button></div></div>
       <input aria-label="Search public chats" placeholder="Search room, city, language, category or keyword" value={query} onChange={event => setQuery(event.target.value)} />
       {error && <p role="alert" className="privacy-error">{error}</p>}
-      {loading ? <p role="status">Loading public chat rooms…</p> : (
-        <div className="parity-list">
-          {visibleRooms.map(room => {
-            const roomId = Number(room.id);
-            const joined = Boolean(room.joined || room.is_member);
-            const busy = busyRoomId === roomId;
-            return (
-              <article key={room.id} className="parity-room">
-                <div>
-                  <strong>{room.name}</strong>
-                  <small>{[room.city, room.language || room.language_code, room.category || room.group_category].filter(Boolean).join(' · ')}</small>
-                  <small><span className="public-room-live-indicator">● Live room</span> · 👥 {Number(room.joined_count || 0)} Joined · 🟢 {Number(room.online_count || 0)} Online</small>
-                </div>
-                <div>
-                  {joined ? <>
-                    <button type="button" disabled={busy || busyRoomId !== null} onClick={() => void openRoom(room)}>{busy ? 'Opening…' : 'Open'}</button>
-                    <button type="button" disabled={busy || busyRoomId !== null} onClick={() => void leaveRoom(room)}>Leave</button>
-                  </> : <button type="button" disabled={busyRoomId !== null} onClick={() => void joinRoom(room)}>{busy ? 'Joining…' : 'Join'}</button>}
-                </div>
-              </article>
-            );
-          })}
-          {!visibleRooms.length && <p className="empty-state">No public chat rooms match your search.</p>}
-        </div>
-      )}
+      {loading && !rooms.length ? <p role="status">Loading public chat rooms…</p> : <>
+        <button type="button" className="public-room-section-toggle" aria-expanded={favoritesOpen} onClick={() => setFavoritesOpen(value => !value)}>★ Favorites <span>{visibleFavorites.length} rooms</span><b>{favoritesOpen ? '⌃' : '⌄'}</b></button>
+        {favoritesOpen && <div className="public-room-section-content">{visibleFavorites.length ? visibleFavorites.map(renderRoom) : <p className="public-room-empty">No favorite rooms yet. Join a public room and it will appear here for quick access.</p>}</div>}
+        <button type="button" className="public-room-section-toggle" aria-expanded={cityRoomsOpen} onClick={() => setCityRoomsOpen(value => !value)}>Public Chat Rooms <span>{cityRooms.length} rooms</span><b>{cityRoomsOpen ? '⌃' : '⌄'}</b></button>
+        {cityRoomsOpen && <div className="public-room-section-content">{cityRooms.length ? cityRooms.map(renderRoom) : <p className="public-room-empty">No matching city rooms.</p>}</div>}
+        <button type="button" className="public-room-section-toggle" aria-expanded={languageRoomsOpen} onClick={() => setLanguageRoomsOpen(value => !value)}>Language Chat Rooms <span>{languageRooms.length} rooms</span><b>{languageRoomsOpen ? '⌃' : '⌄'}</b></button>
+        {languageRoomsOpen && <div className="public-room-section-content">{languageRooms.length ? languageRooms.map(renderRoom) : <p className="public-room-empty">No matching language rooms. Try Telugu or French.</p>}</div>}
+        {!visibleRooms.length && <p className="public-room-empty">No rooms match your search. Try another room name, city, language, category or keyword.</p>}
+      </>}
       <button type="button" onClick={close}>Close</button>
     </div>
   );
 }
-
 
 const REPORT_REASONS = ['Harassment', 'Spam', 'Hate or abusive content', 'Impersonation', 'Unsafe content', 'Other'];
 
