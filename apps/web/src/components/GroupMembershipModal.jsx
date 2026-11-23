@@ -277,7 +277,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
         )}
 
         {type === 'manage_members' && (
-          <div className="group-manage-content">\n            <div className="group-manage-members-column">
+          <div className="group-manage-content">
+            <div className="group-manage-members-column">
             <h5 style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)' }}>Active Group Participants ({currentMembers.length})</h5>
             {ownsGroup && <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Administrators: {adminCount}/3 selected by the owner</p>}
             <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Member Type
@@ -323,7 +324,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                 })
               )}
             </div>
-            </div>\n            {ownsGroup && <section className="web-member-permissions" aria-label="Group attachment access">
+            </div>
+            {ownsGroup && <section className="web-member-permissions" aria-label="Group attachment access">
               <div className="web-member-permissions-heading">
                 <div><h4>Attachment access</h4><p>Manage group-wide and individual download/forward permissions. Temporary group access expires automatically; individual grants remain until revoked.</p></div>
               </div>
