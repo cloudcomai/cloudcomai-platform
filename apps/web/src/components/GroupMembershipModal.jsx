@@ -21,6 +21,10 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [membersLoading, setMembersLoading] = useState(false);
   const [contactsQuery, setContactsQuery] = useState('');
   const [failedAvatars, setFailedAvatars] = useState({});
+  const [attachmentGrants, setAttachmentGrants] = useState([]);
+  const [attachmentSearch, setAttachmentSearch] = useState('');
+  const [attachmentPermissionFilter, setAttachmentPermissionFilter] = useState('all');
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
 
   const currentUserId = Number(user?.id);
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
@@ -50,6 +54,30 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     }
   }, [type, selectedChat, apiBridge]);
 
+
+  useEffect(() => {
+    if (type !== 'manage_members' || !selectedChat?.id || !ownsGroup) return undefined;
+    let cancelled = false;
+    platformApi.getGroupAttachmentAccess(selectedChat.id)
+      .then(({ data }) => { if (!cancelled) setAttachmentGrants(Array.isArray(data.grants) ? data.grants : []); })
+      .catch(err => { if (!cancelled) setError(err.message || 'Unable to load member attachment permissions.'); });
+    return () => { cancelled = true; };
+  }, [type, selectedChat?.id, ownsGroup]);
+
+  const updateAttachmentAccess = async memberId => {
+    if (attachmentBusy || !ownsGroup) return;
+    const existing = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(memberId));
+    const active = Boolean(existing && !existing.revoked_at && (!existing.expires_at || new Date(existing.expires_at).getTime() > Date.now()));
+    setAttachmentBusy(true); setError('');
+    try {
+      if (active) await platformApi.revokeGroupMemberAttachmentAccess(selectedChat.id, Number(memberId));
+      else await platformApi.grantGroupMemberAttachmentAccess(selectedChat.id, Number(memberId));
+      const { data } = await platformApi.getGroupAttachmentAccess(selectedChat.id);
+      setAttachmentGrants(Array.isArray(data.grants) ? data.grants : []);
+    } catch (err) {
+      setError(err.message || 'Unable to update this member’s attachment permissions.');
+    } finally { setAttachmentBusy(false); }
+  };
 
   const openMemberProfile = async member => {
     const memberId = Number(member?.user_id || member?.id);
@@ -289,6 +317,34 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                 })
               )}
             </div>
+            {ownsGroup && <section className="web-member-permissions" aria-label="Individual member permissions">
+              <div className="web-member-permissions-heading">
+                <div><h4>Individual member permissions</h4><p>Grant or revoke download and forwarding access for each eligible member.</p></div>
+                <span>{attachmentGrants.filter(item => item.grant_scope === 'member' && !item.revoked_at).length} active grants</span>
+              </div>
+              <input type="search" aria-label="Search group members for attachment permissions" placeholder="Search members by name or User ID..." value={attachmentSearch} onChange={event => setAttachmentSearch(event.target.value)} />
+              <select aria-label="Filter member attachment permissions" value={attachmentPermissionFilter} onChange={event => setAttachmentPermissionFilter(event.target.value)}>
+                <option value="all">All permissions</option><option value="can_download">Can download</option><option value="cannot_download">Cannot download</option>
+              </select>
+              <div className="web-member-permissions-list">
+                {currentMembers.filter(member => member.role !== 'owner' && member.role !== 'admin' && Number(member.user_id || member.id) !== currentUserId).filter(member => {
+                  const term = attachmentSearch.trim().toLowerCase();
+                  const matchesSearch = !term || [member.name, member.username, member.user_id, member.id].some(value => String(value || '').toLowerCase().includes(term));
+                  const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id || member.id));
+                  const active = Boolean(grant && !grant.revoked_at && (!grant.expires_at || new Date(grant.expires_at).getTime() > Date.now()));
+                  return matchesSearch && (attachmentPermissionFilter === 'all' || (attachmentPermissionFilter === 'can_download' ? active && Number(grant.download_enabled) === 1 : !active || Number(grant.download_enabled) !== 1));
+                }).map(member => {
+                  const memberId = Number(member.user_id || member.id);
+                  const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === memberId);
+                  const active = Boolean(grant && !grant.revoked_at && (!grant.expires_at || new Date(grant.expires_at).getTime() > Date.now()));
+                  return <div className="web-member-permission-row" key={memberId}>
+                    <div className="web-member-permission-identity"><strong>{member.name || member.username || 'Member'}</strong><span>@{member.username || member.user_id || member.id}</span><small>{active ? (Number(grant.download_enabled) === 1 ? 'Download enabled' : 'Download disabled') : grant?.revoked_at ? 'Individual access revoked' : 'No individual access grant'}</small></div>
+                    <button type="button" disabled={attachmentBusy} onClick={() => updateAttachmentAccess(memberId)}>{active ? 'Revoke download' : 'Grant download'}</button>
+                  </div>;
+                })}
+                {currentMembers.filter(member => member.role !== 'owner' && member.role !== 'admin' && Number(member.user_id || member.id) !== currentUserId).length === 0 && <p className="web-member-permissions-empty">No eligible members available for individual permissions.</p>}
+              </div>
+            </section>}
           </div>
         )}
 
