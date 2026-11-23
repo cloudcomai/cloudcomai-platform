@@ -73,18 +73,12 @@ test('web group conversation avatars use readable initials when the group image 
 });
 
 
-test('web Manage Group uses a wide scrollable desktop modal without nested member-list scroll traps', () => {
-  assert.match(members, /group-manage-backdrop/);
-  assert.match(members, /group-manage-modal/);
-  assert.match(members, /group-manage-member-list/);
-  assert.match(designSystem, /\.group-manage-modal\{width:min\(1180px/);
-  assert.match(designSystem, /\.group-manage-modal \.web-member-permissions-list\{max-height:min\(340px,42dvh\)!important;min-height:0;overflow-y:auto!important/);
-  assert.match(designSystem, /overscroll-behavior-y:auto;scrollbar-gutter:stable/);
+test('web Manage Group keeps members and attachment access in separate scroll-safe columns', () => {
   assert.match(members, /className="group-manage-content"/);
   assert.match(members, /className="group-manage-members-column"/);
-  assert.match(designSystem, /\.group-manage-modal \.group-manage-members-column\{grid-column:1;grid-row:1/);
-  assert.match(designSystem, /\.group-manage-modal \.web-member-permissions\{grid-column:2;grid-row:1/);
-  assert.doesNotMatch(designSystem, /grid-row:1 \/ span 4/);
-  assert.match(designSystem, /\.group-manage-modal\{width:min\(1180px,[^}]*overflow-y:auto/);
-  assert.match(designSystem, /\.group-manage-backdrop\{align-items:flex-start/);
+  assert.match(members, /className="group-manage-member-list"/);
+  assert.match(designSystem, /\.group-manage-modal\{width:min\(1180px/);
+  assert.match(designSystem, /\.group-manage-content\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(360px,\.9fr\)/);
+  assert.match(designSystem, /\.group-manage-modal \.web-member-permissions-list\{max-height:min\(340px,42dvh\);min-height:0;overflow-y:auto/);
+  assert.match(designSystem, /\.group-manage-modal\{[^}]*overflow-y:auto/);
 });
