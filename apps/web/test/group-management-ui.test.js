@@ -71,3 +71,15 @@ test('web group conversation avatars use readable initials when the group image 
   assert.match(directory, /conversation-name-group/);
   assert.match(designSystem, /conversation-name-group/);
 });
+
+
+test('web group chat header loads the selected group profile image and safely falls back when unavailable', () => {
+  const chatCanvas = read('../src/components/ChatCanvas.jsx');
+  assert.match(chatCanvas, /import \{ mediaUrl \} from '\.\.\/services\/platform'/);
+  assert.match(chatCanvas, /mediaUrl\('group', selectedChat\.id\)/);
+  assert.match(chatCanvas, /selectedChat\?\.image_url/);
+  assert.match(chatCanvas, /selectedChat\?\.image_version/);
+  assert.match(chatCanvas, /onError=\{\(\) => setChatAvatarFailed\(true\)\}/);
+  assert.match(chatCanvas, /setChatAvatarFailed\(false\)/);
+  assert.match(chatCanvas, /isGroup \? 'G' : '\?'/);
+});
