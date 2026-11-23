@@ -14,7 +14,7 @@ const isGrantActive = grant => Boolean(grant && !grant.revoked_at && (!grant.exp
 const formatRemaining = expiry => {
   const timestamp = parseGrantExpiry(expiry);
   if (!timestamp) return 'Expiry unavailable';
-  const minutes = Math.max(0, Math.ceil((timestamp - Date.now()) / 60000));
+  const minutes = Math.max(0, Math.ceil((timestamp - clockNow) / 60000));
   if (!minutes) return 'Expiring now';
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
@@ -44,6 +44,13 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
   const [success, setSuccess] = useState('');
+  const [clockNow, setClockNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (type !== 'manage_members') return undefined;
+    const timer = setInterval(() => setClockNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [type]);
 
   const currentUserId = Number(user?.id);
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
