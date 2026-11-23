@@ -425,7 +425,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                         {!isOwner && canManageMembers ? <details className="group-member-actions">
                           <summary aria-label={'Actions for ' + (member.name || 'member')}><MoreHorizontal size={19}/></summary>
                           <div className="group-member-actions-menu" role="menu">
-                            {ownsGroup && <button type="button" role="menuitem" disabled={loading} onClick={() => transferOwnership(member)}><Crown size={15}/> Make owner</button>}
+                            {ownsGroup && <button type="button" role="menuitem" disabled={loading || (member.role !== 'admin' && adminLimitReached)} title={member.role !== 'admin' && adminLimitReached ? 'Transfer would exceed the three-admin limit' : 'Transfer group ownership'} onClick={() => transferOwnership(member)}><Crown size={15}/> Make owner</button>}
                             {ownsGroup && member.role !== 'admin' && <button type="button" role="menuitem" disabled={loading || adminLimitReached} title={adminLimitReached ? 'Maximum of three admins reached' : 'Promote to admin'} onClick={() => setMemberRole(member, 'promote_admin')}><ShieldCheck size={15}/> Make admin</button>}
                             {ownsGroup && member.role === 'admin' && <button type="button" role="menuitem" disabled={loading} onClick={() => setMemberRole(member, 'demote_admin')}><ShieldCheck size={15}/> Remove admin</button>}
                             <button type="button" role="menuitem" className="danger-action" disabled={loading} onClick={() => executeMemberAction(memberId, 'remove')}><UserMinus size={15}/>{isSelf ? 'Leave group' : 'Remove member'}</button>
