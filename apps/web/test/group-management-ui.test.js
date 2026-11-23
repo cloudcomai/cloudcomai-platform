@@ -30,15 +30,34 @@ test('web group editor loads and saves description only for the owner', () => {
 });
 
 
-test('web group management exposes owner-only individual attachment grants and member search', () => {
+test('web group management exposes owner-only group-wide and individual attachment access', () => {
   assert.match(members, /platformApi\.getGroupAttachmentAccess\(selectedChat\.id\)/);
+  assert.match(members, /platformApi\.grantGroupAttachmentAccess\(selectedChat\.id, Number\(durationHours \|\| 24\)\)/);
+  assert.match(members, /platformApi\.revokeGroupAttachmentAccess\(selectedChat\.id\)/);
   assert.match(members, /platformApi\.grantGroupMemberAttachmentAccess\(selectedChat\.id, Number\(memberId\)\)/);
   assert.match(members, /platformApi\.revokeGroupMemberAttachmentAccess\(selectedChat\.id, Number\(memberId\)\)/);
   assert.match(members, /Search members by name or User ID/);
-  assert.match(members, /Filter member attachment permissions/);
-  assert.match(members, /Grant download/);
-  assert.match(members, /Revoke download/);
+  assert.match(members, /can_forward/);
+  assert.match(members, /cannot_forward/);
+  assert.match(members, /Allow everyone for 24 hours/);
+  assert.match(members, /Allow everyone for 48 hours/);
+  assert.match(members, /Revoke group-wide access/);
   assert.match(members, /ownsGroup && <section className="web-member-permissions"/);
+});
+
+test('web group composer keeps attachment and recording controls available with multipart-safe uploads', () => {
+  const composer = read('../src/components/ChatCanvas.jsx');
+  const attachments = read('../src/components/AttachmentControls.jsx');
+  const media = read('../src/components/MediaMessageControls.jsx');
+  const apiClient = read('../../../packages/api-client/src/api-client.js');
+  assert.match(composer, /<AttachmentControls selectedChat=\{selectedChat\}/);
+  assert.match(composer, /<MediaMessageControls key=\{selectedChat\?\.id\}/);
+  assert.match(attachments, /ApiRoute\.UPLOAD_ATTACHMENT/);
+  assert.match(attachments, /ALLOWED_EXTENSIONS/);
+  assert.match(media, /window\.MediaRecorder/);
+  assert.match(media, /getUserMedia/);
+  assert.match(media, /message_type/);
+  assert.match(apiClient, /Object\.prototype\.toString\.call\(body\) === '\[object FormData\]'/);
 });
 
 test('web group editor refreshes the latest description from the existing groups API', () => {
