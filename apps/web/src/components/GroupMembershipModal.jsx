@@ -196,8 +196,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   if (!selectedChat) return null;
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content-card">
+    <div className={`modal-backdrop ${type === 'manage_members' ? 'group-manage-backdrop' : ''}`}>
+      <div className={`modal-content-card ${type === 'manage_members' ? 'group-manage-modal' : ''}`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
             {type === 'add_member' ? '👥 Add New Member' : '⚙️ Manage Group Members'}
@@ -285,7 +285,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                 <option value="all">All members</option><option value="owner">Owner</option><option value="admin">Admins</option><option value="member">Members</option>
               </select>
             </label>
-            <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="group-manage-member-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {!currentMembers || currentMembers.length === 0 ? (
                 <p style={{ fontSize: '12px', color: 'var(--text-light)', textAlign: 'center', padding: '20px' }}>No active participants found in this group chat.</p>
               ) : (
