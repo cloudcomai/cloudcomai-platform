@@ -26,7 +26,7 @@ html,body,#root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMac
 .group-manage-backdrop{align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:24px}
 .group-manage-modal{width:min(1180px,calc(100vw - 48px));max-width:1180px;max-height:calc(100dvh - 48px);height:auto;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;box-sizing:border-box;padding:clamp(20px,2.2vw,30px)}
 .group-manage-modal .group-manage-member-list{max-height:none!important;overflow:visible!important}
-.group-manage-modal .web-member-permissions-list{max-height:none!important;overflow:visible!important}
+.group-manage-modal .web-member-permissions-list{max-height:min(340px,42dvh)!important;min-height:0;overflow-y:auto!important;overflow-x:hidden;overscroll-behavior-y:auto;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch}
 .group-manage-modal .web-member-permissions{width:100%;box-sizing:border-box;margin-top:18px;padding:clamp(14px,1.8vw,22px)}
 .group-manage-modal .web-member-permission-row{min-width:0}
 .group-manage-modal .web-member-permission-identity{flex:1}
