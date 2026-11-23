@@ -95,12 +95,12 @@ function App() {
     const [editing, setEditing] = useState(null);
     const [modal, setModal] = useState(null);
     const returnToManageGroupRef = useRef(false);
-    useEffect(() => { if (modal === 'manage_members') setActiveTab('groups'); }, [modal]);
     const [pollEditTarget, setPollEditTarget] = useState(null);
     const [chatFilter, setChatFilter] = useState('all');
     const [appTheme, setAppTheme] = useState(() => getStoredAppTheme());
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('chats');
+    useEffect(() => { if (modal === 'manage_members') setActiveTab('groups'); }, [modal]);
     const [topInterests, setTopInterests] = useState(defaultInterests);
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
     const [privacySettings, setPrivacySettings] = useState(defaultPrivacySettings);
