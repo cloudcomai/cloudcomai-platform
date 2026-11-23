@@ -20,3 +20,24 @@ html,body,#root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMac
 @media(max-width:640px){.web-member-permissions-heading{flex-direction:column}.web-member-permission-row{align-items:flex-start;flex-direction:column}.web-member-permission-row button{width:100%}}
 
 .web-group-attachment-access{display:grid;gap:8px;padding:12px;border:1px solid var(--web-border);border-radius:11px;background:var(--web-surface)}.web-group-attachment-access>p{margin:0;color:var(--web-muted);font-size:12px}.web-group-access-actions{display:flex;flex-wrap:wrap;gap:8px}.web-group-access-actions button{min-height:36px;padding:7px 10px;border:1px solid var(--web-border);border-radius:9px;background:var(--web-subtle);color:var(--web-text);font-size:12px;font-weight:650}.web-group-access-actions button:disabled{opacity:.5;cursor:not-allowed}.web-member-permissions-list{max-height:340px}.web-member-permission-row button{max-width:190px;white-space:normal}
+
+
+/* Desktop-first Manage Group layout: one page scroll, no trapped nested lists. */
+.group-manage-backdrop{align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:24px}
+.group-manage-modal{width:min(1180px,calc(100vw - 48px));max-width:1180px;max-height:calc(100dvh - 48px);height:auto;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;box-sizing:border-box;padding:clamp(20px,2.2vw,30px)}
+.group-manage-modal .group-manage-member-list{max-height:none!important;overflow:visible!important}
+.group-manage-modal .web-member-permissions-list{max-height:none!important;overflow:visible!important}
+.group-manage-modal .web-member-permissions{width:100%;box-sizing:border-box;margin-top:18px;padding:clamp(14px,1.8vw,22px)}
+.group-manage-modal .web-member-permission-row{min-width:0}
+.group-manage-modal .web-member-permission-identity{flex:1}
+.group-manage-modal .web-member-permission-row button{max-width:220px}
+@media(min-width:1000px){
+ .group-manage-modal>div:has(>.web-member-permissions){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(360px,.9fr);align-items:start;column-gap:24px}
+ .group-manage-modal .web-member-permissions{margin-top:0;grid-column:2;grid-row:1 / span 4;align-self:start}
+}
+@media(max-width:760px){
+ .group-manage-backdrop{padding:0;align-items:stretch}
+ .group-manage-modal{width:100%;max-width:none;max-height:100dvh;min-height:100dvh;border-radius:0;padding:16px}
+ .group-manage-modal .web-member-permission-row{align-items:flex-start;flex-direction:column}
+ .group-manage-modal .web-member-permission-row button{width:100%;max-width:none}
+}
