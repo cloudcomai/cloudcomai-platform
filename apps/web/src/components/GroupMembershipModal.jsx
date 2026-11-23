@@ -21,6 +21,10 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [membersLoading, setMembersLoading] = useState(false);
   const [contactsQuery, setContactsQuery] = useState('');
   const [failedAvatars, setFailedAvatars] = useState({});
+  const [attachmentGrants, setAttachmentGrants] = useState([]);
+  const [attachmentSearch, setAttachmentSearch] = useState('');
+  const [attachmentPermissionFilter, setAttachmentPermissionFilter] = useState('all');
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
 
   const currentUserId = Number(user?.id);
   const ownsGroup = currentMembers.some(member => Number(member.user_id || member.id) === currentUserId && member.role === 'owner');
@@ -50,6 +54,36 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
     }
   }, [type, selectedChat, apiBridge]);
 
+
+  useEffect(() => {
+    if (type !== 'manage_members' || !selectedChat?.id || !ownsGroup) return undefined;
+    let cancelled = false;
+    platformApi.getGroupAttachmentAccess(selectedChat.id)
+      .then(({ data }) => { if (!cancelled) setAttachmentGrants(Array.isArray(data.grants) ? data.grants : []); })
+      .catch(err => { if (!cancelled) setError(err.message || 'Unable to load member attachment permissions.'); });
+    return () => { cancelled = true; };
+  }, [type, selectedChat?.id, ownsGroup]);
+
+  const updateAttachmentAccess = async (memberId, scope = 'member', durationHours = null) => {
+    if (attachmentBusy || !ownsGroup) return;
+    const existing = attachmentGrants.find(item => item.grant_scope === scope && (scope !== 'member' || Number(item.member_id) === Number(memberId)));
+    const active = Boolean(existing && !existing.revoked_at && (!existing.expires_at || new Date(String(existing.expires_at).replace(' ', 'T') + (String(existing.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+    setAttachmentBusy(true); setError('');
+    try {
+      if (scope === 'group') {
+        if (active) await platformApi.revokeGroupAttachmentAccess(selectedChat.id);
+        else await platformApi.grantGroupAttachmentAccess(selectedChat.id, Number(durationHours || 24));
+      } else if (active) {
+        await platformApi.revokeGroupMemberAttachmentAccess(selectedChat.id, Number(memberId));
+      } else {
+        await platformApi.grantGroupMemberAttachmentAccess(selectedChat.id, Number(memberId));
+      }
+      const { data } = await platformApi.getGroupAttachmentAccess(selectedChat.id);
+      setAttachmentGrants(Array.isArray(data.grants) ? data.grants : []);
+    } catch (err) {
+      setError(err.message || 'Unable to update attachment permissions.');
+    } finally { setAttachmentBusy(false); }
+  };
 
   const openMemberProfile = async member => {
     const memberId = Number(member?.user_id || member?.id);
@@ -289,6 +323,57 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                 })
               )}
             </div>
+            {ownsGroup && <section className="web-member-permissions" aria-label="Group attachment access">
+              <div className="web-member-permissions-heading">
+                <div><h4>Attachment access</h4><p>Manage group-wide and individual download/forward permissions. Temporary group access expires automatically; individual grants remain until revoked.</p></div>
+              </div>
+              {(() => {
+                const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+                const groupActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+                return <div className="web-group-attachment-access">
+                  <div className="web-member-permissions-heading"><strong>Group-wide attachment access</strong><span>{groupActive ? 'Active' : 'Inactive'}</span></div>
+                  <p>{groupActive ? 'Expires: ' + new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).toLocaleString() : 'Download and forwarding access is closed for the group.'}</p>
+                  <div className="web-group-access-actions">
+                    <button type="button" disabled={attachmentBusy} onClick={() => updateAttachmentAccess(null, 'group', 24)}>Allow everyone for 24 hours</button>
+                    <button type="button" disabled={attachmentBusy} onClick={() => updateAttachmentAccess(null, 'group', 48)}>Allow everyone for 48 hours</button>
+                    <button type="button" disabled={attachmentBusy || !groupActive} onClick={() => updateAttachmentAccess(null, 'group')}>Revoke group-wide access</button>
+                  </div>
+                </div>;
+              })()}
+              <div className="web-member-permissions-heading"><div><h4>Individual member permissions</h4><p>Grant or revoke access for each eligible member.</p></div><span>{attachmentGrants.filter(item => item.grant_scope === 'member' && !item.revoked_at).length} active grants</span></div>
+              <input type="search" aria-label="Search group members for attachment permissions" placeholder="Search members by name or User ID..." value={attachmentSearch} onChange={event => setAttachmentSearch(event.target.value)} />
+              <select aria-label="Filter member attachment permissions" value={attachmentPermissionFilter} onChange={event => setAttachmentPermissionFilter(event.target.value)}>
+                <option value="all">All permissions</option><option value="can_download">Can download</option><option value="cannot_download">Cannot download</option><option value="can_forward">Can forward</option><option value="cannot_forward">Cannot forward</option>
+              </select>
+              <div className="web-member-permissions-list">
+                {currentMembers.filter(member => member.role !== 'owner' && Number(member.user_id || member.id) !== currentUserId).filter(member => {
+                  const term = attachmentSearch.trim().toLowerCase();
+                  const matchesSearch = !term || [member.name, member.username, member.user_id, member.id].some(value => String(value || '').toLowerCase().includes(term));
+                  const memberGrant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === Number(member.user_id || member.id));
+                  const memberActive = Boolean(memberGrant && !memberGrant.revoked_at && (!memberGrant.expires_at || new Date(String(memberGrant.expires_at).replace(' ', 'T') + (String(memberGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+                  const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+                  const groupActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+                  const effective = memberGrant ? (memberActive ? memberGrant : null) : (groupActive ? groupGrant : null);
+                  const canDownload = Boolean(effective && Number(effective.download_enabled) === 1);
+                  const canForward = Boolean(effective && Number(effective.forward_enabled) === 1);
+                  return matchesSearch && (attachmentPermissionFilter === 'all' || (attachmentPermissionFilter === 'can_download' && canDownload) || (attachmentPermissionFilter === 'cannot_download' && !canDownload) || (attachmentPermissionFilter === 'can_forward' && canForward) || (attachmentPermissionFilter === 'cannot_forward' && !canForward));
+                }).map(member => {
+                  const memberId = Number(member.user_id || member.id);
+                  const grant = attachmentGrants.find(item => item.grant_scope === 'member' && Number(item.member_id) === memberId);
+                  const groupGrant = attachmentGrants.find(item => item.grant_scope === 'group' && Number(item.member_id) === 0);
+                  const groupActive = Boolean(groupGrant && !groupGrant.revoked_at && (!groupGrant.expires_at || new Date(String(groupGrant.expires_at).replace(' ', 'T') + (String(groupGrant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+                  const active = Boolean(grant && !grant.revoked_at && (!grant.expires_at || new Date(String(grant.expires_at).replace(' ', 'T') + (String(grant.expires_at).endsWith('Z') ? '' : 'Z')).getTime() > Date.now()));
+                  const effective = grant ? (active ? grant : null) : (groupActive ? groupGrant : null);
+                  const canDownload = Boolean(effective && Number(effective.download_enabled) === 1);
+                  const canForward = Boolean(effective && Number(effective.forward_enabled) === 1);
+                  return <div className="web-member-permission-row" key={memberId}>
+                    <div className="web-member-permission-identity"><strong>{member.name || member.username || 'Member'}</strong><span>@{member.username || member.user_id || member.id}</span><small>{canDownload ? 'Download allowed' : 'Download blocked'} · {canForward ? 'Forward allowed' : 'Forward blocked'}{!grant && groupActive ? ' · Group-wide grant' : grant?.revoked_at ? ' · Individual access revoked' : ''}</small></div>
+                    <button type="button" disabled={attachmentBusy} onClick={() => updateAttachmentAccess(memberId)}>{active ? 'Revoke individual access' : 'Grant individual access'}</button>
+                  </div>;
+                })}
+                {currentMembers.filter(member => member.role !== 'owner' && Number(member.user_id || member.id) !== currentUserId).length === 0 && <p className="web-member-permissions-empty">No eligible members available for individual permissions.</p>}
+              </div>
+            </section>}
           </div>
         )}
 

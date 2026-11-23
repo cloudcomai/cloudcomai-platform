@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { Camera, X } from 'lucide-react';
+import { platformApi } from '../services/platform';
 
 export default function GroupEditModal({ group, user, groupTypes, apiBridge, close, onGroupUpdated }) {
   const isOwner = Number(group?.owner_id) === Number(user?.id);
@@ -11,6 +12,19 @@ export default function GroupEditModal({ group, user, groupTypes, apiBridge, clo
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!group?.id) return undefined;
+    platformApi.listGroups().then(({ data }) => {
+      if (cancelled) return;
+      const latest = (data.groups || []).find(item => Number(item.id) === Number(group.id));
+      if (latest) setDescription(String(latest.group_description ?? ''));
+    }).catch(() => {
+      // Retain the description from the selected conversation if refresh is unavailable.
+    });
+    return () => { cancelled = true; };
+  }, [group?.id]);
 
   const chooseImage = event => {
     const next = event.target.files?.[0];
@@ -60,7 +74,7 @@ export default function GroupEditModal({ group, user, groupTypes, apiBridge, clo
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
           <button type="button" onClick={() => fileRef.current?.click()} style={{ border: 0, background: 'none', padding: 0, cursor: 'pointer' }} aria-label="Change group image">
             <div className="avatar-frame" style={{ width: 92, height: 92, position: 'relative' }}>
-              {preview ? <img src={preview} alt="Group preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder" style={{ fontSize: 30 }}>{group?.name?.[0] || 'G'}</div>}
+              {preview ? <img src={preview} alt="Group preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder" style={{ fontSize: 30 }}>{(group?.name || 'Group').trim().split(/\s+/).slice(0,2).map(word => word[0]).join('').toUpperCase()}</div>}
               <span style={{ position: 'absolute', right: -3, bottom: -3, background: 'var(--primary-color)', color: '#fff', width: 30, height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center' }}><Camera size={16}/></span>
             </div>
           </button>

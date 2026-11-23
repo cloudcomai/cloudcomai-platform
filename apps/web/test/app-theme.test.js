@@ -39,3 +39,11 @@ test('applying each palette updates the legacy web CSS tokens used by screens', 
     else globalThis.document = previousDocument;
   }
 });
+
+
+test('Midnight theme keeps outgoing message text readable on its blue bubble', () => {
+  assert.equal(APP_THEMES.midnight.colors.primary, '#2366A8');
+  assert.equal(APP_THEMES.midnight.colors.outgoingBubble, '#2366A8');
+  assert.equal(APP_THEMES.midnight.colors.outgoingBubbleText, '#FFFFFF');
+  assert.equal(APP_THEMES.midnight.colors.textPrimary, '#F3F7FC');
+});
