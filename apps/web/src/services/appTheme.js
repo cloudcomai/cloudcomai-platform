@@ -36,7 +36,7 @@ export const APP_THEMES = {
     colors: {
       primary: '#4DA3FF', primaryDark: '#2D7DCC', primaryLight: '#173A5F', background: '#0B1220', surface: '#111B2E', surfaceSecondary: '#16233A',
       textPrimary: '#F3F7FC', textSecondary: '#B6C3D6', textMuted: '#8C9BB2', textOnPrimary: '#FFFFFF', placeholder: '#8C9BB2', disabled: '#5F6F86',
-      border: '#2B3B54', divider: '#22314A', incomingBubble: '#16233A', incomingBubbleText: '#F3F7FC', outgoingBubble: '#2D7DCC', outgoingBubbleText: '#FFFFFF',
+      border: '#2B3B54', divider: '#22314A', incomingBubble: '#16233A', incomingBubbleText: '#F3F7FC', outgoingBubble: '#2366A8', outgoingBubbleText: '#FFFFFF',
       success: '#4CCB7A', warning: '#F4B860', error: '#FF7A7A', iconPrimary: '#4DA3FF', iconSecondary: '#B6C3D6', headerBackground: '#102E50', headerText: '#FFFFFF',
       navigationBackground: '#111B2E', navigationText: '#B6C3D6', navigationActive: '#4DA3FF', modalBackground: '#111B2E', modalText: '#F3F7FC', accent: '#4DA3FF', highlight: '#35C98A',
     },
