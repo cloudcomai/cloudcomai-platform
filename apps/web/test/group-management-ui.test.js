@@ -78,6 +78,8 @@ test('web Manage Group uses a wide scrollable desktop modal without nested membe
   assert.match(members, /group-manage-modal/);
   assert.match(members, /group-manage-member-list/);
   assert.match(designSystem, /\.group-manage-modal\{width:min\(1180px/);
-  assert.match(designSystem, /\.group-manage-modal \.web-member-permissions-list\{max-height:none!important;overflow:visible!important\}/);
+  assert.match(designSystem, /\.group-manage-modal \.web-member-permissions-list\{max-height:min\(340px,42dvh\)!important;min-height:0;overflow-y:auto!important/);
+  assert.match(designSystem, /overscroll-behavior-y:auto;scrollbar-gutter:stable/);
+  assert.match(designSystem, /\.group-manage-modal\{width:min\(1180px,[^}]*overflow-y:auto/);
   assert.match(designSystem, /\.group-manage-backdrop\{align-items:flex-start/);
 });
