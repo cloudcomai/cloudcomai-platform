@@ -450,8 +450,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                         <span className={'group-access-status ' + (groupGrantActive ? 'active' : 'inactive')}>{attachmentLoading ? 'Loading…' : groupGrantActive ? 'Active' : 'Inactive'}</span>
                       </div>
                       <div className="group-access-state-grid">
-                        <div><Download size={16}/><span>Download access</span><strong className={groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'status-open' : 'status-closed'}>{groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'Open' : 'Closed'}</strong></div>
-                        <div><Share2 size={16}/><span>Forward access</span><strong className={groupGrantActive && Number(groupGrant.forward_enabled) === 1 ? 'status-open' : 'status-closed'}>{groupGrantActive && Number(groupGrant.forward_enabled) === 1 ? 'Open' : 'Closed'}</strong></div>
+                        <div><Download size={16}/><span>Download access</span><strong className={groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'status-open' : 'status-closed'}>{attachmentLoading ? 'Loading…' : groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'Open' : 'Closed'}</strong></div>
+                        <div><Share2 size={16}/><span>Forward access</span><strong className={groupGrantActive && Number(groupGrant.forward_enabled) === 1 ? 'status-open' : 'status-closed'}>{attachmentLoading ? 'Loading…' : groupGrantActive && Number(groupGrant.forward_enabled) === 1 ? 'Open' : 'Closed'}</strong></div>
                         {groupGrantActive && groupGrant.expires_at ? <div className="group-access-expiry"><Clock3 size={16}/><span>Expires in</span><strong>{formatRemaining(groupGrant.expires_at, clockNow)}</strong></div> : null}
                       </div>
                       <div className="group-access-actions">
@@ -462,7 +462,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                     </section>
 
                     <section className="group-individual-access" aria-label="Individual member permissions">
-                      <div className="group-individual-heading"><div><h3>Individual Member Permissions</h3><p>Grant or revoke access for each eligible member.</p></div><strong>{activeIndividualGrantCount} active grants</strong></div>
+                      <div className="group-individual-heading"><div><h3>Individual Member Permissions</h3><p>Grant or revoke access for each eligible member.</p></div><strong>{attachmentLoading ? 'Loading…' : activeIndividualGrantCount + ' active grants'}</strong></div>
                       <div className="group-individual-tools">
                         <label className="group-attachment-search"><Search size={17}/><input type="search" aria-label="Search members by name or User ID" placeholder="Search members by name or User ID..." value={attachmentSearch} onChange={event => setAttachmentSearch(event.target.value)}/></label>
                         <select aria-label="Filter member attachment permissions" value={attachmentPermissionFilter} onChange={event => setAttachmentPermissionFilter(event.target.value)}>
