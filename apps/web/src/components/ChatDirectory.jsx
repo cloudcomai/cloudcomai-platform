@@ -208,12 +208,12 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
                 {!imageFailed ? (
                   <img src={`${src}${src.includes('?') ? '&' : '?'}v=${chat.image_version || ''}`} alt="" onError={() => markImageFailed(imageKey)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                 ) : (
-                  <div className="avatar-placeholder">{chat.name ? chat.name[0] : 'C'}</div>
+                  <div className="avatar-placeholder" style={chat.isGroup ? (() => { const palette = getAvatarPalette(chat.id || chat.name); return { backgroundColor: palette.backgroundColor, color: palette.textColor }; })() : undefined}>{chat.isGroup ? getAvatarInitial(chat.name, chat.username) : getAvatarInitial(chat.name, chat.username)}</div>
                 )}
                 {chat.online && <span className="online-indicator-dot"></span>}
               </div>
               <div className="conversation-meta-summary">
-                <div className="top-row"><h5>{chat.name}</h5><span className="timestamp">{chat.time || 'Active'}</span></div>
+                <div className="top-row"><h5 title={chat.name || ''} className={chat.isGroup ? 'conversation-name-group' : ''}>{chat.name}</h5><span className="timestamp">{chat.time || 'Active'}</span></div>
                 <div className="bottom-row"><p className="message-snippet">{chat.preview || ''}</p>{chat.unread > 0 && <span className="unread-counter-bubble">{chat.unread}</span>}</div>
               </div>
             </div>
