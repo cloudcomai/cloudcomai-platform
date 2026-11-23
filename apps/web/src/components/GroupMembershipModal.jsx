@@ -42,6 +42,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   const [attachmentSearch, setAttachmentSearch] = useState('');
   const [attachmentPermissionFilter, setAttachmentPermissionFilter] = useState('all');
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
   const [success, setSuccess] = useState('');
   const [clockNow, setClockNow] = useState(Date.now());
@@ -96,9 +97,11 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   useEffect(() => {
     if (type !== 'manage_members' || !selectedChat?.id || !ownsGroup) return undefined;
     let cancelled = false;
+    setAttachmentLoading(true);
     platformApi.getGroupAttachmentAccess(selectedChat.id)
       .then(({ data }) => { if (!cancelled) setAttachmentGrants(Array.isArray(data.grants) ? data.grants : []); })
-      .catch(err => { if (!cancelled) setError(err.message || 'Unable to load member attachment permissions.'); });
+      .catch(err => { if (!cancelled) setError(err.message || 'Unable to load member attachment permissions.'); })
+      .finally(() => { if (!cancelled) setAttachmentLoading(false); });
     return () => { cancelled = true; };
   }, [type, selectedChat?.id, ownsGroup]);
 
@@ -437,14 +440,14 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                 <section className="group-dashboard-card group-attachment-card" aria-labelledby="attachment-access-heading">
                   <div className="group-dashboard-section-heading">
                     <div><h2 id="attachment-access-heading"><span className="group-attachment-icon">⌁</span> Attachment Access</h2><p>Manage group-wide and individual download/forward permissions. Temporary group access expires automatically; individual grants remain until revoked.</p></div>
-                    <span className="group-attachment-grant-count">{activeIndividualGrantCount} active grants</span>
+                    <span className="group-attachment-grant-count">{attachmentLoading ? 'Loading…' : activeIndividualGrantCount + ' active grants'}</span>
                   </div>
 
                   {!ownsGroup ? <div className="group-access-owner-note"><ShieldCheck size={18}/> Attachment access controls are available to the group owner. Your existing chat permissions remain unchanged.</div> : <>
                     <section className="group-wide-access-panel" aria-label="Group-wide attachment access">
                       <div className="group-access-panel-heading">
                         <div><strong><ShieldCheck size={18}/> Group-wide attachment access</strong><small>Temporary access for all eligible group members</small></div>
-                        <span className={'group-access-status ' + (groupGrantActive ? 'active' : 'inactive')}>{groupGrantActive ? 'Active' : 'Inactive'}</span>
+                        <span className={'group-access-status ' + (groupGrantActive ? 'active' : 'inactive')}>{attachmentLoading ? 'Loading…' : groupGrantActive ? 'Active' : 'Inactive'}</span>
                       </div>
                       <div className="group-access-state-grid">
                         <div><Download size={16}/><span>Download access</span><strong className={groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'status-open' : 'status-closed'}>{groupGrantActive && Number(groupGrant.download_enabled) === 1 ? 'Open' : 'Closed'}</strong></div>
@@ -452,9 +455,9 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                         {groupGrantActive && groupGrant.expires_at ? <div className="group-access-expiry"><Clock3 size={16}/><span>Expires in</span><strong>{formatRemaining(groupGrant.expires_at, clockNow)}</strong></div> : null}
                       </div>
                       <div className="group-access-actions">
-                        <button type="button" disabled={attachmentBusy} onClick={() => updateAttachmentAccess(null, 'group', 24)}><Clock3 size={17}/>{attachmentBusy ? 'Updating…' : 'Allow everyone for 24 hours'}</button>
-                        <button type="button" disabled={attachmentBusy} onClick={() => updateAttachmentAccess(null, 'group', 48)}><Clock3 size={17}/>{attachmentBusy ? 'Updating…' : 'Allow everyone for 48 hours'}</button>
-                        <button type="button" className="revoke" disabled={attachmentBusy || !groupGrantActive} onClick={() => updateAttachmentAccess(null, 'group')}><X size={17}/>{attachmentBusy ? 'Updating…' : 'Revoke group-wide access'}</button>
+                        <button type="button" disabled={attachmentBusy || attachmentLoading} onClick={() => updateAttachmentAccess(null, 'group', 24)}><Clock3 size={17}/>{attachmentBusy ? 'Updating…' : 'Allow everyone for 24 hours'}</button>
+                        <button type="button" disabled={attachmentBusy || attachmentLoading} onClick={() => updateAttachmentAccess(null, 'group', 48)}><Clock3 size={17}/>{attachmentBusy ? 'Updating…' : 'Allow everyone for 48 hours'}</button>
+                        <button type="button" className="revoke" disabled={attachmentBusy || attachmentLoading || !groupGrantActive} onClick={() => updateAttachmentAccess(null, 'group')}><X size={17}/>{attachmentBusy ? 'Updating…' : 'Revoke group-wide access'}</button>
                       </div>
                     </section>
 
@@ -486,7 +489,7 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
                           return <article className="group-individual-member-row" key={memberId}>
                             <span className="group-individual-avatar">{avatarUrl && !failedAvatars[avatarKey] ? <img src={avatarUrl} alt="" onError={() => setFailedAvatars(prev => ({ ...prev, [avatarKey]: true }))}/> : <span style={{ background: palette.backgroundColor, color: palette.textColor }}>{getAvatarInitial(member.name, member.username)}</span>}</span>
                             <div className="group-individual-copy"><strong>{member.name || member.username || 'Member'}</strong><span>@{member.username || member.user_id || member.id}</span><small><span className={state.download ? 'permission-open' : 'permission-closed'}>{state.download ? 'Download allowed' : 'Download blocked'}</span><i>·</i><span className={state.forward ? 'permission-open' : 'permission-closed'}>{state.forward ? 'Forward allowed' : 'Forward blocked'}</span>{state.inherited ? <em>Group-wide grant</em> : null}</small></div>
-                            <button type="button" disabled={attachmentBusy} className={state.individualActive ? 'revoke' : ''} onClick={() => updateAttachmentAccess(memberId)}>{attachmentBusy ? 'Updating…' : state.individualActive ? 'Revoke Access' : 'Grant Individual Access'}</button>
+                            <button type="button" disabled={attachmentBusy || attachmentLoading} className={state.individualActive ? 'revoke' : ''} onClick={() => updateAttachmentAccess(memberId)}>{attachmentBusy ? 'Updating…' : state.individualActive ? 'Revoke Access' : 'Grant Individual Access'}</button>
                           </article>;
                         })}
                         {currentMembers.filter(member => member.role !== 'owner' && Number(member.user_id || member.id) !== currentUserId).length === 0 ? <p className="group-dashboard-empty">No eligible members available for individual permissions.</p> : null}
