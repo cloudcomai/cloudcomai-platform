@@ -196,8 +196,8 @@ export default function GroupMembershipModal({ type, selectedChat, apiBridge, cl
   if (!selectedChat) return null;
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content-card">
+    <div className="modal-backdrop group-management-modal-backdrop">
+      <div className="modal-content-card group-management-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
             {type === 'add_member' ? '👥 Add New Member' : '⚙️ Manage Group Members'}
