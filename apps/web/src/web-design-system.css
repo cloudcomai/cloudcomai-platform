@@ -20,3 +20,10 @@ html,body,#root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMac
 @media(max-width:640px){.web-member-permissions-heading{flex-direction:column}.web-member-permission-row{align-items:flex-start;flex-direction:column}.web-member-permission-row button{width:100%}}
 
 .web-group-attachment-access{display:grid;gap:8px;padding:12px;border:1px solid var(--web-border);border-radius:11px;background:var(--web-surface)}.web-group-attachment-access>p{margin:0;color:var(--web-muted);font-size:12px}.web-group-access-actions{display:flex;flex-wrap:wrap;gap:8px}.web-group-access-actions button{min-height:36px;padding:7px 10px;border:1px solid var(--web-border);border-radius:9px;background:var(--web-subtle);color:var(--web-text);font-size:12px;font-weight:650}.web-group-access-actions button:disabled{opacity:.5;cursor:not-allowed}.web-member-permissions-list{max-height:340px}.web-member-permission-row button{max-width:190px;white-space:normal}
+
+
+/* Keep Manage Group content in normal document flow and scroll the dialog as one surface. */
+.group-management-modal-backdrop{align-items:flex-start;overflow-y:auto;overscroll-behavior:contain}
+.group-management-modal{width:min(760px,100%);max-height:calc(100dvh - 48px);min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable}
+.group-management-modal .web-member-permissions-list{max-height:none;overflow:visible}
+@media(max-width:640px){.group-management-modal-backdrop{padding:12px}.group-management-modal{max-height:calc(100dvh - 24px);width:100%}}
