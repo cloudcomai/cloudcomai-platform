@@ -2502,3 +2502,16 @@ select {
 .public-manage-footer{display:flex;justify-content:flex-end;padding-top:12px;border-top:1px solid var(--border-color)}
 .public-manage-footer button{padding:9px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-directory);color:var(--text-main);font-weight:700}
 @media(max-width:700px){.public-manage-backdrop{padding:10px;align-items:end}.public-manage-dialog{width:100%;max-height:92vh;padding:17px;border-radius:18px}.public-manage-menu{grid-template-columns:1fr}.public-manage-header h2{font-size:20px}.public-manage-list{max-height:58vh}.public-manage-user-row{gap:8px}.public-manage-friend-btn{min-width:96px;max-width:120px;padding:8px 7px;font-size:10px}}
+
+
+.public-rooms-title-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.public-rooms-title-row h3{margin:0}
+.public-rooms-title-row p{margin:4px 0 0;color:var(--text-muted);font-size:12px}
+.public-rooms-title-row>div:last-child{display:flex;align-items:center;gap:8px}
+.public-rooms-title-row button{padding:8px 11px;border:1px solid var(--border-color);border-radius:9px;background:var(--bg-directory);color:var(--text-main);font-size:12px;font-weight:700}
+.public-rooms-count{display:grid;place-items:center;min-width:28px;height:28px;padding:0 7px;border-radius:99px;background:var(--bg-directory);color:var(--primary-color);font-size:11px;font-weight:800}
+.public-room-section-toggle{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px;padding:12px;border:1px solid var(--border-color);border-radius:11px;background:var(--bg-directory);color:var(--text-main);text-align:left;font-size:13px;font-weight:800}
+.public-room-section-toggle span{margin-left:auto;color:var(--text-muted);font-size:11px;font-weight:600}
+.public-room-section-toggle b{font-size:18px;color:var(--primary-color)}
+.public-room-section-content{display:flex;flex-direction:column;gap:8px;max-height:42vh;overflow:auto;margin-top:7px;padding:2px}
+.public-room-empty{padding:18px;text-align:center;color:var(--text-muted);font-size:12px;line-height:1.5}
