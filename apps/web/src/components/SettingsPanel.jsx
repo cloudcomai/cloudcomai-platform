@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import ThemePicker from './ThemePicker';
+import DesktopAppearancePicker from './DesktopAppearancePicker';
 import { User, Shield, SlidersHorizontal, LogOut, X, ChevronRight, Contact } from 'lucide-react';
 import { mediaUrl } from '../services/platform';
 
-export default function SettingsPanel({ user, setModal, onLogout, close, setScreen, appTheme, onThemeChange }) {
+export default function SettingsPanel({ user, setModal, onLogout, close, setScreen, appTheme, onThemeChange, desktopTheme, onDesktopThemeChange }) {
   const displayName = user?.name || 'Authorized User';
   const username = user?.user_id || user?.username || '';
   const email = user?.email || '';
@@ -49,7 +50,8 @@ export default function SettingsPanel({ user, setModal, onLogout, close, setScre
           <div style={detailCardStyle}><span style={detailLabelStyle}>Phone Number</span><strong style={detailValueStyle}>{detailValue(phoneNumber)}</strong></div>
         </div>
 
-        <ThemePicker value={appTheme} onChange={onThemeChange} />
+        <div className="desktop-appearance-picker-wrap"><DesktopAppearancePicker value={desktopTheme} onChange={onDesktopThemeChange} /></div>
+        <div className="legacy-theme-picker"><ThemePicker value={appTheme} onChange={onThemeChange} /></div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button type="button" onClick={() => setModal('profile')} style={rowStyle}>

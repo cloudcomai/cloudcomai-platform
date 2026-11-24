@@ -14,6 +14,7 @@ import ProfileEditModal from './components/ProfileEditModal';
 import SettingsPanel from './components/SettingsPanel';
 import ThemePicker from './components/ThemePicker';
 import { applyAppTheme, DEFAULT_APP_THEME_ID, getStoredAppTheme, saveAppTheme } from './services/appTheme';
+import { applyDesktopTheme, getStoredDesktopTheme, saveDesktopTheme } from './services/desktopTheme';
 import AccountToolsPanel from './components/AccountToolsPanel';
 import GoogleContactsPanel from './components/GoogleContactsPanel';
 import InterestsScreen from './components/InterestsScreen';
@@ -98,6 +99,8 @@ function App() {
     const [pollEditTarget, setPollEditTarget] = useState(null);
     const [chatFilter, setChatFilter] = useState('all');
     const [appTheme, setAppTheme] = useState(() => getStoredAppTheme());
+    const [desktopTheme, setDesktopTheme] = useState(() => getStoredDesktopTheme());
+    const [isDesktopViewport, setIsDesktopViewport] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(min-width: 1024px)').matches));
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('chats');
     useEffect(() => { if (modal === 'manage_members') setActiveTab('groups'); }, [modal]);
@@ -245,8 +248,22 @@ function App() {
     }, [screen]);
 
     useEffect(() => { applyAppTheme(appTheme || DEFAULT_APP_THEME_ID); }, [appTheme]);
+    useEffect(() => { applyDesktopTheme(desktopTheme); }, [desktopTheme]);
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+        const media = window.matchMedia('(min-width: 1024px)');
+        const updateViewport = () => setIsDesktopViewport(media.matches);
+        updateViewport();
+        if (media.addEventListener) media.addEventListener('change', updateViewport);
+        else media.addListener(updateViewport);
+        return () => {
+            if (media.removeEventListener) media.removeEventListener('change', updateViewport);
+            else media.removeListener(updateViewport);
+        };
+    }, []);
 
     const chooseAppTheme = id => { const saved = saveAppTheme(id); setAppTheme(saved); };
+    const chooseDesktopTheme = id => { const saved = saveDesktopTheme(id); setDesktopTheme(saved); };
 
     const auth = async (u, t, deviceToken) => {
         await saveWebSession({ user: u, token: t, device_token: deviceToken });
@@ -657,7 +674,7 @@ function App() {
         return matchesSearch;
     });
 
-    if (token && !appTheme) return <div className="theme-onboarding"><ThemePicker required value={DEFAULT_APP_THEME_ID} onChange={chooseAppTheme} /></div>;
+    if (token && !appTheme && !isDesktopViewport) return <div className="theme-onboarding"><ThemePicker required value={DEFAULT_APP_THEME_ID} onChange={chooseAppTheme} /></div>;
 
     if (!authReady) return <div className="auth-page"><div className="auth-card">Loading CloudComAI...</div></div>;
     if (screen === 'home') {
@@ -722,7 +739,7 @@ function App() {
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} user={user} groupTypes={groupTypes} apiBridge={api} close={() => { const returnToManage = returnToManageGroupRef.current; returnToManageGroupRef.current = false; setModal(returnToManage ? 'manage_members' : null); }} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
-                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} appTheme={appTheme} onThemeChange={chooseAppTheme} apiBridge={api} />
+                    : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} appTheme={appTheme} onThemeChange={chooseAppTheme} desktopTheme={desktopTheme} onDesktopThemeChange={chooseDesktopTheme} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel onOpenChat={openExistingChat} apiBridge={api} close={() => { const returnToManage = returnToManageGroupRef.current; returnToManageGroupRef.current = false; setModal(returnToManage ? 'manage_members' : null); }} onUnreadChange={setNotificationUnreadCount} />
                     : modal === 'manage_public_chat' ? <PublicChatManagementPanel chat={selectedChat} user={user} close={() => setModal(null)} onLeave={handleLeavePublicChat} />
                     : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={async id => { await openExistingChat(id); setModal(null); }} />

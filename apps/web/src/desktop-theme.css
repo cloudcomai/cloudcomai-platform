@@ -1,0 +1,235 @@
+/* Desktop-only appearance layer. Native mobile themes and sub-1024px web layouts are intentionally untouched. */
+@media (min-width: 1024px) {
+  html[data-desktop-theme="light"],
+  html[data-desktop-theme="system"] {
+    color-scheme: light !important;
+    --app-primary: #4F46E5 !important;
+    --app-primary-dark: #4338CA !important;
+    --app-primary-light: #E0E7FF !important;
+    --app-background: #F5F6FA !important;
+    --app-surface: #FFFFFF !important;
+    --app-surface-secondary: #F0F1F5 !important;
+    --app-text-primary: #1F2937 !important;
+    --app-text-secondary: #64748B !important;
+    --app-text-muted: #64748B !important;
+    --app-text-on-primary: #FFFFFF !important;
+    --app-placeholder: #64748B !important;
+    --app-disabled: #94A3B8 !important;
+    --app-border: #DDE1E8 !important;
+    --app-divider: #E5E7EB !important;
+    --app-incoming-bubble: #ECEEF2 !important;
+    --app-incoming-bubble-text: #1F2937 !important;
+    --app-outgoing-bubble: #E0E7FF !important;
+    --app-outgoing-bubble-text: #312E81 !important;
+    --app-success: #15803D !important;
+    --app-warning: #A16207 !important;
+    --app-error: #DC2626 !important;
+    --app-icon-primary: #4F46E5 !important;
+    --app-icon-secondary: #64748B !important;
+    --app-header-background: #FAFAFC !important;
+    --app-header-text: #1F2937 !important;
+    --app-navigation-background: #EEF0F5 !important;
+    --app-navigation-text: #475569 !important;
+    --app-navigation-active: #4F46E5 !important;
+    --app-modal-background: #FFFFFF !important;
+    --app-modal-text: #1F2937 !important;
+    --app-accent: #4F46E5 !important;
+    --app-highlight: #15803D !important;
+    --bg-primary: #FFFFFF !important;
+    --bg-sidebar: #EEF0F5 !important;
+    --bg-directory: #F0F1F5 !important;
+    --bg-canvas: #FAFAFC !important;
+    --text-main: #1F2937 !important;
+    --text-muted: #64748B !important;
+    --text-light: #64748B !important;
+    --primary-color: #4F46E5 !important;
+    --primary-light: #E0E7FF !important;
+    --border-color: #DDE1E8 !important;
+    --bubble-outgoing: #E0E7FF !important;
+    --bubble-incoming: #ECEEF2 !important;
+    --accent: #4F46E5 !important;
+    --panel: #FFFFFF !important;
+    --panel2: #F0F1F5 !important;
+    --border: #DDE1E8 !important;
+    --muted: #64748B !important;
+    --web-bg: #F5F6FA !important;
+    --web-surface: #FFFFFF !important;
+    --web-subtle: #F0F1F5 !important;
+    --web-text: #1F2937 !important;
+    --web-muted: #64748B !important;
+    --web-border: #DDE1E8 !important;
+    --web-primary: #4F46E5 !important;
+    --web-primary-soft: #E0E7FF !important;
+  }
+
+  html[data-desktop-theme="dark"] {
+    color-scheme: dark !important;
+    --app-primary: #818CF8 !important;
+    --app-primary-dark: #6366F1 !important;
+    --app-primary-light: #373B65 !important;
+    --app-background: #18181F !important;
+    --app-surface: #27272F !important;
+    --app-surface-secondary: #27272F !important;
+    --app-text-primary: #E8EAF0 !important;
+    --app-text-secondary: #A1A1B0 !important;
+    --app-text-muted: #A1A1B0 !important;
+    --app-text-on-primary: #18181F !important;
+    --app-placeholder: #A1A1B0 !important;
+    --app-disabled: #737383 !important;
+    --app-border: #35353F !important;
+    --app-divider: #35353F !important;
+    --app-incoming-bubble: #2D2D36 !important;
+    --app-incoming-bubble-text: #E8EAF0 !important;
+    --app-outgoing-bubble: #373B65 !important;
+    --app-outgoing-bubble-text: #E8EAF0 !important;
+    --app-success: #34D399 !important;
+    --app-warning: #FBBF24 !important;
+    --app-error: #F87171 !important;
+    --app-icon-primary: #818CF8 !important;
+    --app-icon-secondary: #A1A1B0 !important;
+    --app-header-background: #1E1E24 !important;
+    --app-header-text: #E8EAF0 !important;
+    --app-navigation-background: #141419 !important;
+    --app-navigation-text: #A1A1B0 !important;
+    --app-navigation-active: #818CF8 !important;
+    --app-modal-background: #27272F !important;
+    --app-modal-text: #E8EAF0 !important;
+    --app-accent: #818CF8 !important;
+    --app-highlight: #34D399 !important;
+    --bg-primary: #27272F !important;
+    --bg-sidebar: #141419 !important;
+    --bg-directory: #27272F !important;
+    --bg-canvas: #1E1E24 !important;
+    --text-main: #E8EAF0 !important;
+    --text-muted: #A1A1B0 !important;
+    --text-light: #A1A1B0 !important;
+    --primary-color: #818CF8 !important;
+    --primary-light: #373B65 !important;
+    --border-color: #35353F !important;
+    --bubble-outgoing: #373B65 !important;
+    --bubble-incoming: #2D2D36 !important;
+    --accent: #818CF8 !important;
+    --panel: #27272F !important;
+    --panel2: #27272F !important;
+    --border: #35353F !important;
+    --muted: #A1A1B0 !important;
+    --web-bg: #18181F !important;
+    --web-surface: #27272F !important;
+    --web-subtle: #27272F !important;
+    --web-text: #E8EAF0 !important;
+    --web-muted: #A1A1B0 !important;
+    --web-border: #35353F !important;
+    --web-primary: #818CF8 !important;
+    --web-primary-soft: #373B65 !important;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html[data-desktop-theme="system"] {
+      color-scheme: dark !important;
+      --app-primary: #818CF8 !important;
+      --app-primary-dark: #6366F1 !important;
+      --app-primary-light: #373B65 !important;
+      --app-background: #18181F !important;
+      --app-surface: #27272F !important;
+      --app-surface-secondary: #27272F !important;
+      --app-text-primary: #E8EAF0 !important;
+      --app-text-secondary: #A1A1B0 !important;
+      --app-text-muted: #A1A1B0 !important;
+      --app-text-on-primary: #18181F !important;
+      --app-placeholder: #A1A1B0 !important;
+      --app-disabled: #737383 !important;
+      --app-border: #35353F !important;
+      --app-divider: #35353F !important;
+      --app-incoming-bubble: #2D2D36 !important;
+      --app-incoming-bubble-text: #E8EAF0 !important;
+      --app-outgoing-bubble: #373B65 !important;
+      --app-outgoing-bubble-text: #E8EAF0 !important;
+      --app-success: #34D399 !important;
+      --app-warning: #FBBF24 !important;
+      --app-error: #F87171 !important;
+      --app-icon-primary: #818CF8 !important;
+      --app-icon-secondary: #A1A1B0 !important;
+      --app-header-background: #1E1E24 !important;
+      --app-header-text: #E8EAF0 !important;
+      --app-navigation-background: #141419 !important;
+      --app-navigation-text: #A1A1B0 !important;
+      --app-navigation-active: #818CF8 !important;
+      --app-modal-background: #27272F !important;
+      --app-modal-text: #E8EAF0 !important;
+      --app-accent: #818CF8 !important;
+      --app-highlight: #34D399 !important;
+      --bg-primary: #27272F !important;
+      --bg-sidebar: #141419 !important;
+      --bg-directory: #27272F !important;
+      --bg-canvas: #1E1E24 !important;
+      --text-main: #E8EAF0 !important;
+      --text-muted: #A1A1B0 !important;
+      --text-light: #A1A1B0 !important;
+      --primary-color: #818CF8 !important;
+      --primary-light: #373B65 !important;
+      --border-color: #35353F !important;
+      --bubble-outgoing: #373B65 !important;
+      --bubble-incoming: #2D2D36 !important;
+      --accent: #818CF8 !important;
+      --panel: #27272F !important;
+      --panel2: #27272F !important;
+      --border: #35353F !important;
+      --muted: #A1A1B0 !important;
+      --web-bg: #18181F !important;
+      --web-surface: #27272F !important;
+      --web-subtle: #27272F !important;
+      --web-text: #E8EAF0 !important;
+      --web-muted: #A1A1B0 !important;
+      --web-border: #35353F !important;
+      --web-primary: #818CF8 !important;
+      --web-primary-soft: #373B65 !important;
+    }
+  }
+
+  html[data-desktop-theme] body,
+  html[data-desktop-theme] #root { background: var(--app-background) !important; color: var(--app-text-primary) !important; }
+
+  html[data-desktop-theme] .app-container,
+  html[data-desktop-theme] .chat-directory,
+  html[data-desktop-theme] .chat-canvas,
+  html[data-desktop-theme] .conversation { background: var(--app-background) !important; color: var(--app-text-primary) !important; }
+
+  html[data-desktop-theme] .main-sidebar { background: var(--app-navigation-background) !important; color: var(--app-navigation-text) !important; border-color: var(--app-border) !important; }
+  html[data-desktop-theme] .chat-header { background: var(--app-header-background) !important; color: var(--app-header-text) !important; border-color: var(--app-border) !important; }
+  html[data-desktop-theme] .bubble { border-color: var(--app-border); }
+  html[data-desktop-theme] .mine .bubble { background: var(--app-outgoing-bubble) !important; color: var(--app-outgoing-bubble-text) !important; }
+  html[data-desktop-theme] .bubble-row:not(.mine) .bubble { background: var(--app-incoming-bubble) !important; color: var(--app-incoming-bubble-text) !important; }
+  html[data-desktop-theme] .modal-content-card { background: var(--app-modal-background) !important; color: var(--app-modal-text) !important; border-color: var(--app-border) !important; }
+  html[data-desktop-theme] .modal-content-card button,
+  html[data-desktop-theme] .modal-content-card input,
+  html[data-desktop-theme] .modal-content-card select,
+  html[data-desktop-theme] .modal-content-card textarea { border-color: var(--app-border) !important; }
+  html[data-desktop-theme] input:focus-visible,
+  html[data-desktop-theme] textarea:focus-visible,
+  html[data-desktop-theme] button:focus-visible,
+  html[data-desktop-theme] a:focus-visible { outline: 2px solid var(--app-primary) !important; outline-offset: 2px; }
+  html[data-desktop-theme] button:disabled { opacity: .58; }
+
+  .desktop-appearance-picker { display: grid; gap: 14px; margin: 0 0 18px; padding: 16px; border: 1px solid var(--web-border); border-radius: 14px; background: var(--web-surface); color: var(--web-text); }
+  .desktop-appearance-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .desktop-appearance-heading h3 { margin: 0; color: var(--web-text); font-size: 16px; }
+  .desktop-appearance-heading p { margin: 5px 0 0; color: var(--web-muted); font-size: 12px; }
+  .desktop-only-label { flex: 0 0 auto; padding: 4px 7px; border-radius: 999px; background: var(--web-primary-soft); color: var(--web-primary); font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+  .desktop-appearance-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+  .desktop-appearance-option { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 11px; border: 1px solid var(--web-border) !important; border-radius: 11px; background: var(--web-surface) !important; color: var(--web-text) !important; text-align: left; }
+  .desktop-appearance-option:hover { border-color: var(--web-primary) !important; background: var(--web-subtle) !important; }
+  .desktop-appearance-option.selected { border-color: var(--web-primary) !important; box-shadow: 0 0 0 2px color-mix(in srgb,var(--web-primary) 18%,transparent); }
+  .desktop-appearance-icon { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; border-radius: 9px; background: var(--web-primary-soft); color: var(--web-primary); }
+  .desktop-appearance-copy { display: grid; gap: 3px; flex: 1; min-width: 0; }
+  .desktop-appearance-copy strong { color: var(--web-text); font-size: 12px; }
+  .desktop-appearance-copy small { color: var(--web-muted); font-size: 10px; line-height: 1.35; }
+  .desktop-appearance-radio { flex: 0 0 15px; width: 15px; height: 15px; border: 1.5px solid var(--web-muted); border-radius: 50%; }
+  .desktop-appearance-option.selected .desktop-appearance-radio { border: 4px solid var(--web-primary); }
+  .desktop-appearance-footnote { margin: 0; color: var(--web-muted); font-size: 11px; line-height: 1.5; }
+  .legacy-theme-picker { display: none !important; }
+}
+
+@media (max-width: 1023px) {
+  .desktop-appearance-picker { display: none !important; }
+  .legacy-theme-picker { display: block; }
+}
