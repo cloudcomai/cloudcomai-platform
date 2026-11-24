@@ -10,9 +10,9 @@ const directory = read('../src/components/ChatDirectory.jsx');
 const designSystem = read('../src/web-design-system.css');
 
 test('web group member rows render versioned profile images with avatar fallback', () => {
-  assert.match(members, /mediaUrl\('user', m\.user_id \|\| m\.id\)/);
-  assert.match(members, /m\.image_version/);
-  assert.match(members, /getAvatarInitial\(m\.name,m\.username\)/);
+  assert.match(members, /mediaUrl\('user', memberId\)/);
+  assert.match(members, /member\.image_version/);
+  assert.match(members, /getAvatarInitial\(member\.name, member\.username\)/);
 });
 
 test('web add-member picker loads saved contacts and only offers registered non-members', () => {
@@ -32,7 +32,7 @@ test('web group editor loads and saves description only for the owner', () => {
 
 test('web group management exposes owner-only group-wide and individual attachment access', () => {
   assert.match(members, /platformApi\.getGroupAttachmentAccess\(selectedChat\.id\)/);
-  assert.match(members, /platformApi\.grantGroupAttachmentAccess\(selectedChat\.id, Number\(durationHours \|\| 24\)\)/);
+  assert.match(members, /platformApi\.grantGroupAttachmentAccess\(selectedChat\.id, Number\(durationHours\)\)/);
   assert.match(members, /platformApi\.revokeGroupAttachmentAccess\(selectedChat\.id\)/);
   assert.match(members, /platformApi\.grantGroupMemberAttachmentAccess\(selectedChat\.id, Number\(memberId\)\)/);
   assert.match(members, /platformApi\.revokeGroupMemberAttachmentAccess\(selectedChat\.id, Number\(memberId\)\)/);
@@ -42,7 +42,8 @@ test('web group management exposes owner-only group-wide and individual attachme
   assert.match(members, /Allow everyone for 24 hours/);
   assert.match(members, /Allow everyone for 48 hours/);
   assert.match(members, /Revoke group-wide access/);
-  assert.match(members, /ownsGroup && <section className="web-member-permissions"/);
+  assert.match(members, /!ownsGroup \? <div className="group-access-owner-note"/);
+  assert.match(members, /group-wide-access-panel/);
 });
 
 test('web group composer keeps attachment and recording controls available with multipart-safe uploads', () => {
@@ -72,6 +73,37 @@ test('web group conversation avatars use readable initials when the group image 
   assert.match(designSystem, /conversation-name-group/);
 });
 
+
+test('web Group Management exposes a wide member dashboard and responsive role controls', () => {
+  assert.match(members, /group-management-page/);
+  assert.match(members, /group-management-summary-card/);
+  assert.match(members, /group-management-columns/);
+  assert.match(members, /All \(' \+ currentMembers\.length/);
+  assert.match(members, /Make owner/);
+  assert.match(members, /Make admin/);
+  assert.match(members, /Remove member/);
+  assert.match(members, /window\.confirm\(isSelf/);
+  assert.match(members, /adminLimitReached/);
+  assert.match(members, /Transfer would exceed the three-admin limit/);
+  assert.match(members, /setSuccess\(/);
+});
+
+test('group-wide 24h and 48h actions grant the selected duration even when access is already active', () => {
+  assert.match(members, /if \(scope === 'group'\)/);
+  assert.match(members, /if \(durationHours\) await platformApi\.grantGroupAttachmentAccess/);
+  assert.match(members, /else await platformApi\.revokeGroupAttachmentAccess/);
+  assert.match(members, /formatRemaining\(groupGrant\.expires_at, clockNow\)/);
+  assert.match(members, /activeIndividualGrantCount/);
+});
+
+test('web Manage Group page hides chat panels without unmounting their React components', () => {
+  assert.match(app, /group-management-active/);
+  assert.match(app, /modal === 'manage_members' \? <GroupMembershipModal type="manage_members"/);
+  assert.match(designSystem, /\.group-management-active>\.chats-directory/);
+  assert.match(designSystem, /\.group-management-active>\.chat-interaction-canvas/);
+  assert.match(designSystem, /grid-template-columns:260px minmax\(0,1fr\)/);
+  assert.match(designSystem, /grid-template-columns:minmax\(0,\.95fr\) minmax\(420px,1\.15fr\)/);
+});
 
 test('web group chat header loads the selected group profile image and safely falls back when unavailable', () => {
   const chatCanvas = read('../src/components/ChatCanvas.jsx');
