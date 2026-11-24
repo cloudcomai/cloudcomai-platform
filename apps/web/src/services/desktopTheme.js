@@ -29,6 +29,5 @@ export function applyDesktopTheme(id) {
   if (typeof document === 'undefined' || !document.documentElement) return theme;
   const root = document.documentElement;
   root.dataset.desktopTheme = theme;
-  root.style.colorScheme = theme === 'system' ? 'light dark' : theme;
   return theme;
 }
