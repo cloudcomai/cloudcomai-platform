@@ -2,7 +2,7 @@
 @media (min-width: 1024px) {
   html[data-desktop-theme="light"],
   html[data-desktop-theme="system"] {
-    color-scheme: light;
+    color-scheme: light !important;
     --app-primary: #4F46E5 !important;
     --app-primary-dark: #4338CA !important;
     --app-primary-light: #E0E7FF !important;
@@ -63,7 +63,7 @@
   }
 
   html[data-desktop-theme="dark"] {
-    color-scheme: dark;
+    color-scheme: dark !important;
     --app-primary: #818CF8 !important;
     --app-primary-dark: #6366F1 !important;
     --app-primary-light: #373B65 !important;
@@ -125,7 +125,7 @@
 
   @media (prefers-color-scheme: dark) {
     html[data-desktop-theme="system"] {
-      color-scheme: dark;
+      color-scheme: dark !important;
       --app-primary: #818CF8 !important;
       --app-primary-dark: #6366F1 !important;
       --app-primary-light: #373B65 !important;
