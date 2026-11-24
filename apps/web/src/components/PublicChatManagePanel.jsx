@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { X, Info, Users, ShieldCheck, Settings, RefreshCw } from 'lucide-react';
-import { platformApi } from '../services/platform';
+import React, { useCallback, useEffect, useState } from 'react';
+import { X, Info, Users, ShieldCheck, Settings, RefreshCw, Flag, ShieldAlert, EyeOff, UserX, Clock3, CheckCircle2 } from 'lucide-react';
+import { requestApi, platformApi } from '../services/platform';
 
 const tabs = [
   { id: 'info', label: 'Info', Icon: Info },
   { id: 'members', label: 'Members', Icon: Users },
+  { id: 'reports', label: 'Reports', Icon: Flag },
   { id: 'permissions', label: 'Permissions', Icon: ShieldCheck },
   { id: 'settings', label: 'Settings', Icon: Settings },
 ];
+const reportReasons = ['Harassment', 'Spam', 'Hate or abusive content', 'Impersonation', 'Unsafe content', 'Other'];
 const formatRetention = value => {
   const seconds = Number(value);
   if (!Number.isFinite(seconds) || seconds <= 0) return 'Default room retention';
@@ -15,41 +17,95 @@ const formatRetention = value => {
   if (seconds % 3600 === 0) return (seconds / 3600) + ' hours';
   return Math.round(seconds / 60) + ' minutes';
 };
+const api = (options = {}) => requestApi('v1/public-chats', options);
 
-export default function PublicChatManagePanel({ selectedChat, close }) {
+export default function PublicChatManagePanel({ selectedChat, user, close }) {
   const [activeTab, setActiveTab] = useState('info');
   const [participants, setParticipants] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [hiddenUsers, setHiddenUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reportsLoading, setReportsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportReason, setReportReason] = useState('Other');
+  const [reportDetails, setReportDetails] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [moderatingId, setModeratingId] = useState(null);
 
-  const loadRoomMembers = async () => {
-    if (!selectedChat?.id) return;
+  const roomId = Number(selectedChat?.id);
+  const currentUserId = Number(user?.id || user?.user_id);
+  const myRole = String(selectedChat?.role || selectedChat?.member_role || '').toLowerCase();
+  const canReviewReports = ['owner', 'admin', 'moderator'].includes(myRole);
+
+  const loadRoomMembers = useCallback(async () => {
+    if (!roomId) return;
     setLoading(true); setError('');
     try {
-      const { data } = await platformApi.getPublicChatManage(Number(selectedChat.id));
+      const { data } = await platformApi.getPublicChatManage(roomId);
       setParticipants(Array.isArray(data.participants) ? data.participants : []);
       setOnlineUsers(Array.isArray(data.online_users) ? data.online_users : []);
     } catch (err) { setError(err.message || 'Unable to load public chat information.'); }
     finally { setLoading(false); }
+  }, [roomId]);
+
+  const loadReports = useCallback(async () => {
+    if (!roomId) return;
+    setReportsLoading(true); setActionError('');
+    try {
+      const data = await api({ method: 'GET', query: { action: 'reports', room_id: roomId } });
+      setReports(Array.isArray(data.reports) ? data.reports : []);
+    } catch (err) {
+      setActionError(err.message || 'Moderator access is required to view reports.');
+      setReports([]);
+    } finally { setReportsLoading(false); }
+  }, [roomId]);
+
+  const loadHiddenUsers = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const data = await api({ method: 'GET', query: { action: 'hidden-users', room_id: roomId } });
+      setHiddenUsers(Array.isArray(data.hidden_users) ? data.hidden_users : []);
+    } catch { setHiddenUsers([]); }
+  }, [roomId]);
+
+  useEffect(() => { void loadRoomMembers(); void loadHiddenUsers(); }, [loadRoomMembers, loadHiddenUsers]);
+  useEffect(() => { if (activeTab === 'reports') void loadReports(); }, [activeTab, loadReports]);
+
+  const submitReport = async () => {
+    if (!reportTarget || !roomId || !Number(reportTarget.id) || Number(reportTarget.id) === currentUserId) return;
+    setSubmittingReport(true); setActionError(''); setNotice('');
+    try {
+      const incidentKey = 'user:' + Number(reportTarget.id);
+      const data = await api({ method: 'POST', body: { action: 'report', room_id: roomId, reported_user_id: Number(reportTarget.id), reason: reportReason, details: reportDetails.trim(), incident_key: incidentKey } });
+      setNotice(data.duplicate ? 'You have already reported this user in this room.' : 'Report submitted and sent to the public chat moderators for review.');
+      setReportTarget(null); setReportDetails(''); setReportReason('Other');
+      await loadHiddenUsers();
+    } catch (err) { setActionError(err.message || 'Unable to submit report.'); }
+    finally { setSubmittingReport(false); }
   };
 
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      if (!selectedChat?.id) return;
-      setLoading(true); setError('');
-      try {
-        const { data } = await platformApi.getPublicChatManage(Number(selectedChat.id));
-        if (!active) return;
-        setParticipants(Array.isArray(data.participants) ? data.participants : []);
-        setOnlineUsers(Array.isArray(data.online_users) ? data.online_users : []);
-      } catch (err) { if (active) setError(err.message || 'Unable to load public chat information.'); }
-      finally { if (active) setLoading(false); }
-    };
-    void load();
-    return () => { active = false; };
-  }, [selectedChat?.id]);
+  const moderateUser = async (report, moderationAction) => {
+    if (!roomId || !report?.reported_user_id) return;
+    setModeratingId(Number(report.reported_user_id)); setActionError(''); setNotice('');
+    try {
+      await api({ method: 'POST', body: { action: 'moderation', room_id: roomId, user_id: Number(report.reported_user_id), moderation_action: moderationAction, days: 7 } });
+      setNotice(moderationAction === 'remove' ? 'Restriction removed and reports marked reviewed.' : 'Restriction extended by 7 days.');
+      await Promise.all([loadReports(), loadRoomMembers()]);
+    } catch (err) { setActionError(err.message || 'Unable to apply moderation action.'); }
+    finally { setModeratingId(null); }
+  };
+
+  const unhideUser = async targetId => {
+    try {
+      await api({ method: 'POST', body: { action: 'unhide-user', room_id: roomId, user_id: Number(targetId) } });
+      setHiddenUsers(items => items.filter(item => Number(item.id) !== Number(targetId)));
+      setNotice('User is no longer hidden from your public chat view.');
+    } catch (err) { setActionError(err.message || 'Unable to unhide user.'); }
+  };
 
   const roomType = selectedChat?.room_type === 'language' ? 'Language room' : 'Public room';
   const joinedCount = Number(selectedChat?.joined_count ?? participants.length);
@@ -67,6 +123,8 @@ export default function PublicChatManagePanel({ selectedChat, close }) {
       </nav>
       <div className="public-chat-manage-body">
         {error && <div className="public-chat-manage-error" role="alert">{error}</div>}
+        {actionError && <div className="public-chat-manage-error" role="alert">{actionError}</div>}
+        {notice && <div className="public-chat-manage-success" role="status"><CheckCircle2 size={16}/>{notice}</div>}
         {activeTab === 'info' && <section className="public-chat-manage-section">
           <div className="public-chat-manage-room-card"><div className="public-chat-manage-room-avatar large">🌐</div><div><h3>{selectedChat?.name || 'Public Chat Room'}</h3><p>{selectedChat?.group_description || 'Public community room'}</p></div></div>
           <div className="public-chat-manage-stat"><span>Room Type</span><strong>{roomType}</strong></div>
@@ -77,21 +135,49 @@ export default function PublicChatManagePanel({ selectedChat, close }) {
         {activeTab === 'members' && <section className="public-chat-manage-section">
           <div className="public-chat-manage-section-title"><div><h3>Room Members</h3><p>{loading ? 'Loading participants…' : participants.length + ' active participants'}</p></div><button type="button" onClick={loadRoomMembers} disabled={loading} aria-label="Refresh members"><RefreshCw size={17}/></button></div>
           {loading ? <p className="public-chat-manage-muted">Loading public chat members…</p> : participants.length ? <div className="public-chat-manage-member-list">
-            {participants.map(member => <div className="public-chat-manage-member" key={member.id}><div className="public-chat-manage-member-avatar">{String(member.name || 'U').trim().charAt(0).toUpperCase()}</div><div className="public-chat-manage-member-details"><strong>{member.name || 'CloudComAI user'}</strong><span>{member.age != null ? member.age + ' years' : 'Age not shared'}{member.gender ? ' · ' + member.gender : ''}</span></div><span className={'public-chat-manage-presence ' + (member.online ? 'online' : '')}>{member.online ? 'Online' : 'Offline'}</span></div>)}
+            {participants.map(member => <div className="public-chat-manage-member" key={member.id}>
+              <div className="public-chat-manage-member-avatar">{String(member.name || 'U').trim().charAt(0).toUpperCase()}</div>
+              <div className="public-chat-manage-member-details"><strong>{member.name || 'CloudComAI user'}</strong><span>{member.age != null ? member.age + ' years' : 'Age not shared'}{member.gender ? ' · ' + member.gender : ''}</span></div>
+              <span className={'public-chat-manage-presence ' + (member.online ? 'online' : '')}>{member.online ? 'Online' : 'Offline'}</span>
+              {Number(member.id) !== currentUserId && <button type="button" className="public-chat-manage-action-link" onClick={() => { setReportTarget(member); setActionError(''); }}><Flag size={14}/> Report User</button>}
+            </div>)}
           </div> : <p className="public-chat-manage-muted">No active participants were returned for this room.</p>}
+          <div className="public-chat-manage-subsection"><h3><EyeOff size={17}/> Hidden Users</h3>
+            {hiddenUsers.length ? hiddenUsers.map(item => <div className="public-chat-manage-member" key={item.id}><div className="public-chat-manage-member-details"><strong>{item.name}</strong><span>Hidden from your public chat view</span></div><button type="button" className="public-chat-manage-action-link" onClick={() => unhideUser(item.id)}>Unhide</button></div>) : <p className="public-chat-manage-muted">No hidden users.</p>}
+          </div>
+        </section>}
+        {activeTab === 'reports' && <section className="public-chat-manage-section">
+          <div className="public-chat-manage-section-title"><div><h3>Community Reports</h3><p>Review reports submitted for this public chat</p></div><button type="button" onClick={loadReports} disabled={reportsLoading} aria-label="Refresh reports"><RefreshCw size={17}/></button></div>
+          {!canReviewReports && <div className="public-chat-manage-notice"><ShieldAlert size={19}/><span>Report review and moderation actions are available only to room owners, admins and moderators. You can still report individual users from the Members tab.</span></div>}
+          {reportsLoading ? <p className="public-chat-manage-muted">Loading reports…</p> : reports.length ? reports.map(report => <article className="public-chat-manage-report" key={report.id}>
+            <div className="public-chat-manage-section-title"><strong>{report.reported_user_name}</strong><span className="public-chat-manage-presence">{report.status}</span></div>
+            <p><strong>Reason:</strong> {report.reason}</p>{report.details && <p>{report.details}</p>}
+            <p className="public-chat-manage-muted">Reported {report.created_at ? new Date(report.created_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</p>
+            {canReviewReports && <div className="public-chat-manage-report-actions"><button type="button" onClick={() => moderateUser(report, 'remove')} disabled={moderatingId === Number(report.reported_user_id)}><UserX size={15}/> Remove Restriction</button><button type="button" onClick={() => moderateUser(report, 'extend')} disabled={moderatingId === Number(report.reported_user_id)}><Clock3 size={15}/> Extend 7 Days</button></div>}
+          </article>) : !reportsLoading && canReviewReports ? <p className="public-chat-manage-muted">No community reports for this room.</p> : null}
         </section>}
         {activeTab === 'permissions' && <section className="public-chat-manage-section">
           <h3>Public Chat Permissions</h3>
-          <p className="public-chat-manage-description">This room is public. Membership and moderation are enforced by the existing Public Chats service.</p>
-          <div className="public-chat-manage-notice"><ShieldCheck size={19}/><span>The current public-room API does not expose editable file-sharing, link-sharing, download, or forwarding permission settings. These controls are intentionally not simulated or connected to Group-only APIs.</span></div>
+          <p className="public-chat-manage-description">Public chat membership and moderation follow the existing public-room service rules.</p>
+          <div className="public-chat-manage-notice"><ShieldCheck size={19}/><span>Public-room file-sharing, link-sharing, download and forwarding controls are not exposed by the current API. No nonfunctional toggles or Group-only permission endpoints are used.</span></div>
         </section>}
         {activeTab === 'settings' && <section className="public-chat-manage-section">
           <h3>Room Settings</h3>
           <div className="public-chat-manage-stat"><span>Room Type</span><strong>{roomType}</strong></div>
           <div className="public-chat-manage-stat"><span>Message Retention</span><strong>{formatRetention(selectedChat?.retention_seconds)}</strong></div>
-          <div className="public-chat-manage-notice"><Info size={19}/><span>Room configuration changes are not available through the current public-room API. Existing room settings and chat behavior are left unchanged.</span></div>
+          <div className="public-chat-manage-notice"><Info size={19}/><span>Room configuration changes are not available through the current public-room API. Existing room settings and chat behavior remain unchanged.</span></div>
         </section>}
       </div>
+      {reportTarget && <div className="public-chat-report-overlay" role="presentation">
+        <section className="public-chat-report-dialog" role="dialog" aria-modal="true" aria-labelledby="public-chat-report-title">
+          <div className="public-chat-manage-section-title"><h3 id="public-chat-report-title">Report {reportTarget.name || 'User'}</h3><button type="button" onClick={() => setReportTarget(null)} aria-label="Close report form"><X size={18}/></button></div>
+          <label htmlFor="public-chat-report-reason">Reason</label>
+          <select id="public-chat-report-reason" value={reportReason} onChange={event => setReportReason(event.target.value)}>{reportReasons.map(reason => <option key={reason}>{reason}</option>)}</select>
+          <label htmlFor="public-chat-report-details">Additional details (optional)</label>
+          <textarea id="public-chat-report-details" maxLength={2000} rows={4} value={reportDetails} onChange={event => setReportDetails(event.target.value)} placeholder="Describe the issue to help moderators review your report."/>
+          <div className="public-chat-manage-report-actions"><button type="button" onClick={() => setReportTarget(null)} disabled={submittingReport}>Cancel</button><button type="button" onClick={submitReport} disabled={submittingReport}>{submittingReport ? 'Submitting…' : 'Submit Report'}</button></div>
+        </section>
+      </div>}
     </aside>
   );
 }
