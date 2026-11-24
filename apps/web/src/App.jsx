@@ -702,7 +702,7 @@ function App() {
 
             {modal === 'manage_members' ? <GroupMembershipModal type="manage_members" user={user} onGroupUpdated={handleGroupUpdated} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} onEditGroup={() => { returnToManageGroupRef.current = true; setModal('edit_group'); }} onOpenNotifications={() => { returnToManageGroupRef.current = true; setModal('notifications'); }} />
             : modal && (
-                <div className="modal-backdrop">
+                <div className={`modal-backdrop ${modal === 'manage_public_chat' ? 'public-chat-manage-backdrop' : ''}`}>
                     {modal === 'manage_public_chat' ? <PublicChatManagePanel selectedChat={selectedChat} close={() => setModal(null)} />
                     : modal === 'add_member' ? <GroupMembershipModal type="add_member" user={user} onGroupUpdated={handleGroupUpdated} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} />
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
