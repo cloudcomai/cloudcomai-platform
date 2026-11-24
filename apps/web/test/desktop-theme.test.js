@@ -48,8 +48,9 @@ test('applying a desktop theme changes only the desktop theme attribute', () => 
     assert.equal(applyDesktopTheme('light'), 'light');
     assert.equal(root.dataset.desktopTheme, 'light');
     assert.equal(root.dataset.appTheme, 'teal-green');
-    assert.equal(root.style.colorScheme, 'light');
+    assert.equal(root.style.colorScheme, '');
     applyDesktopTheme('system');
-    assert.equal(root.style.colorScheme, 'light dark');
+    assert.equal(root.dataset.desktopTheme, 'system');
+    assert.equal(root.style.colorScheme, '');
   });
 });
