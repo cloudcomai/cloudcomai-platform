@@ -23,14 +23,14 @@ test('Public Chat management includes Info, Members, Reports, Permissions and Se
 });
 
 test('Report User and public-room moderation actions use the existing public-chat API', () => {
-  assert.match(panel, /action: 'report'/);
+  assert.match(panel, /platformApi\.reportPublicChatUser\(roomId/);
   assert.match(panel, /reported_user_id/);
   assert.match(panel, /Submit Report/);
   assert.match(panel, /action: 'moderation'/);
   assert.match(panel, /moderation_action: moderationAction/);
-  assert.match(panel, /action: 'unhide-user'/);
-  assert.match(panel, /action: 'reports'/);
-  assert.match(panel, /action: 'hidden-users'/);
+  assert.match(panel, /platformApi\.unhidePublicChatUser\(roomId/);
+  assert.match(panel, /platformApi\.getPublicChatReports\(roomId\)/);
+  assert.match(panel, /platformApi\.getPublicChatHiddenUsers\(roomId\)/);
 });
 
 test('Public Chat management never uses Group-only permission APIs and preserves responsive scrolling', () => {
