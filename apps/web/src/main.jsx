@@ -5,6 +5,7 @@ import App from './App.jsx';
 import './styles.css';
 import './global-theme.css';
 import './web-design-system.css';
+import './desktop-theme.css';
 
 const rootElement = document.getElementById('root');
 const root = createRoot(rootElement);
