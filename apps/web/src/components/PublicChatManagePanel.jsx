@@ -35,11 +35,10 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
   const [reportDetails, setReportDetails] = useState('');
   const [submittingReport, setSubmittingReport] = useState(false);
   const [moderatingId, setModeratingId] = useState(null);
+  const [moderatorAccess, setModeratorAccess] = useState(false);
 
   const roomId = Number(selectedChat?.id);
   const currentUserId = Number(user?.id || user?.user_id);
-  const myRole = String(selectedChat?.role || selectedChat?.member_role || '').toLowerCase();
-  const canReviewReports = ['owner', 'admin', 'moderator'].includes(myRole);
 
   const loadRoomMembers = useCallback(async () => {
     if (!roomId) return;
@@ -58,7 +57,9 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
     try {
       const data = await api({ method: 'GET', query: { action: 'reports', room_id: roomId } });
       setReports(Array.isArray(data.reports) ? data.reports : []);
+      setModeratorAccess(true);
     } catch (err) {
+      setModeratorAccess(false);
       setActionError(err.message || 'Moderator access is required to view reports.');
       setReports([]);
     } finally { setReportsLoading(false); }
@@ -148,12 +149,12 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
         </section>}
         {activeTab === 'reports' && <section className="public-chat-manage-section">
           <div className="public-chat-manage-section-title"><div><h3>Community Reports</h3><p>Review reports submitted for this public chat</p></div><button type="button" onClick={loadReports} disabled={reportsLoading} aria-label="Refresh reports"><RefreshCw size={17}/></button></div>
-          {!canReviewReports && <div className="public-chat-manage-notice"><ShieldAlert size={19}/><span>Report review and moderation actions are available only to room owners, admins and moderators. You can still report individual users from the Members tab.</span></div>}
+          {!moderatorAccess && <div className="public-chat-manage-notice"><ShieldAlert size={19}/><span>Report review and moderation actions are available only to room owners, admins and moderators. You can still report individual users from the Members tab.</span></div>}
           {reportsLoading ? <p className="public-chat-manage-muted">Loading reports…</p> : reports.length ? reports.map(report => <article className="public-chat-manage-report" key={report.id}>
             <div className="public-chat-manage-section-title"><strong>{report.reported_user_name}</strong><span className="public-chat-manage-presence">{report.status}</span></div>
             <p><strong>Reason:</strong> {report.reason}</p>{report.details && <p>{report.details}</p>}
             <p className="public-chat-manage-muted">Reported {report.created_at ? new Date(report.created_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</p>
-            {canReviewReports && <div className="public-chat-manage-report-actions"><button type="button" onClick={() => moderateUser(report, 'remove')} disabled={moderatingId === Number(report.reported_user_id)}><UserX size={15}/> Remove Restriction</button><button type="button" onClick={() => moderateUser(report, 'extend')} disabled={moderatingId === Number(report.reported_user_id)}><Clock3 size={15}/> Extend 7 Days</button></div>}
+            {moderatorAccess && <div className="public-chat-manage-report-actions"><button type="button" onClick={() => moderateUser(report, 'remove')} disabled={moderatingId === Number(report.reported_user_id)}><UserX size={15}/> Remove Restriction</button><button type="button" onClick={() => moderateUser(report, 'extend')} disabled={moderatingId === Number(report.reported_user_id)}><Clock3 size={15}/> Extend 7 Days</button></div>}
           </article>) : !reportsLoading && canReviewReports ? <p className="public-chat-manage-muted">No community reports for this room.</p> : null}
         </section>}
         {activeTab === 'permissions' && <section className="public-chat-manage-section">
