@@ -17,14 +17,13 @@ export default function DesktopAppearancePicker({ value = 'system', onChange }) 
         </div>
         <span className="desktop-only-label">WEB ONLY</span>
       </div>
-      <div className="desktop-appearance-options" role="radiogroup" aria-label="Web appearance">
+      <div className="desktop-appearance-options" role="group" aria-label="Web appearance">
         {OPTIONS.map(({ id, label, description, Icon }) => (
           <button
             key={id}
             type="button"
             className={value === id ? 'desktop-appearance-option selected' : 'desktop-appearance-option'}
-            role="radio"
-            aria-checked={value === id}
+            aria-pressed={value === id}
             onClick={() => onChange?.(id)}
           >
             <span className={`desktop-appearance-icon desktop-preview-${id}`}><Icon size={19} aria-hidden="true" /></span>
