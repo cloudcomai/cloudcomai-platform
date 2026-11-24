@@ -23,7 +23,7 @@ import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
 import InvitationPage from './components/InvitationPage';
 import PrivacyAccountPanel from './components/PrivacyAccountPanel';
-import { PublicChatsPanel } from './components/WebCommunityPanels';
+import { PublicChatsPanel, PublicChatManagementPanel } from './components/WebCommunityPanels';
 import MomentsPanel from './components/MomentsPanel';
 import { inviteUrlFromResponse } from './utils/shareLink';
 import { passwordResetLink, privatePasswordResetUrl } from './utils/passwordRecovery';
@@ -651,6 +651,22 @@ function App() {
         setSelectedChat(prev => prev && prev.id === Number(nextGroup.id) ? { ...prev, ...nextGroup } : prev);
     };
 
+    const handleLeavePublicChat = async room => {
+        const roomId = Number(room?.id || selectedChat?.id);
+        if (!roomId) throw new Error('A valid public chat room is required.');
+        await platformApi.leavePublicChat(roomId);
+        setModal(null);
+        setChats(current => current.filter(chat => Number(chat.id) !== roomId));
+        if (Number(activeChatRef.current?.id) === roomId) {
+            setSelectedChat(null);
+            setMessages([]);
+            setComposer('');
+            setReplyTo(null);
+            setEditing(null);
+            setPendingFocusMessageId(null);
+        }
+    };
+
     const filteredChats = chats.filter(c => {
         const chatName = c.name || '';
         const matchesSearch = chatName.toLowerCase().includes(searchQuery.toLowerCase());
@@ -725,6 +741,7 @@ function App() {
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />
                     : modal === 'settings' ? <SettingsPanel user={user} setModal={setModal} onLogout={logout} close={() => setModal(null)} setScreen={nextScreen => { setModal(null); setScreen(nextScreen); }} appTheme={appTheme} onThemeChange={chooseAppTheme} desktopTheme={desktopTheme} onDesktopThemeChange={chooseDesktopTheme} apiBridge={api} />
                     : modal === 'notifications' ? <NotificationPanel onOpenChat={openExistingChat} apiBridge={api} close={() => { const returnToManage = returnToManageGroupRef.current; returnToManageGroupRef.current = false; setModal(returnToManage ? 'manage_members' : null); }} onUnreadChange={setNotificationUnreadCount} />
+                    : modal === 'manage_public_chat' ? <PublicChatManagementPanel chat={selectedChat} user={user} close={() => setModal(null)} onLeave={handleLeavePublicChat} />
                     : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={async id => { await openExistingChat(id); setModal(null); }} />
                     : modal === 'moments' ? <MomentsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
                     : modal === 'saved_messages' || modal === 'sessions' ? <AccountToolsPanel key={modal} mode={modal} close={() => setModal(null)} onOpenChat={openExistingChat} onSessionRotated={acceptRotatedSession} onLogout={logout} onUnsave={id => setMessages(current => current.map(item => Number(item.id) === Number(id) ? { ...item, saved: false } : item))} />
