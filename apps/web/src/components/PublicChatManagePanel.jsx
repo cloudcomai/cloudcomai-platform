@@ -55,7 +55,7 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
     if (!roomId) return;
     setReportsLoading(true); setActionError('');
     try {
-      const data = await api({ method: 'GET', query: { action: 'reports', room_id: roomId } });
+      const { data } = await platformApi.getPublicChatReports(roomId);
       setReports(Array.isArray(data.reports) ? data.reports : []);
       setModeratorAccess(true);
     } catch (err) {
@@ -68,7 +68,7 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
   const loadHiddenUsers = useCallback(async () => {
     if (!roomId) return;
     try {
-      const data = await api({ method: 'GET', query: { action: 'hidden-users', room_id: roomId } });
+      const { data } = await platformApi.getPublicChatHiddenUsers(roomId);
       setHiddenUsers(Array.isArray(data.hidden_users) ? data.hidden_users : []);
     } catch { setHiddenUsers([]); }
   }, [roomId]);
@@ -81,7 +81,7 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
     setSubmittingReport(true); setActionError(''); setNotice('');
     try {
       const incidentKey = 'user:' + Number(reportTarget.id);
-      const data = await api({ method: 'POST', body: { action: 'report', room_id: roomId, reported_user_id: Number(reportTarget.id), reason: reportReason, details: reportDetails.trim(), incident_key: incidentKey } });
+      const { data } = await platformApi.reportPublicChatUser(roomId, { reported_user_id: Number(reportTarget.id), reason: reportReason, details: reportDetails.trim(), incident_key: incidentKey });
       setNotice(data.duplicate ? 'You have already reported this user in this room.' : 'Report submitted and sent to the public chat moderators for review.');
       setReportTarget(null); setReportDetails(''); setReportReason('Other');
       await loadHiddenUsers();
@@ -102,7 +102,7 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
 
   const unhideUser = async targetId => {
     try {
-      await api({ method: 'POST', body: { action: 'unhide-user', room_id: roomId, user_id: Number(targetId) } });
+      await platformApi.unhidePublicChatUser(roomId, Number(targetId));
       setHiddenUsers(items => items.filter(item => Number(item.id) !== Number(targetId)));
       setNotice('User is no longer hidden from your public chat view.');
     } catch (err) { setActionError(err.message || 'Unable to unhide user.'); }
