@@ -2518,7 +2518,7 @@ select {
 
 /* Public Chat management drawer — web application only. */
 .public-chat-manage-backdrop{position:fixed;inset:0;z-index:1200;display:flex;justify-content:flex-end;align-items:stretch;padding:0;background:rgba(4,8,22,.28)}
-.public-chat-manage-panel{display:flex;flex-direction:column;width:min(460px,100vw);height:100dvh;max-height:100dvh;min-height:0;overflow:hidden;background:var(--bg-primary,#111827);color:var(--text-main,#f8fafc);border-left:1px solid var(--border-color,rgba(148,163,184,.2));box-shadow:-18px 0 48px rgba(0,0,0,.24)}
+.public-chat-manage-panel{position:relative;display:flex;flex-direction:column;width:min(460px,100vw);height:100dvh;max-height:100dvh;min-height:0;overflow:hidden;background:var(--bg-primary,#111827);color:var(--text-main,#f8fafc);border-left:1px solid var(--border-color,rgba(148,163,184,.2));box-shadow:-18px 0 48px rgba(0,0,0,.24)}
 .public-chat-manage-header{display:flex;align-items:center;gap:14px;padding:20px 18px;border-bottom:1px solid var(--border-color,rgba(148,163,184,.2));flex-shrink:0}
 .public-chat-manage-room-avatar{width:54px;height:54px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#2563eb,#4f46e5);font-size:25px;flex-shrink:0}
 .public-chat-manage-room-avatar.large{width:68px;height:68px}
