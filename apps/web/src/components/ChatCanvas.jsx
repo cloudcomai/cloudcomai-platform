@@ -3,6 +3,7 @@ import { ApiRoute } from '@cloudcomai/api-client';
 import { parseSharedLocation, createReadTracker, parseMessageTimestamp } from '@cloudcomai/chat-core';
 import { Users, BarChart3, Search, MoreHorizontal, Reply, Edit3, Plus, X, Send, Link2, Trash2, Pin, Share2, Copy, Palette } from 'lucide-react';
 import { formatMessageTime } from '../utils/messageTime';
+import { mediaUrl } from '../services/platform';
 import { copyText, shareOrCopyLink } from '../utils/shareLink';
 import { resolvePollOptions } from '../utils/pollOptions';
 import AttachmentControls from './AttachmentControls';
@@ -51,6 +52,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const [forwardTarget, setForwardTarget] = useState(null);
   const [readStatusTarget, setReadStatusTarget] = useState(null);
   const [profileUserId, setProfileUserId] = useState(null);
+  const [chatAvatarFailed, setChatAvatarFailed] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null);
   const [mentionCandidates, setMentionCandidates] = useState([]);
   const [mentionUsers, setMentionUsers] = useState([]);
@@ -230,6 +232,11 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   };
 
   const isGroup = selectedChat?.type === 'group' || selectedChat?.isGroup;
+  const chatAvatarUrl = selectedChat?.image_url || (isGroup && selectedChat?.id ? mediaUrl('group', selectedChat.id) : '');
+  const chatAvatarSrc = chatAvatarUrl
+    ? `${chatAvatarUrl}${chatAvatarUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(String(selectedChat?.image_version || ''))}`
+    : '';
+  useEffect(() => { setChatAvatarFailed(false); }, [selectedChat?.id, selectedChat?.image_url, selectedChat?.image_version]);
   const isPollChat = selectedChat?.type === 'group';
   const canEditPoll = msg => {
     if (Number(msg?.sender_id) !== Number(user?.id) || msg?.type !== 'poll' || Number(msg?.edit_count || 0) >= 2) return false;
@@ -276,7 +283,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
         {selectedChat ? (
           <div className="active-interlocutor-card">
             <div className="avatar-frame small">
-              {selectedChat.image_url ? <img src={`${selectedChat.image_url}&v=${selectedChat.image_version || ''}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name[0] : '?'}</div>}
+              {chatAvatarSrc && !chatAvatarFailed ? <img src={chatAvatarSrc} alt={isGroup ? `${selectedChat.name || 'Group'} profile` : ''} onError={() => setChatAvatarFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name.trim().charAt(0).toUpperCase() : isGroup ? 'G' : '?'}</div>}
             </div>
             <div className="interlocutor-details"><button type="button" className="profile-heading-button" onClick={() => !isGroup && setProfileUserId(Number(selectedChat.other_user_id || selectedChat.user_id || selectedChat.id))}><h4>{selectedChat.name}</h4></button><p className="presence-subtext">{isGroup ? 'Group' : selectedChat.online ? 'Online' : 'Offline'}</p></div>
           </div>

@@ -104,3 +104,14 @@ test('web Manage Group page hides chat panels without unmounting their React com
   assert.match(designSystem, /grid-template-columns:260px minmax\(0,1fr\)/);
   assert.match(designSystem, /grid-template-columns:minmax\(0,\.95fr\) minmax\(420px,1\.15fr\)/);
 });
+
+test('web group chat header loads the selected group profile image and safely falls back when unavailable', () => {
+  const chatCanvas = read('../src/components/ChatCanvas.jsx');
+  assert.match(chatCanvas, /import \{ mediaUrl \} from '\.\.\/services\/platform'/);
+  assert.match(chatCanvas, /mediaUrl\('group', selectedChat\.id\)/);
+  assert.match(chatCanvas, /selectedChat\?\.image_url/);
+  assert.match(chatCanvas, /selectedChat\?\.image_version/);
+  assert.match(chatCanvas, /onError=\{\(\) => setChatAvatarFailed\(true\)\}/);
+  assert.match(chatCanvas, /setChatAvatarFailed\(false\)/);
+  assert.match(chatCanvas, /isGroup \? 'G' : '\?'/);
+});
