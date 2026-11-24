@@ -237,6 +237,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
     ? `${chatAvatarUrl}${chatAvatarUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(String(selectedChat?.image_version || ''))}`
     : '';
   useEffect(() => { setChatAvatarFailed(false); }, [selectedChat?.id, selectedChat?.image_url, selectedChat?.image_version]);
+  const isPublicChat = selectedChat?.type === 'public' || selectedChat?.isPublic;
   const isPollChat = selectedChat?.type === 'group';
   const canEditPoll = msg => {
     if (Number(msg?.sender_id) !== Number(user?.id) || msg?.type !== 'poll' || Number(msg?.edit_count || 0) >= 2) return false;
@@ -285,7 +286,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
             <div className="avatar-frame small">
               {chatAvatarSrc && !chatAvatarFailed ? <img src={chatAvatarSrc} alt={isGroup ? `${selectedChat.name || 'Group'} profile` : ''} onError={() => setChatAvatarFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name.trim().charAt(0).toUpperCase() : isGroup ? 'G' : '?'}</div>}
             </div>
-            <div className="interlocutor-details"><button type="button" className="profile-heading-button" onClick={() => !isGroup && setProfileUserId(Number(selectedChat.other_user_id || selectedChat.user_id || selectedChat.id))}><h4>{selectedChat.name}</h4></button><p className="presence-subtext">{isGroup ? 'Group' : selectedChat.online ? 'Online' : 'Offline'}</p></div>
+            <div className="interlocutor-details"><button type="button" className="profile-heading-button" onClick={() => !isGroup && setProfileUserId(Number(selectedChat.other_user_id || selectedChat.user_id || selectedChat.id))}><h4>{selectedChat.name}</h4></button><p className="presence-subtext">{isGroup ? 'Group' : isPublicChat ? 'Live' : selectedChat.online ? 'Online' : 'Offline'}</p></div>
           </div>
         ) : <div className="active-interlocutor-card"><h4>Select a conversation to begin</h4></div>}
 
@@ -304,6 +305,8 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
               <button className="action-utility-btn" onClick={prepareGroupInvite} disabled={preparingInvite}><Link2 size={16}/><span>{preparingInvite ? 'Preparing...' : 'Invite People'}</span></button>
               <button className="action-utility-btn text-red" style={{ color: '#ef4444' }} onClick={() => onDeleteGroup(selectedChat)}><Trash2 size={18}/><span>Delete Group</span></button>
             </>}
+          </> : isPublicChat ? <>
+            <button className="action-utility-btn" onClick={() => setModal('manage_public_chat')} aria-label="Manage public chat"><Users size={18}/><span>Manage</span></button>
           </> : <>
             <button className="action-utility-btn" onClick={() => setModal('group')}><Users size={18}/><span>New Group</span></button>
             {selectedChat && <button className="action-utility-btn" style={{ color: '#ef4444' }} onClick={() => onDeleteChat(selectedChat)}><Trash2 size={18}/><span>Delete Chat</span></button>}
