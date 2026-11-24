@@ -155,7 +155,7 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
             <p><strong>Reason:</strong> {report.reason}</p>{report.details && <p>{report.details}</p>}
             <p className="public-chat-manage-muted">Reported {report.created_at ? new Date(report.created_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</p>
             {moderatorAccess && <div className="public-chat-manage-report-actions"><button type="button" onClick={() => moderateUser(report, 'remove')} disabled={moderatingId === Number(report.reported_user_id)}><UserX size={15}/> Remove Restriction</button><button type="button" onClick={() => moderateUser(report, 'extend')} disabled={moderatingId === Number(report.reported_user_id)}><Clock3 size={15}/> Extend 7 Days</button></div>}
-          </article>) : !reportsLoading && canReviewReports ? <p className="public-chat-manage-muted">No community reports for this room.</p> : null}
+          </article>) : !reportsLoading && moderatorAccess ? <p className="public-chat-manage-muted">No community reports for this room.</p> : null}
         </section>}
         {activeTab === 'permissions' && <section className="public-chat-manage-section">
           <h3>Public Chat Permissions</h3>
