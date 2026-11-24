@@ -230,6 +230,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   };
 
   const isGroup = selectedChat?.type === 'group' || selectedChat?.isGroup;
+  const isPublic = selectedChat?.type === 'public' || selectedChat?.isPublic;
   const isPollChat = selectedChat?.type === 'group';
   const canEditPoll = msg => {
     if (Number(msg?.sender_id) !== Number(user?.id) || msg?.type !== 'poll' || Number(msg?.edit_count || 0) >= 2) return false;
@@ -297,6 +298,8 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
               <button className="action-utility-btn" onClick={prepareGroupInvite} disabled={preparingInvite}><Link2 size={16}/><span>{preparingInvite ? 'Preparing...' : 'Invite People'}</span></button>
               <button className="action-utility-btn text-red" style={{ color: '#ef4444' }} onClick={() => onDeleteGroup(selectedChat)}><Trash2 size={18}/><span>Delete Group</span></button>
             </>}
+          </> : isPublic ? <>
+            <button className="action-utility-btn" onClick={() => setModal('manage_public_chat')}><Users size={16}/><span>Manage</span></button>
           </> : <>
             <button className="action-utility-btn" onClick={() => setModal('group')}><Users size={18}/><span>New Group</span></button>
             {selectedChat && <button className="action-utility-btn" style={{ color: '#ef4444' }} onClick={() => onDeleteChat(selectedChat)}><Trash2 size={18}/><span>Delete Chat</span></button>}
