@@ -10,7 +10,7 @@ import AttachmentControls from './AttachmentControls';
 import AttachmentActions from './AttachmentActions';
 import AttachmentPreview from './AttachmentPreview';
 import MediaMessageControls from './MediaMessageControls';
-import { ChatThemeControl, ForwardMessageDialog, MessageReadStatusDialog, UserProfileDialog } from './WebMobileParity';
+import { ForwardMessageDialog, MessageReadStatusDialog, UserProfileDialog, ProfileImageDialog } from './WebMobileParity';
 import EmojiPicker from './EmojiPicker';
 
 const pollCardStyle = { background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', minWidth: 0, width: 'min(360px, 100%)', maxWidth: '100%', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginBottom: '4px' };
@@ -52,6 +52,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const [forwardTarget, setForwardTarget] = useState(null);
   const [readStatusTarget, setReadStatusTarget] = useState(null);
   const [profileUserId, setProfileUserId] = useState(null);
+  const [profileImageOpen, setProfileImageOpen] = useState(false);
   const [chatAvatarFailed, setChatAvatarFailed] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null);
   const [mentionCandidates, setMentionCandidates] = useState([]);
@@ -232,7 +233,8 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   };
 
   const isGroup = selectedChat?.type === 'group' || selectedChat?.isGroup;
-  const chatAvatarUrl = selectedChat?.image_url || (isGroup && selectedChat?.id ? mediaUrl('group', selectedChat.id) : '');
+  const privateUserId = Number(selectedChat?.other_user_id || selectedChat?.user_id || selectedChat?.participant_id || selectedChat?.id);
+  const chatAvatarUrl = selectedChat?.image_url || (isGroup && selectedChat?.id ? mediaUrl('group', selectedChat.id) : (!isGroup && selectedChat?.type !== 'public' && !selectedChat?.isPublic ? mediaUrl('user', privateUserId) : ''));
   const chatAvatarSrc = chatAvatarUrl
     ? `${chatAvatarUrl}${chatAvatarUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(String(selectedChat?.image_version || ''))}`
     : '';
@@ -283,9 +285,9 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
       <header className="canvas-header-nav">
         {selectedChat ? (
           <div className="active-interlocutor-card">
-            <div className="avatar-frame small">
-              {chatAvatarSrc && !chatAvatarFailed ? <img src={chatAvatarSrc} alt={isGroup ? `${selectedChat.name || 'Group'} profile` : ''} onError={() => setChatAvatarFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name.trim().charAt(0).toUpperCase() : isGroup ? 'G' : '?'}</div>}
-            </div>
+            <button type="button" className="avatar-frame small private-header-avatar-button" aria-label="View profile picture" onClick={() => !isGroup && selectedChat?.type !== 'public' && !selectedChat?.isPublic && setProfileImageOpen(true)} disabled={isGroup || selectedChat?.type === 'public' || selectedChat?.isPublic}>
+              {chatAvatarSrc && !chatAvatarFailed ? <img src={chatAvatarSrc} alt={selectedChat.name || 'Profile'} onError={() => setChatAvatarFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name.trim().charAt(0).toUpperCase() : isGroup ? 'G' : '?'}</div>}
+            </button>
             <div className="interlocutor-details"><button type="button" className="profile-heading-button" onClick={() => !isGroup && setProfileUserId(Number(selectedChat.other_user_id || selectedChat.user_id || selectedChat.id))}><h4>{selectedChat.name}</h4></button><p className="presence-subtext">{isGroup ? 'Group' : isPublicChat ? 'Live' : selectedChat.online ? 'Online' : 'Offline'}</p></div>
           </div>
         ) : <div className="active-interlocutor-card"><h4>Select a conversation to begin</h4></div>}
@@ -313,7 +315,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           </>}
 
           {selectedChat && <button className="action-utility-btn" onClick={async () => { const next = !chatMuted; try { await apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, muted: next }) }); setChatMuted(next); } catch (error) { alert(error.message || 'Unable to update mute setting.'); } }}><span>{chatMuted ? '🔕 Unmute' : '🔔 Mute'}</span></button>}
-          <ChatThemeControl chatId={selectedChat?.id} /><div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
+          <div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
         </div>
       </header>
       {searchOpen && <div className="chat-search-bar"><Search size={18} /><input autoFocus aria-label="Search this conversation" placeholder="Search messages and filenames…" maxLength={120} value={searchQuery} onChange={event => setSearchQuery(event.target.value)} /><span role="status">{searchActive ? searchStatus : 'Search this conversation'}</span><button aria-label="Close search" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}><X size={18} /></button></div>}
@@ -416,6 +418,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
       {forwardTarget && <ForwardMessageDialog message={forwardTarget} onClose={() => setForwardTarget(null)} />}
       {readStatusTarget && <MessageReadStatusDialog message={readStatusTarget} onClose={() => setReadStatusTarget(null)} />}
       {profileUserId && <UserProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />}
+      {profileImageOpen && selectedChat && <ProfileImageDialog imageUrl={chatAvatarSrc || mediaUrl('user', privateUserId)} name={selectedChat.name || 'User'} onClose={() => setProfileImageOpen(false)} />}
       {deleteTarget && <div className="modal-overlay"><div className="modal-content-card message-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete message"><h3>Delete message?</h3><p>Delete for me removes it from your account. Only the sender can delete it for everyone.</p><button disabled={deleting} onClick={() => deleteMessage('self')}>Delete for me</button>{Number(deleteTarget.sender_id) === Number(user?.id) && <button className="danger" disabled={deleting} onClick={() => deleteMessage('everyone')}>Delete for everyone</button>}<button disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button></div></div>}
     </main>
   );
