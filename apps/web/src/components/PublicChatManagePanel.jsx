@@ -184,7 +184,7 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
           <div className="public-chat-manage-report-actions"><button type="button" onClick={() => setReportTarget(null)} disabled={submittingReport}>Cancel</button><button type="button" onClick={submitReport} disabled={submittingReport}>{submittingReport ? 'Submitting…' : 'Submit Report'}</button></div>
         </section>
       </div>}
-      {profileUserId && <UserProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />}
+      {profileUserId && <UserProfileDialog userId={profileUserId} currentUserId={user?.id} onClose={() => setProfileUserId(null)} />}
     </aside>
   );
 }
