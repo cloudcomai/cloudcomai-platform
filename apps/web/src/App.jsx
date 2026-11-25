@@ -57,7 +57,8 @@ const screenFromLocation = () => {
 
     const route = window.location.hash.replace(/^#/, '').toLowerCase();
     if (route.startsWith('invite=')) return 'invite';
-    if (['login', 'register', 'forgot', 'app'].includes(route)) return route;
+    if (route === 'app' || route.startsWith('app/')) return 'app';
+    if (['login', 'register', 'forgot'].includes(route)) return route;
     return 'home';
 };
 
@@ -301,6 +302,8 @@ function App() {
         chatPageRef.current = 1;
         chatHasMoreRef.current = true;
         setActiveTab(tab);
+        const nextHash = tab === 'public' ? '#app/public' : tab === 'groups' ? '#app/groups' : tab === 'people' ? '#app/people' : '#app/chats';
+        window.history.pushState({}, '', `${window.location.pathname}${window.location.search}${nextHash}`);
         setSelectedChat(null);
         setMessages([]);
         latestMessageIdRef.current = 0;
@@ -645,7 +648,9 @@ function App() {
         if (!chat) throw new Error('This conversation is no longer available.');
         setPendingFocusMessageId(Number(messageId) || null);
         const isPublic = chat.type === 'public' || chat.isPublic;
-        setActiveTab(isPublic ? 'public' : chat.type === 'group' ? 'groups' : 'chats');
+        const nextTab = isPublic ? 'public' : chat.type === 'group' ? 'groups' : 'chats';
+        setActiveTab(nextTab);
+        window.history.pushState({}, '', `${window.location.pathname}${window.location.search}#app/${nextTab}/${Number(id)}`);
         setSelectedChat({ ...chat, id: Number(id), isGroup: chat.type === 'group', isPublic });
     };
     const acceptRotatedSession = async data => {
