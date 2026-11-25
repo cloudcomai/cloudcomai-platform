@@ -3,6 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 
 const store = fs.readFileSync(new URL('../src/hooks/useMessagingStore.js', import.meta.url), 'utf8');
+const messagingCore = fs.readFileSync(new URL('../../../packages/chat-core/src/messaging-store.js', import.meta.url), 'utf8');
 
 test('messaging persistence uses URI-based legacy FileSystem calls, not shared File objects', () => {
   assert.match(store, /from 'expo-file-system\/legacy'/);
@@ -14,7 +15,7 @@ test('messaging persistence uses URI-based legacy FileSystem calls, not shared F
 });
 
 test('messaging persistence retains account-scoped primary and backup files', () => {
-  assert.match(store, /cloudcomai\.messages\./);
+  assert.match(messagingCore, /cloudcomai\.messages\.\$\{userId\}/);
   assert.match(store, /storageFileUri\(key, '\.backup\.json'\)/);
   assert.match(store, /if \(value === null\) return readStoredValue\(backupUri\)/);
   assert.match(store, /if \(backup !== null\) return backup/);
