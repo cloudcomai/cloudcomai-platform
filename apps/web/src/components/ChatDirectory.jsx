@@ -5,13 +5,14 @@ import { mediaUrl, platformApi } from '../services/platform';
 
 const imageUrl = chat => chat?.image_url || (chat?.isGroup ? mediaUrl('group', chat?.id) : (chat?.isPublic ? '' : mediaUrl('user', chat?.other_user_id || chat?.id)));
 
-export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab }) {
+export default function ChatDirectory({ onLoadMore, onJoinPublicChat, onLeavePublicChat, searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab }) {
   const [failedImages, setFailedImages] = useState({});
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState('');
   const [contactsTotal, setContactsTotal] = useState(0);
   const [contactsView, setContactsView] = useState('online');
+  const [busyPublicRoomId, setBusyPublicRoomId] = useState(null);
 
   const markImageFailed = id => setFailedImages(prev => ({ ...prev, [id]: true }));
 
@@ -183,6 +184,19 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
           const src = imageUrl(chat);
           const imageKey = `${chat.isGroup ? 'group' : 'user'}-${chat.id}`;
           const imageFailed = Boolean(failedImages[imageKey]);
+          const isPublicRoom = activeTab === 'public' || chat.type === 'public' || chat.isPublic;
+          const isJoined = Boolean(chat.joined || chat.is_member);
+          const roomBusy = busyPublicRoomId === Number(chat.id);
+          const runPublicRoomAction = async (event, action) => {
+            event.stopPropagation();
+            if (busyPublicRoomId !== null) return;
+            setBusyPublicRoomId(Number(chat.id));
+            try {
+              await action?.(chat);
+            } finally {
+              setBusyPublicRoomId(null);
+            }
+          };
           return (
             <div key={chat.id} className={`conversation-row-card ${selectedChat?.id === chat.id ? 'selected' : ''}`} onClick={() => setSelectedChat(chat)}>
               <div className="avatar-frame">
@@ -196,7 +210,13 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
               <div className="conversation-meta-summary">
                 <div className="top-row"><h5 title={chat.name || ''} className={chat.isGroup ? 'conversation-name-group' : ''}>{chat.name}</h5><span className="timestamp">{chat.time || 'Active'}</span></div>
                 <div className="bottom-row"><p className="message-snippet">{chat.preview || ''}</p>{chat.unread > 0 && <span className="unread-counter-bubble">{chat.unread}</span>}</div>
+                {isPublicRoom && <div className="public-room-directory-meta"><span>👥 {Number(chat.joined_count || 0)} Joined</span>{Number.isFinite(Number(chat.online_count)) && <span>🟢 {Number(chat.online_count)} Online</span>}</div>}
               </div>
+              {isPublicRoom && <div className="public-room-directory-actions">
+                {isJoined
+                  ? <button type="button" className="public-room-leave-button" disabled={busyPublicRoomId !== null} onClick={event => void runPublicRoomAction(event, onLeavePublicChat)}>{roomBusy ? 'Leaving…' : 'Leave'}</button>
+                  : <button type="button" className="public-room-join-button" disabled={busyPublicRoomId !== null} onClick={event => void runPublicRoomAction(event, onJoinPublicChat)}>{roomBusy ? 'Joining…' : 'Join'}</button>}
+              </div>}
             </div>
           );
         })}
