@@ -169,7 +169,7 @@ export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery,
     <section className="chats-directory">
       <header className="directory-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '700', textTransform: 'capitalize', color: 'var(--text-main)' }}>{activeTab === 'chats' ? 'Messages' : activeTab === 'groups' ? 'Group Rooms' : 'Conversations'}</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', textTransform: 'capitalize', color: 'var(--text-main)' }}>{activeTab === 'chats' ? 'Messages' : activeTab === 'groups' ? 'Group Rooms' : activeTab === 'public' ? 'Public Chat Rooms' : 'Conversations'}</h2>
           {activeTab === 'groups' && <button onClick={() => setModal('group')} style={{ background: 'var(--primary-color)', color: 'white', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>+ Create Group</button>}
         </div>
 
