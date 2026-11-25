@@ -62,6 +62,9 @@ const screenFromLocation = () => {
     return 'home';
 };
 
+const tabFromLocation = () => { const route = window.location.hash.replace(/^#/, '').toLowerCase(); return route.startsWith('app/public') ? 'public' : route.startsWith('app/groups') ? 'groups' : route.startsWith('app/people') ? 'people' : 'chats'; };
+const publicRoomIdFromLocation = () => { const match = window.location.hash.match(/^#app\/public\/(\d+)/i); return match ? Number(match[1]) : 0; };
+
 const screenHashes = {
     home: '#top',
     login: '#login',
@@ -104,7 +107,7 @@ function App() {
     const [desktopTheme, setDesktopTheme] = useState(() => getStoredDesktopTheme());
     const [isDesktopViewport, setIsDesktopViewport] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(min-width: 1024px)').matches));
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState('chats');
+    const [activeTab, setActiveTab] = useState(() => tabFromLocation());
     useEffect(() => { if (modal === 'manage_members') setActiveTab('groups'); }, [modal]);
     const [topInterests, setTopInterests] = useState(defaultInterests);
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
@@ -636,7 +639,7 @@ function App() {
         setMessages(current => mergeMessageBatch(current, result.data.messages || []).messages);
     }, []);
 
-    const openExistingChat = async (id, messageId = null) => {
+    const openExistingChat = async (id, messageId = null, updateUrl = true) => {
         const [privateResult, groupResult, publicResult] = await Promise.all([
             platformApi.listChats('private'), platformApi.listChats('group'), platformApi.listPublicChats()
         ]);
@@ -650,9 +653,19 @@ function App() {
         const isPublic = chat.type === 'public' || chat.isPublic;
         const nextTab = isPublic ? 'public' : chat.type === 'group' ? 'groups' : 'chats';
         setActiveTab(nextTab);
-        window.history.pushState({}, '', `${window.location.pathname}${window.location.search}#app/${nextTab}/${Number(id)}`);
+        if (updateUrl) window.history.pushState({}, '', `${window.location.pathname}${window.location.search}#app/${nextTab}/${Number(id)}`);
         setSelectedChat({ ...chat, id: Number(id), isGroup: chat.type === 'group', isPublic });
     };
+    useEffect(() => {
+        if (!token || screen !== 'app') return;
+        const roomId = publicRoomIdFromLocation();
+        if (roomId && Number(selectedChat?.id) !== roomId) {
+            openExistingChat(roomId, null, false).catch(error => console.warn('Unable to restore Public Chat room from URL:', error));
+        } else if (!roomId) {
+            setActiveTab(tabFromLocation());
+        }
+    }, [token, screen]);
+
     const acceptRotatedSession = async data => {
         await saveWebSession({ token: data.token, user: { ...user, ...data.user } });
         setToken(data.token); setUser(current => ({ ...current, ...data.user }));
