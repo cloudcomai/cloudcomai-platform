@@ -498,6 +498,12 @@ function App() {
 
     const handleSendMessage = async (mentionUserIds = []) => {
         if (!composer.trim() || !selectedChat || selectedChat.blocked || sendInProgress.current) return false;
+        if ((selectedChat.type === 'public' || selectedChat.isPublic) && !(selectedChat.joined || selectedChat.is_member || selectedChat.is_joined)) {
+            setSelectedChat(null);
+            setMessages([]);
+            setComposer('');
+            return false;
+        }
         sendInProgress.current = true; setSending(true);
         const chatId = selectedChat.id;
         try {
@@ -544,7 +550,22 @@ function App() {
 
     const handleSelectConversationRow = async (selectedRowItem) => {
         if (!selectedRowItem) return;
-        if (!selectedRowItem.isContact) { if (selectedRowItem.type === 'public' || selectedRowItem.isPublic) setActiveTab('public'); setSelectedChat(selectedRowItem); return; }
+        if (!selectedRowItem.isContact) {
+            const isPublic = selectedRowItem.type === 'public' || selectedRowItem.isPublic;
+            if (isPublic) {
+                setActiveTab('public');
+                const isJoined = Boolean(selectedRowItem.joined || selectedRowItem.is_member || selectedRowItem.is_joined);
+                if (!isJoined) {
+                    setSelectedChat(null);
+                    setMessages([]);
+                    setComposer('');
+                    latestMessageIdRef.current = 0;
+                    return;
+                }
+            }
+            setSelectedChat(selectedRowItem);
+            return;
+        }
         try {
             const response = await api(ApiRoute.CHATS, { method: 'POST', body: JSON.stringify({ type: 'private', target_user_id: selectedRowItem.id }) });
             if (response.chat) {
@@ -654,6 +675,15 @@ function App() {
         if (!chat) throw new Error('This conversation is no longer available.');
         setPendingFocusMessageId(Number(messageId) || null);
         const isPublic = chat.type === 'public' || chat.isPublic;
+        const isJoinedPublicRoom = Boolean(chat.joined || chat.is_member || chat.is_joined);
+        if (isPublic && !isJoinedPublicRoom) {
+            setActiveTab('public');
+            setSelectedChat(null);
+            setMessages([]);
+            setComposer('');
+            latestMessageIdRef.current = 0;
+            return false;
+        }
         const nextTab = isPublic ? 'public' : chat.type === 'group' ? 'groups' : 'chats';
         setActiveTab(nextTab);
         if (updateUrl) window.history.pushState({}, '', `${window.location.pathname}${window.location.search}#app/${nextTab}/${Number(id)}`);
