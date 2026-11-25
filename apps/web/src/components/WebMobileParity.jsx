@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { platformApi } from '../services/platform';
+import { platformApi, mediaUrl } from '../services/platform';
 
 export function ForwardMessageDialog({ message, onClose }) {
   const [chats, setChats] = useState([]);
