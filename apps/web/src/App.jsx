@@ -310,7 +310,7 @@ function App() {
 
     const getActiveListPath = useCallback(() => {
         if (activeTab === 'groups') return { route: ApiRoute.CHATS, query: { type: 'group' } };
-        if (activeTab === 'people') return null;
+        if (activeTab === 'people' || activeTab === 'public') return null;
         return { route: ApiRoute.CHATS, query: { type: 'private' } };
     }, [activeTab]);
 
@@ -319,6 +319,14 @@ function App() {
         if (append && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
         if (append) chatLoadingMoreRef.current = true;
         try {
+            if (activeTab === 'public') {
+                const { data } = await platformApi.listPublicChats();
+                const rooms = (data.rooms || data.chats || []).map(room => ({ ...room, id: Number(room.id), type: 'public', isPublic: true, isGroup: false }));
+                setChats(rooms);
+                setSelectedChat(prev => prev?.type === 'public' || prev?.isPublic ? rooms.find(room => room.id === Number(prev.id)) || prev : prev);
+                chatPageRef.current = 1; chatHasMoreRef.current = false;
+                return;
+            }
             const activeListPath = getActiveListPath();
             if (!activeListPath) return;
             const { route, query } = activeListPath;
@@ -364,7 +372,7 @@ function App() {
         } finally {
             chatLoadingMoreRef.current = false;
         }
-    }, [getActiveListPath, screen, token, user?.id]);
+    }, [activeTab, getActiveListPath, screen, token, user?.id]);
 
     useEffect(() => {
         chatPageRef.current = 1;
@@ -527,7 +535,7 @@ function App() {
 
     const handleSelectConversationRow = async (selectedRowItem) => {
         if (!selectedRowItem) return;
-        if (!selectedRowItem.isContact) { setSelectedChat(selectedRowItem); return; }
+        if (!selectedRowItem.isContact) { if (selectedRowItem.type === 'public' || selectedRowItem.isPublic) setActiveTab('public'); setSelectedChat(selectedRowItem); return; }
         try {
             const response = await api(ApiRoute.CHATS, { method: 'POST', body: JSON.stringify({ type: 'private', target_user_id: selectedRowItem.id }) });
             if (response.chat) {
@@ -636,7 +644,9 @@ function App() {
         ].find(item => Number(item.id) === Number(id));
         if (!chat) throw new Error('This conversation is no longer available.');
         setPendingFocusMessageId(Number(messageId) || null);
-        setSelectedChat({ ...chat, id: Number(id), isGroup: chat.type === 'group', isPublic: chat.type === 'public' || chat.isPublic });
+        const isPublic = chat.type === 'public' || chat.isPublic;
+        setActiveTab(isPublic ? 'public' : chat.type === 'group' ? 'groups' : 'chats');
+        setSelectedChat({ ...chat, id: Number(id), isGroup: chat.type === 'group', isPublic });
     };
     const acceptRotatedSession = async data => {
         await saveWebSession({ token: data.token, user: { ...user, ...data.user } });
