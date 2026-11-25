@@ -17,6 +17,7 @@ import {
   ScrollView,
   StatusBar,
   Switch,
+  useWindowDimensions,
   StyleSheet,
   Text,
   TextInput,
@@ -53,6 +54,7 @@ import PollEditModal from './src/components/PollEditModal';
 import MediaComposer from './src/components/MediaComposer';
 import PrivacySettings from './src/components/PrivacySettings';
 import AccountTools from './src/components/AccountTools';
+import ContactAvatar from './src/components/ContactAvatar';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { apiClient, mediaUrl, platformApi, sessionManager, subscribeToSessionExpiration, getRememberedDeviceToken, saveRememberedDeviceToken, clearRememberedDeviceToken } from './src/services/platform';
 import { useAttachmentUpload } from './src/hooks/useAttachmentUpload';
@@ -287,6 +289,8 @@ const parseEditTimestamp = value => {
 };
 
 function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, localMessageError, deliveredMessage, themeSettings, privacySettings, initialMessageId = null, onInitialMessageHandled }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const headerAvatarSize = windowWidth < 360 ? 32 : 36;
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState('');
   const [mentionQuery, setMentionQuery] = useState(null);
@@ -800,16 +804,28 @@ function ChatDetail({ chat, user, onBack, onDeleted, messaging, localMessages, l
       >
       <View style={[styles.header, { backgroundColor: theme.colors.header }]}>
         <Pressable onPress={onBack}><Text style={styles.back}>‹ Chats</Text></Pressable>
-        <Pressable
-          style={styles.chatHeaderIdentity}
-          disabled={chat.isGroup || chat.isPublic || !chat.other_user_id}
-          onPress={() => setProfileOpen(true)}
-          accessibilityRole={chat.isGroup || chat.isPublic ? undefined : 'button'}
-          accessibilityLabel={chat.isGroup || chat.isPublic ? undefined : `View ${chat.name || 'user'} profile`}
-        >
-          <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
-          {!chat.isGroup && !chat.isPublic && chat.other_user_id ? <Text style={styles.headerProfileHint}>View profile</Text> : null}
-        </Pressable>
+        <View style={styles.chatHeaderIdentityRow}>
+          {!chat.isGroup && !chat.isPublic && chat.other_user_id ? (
+            <ContactAvatar
+              key={String(chat.other_user_id)}
+              userId={chat.other_user_id}
+              name={chat.name || 'CloudComAI user'}
+              username={chat.other_user_username || chat.username}
+              imageUri={chat.other_user_photo_url || chat.photo_url || mediaUrl('user', chat.other_user_id, chat.other_user_image_version || chat.image_version || '')}
+              size={headerAvatarSize}
+            />
+          ) : null}
+          <Pressable
+            style={styles.chatHeaderIdentity}
+            disabled={chat.isGroup || chat.isPublic || !chat.other_user_id}
+            onPress={() => setProfileOpen(true)}
+            accessibilityRole={chat.isGroup || chat.isPublic ? undefined : 'button'}
+            accessibilityLabel={chat.isGroup || chat.isPublic ? undefined : `View ${chat.name || 'user'} profile`}
+          >
+            <Text style={styles.headerTitle} numberOfLines={1}>{chat.isGroup ? groupName : (chat.name || 'Conversation')}</Text>
+            {!chat.isGroup && !chat.isPublic && chat.other_user_id ? <Text style={styles.headerProfileHint}>View profile</Text> : null}
+          </Pressable>
+        </View>
         <View style={styles.chatHeaderActions}>
           <Pressable onPress={async () => { const next = !muted; try { await platformApi.updateChatNotificationState(chat.id, { muted: next }); setMuted(next); } catch (e) { setError(e.message || 'Unable to update mute setting.'); } }}><Text style={styles.headerActionText}>{muted ? '🔕' : '🔔'}</Text></Pressable>
           {chat.isGroup ? <Pressable onPress={() => setGroupManagementOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : chat.isPublic ? <Pressable onPress={() => setPublicManageOpen(true)}><Text style={styles.deleteChat}>Manage</Text></Pressable> : <Pressable onPress={confirmDelete} disabled={deleting}><Text style={styles.deleteChat}>{deleting ? 'Deleting' : 'Delete'}</Text></Pressable>}
@@ -1432,7 +1448,7 @@ export default function App() {
 const styles = StyleSheet.create({mentionSuggestions:{maxHeight:180,borderTopWidth:1,borderLeftWidth:1,borderRightWidth:1},mentionSuggestion:{minHeight:46,paddingHorizontal:14,paddingVertical:8,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1},mentionSuggestionName:{fontWeight:'800',fontSize:14},mentionSuggestionMeta:{fontSize:12,marginLeft:10,flexShrink:1},
   success: { marginBottom: 12, color: '#166534', lineHeight: 20 },
   searchRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 }, contextBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#dfe4ee', backgroundColor: '#f8faff' }, contextBarText: { flex: 1, minWidth: 0 }, contextBarLabel: { color: '#3157d5', fontWeight: '800', fontSize: 11 }, contextBarValue: { color: '#475569', fontSize: 12, marginTop: 2 }, contextBarClose: { color: '#64748b', fontSize: 24, paddingHorizontal: 8 }, replyPreview: { padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#3157d5', borderRadius: 6, backgroundColor: '#f8faff' }, replySender: { color: '#3157d5', fontSize: 10, fontWeight: '800' }, replyText: { color: '#64748b', fontSize: 11, marginTop: 2 }, messageActions: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'space-around', alignItems: 'stretch', gap: 2, marginTop: 8, paddingHorizontal: 4, paddingVertical: 7, borderWidth: 1, borderRadius: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }, messageActionButton: { flex: 1, minWidth: 0, minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 1 }, messageActionIcon: { color: '#1677c8', fontSize: 22, fontWeight: '800', lineHeight: 24 }, messageActionLabel: { marginTop: 2, color: '#172033', fontSize: 9, fontWeight: '700' }, messageActionText: { color: '#3157d5', fontSize: 11, fontWeight: '700' }, selectedMessage: { borderWidth: 1.5, borderColor: '#3157d5' }, highlightedMessage: { borderWidth: 2, borderColor: '#f59e0b' }, attachmentCard: { width: '94%', maxHeight: '82%', padding: 18, borderRadius: 18, backgroundColor: '#fff' }, attachmentMenuOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22, backgroundColor: '#0008' }, attachmentMenuCard: { width: '100%', maxWidth: 420, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14, borderRadius: 3, backgroundColor: '#fff', elevation: 8, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12 }, attachmentMenuHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }, attachmentMenuClose: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' }, attachmentMenuCloseText: { color: '#374151', fontSize: 25, lineHeight: 27 }, attachmentMenuHint: { marginTop: -4, marginBottom: 22, color: '#172033', fontSize: 16, lineHeight: 20 }, attachmentMenuActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, attachmentMenuOption: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center' }, attachmentMenuOptionText: { color: '#008577', fontSize: 13, fontWeight: '700', textAlign: 'center' }, attachmentMenuCancel: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }, attachmentTitle: { fontSize: 18, fontWeight: '800', color: '#172033', marginBottom: 12 }, attachmentPreview: { width: '100%', height: 300, borderRadius: 12, backgroundColor: '#f3f4f6' }, documentPreview: { minHeight: 180, alignItems: 'center', justifyContent: 'center', padding: 20, borderRadius: 12, backgroundColor: '#f8faff' }, documentIcon: { fontSize: 50 }, documentName: { marginTop: 10, fontSize: 15, fontWeight: '800', color: '#172033', textAlign: 'center' }, documentSize: { marginTop: 5, color: '#68748a', fontSize: 11 }, attachmentSending: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, attachmentProgress: { color: '#3157d5', fontWeight: '700' }, attachmentError: { marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: '#fff1f2', flexDirection: 'row', justifyContent: 'space-between' }, attachmentErrorText: { flex: 1, color: '#b91c1c' }, attachmentActions: { marginTop: 14, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 18 }, attachmentSend: { paddingVertical: 11, paddingHorizontal: 18, borderRadius: 10, backgroundColor: '#3157d5' }, attachmentSendText: { color: '#fff', fontWeight: '800' }, cancelText: { color: '#68748a', fontWeight: '700', paddingVertical: 11, paddingHorizontal: 4 }, cancelTextActive: { color: '#3157d5', fontWeight: '800' }, messageDeleteAction: { color: '#b91c1c' }, moderationMessage: { alignSelf: 'center', maxWidth: '90%', marginVertical: 8, padding: 12, borderRadius: 12, backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa' }, moderationTitle: { color: '#9a3412', fontSize: 11, fontWeight: '800', textAlign: 'center' }, moderationText: { marginTop: 4, color: '#7c2d12', fontSize: 12, lineHeight: 17, textAlign: 'center' }, moderationTime: { marginTop: 5, color: '#a16207', fontSize: 9, textAlign: 'center' }, searchLink: { color: '#3157d5', fontWeight: '600' }, searchBox: { paddingHorizontal: 14, paddingBottom: 8 }, messageDelete: { alignSelf: 'flex-end', color: '#68748a', fontSize: 11, paddingTop: 8 }, sender: { color: '#68748a', fontSize: 11, fontWeight: '700', marginBottom: 5 },
-  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, chatHeaderIdentity: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 8 }, headerProfileHint: { marginTop: 2, color: '#dbe4ff', fontSize: 10, fontWeight: '600' }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { flex: 1, flexShrink: 1, paddingRight: 8, color: '#172033', fontSize: 15, fontWeight: '600' },
+  headerActions: { flexDirection: 'row', gap: 12, alignItems: 'center', flexShrink: 0 }, headerIdentity: { flex: 1, minWidth: 0, paddingRight: 12 }, chatHeaderIdentityRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8 }, chatHeaderIdentity: { flex: 1, minWidth: 0, alignItems: 'flex-start', paddingHorizontal: 0 }, headerProfileHint: { marginTop: 2, color: '#dbe4ff', fontSize: 10, fontWeight: '600' }, settingsCard: { margin: 16, padding: 18, borderRadius: 16, backgroundColor: '#fff' }, settingsIntro: { color: '#68748a', marginBottom: 8 }, settingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#edf0f5' }, settingLabel: { flex: 1, flexShrink: 1, paddingRight: 8, color: '#172033', fontSize: 15, fontWeight: '600' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#f5f7fb' }, splashLogo: { width: 180, height: 72, marginBottom: 8 }, splashText: { color: '#526078' },
   loginPage: { flex: 1, backgroundColor: '#eef2ff' }, appLockCard: { margin: 24, padding: 24, borderRadius: 20, backgroundColor: '#fff', alignSelf: 'stretch', marginTop: '45%' }, appLockIcon: { width: 58, height: 58, alignSelf: 'center' }, authKeyboard: { flex: 1 }, authScroll: { flexGrow: 1, justifyContent: 'center', padding: 24 }, loginCard: { backgroundColor: '#fff', borderRadius: 20, padding: 24, shadowColor: '#111827', shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }, authLogo: { width: 176, height: 60, alignSelf: 'center', marginBottom: 4 },
   logo: { width: 56, height: 56, alignSelf: 'center', borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3157d5' }, logoText: { color: '#fff', fontSize: 28, fontWeight: '800' }, title: { marginTop: 14, textAlign: 'center', fontSize: 27, fontWeight: '800', color: '#172033' }, subtitle: { marginTop: 6, marginBottom: 22, textAlign: 'center', color: '#68748a' },
