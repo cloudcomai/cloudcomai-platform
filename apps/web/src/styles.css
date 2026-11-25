@@ -1569,6 +1569,55 @@ select {
   background-color: rgba(99, 102, 241, 0.2);
 }
 
+.public-room-directory-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.public-room-directory-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.public-room-directory-actions button {
+  min-width: 64px;
+  border: 1px solid var(--primary-color);
+  border-radius: 7px;
+  padding: 7px 11px;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.public-room-directory-actions .public-room-leave-button {
+  background: transparent;
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+
+.public-room-directory-actions button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 520px) {
+  .conversation-row-card:has(.public-room-directory-actions) {
+    align-items: flex-start;
+  }
+
+  .public-room-directory-actions button {
+    min-width: 56px;
+    padding: 7px 8px;
+  }
+}
+
 .conversation-meta-summary {
   flex: 1;
   min-width: 0;
