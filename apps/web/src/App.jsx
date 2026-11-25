@@ -8,6 +8,7 @@ import ChatCanvas from './components/ChatCanvas';
 import Auth from './components/Auth';
 import HomePage from './components/HomePage';
 import GroupMembershipModal from './components/GroupMembershipModal';
+import PublicChatManagePanel from './components/PublicChatManagePanel';
 import GroupCreationModal from './components/GroupCreationModal';
 import GroupEditModal from './components/GroupEditModal';
 import ProfileEditModal from './components/ProfileEditModal';
@@ -56,9 +57,13 @@ const screenFromLocation = () => {
 
     const route = window.location.hash.replace(/^#/, '').toLowerCase();
     if (route.startsWith('invite=')) return 'invite';
-    if (['login', 'register', 'forgot', 'app'].includes(route)) return route;
+    if (route === 'app' || route.startsWith('app/')) return 'app';
+    if (['login', 'register', 'forgot'].includes(route)) return route;
     return 'home';
 };
+
+const tabFromLocation = () => { const route = window.location.hash.replace(/^#/, '').toLowerCase(); return route.startsWith('app/public') ? 'public' : route.startsWith('app/groups') ? 'groups' : route.startsWith('app/people') ? 'people' : 'chats'; };
+const publicRoomIdFromLocation = () => { const match = window.location.hash.match(/^#app\/public\/(\d+)/i); return match ? Number(match[1]) : 0; };
 
 const screenHashes = {
     home: '#top',
@@ -102,7 +107,8 @@ function App() {
     const [desktopTheme, setDesktopTheme] = useState(() => getStoredDesktopTheme());
     const [isDesktopViewport, setIsDesktopViewport] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(min-width: 1024px)').matches));
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState('chats');
+    const [activeTab, setActiveTab] = useState(() => tabFromLocation());
+    const [routeRevision, setRouteRevision] = useState(0);
     useEffect(() => { if (modal === 'manage_members') setActiveTab('groups'); }, [modal]);
     const [topInterests, setTopInterests] = useState(defaultInterests);
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
@@ -179,6 +185,8 @@ function App() {
                 window.sessionStorage.setItem(pendingInviteStorageKey, locationInviteToken);
             }
             setScreen(screenFromLocation());
+            setActiveTab(tabFromLocation());
+            setRouteRevision(value => value + 1);
         };
         window.addEventListener('cloudcomai:unauthorized', handleUnauthorized);
         window.addEventListener('hashchange', handleLocationChange);
@@ -300,6 +308,8 @@ function App() {
         chatPageRef.current = 1;
         chatHasMoreRef.current = true;
         setActiveTab(tab);
+        const nextHash = tab === 'public' ? '#app/public' : tab === 'groups' ? '#app/groups' : tab === 'people' ? '#app/people' : '#app/chats';
+        window.history.pushState({}, '', `${window.location.pathname}${window.location.search}${nextHash}`);
         setSelectedChat(null);
         setMessages([]);
         latestMessageIdRef.current = 0;
@@ -309,7 +319,7 @@ function App() {
 
     const getActiveListPath = useCallback(() => {
         if (activeTab === 'groups') return { route: ApiRoute.CHATS, query: { type: 'group' } };
-        if (activeTab === 'people') return null;
+        if (activeTab === 'people' || activeTab === 'public') return null;
         return { route: ApiRoute.CHATS, query: { type: 'private' } };
     }, [activeTab]);
 
@@ -318,6 +328,14 @@ function App() {
         if (append && (chatLoadingMoreRef.current || !chatHasMoreRef.current)) return;
         if (append) chatLoadingMoreRef.current = true;
         try {
+            if (activeTab === 'public') {
+                const { data } = await platformApi.listPublicChats();
+                const rooms = (data.rooms || data.chats || []).map(room => ({ ...room, id: Number(room.id), type: 'public', isPublic: true, isGroup: false }));
+                setChats(rooms);
+                setSelectedChat(prev => prev?.type === 'public' || prev?.isPublic ? rooms.find(room => room.id === Number(prev.id)) || prev : prev);
+                chatPageRef.current = 1; chatHasMoreRef.current = false;
+                return;
+            }
             const activeListPath = getActiveListPath();
             if (!activeListPath) return;
             const { route, query } = activeListPath;
@@ -363,7 +381,7 @@ function App() {
         } finally {
             chatLoadingMoreRef.current = false;
         }
-    }, [getActiveListPath, screen, token, user?.id]);
+    }, [activeTab, getActiveListPath, screen, token, user?.id]);
 
     useEffect(() => {
         chatPageRef.current = 1;
@@ -398,7 +416,7 @@ function App() {
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [token, screen]);
+    }, [token, screen, routeRevision]);
 
     useEffect(() => {
         if (!token || screen !== 'app') return undefined;
@@ -480,6 +498,12 @@ function App() {
 
     const handleSendMessage = async (mentionUserIds = []) => {
         if (!composer.trim() || !selectedChat || selectedChat.blocked || sendInProgress.current) return false;
+        if ((selectedChat.type === 'public' || selectedChat.isPublic) && !(selectedChat.joined || selectedChat.is_member || selectedChat.is_joined)) {
+            setSelectedChat(null);
+            setMessages([]);
+            setComposer('');
+            return false;
+        }
         sendInProgress.current = true; setSending(true);
         const chatId = selectedChat.id;
         try {
@@ -526,7 +550,22 @@ function App() {
 
     const handleSelectConversationRow = async (selectedRowItem) => {
         if (!selectedRowItem) return;
-        if (!selectedRowItem.isContact) { setSelectedChat(selectedRowItem); return; }
+        if (!selectedRowItem.isContact) {
+            const isPublic = selectedRowItem.type === 'public' || selectedRowItem.isPublic;
+            if (isPublic) {
+                setActiveTab('public');
+                const isJoined = Boolean(selectedRowItem.joined || selectedRowItem.is_member || selectedRowItem.is_joined);
+                if (!isJoined) {
+                    setSelectedChat(null);
+                    setMessages([]);
+                    setComposer('');
+                    latestMessageIdRef.current = 0;
+                    return;
+                }
+            }
+            setSelectedChat(selectedRowItem);
+            return;
+        }
         try {
             const response = await api(ApiRoute.CHATS, { method: 'POST', body: JSON.stringify({ type: 'private', target_user_id: selectedRowItem.id }) });
             if (response.chat) {
@@ -624,7 +663,7 @@ function App() {
         setMessages(current => mergeMessageBatch(current, result.data.messages || []).messages);
     }, []);
 
-    const openExistingChat = async (id, messageId = null) => {
+    const openExistingChat = async (id, messageId = null, updateUrl = true) => {
         const [privateResult, groupResult, publicResult] = await Promise.all([
             platformApi.listChats('private'), platformApi.listChats('group'), platformApi.listPublicChats()
         ]);
@@ -635,8 +674,33 @@ function App() {
         ].find(item => Number(item.id) === Number(id));
         if (!chat) throw new Error('This conversation is no longer available.');
         setPendingFocusMessageId(Number(messageId) || null);
-        setSelectedChat({ ...chat, id: Number(id), isGroup: chat.type === 'group', isPublic: chat.type === 'public' || chat.isPublic });
+        const isPublic = chat.type === 'public' || chat.isPublic;
+        const isJoinedPublicRoom = Boolean(chat.joined || chat.is_member || chat.is_joined);
+        if (isPublic && !isJoinedPublicRoom) {
+            setActiveTab('public');
+            setSelectedChat(null);
+            setMessages([]);
+            setComposer('');
+            latestMessageIdRef.current = 0;
+            return false;
+        }
+        const nextTab = isPublic ? 'public' : chat.type === 'group' ? 'groups' : 'chats';
+        setActiveTab(nextTab);
+        if (updateUrl) window.history.pushState({}, '', `${window.location.pathname}${window.location.search}#app/${nextTab}/${Number(id)}`);
+        setSelectedChat({ ...chat, id: Number(id), isGroup: chat.type === 'group', isPublic });
     };
+    useEffect(() => {
+        if (!token || screen !== 'app') return;
+        const roomId = publicRoomIdFromLocation();
+        if (roomId && Number(selectedChat?.id) !== roomId) {
+            openExistingChat(roomId, null, false).catch(error => console.warn('Unable to restore Public Chat room from URL:', error));
+        } else if (!roomId) {
+            const nextTab = tabFromLocation();
+            setActiveTab(nextTab);
+            if (nextTab === 'public') setSelectedChat(null);
+        }
+    }, [token, screen]);
+
     const acceptRotatedSession = async data => {
         await saveWebSession({ token: data.token, user: { ...user, ...data.user } });
         setToken(data.token); setUser(current => ({ ...current, ...data.user }));
@@ -649,6 +713,29 @@ function App() {
     const handleGroupUpdated = nextGroup => {
         setChats(prev => prev.map(chat => chat.id === Number(nextGroup.id) ? { ...chat, ...nextGroup } : chat));
         setSelectedChat(prev => prev && prev.id === Number(nextGroup.id) ? { ...prev, ...nextGroup } : prev);
+    };
+
+    const handleJoinPublicRoomFromDirectory = async room => {
+        const roomId = Number(room?.id);
+        if (!roomId) throw new Error('A valid public chat room is required.');
+        await platformApi.joinPublicChat(roomId);
+        await refreshConversationList();
+        await openExistingChat(roomId);
+    };
+
+    const handleLeavePublicRoomFromDirectory = async room => {
+        const roomId = Number(room?.id);
+        if (!roomId) throw new Error('A valid public chat room is required.');
+        await platformApi.leavePublicChat(roomId);
+        await refreshConversationList();
+        if (Number(activeChatRef.current?.id) === roomId) {
+            setSelectedChat(null);
+            setMessages([]);
+            setComposer('');
+            setReplyTo(null);
+            setEditing(null);
+            setPendingFocusMessageId(null);
+        }
     };
 
     const handleLeavePublicChat = async room => {
@@ -728,14 +815,15 @@ function App() {
         <div className={`app-container ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${modal === 'manage_members' ? 'group-management-active' : ''}`}>
             <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
-            <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
+            <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} onJoinPublicChat={handleJoinPublicRoomFromDirectory} onLeavePublicChat={handleLeavePublicRoomFromDirectory} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
             <ChatCanvas fontColor={chatFontColor} onFontColorChange={updateChatFontColor} onLoadMessageContext={loadMessageContext} focusMessageId={pendingFocusMessageId} onFocusMessageHandled={() => setPendingFocusMessageId(null)} onLoadOlderMessages={loadOlderMessages} active={!modal} sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} onEditPoll={message => { setPollEditTarget(message); setModal('poll'); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
 
             {modal === 'manage_members' ? <GroupMembershipModal type="manage_members" user={user} onGroupUpdated={handleGroupUpdated} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} onEditGroup={() => { returnToManageGroupRef.current = true; setModal('edit_group'); }} onOpenNotifications={() => { returnToManageGroupRef.current = true; setModal('notifications'); }} />
             : modal && (
-                <div className="modal-backdrop">
-                    {modal === 'add_member' ? <GroupMembershipModal type="add_member" user={user} onGroupUpdated={handleGroupUpdated} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} />
+                <div className={`modal-backdrop ${modal === "manage_public_chat" ? "public-chat-manage-backdrop" : ""}`}>
+                    {modal === 'manage_public_chat' ? <PublicChatManagePanel selectedChat={selectedChat} user={user} close={() => setModal(null)} />
+                    : modal === 'add_member' ? <GroupMembershipModal type="add_member" user={user} onGroupUpdated={handleGroupUpdated} selectedChat={selectedChat} apiBridge={api} close={() => setModal(null)} onActionComplete={() => setModal(null)} />
                     : modal === 'group' ? <GroupCreationModal groupTypes={groupTypes} apiBridge={api} close={() => setModal(null)} onGroupCreated={handleGroupCreated} />
                     : modal === 'edit_group' ? <GroupEditModal group={selectedChat} user={user} groupTypes={groupTypes} apiBridge={api} close={() => { const returnToManage = returnToManageGroupRef.current; returnToManageGroupRef.current = false; setModal(returnToManage ? 'manage_members' : null); }} onGroupUpdated={handleGroupUpdated} />
                     : modal === 'profile' ? <ProfileEditModal user={user} apiBridge={api} close={() => setModal(null)} onUserUpdated={handleUserUpdated} />

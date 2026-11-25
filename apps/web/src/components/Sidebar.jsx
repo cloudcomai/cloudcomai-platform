@@ -56,7 +56,7 @@ export default function Sidebar({ user, setModal, notificationUnreadCount = 0, o
         <button className={`nav-item ${activeTab === 'chats' ? 'active' : ''}`} onClick={() => nav('chats')}><MessageCircle size={20}/><span>Chats</span></button>
         <button className={`nav-item ${activeTab === 'groups' ? 'active' : ''}`} onClick={() => nav('groups')}><Users size={20}/><span>Groups</span></button>
         <button className="nav-item" onClick={() => setModal('moments')}><Camera size={20}/><span>Moments</span></button>
-        <button className="nav-item" onClick={() => setModal('public_chats')}><Globe2 size={20}/><span>Public Chats</span></button>
+        <button className={`nav-item ${activeTab === 'public' ? 'active' : ''}`} onClick={() => nav('public')}><Globe2 size={20}/><span>Public Chats</span></button>
         <button className={`nav-item ${activeTab === 'people' ? 'active' : ''}`} onClick={() => nav('people')}><UserCheck size={20}/><span>People & Contacts</span></button>
         <button className="nav-item" onClick={() => setModal('saved_messages')}><Bookmark size={20}/><span>Saved Messages</span></button>
         <button className="nav-item" onClick={() => setModal('poll')}><BarChart3 size={20}/><span>Polls</span></button>

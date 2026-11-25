@@ -10,7 +10,7 @@ import AttachmentControls from './AttachmentControls';
 import AttachmentActions from './AttachmentActions';
 import AttachmentPreview from './AttachmentPreview';
 import MediaMessageControls from './MediaMessageControls';
-import { ChatThemeControl, ForwardMessageDialog, MessageReadStatusDialog, UserProfileDialog } from './WebMobileParity';
+import { ForwardMessageDialog, MessageReadStatusDialog, UserProfileDialog, ProfileImageDialog } from './WebMobileParity';
 import EmojiPicker from './EmojiPicker';
 
 const pollCardStyle = { background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', minWidth: 0, width: 'min(360px, 100%)', maxWidth: '100%', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginBottom: '4px' };
@@ -52,6 +52,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const [forwardTarget, setForwardTarget] = useState(null);
   const [readStatusTarget, setReadStatusTarget] = useState(null);
   const [profileUserId, setProfileUserId] = useState(null);
+  const [profileImageOpen, setProfileImageOpen] = useState(false);
   const [chatAvatarFailed, setChatAvatarFailed] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null);
   const [mentionCandidates, setMentionCandidates] = useState([]);
@@ -60,6 +61,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   const [mentionRecipientsLoading, setMentionRecipientsLoading] = useState(false);
   const [mentionRecipientsLoadFailed, setMentionRecipientsLoadFailed] = useState(false);
   const mentionChatEnabled = selectedChat?.type === 'group' || selectedChat?.type === 'public' || Boolean(selectedChat?.isGroup || selectedChat?.isPublic);
+  const publicRoomJoined = !(selectedChat?.type === 'public' || selectedChat?.isPublic) || Boolean(selectedChat?.joined || selectedChat?.is_member || selectedChat?.is_joined);
   const searchActive = searchOpen && searchQuery.trim().length > 0;
   const visibleMessages = searchActive ? searchResults : messages;
   const fontColorOptions = [{ key: 'default', label: 'Default', light: 'var(--text-main)', dark: 'var(--text-main)' }, { key: 'blue', label: 'Blue', light: '#1d4ed8', dark: '#93c5fd' }, { key: 'green', label: 'Green', light: '#047857', dark: '#6ee7b7' }, { key: 'purple', label: 'Purple', light: '#6d28d9', dark: '#c4b5fd' }, { key: 'pink', label: 'Pink', light: '#be185d', dark: '#f9a8d4' }, { key: 'orange', label: 'Orange', light: '#c2410c', dark: '#fdba74' }, { key: 'red', label: 'Red', light: '#b91c1c', dark: '#fca5a5' }, { key: 'teal', label: 'Teal', light: '#0f766e', dark: '#5eead4' }];
@@ -232,7 +234,8 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
   };
 
   const isGroup = selectedChat?.type === 'group' || selectedChat?.isGroup;
-  const chatAvatarUrl = selectedChat?.image_url || (isGroup && selectedChat?.id ? mediaUrl('group', selectedChat.id) : '');
+  const privateUserId = Number(selectedChat?.other_user_id || selectedChat?.user_id || selectedChat?.participant_id || selectedChat?.id);
+  const chatAvatarUrl = selectedChat?.image_url || (isGroup && selectedChat?.id ? mediaUrl('group', selectedChat.id) : (!isGroup && selectedChat?.type !== 'public' && !selectedChat?.isPublic ? mediaUrl('user', privateUserId) : ''));
   const chatAvatarSrc = chatAvatarUrl
     ? `${chatAvatarUrl}${chatAvatarUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(String(selectedChat?.image_version || ''))}`
     : '';
@@ -283,9 +286,9 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
       <header className="canvas-header-nav">
         {selectedChat ? (
           <div className="active-interlocutor-card">
-            <div className="avatar-frame small">
-              {chatAvatarSrc && !chatAvatarFailed ? <img src={chatAvatarSrc} alt={isGroup ? `${selectedChat.name || 'Group'} profile` : ''} onError={() => setChatAvatarFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name.trim().charAt(0).toUpperCase() : isGroup ? 'G' : '?'}</div>}
-            </div>
+            <button type="button" className="avatar-frame small private-header-avatar-button" aria-label="View profile picture" onClick={() => !isGroup && selectedChat?.type !== 'public' && !selectedChat?.isPublic && setProfileImageOpen(true)} disabled={isGroup || selectedChat?.type === 'public' || selectedChat?.isPublic}>
+              {chatAvatarSrc && !chatAvatarFailed ? <img src={chatAvatarSrc} alt={selectedChat.name || 'Profile'} onError={() => setChatAvatarFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : <div className="avatar-placeholder">{selectedChat.name ? selectedChat.name.trim().charAt(0).toUpperCase() : isGroup ? 'G' : '?'}</div>}
+            </button>
             <div className="interlocutor-details"><button type="button" className="profile-heading-button" onClick={() => !isGroup && setProfileUserId(Number(selectedChat.other_user_id || selectedChat.user_id || selectedChat.id))}><h4>{selectedChat.name}</h4></button><p className="presence-subtext">{isGroup ? 'Group' : isPublicChat ? 'Live' : selectedChat.online ? 'Online' : 'Offline'}</p></div>
           </div>
         ) : <div className="active-interlocutor-card"><h4>Select a conversation to begin</h4></div>}
@@ -313,7 +316,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
           </>}
 
           {selectedChat && <button className="action-utility-btn" onClick={async () => { const next = !chatMuted; try { await apiBridge('v1/notifications/chat-state', { method: 'POST', body: JSON.stringify({ chat_id: selectedChat.id, muted: next }) }); setChatMuted(next); } catch (error) { alert(error.message || 'Unable to update mute setting.'); } }}><span>{chatMuted ? '🔕 Unmute' : '🔔 Mute'}</span></button>}
-          <ChatThemeControl chatId={selectedChat?.id} /><div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
+          <div className="vertical-divider" /><button className="icon-utility-only" disabled={!selectedChat} aria-label="Search messages" title="Search messages" onClick={() => setSearchOpen(value => !value)}><Search size={18}/></button>
         </div>
       </header>
       {searchOpen && <div className="chat-search-bar"><Search size={18} /><input autoFocus aria-label="Search this conversation" placeholder="Search messages and filenames…" maxLength={120} value={searchQuery} onChange={event => setSearchQuery(event.target.value)} /><span role="status">{searchActive ? searchStatus : 'Search this conversation'}</span><button aria-label="Close search" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}><X size={18} /></button></div>}
@@ -409,13 +412,14 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
             {fontColorOpen && <div className="chat-font-color-menu" role="dialog" aria-label="Choose message font color" style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 30, width: 220, padding: 12, borderRadius: 12, border: '1px solid var(--border-color)', background: 'var(--bg-primary)', boxShadow: '0 8px 28px rgba(0,0,0,.18)' }}><strong style={{ display: 'block', fontSize: 12, marginBottom: 9 }}>Message font color</strong><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>{fontColorOptions.map(option => <button key={option.key} type="button" disabled={fontColorSaving} title={option.label} aria-label={option.label} onClick={async () => { setFontColorSaving(true); try { await onFontColorChange?.(option.key); setFontColorOpen(false); } catch (error) { alert(error.message || 'Unable to save message color.'); } finally { setFontColorSaving(false); } }} style={{ width: 34, height: 34, borderRadius: '50%', border: fontColor === option.key ? '3px solid var(--primary-color)' : '1px solid var(--border-color)', background: option.key === 'default' ? 'var(--bg-directory)' : (isDarkTheme ? option.dark : option.light), color: option.key === 'default' ? 'var(--text-main)' : '#fff', cursor: 'pointer' }}><span aria-hidden="true">{fontColor === option.key ? '✓' : ''}</span></button>)}</div><small style={{ display: 'block', color: 'var(--text-muted)', marginTop: 8 }}>Your choice applies to all chats.</small></div>}
           </div>}
           <AttachmentControls selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} /><MediaMessageControls key={selectedChat?.id} selectedChat={selectedChat} apiBridge={apiBridge} onUploaded={onAttachmentUploaded} />
-          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => handleComposerInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && submitWithMentions()} disabled={sending || !selectedChat || selectedChat.blocked} className="composer-text-input" style={{ color: fontColor === 'default' ? undefined : (isDarkTheme ? selectedFontColor.dark : selectedFontColor.light) }} />
-          <button className="voice-mic-submit-btn" onClick={submitWithMentions} disabled={sending || !selectedChat || selectedChat.blocked || (Boolean(editing && mentionChatEnabled && mentionRecipientsLoading))} aria-label="Send message"><Send size={18} /></button>
+          <input type="text" aria-label="Message" placeholder={selectedChat ? 'Type a message...' : 'Select a conversation to start messaging'} value={composer} onChange={e => handleComposerInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && !e.repeat && !selectedChat?.blocked && submitWithMentions()} disabled={sending || !selectedChat || selectedChat.blocked || !publicRoomJoined} className="composer-text-input" style={{ color: fontColor === 'default' ? undefined : (isDarkTheme ? selectedFontColor.dark : selectedFontColor.light) }} />
+          <button className="voice-mic-submit-btn" onClick={submitWithMentions} disabled={sending || !selectedChat || selectedChat.blocked || !publicRoomJoined || (Boolean(editing && mentionChatEnabled && mentionRecipientsLoading))} aria-label="Send message"><Send size={18} /></button>
         </div>
       </div>
       {forwardTarget && <ForwardMessageDialog message={forwardTarget} onClose={() => setForwardTarget(null)} />}
       {readStatusTarget && <MessageReadStatusDialog message={readStatusTarget} onClose={() => setReadStatusTarget(null)} />}
-      {profileUserId && <UserProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />}
+      {profileUserId && <UserProfileDialog userId={profileUserId} currentUserId={user?.id} onClose={() => setProfileUserId(null)} />}
+      {profileImageOpen && selectedChat && <ProfileImageDialog imageUrl={chatAvatarSrc || mediaUrl('user', privateUserId)} name={selectedChat.name || 'User'} onClose={() => setProfileImageOpen(false)} />}
       {deleteTarget && <div className="modal-overlay"><div className="modal-content-card message-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete message"><h3>Delete message?</h3><p>Delete for me removes it from your account. Only the sender can delete it for everyone.</p><button disabled={deleting} onClick={() => deleteMessage('self')}>Delete for me</button>{Number(deleteTarget.sender_id) === Number(user?.id) && <button className="danger" disabled={deleting} onClick={() => deleteMessage('everyone')}>Delete for everyone</button>}<button disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button></div></div>}
     </main>
   );
