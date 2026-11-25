@@ -40,7 +40,7 @@ export function MessageReadStatusDialog({ message, onClose }) {
   </div></div>;
 }
 
-export function UserProfileDialog({ userId, onClose }) {
+export function UserProfileDialog({ userId, currentUserId, onClose }) {
   const [profile, setProfile] = useState(null);
   const [relationship, setRelationship] = useState(null);
   const [error, setError] = useState('');
@@ -85,7 +85,7 @@ export function UserProfileDialog({ userId, onClose }) {
       {profile?.username && <p className="profile-popup-handle">@{String(profile.username).replace(/^@/, '')}</p>}
       {error && <p role="alert" className="privacy-error">{error}</p>}
       {!profile && !error ? <p>Loading…</p> : <div className="parity-profile">{fields.map(([label, value]) => <p key={label}><strong>{label}:</strong> {value}</p>)}{profile?.bio && <p>{profile.bio}</p>}</div>}
-      {status === 'accepted' || status === 'friends' ? <p className="profile-friend-status">Friends</p>
+      {Number(userId) === Number(currentUserId) ? <p className="profile-friend-status">This is your profile</p> : status === 'accepted' || status === 'friends' ? <p className="profile-friend-status">Friends</p>
         : status === 'pending' && direction === 'incoming' ? <div className="parity-actions"><button disabled={busy} onClick={() => act('accept')}>Accept</button><button disabled={busy} onClick={() => act('decline')}>Decline</button></div>
         : status === 'pending' ? <div className="parity-actions"><span className="profile-friend-status">Request Sent</span><button disabled={busy || !requestId} onClick={() => act('cancel')}>{busy ? 'Please wait…' : 'Cancel Request'}</button></div>
         : <button disabled={busy || !profile} onClick={() => act('send')}>{busy ? 'Sending…' : 'Add Friend'}</button>}
