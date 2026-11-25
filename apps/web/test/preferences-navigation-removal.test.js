@@ -22,7 +22,7 @@ test('web Messages and Search controls remain available after removing preferenc
 });
 
 test('web public chats and other navigation remain available', () => {
-  assert.match(sidebar, /setModal\('public_chats'\)/);
+  assert.match(sidebar, /activeTab === 'public'/);
   assert.match(sidebar, /setModal\('moments'\)/);
   assert.match(sidebar, /setModal\('settings'\)/);
 });
