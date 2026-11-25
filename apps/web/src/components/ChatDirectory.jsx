@@ -3,10 +3,7 @@ import { MessageCircle, Search } from 'lucide-react';
 import { getAvatarInitial, getAvatarPalette } from '@cloudcomai/chat-core';
 import { mediaUrl, platformApi } from '../services/platform';
 
-const imageUrl = chat => chat?.image_url || mediaUrl(
-  chat?.isGroup ? 'group' : 'user',
-  chat?.isGroup ? chat?.id : chat?.other_user_id || chat?.id,
-);
+const imageUrl = chat => chat?.image_url || (chat?.isGroup ? mediaUrl('group', chat?.id) : (chat?.isPublic ? '' : mediaUrl('user', chat?.other_user_id || chat?.id)));
 
 export default function ChatDirectory({ onLoadMore, searchQuery, setSearchQuery, chatFilter, setChatFilter, filteredChats, selectedChat, setSelectedChat, isSidebarOpen, setIsSidebarOpen, setModal, activeTab }) {
   const [failedImages, setFailedImages] = useState({});
