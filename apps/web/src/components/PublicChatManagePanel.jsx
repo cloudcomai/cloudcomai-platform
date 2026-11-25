@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { X, Info, Users, ShieldCheck, Settings, RefreshCw, Flag, ShieldAlert, EyeOff, UserX, Clock3, CheckCircle2 } from 'lucide-react';
-import { requestApi, platformApi } from '../services/platform';
+import { requestApi, platformApi, mediaUrl } from '../services/platform';
+import { UserProfileDialog } from './WebMobileParity';
 
 const tabs = [
   { id: 'info', label: 'Info', Icon: Info },
@@ -35,6 +36,8 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
   const [reportDetails, setReportDetails] = useState('');
   const [submittingReport, setSubmittingReport] = useState(false);
   const [moderatingId, setModeratingId] = useState(null);
+  const [profileUserId, setProfileUserId] = useState(null);
+  const [failedMemberImages, setFailedMemberImages] = useState({});
   const [moderatorAccess, setModeratorAccess] = useState(false);
 
   const roomId = Number(selectedChat?.id);
@@ -137,8 +140,10 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
           <div className="public-chat-manage-section-title"><div><h3>Room Members</h3><p>{loading ? 'Loading participants…' : participants.length + ' active participants'}</p></div><button type="button" onClick={loadRoomMembers} disabled={loading} aria-label="Refresh members"><RefreshCw size={17}/></button></div>
           {loading ? <p className="public-chat-manage-muted">Loading public chat members…</p> : participants.length ? <div className="public-chat-manage-member-list">
             {participants.map(member => <div className="public-chat-manage-member" key={member.id}>
-              <div className="public-chat-manage-member-avatar">{String(member.name || 'U').trim().charAt(0).toUpperCase()}</div>
-              <div className="public-chat-manage-member-details"><strong>{member.name || 'CloudComAI user'}</strong><span>{member.age != null ? member.age + ' years' : 'Age not shared'}{member.gender ? ' · ' + member.gender : ''}</span></div>
+              <button type="button" className="public-chat-manage-member-avatar public-chat-manage-member-avatar-button" aria-label={'View ' + (member.name || 'member') + ' profile'} onClick={() => setProfileUserId(Number(member.id))}>
+                {!failedMemberImages[member.id] ? <img src={member.image_url || member.profile_image_url || member.avatar_url || mediaUrl('user', member.id) + (member.image_version ? '?v=' + encodeURIComponent(member.image_version) : '')} alt="" onError={() => setFailedMemberImages(current => ({ ...current, [member.id]: true }))} /> : String(member.name || 'U').trim().charAt(0).toUpperCase()}
+              </button>
+              <div className="public-chat-manage-member-details"><button type="button" className="public-chat-manage-member-name" onClick={() => setProfileUserId(Number(member.id))}>{member.name || 'CloudComAI user'}</button><span>{member.age != null ? member.age + ' years' : 'Age not shared'}{member.gender ? ' · ' + member.gender : ''}</span></div>
               <span className={'public-chat-manage-presence ' + (member.online ? 'online' : '')}>{member.online ? 'Online' : 'Offline'}</span>
               {Number(member.id) !== currentUserId && <button type="button" className="public-chat-manage-action-link" onClick={() => { setReportTarget(member); setActionError(''); }}><Flag size={14}/> Report User</button>}
             </div>)}
@@ -179,6 +184,7 @@ export default function PublicChatManagePanel({ selectedChat, user, close }) {
           <div className="public-chat-manage-report-actions"><button type="button" onClick={() => setReportTarget(null)} disabled={submittingReport}>Cancel</button><button type="button" onClick={submitReport} disabled={submittingReport}>{submittingReport ? 'Submitting…' : 'Submit Report'}</button></div>
         </section>
       </div>}
+      {profileUserId && <UserProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />}
     </aside>
   );
 }
