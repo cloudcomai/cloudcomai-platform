@@ -108,6 +108,7 @@ function App() {
     const [isDesktopViewport, setIsDesktopViewport] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(min-width: 1024px)').matches));
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState(() => tabFromLocation());
+    const [routeRevision, setRouteRevision] = useState(0);
     useEffect(() => { if (modal === 'manage_members') setActiveTab('groups'); }, [modal]);
     const [topInterests, setTopInterests] = useState(defaultInterests);
     const [pendingInviteToken, setPendingInviteToken] = useState(() => inviteTokenFromLocation() || window.sessionStorage.getItem(pendingInviteStorageKey) || '');
@@ -184,6 +185,8 @@ function App() {
                 window.sessionStorage.setItem(pendingInviteStorageKey, locationInviteToken);
             }
             setScreen(screenFromLocation());
+            setActiveTab(tabFromLocation());
+            setRouteRevision(value => value + 1);
         };
         window.addEventListener('cloudcomai:unauthorized', handleUnauthorized);
         window.addEventListener('hashchange', handleLocationChange);
@@ -413,7 +416,7 @@ function App() {
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [token, screen]);
+    }, [token, screen, routeRevision]);
 
     useEffect(() => {
         if (!token || screen !== 'app') return undefined;
