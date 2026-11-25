@@ -665,7 +665,9 @@ function App() {
         if (roomId && Number(selectedChat?.id) !== roomId) {
             openExistingChat(roomId, null, false).catch(error => console.warn('Unable to restore Public Chat room from URL:', error));
         } else if (!roomId) {
-            setActiveTab(tabFromLocation());
+            const nextTab = tabFromLocation();
+            setActiveTab(nextTab);
+            if (nextTab === 'public') setSelectedChat(null);
         }
     }, [token, screen]);
 
