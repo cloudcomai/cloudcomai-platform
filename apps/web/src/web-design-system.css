@@ -138,3 +138,112 @@ html,body,#root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMac
 @media(max-width:900px){.group-management-topbar{align-items:flex-start;flex-direction:column}.group-dashboard-search{width:min(100%,420px)}.group-management-summary-card{flex-wrap:wrap}.group-summary-actions{margin-left:122px}}
 @media(max-width:640px){.app-container.group-management-active.sidebar-expanded{grid-template-columns:1fr}.group-management-page{grid-column:1}.group-management-topbar{padding:12px 14px}.group-management-topbar-actions{width:100%;flex-wrap:wrap}.group-dashboard-search{flex:1;min-width:0}.group-dashboard-user>span:last-child{display:none}.group-management-content{padding:14px;gap:14px}.group-management-summary-card{gap:14px;padding:16px}.group-summary-avatar{width:72px;height:72px;flex-basis:72px}.group-summary-actions{margin-left:0}.group-summary-actions button{flex:1}.group-dashboard-card{padding:14px}.group-dashboard-section-heading h2{font-size:18px}.group-member-row{gap:7px;padding:9px 2px}.group-role-badge{font-size:10px;padding:5px 7px}.group-member-actions summary{width:32px;height:32px}.group-individual-tools{grid-template-columns:1fr}.group-individual-member-row{align-items:flex-start;flex-wrap:wrap}.group-individual-member-row button{width:100%;max-width:none}.group-access-actions{grid-template-columns:1fr}.group-access-actions button.revoke{grid-column:auto}.group-access-state-grid{display:grid;grid-template-columns:1fr 1fr}.group-access-expiry{border-left:0;padding-left:0}}
 @media(prefers-reduced-motion:reduce){.group-management-page *{scroll-behavior:auto!important;transition:none!important}}
+
+
+/* High-contrast web-only readability layer. Kept in the web design system so
+   native mobile themes and shared messaging components are not affected. */
+:root{
+  --web-text:#0F172A;
+  --web-muted:#475569;
+  --web-border:#CBD5E1;
+  --web-surface:#FFFFFF;
+  --web-subtle:#F8FAFC;
+  --app-text-primary:#0F172A;
+  --app-text-secondary:#475569;
+  --app-text-muted:#475569;
+  --app-placeholder:#475569;
+  --app-border:#CBD5E1;
+}
+[data-app-theme="midnight"]{
+  --web-text:#F1F5F9;
+  --web-muted:#CBD5E1;
+  --web-border:#475569;
+  --web-surface:#111827;
+  --web-subtle:#1E293B;
+  --app-text-primary:#F1F5F9;
+  --app-text-secondary:#CBD5E1;
+  --app-text-muted:#CBD5E1;
+  --app-placeholder:#CBD5E1;
+  --app-border:#475569;
+}
+.app-container .web-design-system,
+.app-container .group-management-page{color:var(--web-text)}
+.app-container p,
+.app-container small,
+.app-container [class*="muted"],
+.app-container .group-dashboard-section-heading p,
+.app-container .group-individual-heading p,
+.app-container .group-admin-limit,
+.app-container .group-member-copy>span,
+.app-container .group-individual-copy>span,
+.app-container .group-individual-copy small,
+.app-container .group-access-panel-heading small,
+.app-container .group-access-state-grid>div,
+.app-container .group-management-breadcrumb{color:var(--web-muted)}
+.app-container input::placeholder,
+.app-container textarea::placeholder,
+.app-container .group-dashboard-search input::placeholder,
+.app-container .group-attachment-search input::placeholder{color:var(--app-placeholder)!important;opacity:1}
+.app-container .group-dashboard-card,
+.app-container .group-wide-access-panel,
+.app-container .group-individual-access,
+.app-container .group-member-row,
+.app-container .group-individual-member-row{border-color:var(--web-border)}
+.app-container .group-dashboard-card,
+.app-container .group-wide-access-panel,
+.app-container .group-individual-access{background:var(--web-surface)}
+.app-container .group-member-filter-tabs button{border-color:var(--web-border);background:var(--web-subtle);color:var(--web-text)}
+.app-container .group-member-filter-tabs button.active{border-color:var(--web-primary);background:var(--web-primary);color:#fff}
+.app-container .group-role-badge.role-owner{background:#FEF3C7;color:#92400E}
+.app-container .group-role-badge.role-admin{background:#DBEAFE;color:#1D4ED8}
+.app-container .group-role-badge.role-member{background:#D1FAE5;color:#047857}
+.app-container .group-access-status.inactive{background:#E2E8F0;color:#334155}
+.app-container .group-access-state-grid strong.status-closed{color:#B91C1C}
+.app-container .group-access-state-grid strong.status-open,
+.app-container .group-individual-copy small .permission-open{color:#166534}
+.app-container .group-individual-copy small .permission-closed{color:#B91C1C}
+.app-container .group-access-actions button,
+.app-container .group-individual-member-row button{font-weight:750}
+.app-container .group-access-actions button.revoke,
+.app-container .group-individual-member-row button.revoke{border-color:#B91C1C;background:#FEF2F2;color:#991B1B}
+.app-container .group-member-actions-menu{background:var(--web-surface);border:1px solid var(--web-border);box-shadow:var(--web-shadow)}
+.app-container .group-member-actions-menu button{color:var(--web-text)}
+.app-container .group-individual-tools select,
+.app-container .group-dashboard-search,
+.app-container .group-attachment-search{border-color:var(--web-border);color:var(--web-text)}
+.app-container .group-dashboard-empty,
+.app-container .group-access-owner-note{color:var(--web-muted);border-color:var(--web-border)}
+.app-container .group-management-success{color:#166534}
+.app-container .group-management-error{color:#991B1B}
+
+/* Message surfaces: readable incoming/outgoing text, timestamps and replies. */
+.app-container .message-data-bubble.neutral-fallback{background:#F1F5F9;color:#0F172A;border:1px solid #CBD5E1}
+.app-container .message-data-bubble.primary-accent{background:#1D4ED8;color:#FFFFFF;border:1px solid #1E40AF}
+.app-container .message-data-bubble .bubble-text-content{color:inherit!important}
+.app-container .message-data-bubble .bubble-time,
+.app-container .message-data-bubble .edited-flag{color:inherit!important;opacity:.9}
+.app-container .message-data-bubble .reply-preview{background:rgba(15,23,42,.08);border-left-color:#2563EB;color:#1E293B}
+.app-container .message-data-bubble.primary-accent .reply-preview{background:rgba(15,23,42,.28);border-left-color:#BFDBFE;color:#FFFFFF}
+.app-container .bubble-meta-footer{color:inherit}
+.app-container .bubble-meta-footer .bubble-time{font-weight:600}
+.app-container .message-data-bubble .bubble-action-triggers button{border:1px solid currentColor;color:inherit}
+
+/* Profile detail card and friendship actions in the web chat UI. */
+.app-container .profile-popup-card,
+.app-container .profile-popup-card .parity-profile{background:var(--web-surface);color:var(--web-text)}
+.app-container .profile-popup-card h3,
+.app-container .profile-popup-card .parity-profile p,
+.app-container .profile-popup-card .parity-profile strong{color:var(--web-text)}
+.app-container .profile-popup-card .profile-popup-handle,
+.app-container .profile-popup-card .parity-profile p:not(:has(strong)){color:var(--web-muted)}
+.app-container .profile-popup-card button{border:1px solid var(--web-border);color:var(--web-text)}
+.app-container .profile-popup-card button:not(.profile-popup-close):not(:last-child){background:var(--web-primary);border-color:var(--web-primary);color:#fff}
+.app-container .profile-popup-card .profile-popup-close{background:transparent;color:var(--web-text)}
+[data-app-theme="midnight"] .app-container .message-data-bubble.neutral-fallback{background:#1E293B;color:#F1F5F9;border-color:#475569}
+[data-app-theme="midnight"] .app-container .message-data-bubble.primary-accent{background:#1D4ED8;color:#FFFFFF;border-color:#3B82F6}
+[data-app-theme="midnight"] .app-container .message-data-bubble .reply-preview{background:rgba(255,255,255,.1);color:#F1F5F9;border-left-color:#93C5FD}
+[data-app-theme="midnight"] .app-container .group-access-status.inactive{background:#334155;color:#E2E8F0}
+[data-app-theme="midnight"] .app-container .group-access-state-grid strong.status-closed,
+[data-app-theme="midnight"] .app-container .group-individual-copy small .permission-closed{color:#FDA4AF}
+[data-app-theme="midnight"] .app-container .group-access-actions button.revoke,
+[data-app-theme="midnight"] .app-container .group-individual-member-row button.revoke{background:#450A0A;color:#FECACA;border-color:#F87171}
