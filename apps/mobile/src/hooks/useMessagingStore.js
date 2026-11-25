@@ -1,26 +1,66 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { File, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { createMessagingStore } from '@cloudcomai/chat-core';
 import { platformApi, sessionManager } from '../services/platform';
 
+const storageFileUri = (key, suffix = '.json') => {
+  const directory = FileSystem.documentDirectory;
+  if (typeof directory !== 'string' || !directory) throw new Error('Local message storage is unavailable on this device.');
+  const safeKey = String(key).replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${directory}${safeKey}${suffix}`;
+};
+
+const readStoredValue = async uri => {
+  const info = await FileSystem.getInfoAsync(uri);
+  return info.exists ? FileSystem.readAsStringAsync(uri) : null;
+};
+
+const storageLocks = new Map();
+
 const storage = {
+  async withLock(key, operation) {
+    const lockKey = String(key);
+    const previous = storageLocks.get(lockKey) || Promise.resolve();
+    let release;
+    const current = new Promise(resolve => { release = resolve; });
+    storageLocks.set(lockKey, current);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (storageLocks.get(lockKey) === current) storageLocks.delete(lockKey);
+    }
+  },
   async getItem(key) {
-    const file = new File(Paths.document, `${key}.json`);
-    const backup = new File(Paths.document, `${key}.backup.json`);
-    if (!file.exists) return backup.exists ? backup.text() : null;
-    const value = await file.text();
-    try { JSON.parse(value); return value; }
-    catch (error) { if (backup.exists) return backup.text(); throw error; }
+    const fileUri = storageFileUri(key);
+    const backupUri = storageFileUri(key, '.backup.json');
+    const value = await readStoredValue(fileUri);
+    if (value === null) return readStoredValue(backupUri);
+    try {
+      JSON.parse(value);
+      return value;
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      const backup = await readStoredValue(backupUri);
+      if (backup !== null) return backup;
+      throw error;
+    }
   },
   async setItem(key, value) {
-    const file = new File(Paths.document, `${key}.json`);
-    const backup = new File(Paths.document, `${key}.backup.json`);
-    if (file.exists) {
-      const previous = await file.text();
-      try { JSON.parse(previous); backup.write(previous); } catch (error) { if (!(error instanceof SyntaxError)) throw error; }
+    const fileUri = storageFileUri(key);
+    const backupUri = storageFileUri(key, '.backup.json');
+    const previous = await readStoredValue(fileUri);
+    if (previous !== null) {
+      try {
+        JSON.parse(previous);
+        await FileSystem.writeAsStringAsync(backupUri, previous);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+      }
     }
-    file.write(value);
+    await FileSystem.writeAsStringAsync(fileUri, value);
   },
 };
 
