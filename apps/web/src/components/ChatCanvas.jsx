@@ -417,7 +417,7 @@ export default function ChatCanvas({ selectedChat, messages, user, onLoadOlderMe
       </div>
       {forwardTarget && <ForwardMessageDialog message={forwardTarget} onClose={() => setForwardTarget(null)} />}
       {readStatusTarget && <MessageReadStatusDialog message={readStatusTarget} onClose={() => setReadStatusTarget(null)} />}
-      {profileUserId && <UserProfileDialog userId={profileUserId} onClose={() => setProfileUserId(null)} />}
+      {profileUserId && <UserProfileDialog userId={profileUserId} currentUserId={user?.id} onClose={() => setProfileUserId(null)} />}
       {profileImageOpen && selectedChat && <ProfileImageDialog imageUrl={chatAvatarSrc || mediaUrl('user', privateUserId)} name={selectedChat.name || 'User'} onClose={() => setProfileImageOpen(false)} />}
       {deleteTarget && <div className="modal-overlay"><div className="modal-content-card message-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete message"><h3>Delete message?</h3><p>Delete for me removes it from your account. Only the sender can delete it for everyone.</p><button disabled={deleting} onClick={() => deleteMessage('self')}>Delete for me</button>{Number(deleteTarget.sender_id) === Number(user?.id) && <button className="danger" disabled={deleting} onClick={() => deleteMessage('everyone')}>Delete for everyone</button>}<button disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</button></div></div>}
     </main>
