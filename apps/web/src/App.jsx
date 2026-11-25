@@ -685,6 +685,29 @@ function App() {
         setSelectedChat(prev => prev && prev.id === Number(nextGroup.id) ? { ...prev, ...nextGroup } : prev);
     };
 
+    const handleJoinPublicRoomFromDirectory = async room => {
+        const roomId = Number(room?.id);
+        if (!roomId) throw new Error('A valid public chat room is required.');
+        await platformApi.joinPublicChat(roomId);
+        await refreshConversationList();
+        await openExistingChat(roomId);
+    };
+
+    const handleLeavePublicRoomFromDirectory = async room => {
+        const roomId = Number(room?.id);
+        if (!roomId) throw new Error('A valid public chat room is required.');
+        await platformApi.leavePublicChat(roomId);
+        await refreshConversationList();
+        if (Number(activeChatRef.current?.id) === roomId) {
+            setSelectedChat(null);
+            setMessages([]);
+            setComposer('');
+            setReplyTo(null);
+            setEditing(null);
+            setPendingFocusMessageId(null);
+        }
+    };
+
     const handleLeavePublicChat = async room => {
         const roomId = Number(room?.id || selectedChat?.id);
         if (!roomId) throw new Error('A valid public chat room is required.');
@@ -762,7 +785,7 @@ function App() {
         <div className={`app-container ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${modal === 'manage_members' ? 'group-management-active' : ''}`}>
             <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
-            <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
+            <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} onJoinPublicChat={handleJoinPublicRoomFromDirectory} onLeavePublicChat={handleLeavePublicRoomFromDirectory} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
 
             <ChatCanvas fontColor={chatFontColor} onFontColorChange={updateChatFontColor} onLoadMessageContext={loadMessageContext} focusMessageId={pendingFocusMessageId} onFocusMessageHandled={() => setPendingFocusMessageId(null)} onLoadOlderMessages={loadOlderMessages} active={!modal} sending={sending} onComposerChange={updateComposer} onCancelContext={cancelComposerContext} onBeginEdit={message => { setEditing(message); setReplyTo(null); setComposer(message.body || message.text || ''); }} onBeginReply={message => { cancelComposerContext(); setReplyTo(message); }} onEditPoll={message => { setPollEditTarget(message); setModal('poll'); }} pendingMessages={localMessages.outbox.filter(item => Number(item.payload.chat_id) === Number(selectedChat?.id))} localMessageError={localMessageError} onRetryPending={async id => { await messaging.retry(id); await messaging.flush(); }} onDiscardPending={id => messaging.remove(id)} onToggleSaved={async message => { if (message.saved) await platformApi.unsaveMessage(message.id); else await platformApi.saveMessage(message.id); setMessages(current => current.map(item => item.id === message.id ? { ...item, saved: !message.saved } : item)); }} onRead={result => { setNotificationUnreadCount(Number(result.unread_count || 0)); setChats(current => current.map(chat => Number(chat.id) === Number(result.chat_id) ? { ...chat, unread: Number(result.unread_messages_count || 0) } : chat)); }} selectedChat={selectedChat} messages={messages} user={user} setModal={setModal} replyTo={replyTo} setReplyTo={setReplyTo} editing={editing} setEditing={setEditing} composer={composer} setComposer={setComposer} onSendMessage={handleSendMessage} apiBridge={api} onDeleteChat={handleDeleteChat} onDeleteGroup={handleDeleteGroup} onGroupInvite={handleGroupInvite} onAttachmentUploaded={handleAttachmentUploaded} onDeleteMessage={handleDeleteMessage} mediaAutoDownload={privacySettings.media_auto_download} />
 
