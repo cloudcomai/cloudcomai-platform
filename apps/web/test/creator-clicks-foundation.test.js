@@ -48,3 +48,16 @@ test('Live Streaming remains a disabled placeholder with no streaming implementa
   assert.match(panel, /Coming Soon/);
   assert.doesNotMatch(panel, /getUserMedia|RTCPeerConnection|WebRTC|MediaStream/);
 });
+
+test('Channel creation and broadcast publishing live only in the My channel tab', () => {
+  const feedStart = panel.indexOf("{tab === 'feed'");
+  const discoverStart = panel.indexOf("{tab === 'discover'");
+  const channelStart = panel.indexOf("{tab === 'profile'");
+  const footerStart = panel.indexOf('<footer');
+  const feed = panel.slice(feedStart, discoverStart);
+  const channel = panel.slice(channelStart, footerStart);
+  assert.doesNotMatch(feed, /Create my channel|Publish a broadcast|>Publish</);
+  assert.match(channel, /Create my channel/);
+  assert.match(channel, /Publish a broadcast/);
+  assert.match(channel, />Publish</);
+});
