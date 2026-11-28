@@ -59,6 +59,8 @@ function cc_post_row(array $row): array {
     $row['view_count'] = (int)($row['view_count'] ?? 0);
     $row['is_owner'] = (bool)($row['is_owner'] ?? false);
     $row['my_reaction'] = $row['my_reaction'] ?: null;
+    $row['creator_avatar_url'] = 'v1/creator-clicks/profile-media?kind=creator&user_id=' . $row['creator_id'];
+    $row['channel_avatar_url'] = 'v1/creator-clicks/profile-media?kind=channel&user_id=' . $row['creator_id'];
     $manifest = json_decode((string)($row['media_manifest'] ?? ''), true);
     $files = is_array($manifest) ? ($manifest['files'] ?? []) : [];
     $row['media'] = [];
