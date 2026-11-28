@@ -49,3 +49,19 @@ test('Creator Clicks cleanup is retryable, CLI-only, and scoped to its own media
   assert.match(worker, /attempts<8/);
   assert.doesNotMatch(worker, /DELETE FROM (messages|chats|stories)/i);
 });
+
+test('Creator Clicks validates and serves isolated images, videos, and profile pictures', () => {
+  const upload = read('../../../backend/api/creator_clicks_media_upload.php');
+  const serve = read('../../../backend/api/creator_clicks_media.php');
+  const profileUpload = read('../../../backend/api/creator_clicks_profile_upload.php');
+  const profileMedia = read('../../../backend/api/creator_clicks_profile_media.php');
+  const contract = JSON.parse(read('../../../backend/api-contract.json'));
+  assert.match(upload, /10 \* 1024 \* 1024/);
+  assert.match(upload, /160/);
+  assert.match(upload, /ffprobe/);
+  assert.match(serve, /HTTP_RANGE/);
+  assert.match(profileUpload, /5 \* 1024 \* 1024/);
+  assert.match(profileMedia, /channel_avatar_path/);
+  assert.equal(contract.routes['v1/creator-clicks/media/upload'].handler, 'creator_clicks_media_upload.php');
+  assert.equal(contract.routes['v1/creator-clicks/profile/upload'].handler, 'creator_clicks_profile_upload.php');
+});
