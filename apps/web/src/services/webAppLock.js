@@ -42,6 +42,7 @@ export async function saveWebAppLockPin(userId, pin) {
 }
 
 export async function verifyWebAppLockPin(userId, pin) {
+  if (!globalThis.crypto?.subtle) throw new Error('App Lock requires a browser with Web Crypto in a secure context (HTTPS or localhost).');
   const config = readWebAppLockConfig(userId);
   if (!config || !/^\d{4,6}$/.test(String(pin || ''))) return false;
   try {
@@ -50,7 +51,8 @@ export async function verifyWebAppLockPin(userId, pin) {
     let difference = 0;
     for (let index = 0; index < candidate.length; index += 1) difference |= candidate.charCodeAt(index) ^ config.hash.charCodeAt(index);
     return difference === 0;
-  } catch {
+  } catch (error) {
+    if (String(error?.message || '').includes('requires a browser with Web Crypto')) throw error;
     return false;
   }
 }
