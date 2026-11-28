@@ -107,6 +107,25 @@ if ($method === 'GET') {
         unset($item);
         out(['creators' => $items]);
     }
+    if ($action === 'discover') {
+        $stmt = $pdo->prepare('SELECT p.id,p.creator_id,p.content_type,p.body,p.media_manifest,p.created_at,p.expires_at,
+            c.display_name,u.name,
+            (SELECT COUNT(*) FROM creator_clicks_reactions r WHERE r.post_id=p.id) AS reaction_count,
+            (SELECT COUNT(*) FROM creator_clicks_post_views v WHERE v.post_id=p.id) AS view_count,
+            (SELECT r.reaction FROM creator_clicks_reactions r WHERE r.post_id=p.id AND r.user_id=? LIMIT 1) AS my_reaction,
+            0 AS is_owner
+            FROM creator_clicks_posts p
+            INNER JOIN creator_clicks_profiles c ON c.user_id=p.creator_id AND c.channel_deleted_at IS NULL
+            INNER JOIN users u ON u.id=p.creator_id AND u.account_status="active"
+            WHERE p.deleted_at IS NULL AND p.feed_expires_at>UTC_TIMESTAMP() AND p.creator_id<>?
+            AND NOT EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.follower_id=? AND f.creator_id=p.creator_id)
+            AND NOT EXISTS(SELECT 1 FROM creator_clicks_blocks b WHERE (b.blocker_id=? AND b.blocked_id=p.creator_id) OR (b.blocker_id=p.creator_id AND b.blocked_id=?))
+            AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=p.creator_id) OR (b.user_id=p.creator_id AND b.blocked_user_id=?))
+            AND (?=0 OR p.id<?)
+            ORDER BY p.created_at DESC,p.id DESC LIMIT ' . $limit);
+        $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId, $userId, $beforeId, $beforeId]);
+        out(['posts' => array_map('cc_post_row', $stmt->fetchAll())]);
+    }
     if ($action === 'profile') {
         $ownerId = (int)($_GET['user_id'] ?? $userId);
         $profile = cc_profile($pdo, $ownerId, $userId);
