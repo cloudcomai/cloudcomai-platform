@@ -19,6 +19,9 @@ if ($viewerId !== $ownerId) {
     $blocked = db()->prepare('SELECT 1 FROM creator_clicks_blocks WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?) LIMIT 1');
     $blocked->execute([$viewerId,$ownerId,$ownerId,$viewerId]);
     if ($blocked->fetchColumn()) fail('Creator picture is unavailable', 404);
+    $userBlocked = db()->prepare('SELECT 1 FROM user_blocks WHERE (user_id=? AND blocked_user_id=?) OR (user_id=? AND blocked_user_id=?) LIMIT 1');
+    $userBlocked->execute([$viewerId,$ownerId,$ownerId,$viewerId]);
+    if ($userBlocked->fetchColumn()) fail('Creator picture is unavailable', 404);
 }
 $path = dirname(__DIR__) . '/uploads/creator-clicks/' . $ownerId . '/' . $filename;
 if (!is_file($path)) fail('Creator picture is unavailable', 404);
