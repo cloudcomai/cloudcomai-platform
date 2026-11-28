@@ -13,7 +13,7 @@ export function readWebAppLockConfig(userId) {
   if (!userId || typeof window === 'undefined') return null;
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey(userId)) || 'null');
-    if (parsed?.version !== VERSION || parsed.enabled !== true || !hexToBytes(parsed.salt) || !hexToBytes(parsed.hash) || !Number.isInteger(parsed.iterations)) return null;
+    if (parsed?.version !== VERSION || parsed.enabled !== true || !hexToBytes(parsed.salt) || hexToBytes(parsed.salt).length !== 16 || !hexToBytes(parsed.hash) || hexToBytes(parsed.hash).length !== 32 || !Number.isInteger(parsed.iterations) || parsed.iterations < 100000 || parsed.iterations > 1000000) return null;
     return parsed;
   } catch {
     return null;
@@ -32,7 +32,7 @@ async function derivePinHash(pin, saltHex, iterations) {
 export async function saveWebAppLockPin(userId, pin) {
   const value = String(pin || '');
   if (!userId) throw new Error('A signed-in account is required.');
-  if (!/^\\d{4,6}$/.test(value)) throw new Error('Use a 4 to 6 digit PIN.');
+  if (!/^\d{4,6}$/.test(value)) throw new Error('Use a 4 to 6 digit PIN.');
   if (!globalThis.crypto?.getRandomValues || !globalThis.crypto?.subtle) throw new Error('App Lock requires a browser with Web Crypto in a secure context (HTTPS or localhost).');
   const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
   const saltHex = bytesToHex(salt);
@@ -43,7 +43,7 @@ export async function saveWebAppLockPin(userId, pin) {
 
 export async function verifyWebAppLockPin(userId, pin) {
   const config = readWebAppLockConfig(userId);
-  if (!config || !/^\\d{4,6}$/.test(String(pin || ''))) return false;
+  if (!config || !/^\d{4,6}$/.test(String(pin || ''))) return false;
   try {
     const candidate = await derivePinHash(String(pin), config.salt, config.iterations);
     if (candidate.length !== config.hash.length) return false;
