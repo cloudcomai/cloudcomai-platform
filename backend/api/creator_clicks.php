@@ -272,10 +272,11 @@ if ($method === 'DELETE') {
     if ($operation === 'channel') {
         $pdo->beginTransaction();
         try {
-            $channel = $pdo->prepare('SELECT user_id,channel_deleted_at FROM creator_clicks_profiles WHERE user_id=? FOR UPDATE');
+            $channel = $pdo->prepare('SELECT user_id,channel_deleted_at,avatar_path,channel_avatar_path FROM creator_clicks_profiles WHERE user_id=? FOR UPDATE');
             $channel->execute([$userId]);
             $owned = $channel->fetch();
             if (!$owned || $owned['channel_deleted_at'] !== null) fail('Creator Clicks channel not found', 404);
+            cc_queue_media_manifest($pdo, $userId, json_encode(['files' => array_values(array_filter([$owned['avatar_path'] ?? null, $owned['channel_avatar_path'] ?? null]))]));
             $posts = $pdo->prepare('SELECT id,media_manifest FROM creator_clicks_posts WHERE creator_id=?');
             $posts->execute([$userId]);
             $postRows = $posts->fetchAll();
