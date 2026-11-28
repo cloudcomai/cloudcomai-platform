@@ -53,7 +53,7 @@ test('Web Privacy & Account loads cloud backup status and exposes supported sett
     'updateAccountBackupSettings',
     'createAccountBackup',
     'restoreAccountBackup',
-  ]) assert.match(privacy, new RegExp('privacyApi\\\\.' + method));
+  ]) assert.ok(privacy.includes('privacyApi.' + method));
   for (const setting of ['automatic_frequency', 'include_videos', 'wifi_only']) assert.match(privacy, new RegExp(setting));
   assert.match(privacy, /setBackupLoading\(false\)/);
   assert.match(privacy, /email_verified/);
