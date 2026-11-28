@@ -27,6 +27,7 @@ import PrivacyAccountPanel from './components/PrivacyAccountPanel';
 import WebAppLockGate from './components/WebAppLockGate';
 import { PublicChatsPanel, PublicChatManagementPanel } from './components/WebCommunityPanels';
 import MomentsPanel from './components/MomentsPanel';
+import CreatorClicksPanel from './components/CreatorClicksPanel';
 import { inviteUrlFromResponse } from './utils/shareLink';
 import { passwordResetLink, privatePasswordResetUrl } from './utils/passwordRecovery';
 import {
@@ -834,6 +835,7 @@ function App() {
                     : modal === 'manage_public_chat' ? <PublicChatManagementPanel chat={selectedChat} user={user} close={() => setModal(null)} onLeave={handleLeavePublicChat} />
                     : modal === 'public_chats' ? <PublicChatsPanel close={() => setModal(null)} onOpenChat={async id => { await openExistingChat(id); setModal(null); }} />
                     : modal === 'moments' ? <MomentsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
+                    : modal === 'creator_clicks' ? <CreatorClicksPanel user={user} close={() => setModal(null)} />
                     : modal === 'saved_messages' || modal === 'sessions' ? <AccountToolsPanel key={modal} mode={modal} close={() => setModal(null)} onOpenChat={openExistingChat} onSessionRotated={acceptRotatedSession} onLogout={logout} onUnsave={id => setMessages(current => current.map(item => Number(item.id) === Number(id) ? { ...item, saved: false } : item))} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
                     : modal === 'privacy_account' ? <PrivacyAccountPanel privacyApi={platformApi} userId={user?.id} close={() => setModal(null)} onSettingsChanged={handlePrivacySettingsChanged} />
