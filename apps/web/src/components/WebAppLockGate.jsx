@@ -47,6 +47,9 @@ export default function WebAppLockGate({ userId }) {
         setPin('');
         setError('Incorrect PIN. Try again.');
       }
+    } catch (verificationError) {
+      setPin('');
+      setError(verificationError.message || 'Unable to verify App Lock PIN.');
     } finally {
       setBusy(false);
     }
