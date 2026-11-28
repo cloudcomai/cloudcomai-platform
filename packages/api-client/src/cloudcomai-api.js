@@ -62,6 +62,8 @@ export class CloudComAiApi {
   uploadCreatorClicksMedia(formData, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS_MEDIA_UPLOAD, formData, options); }
   getCreatorClicksMedia(postId, filename, options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS_MEDIA, { ...options, query: { ...options.query, post_id: postId, file: filename } }); }
   publishCreatorClickMedia(input, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'publish', ...input }, options); }
+  uploadCreatorClicksProfilePicture(formData, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS_PROFILE_UPLOAD, formData, options); }
+  getCreatorClicksProfilePicture(userId, kind = 'creator', options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS_PROFILE_MEDIA, { ...options, query: { ...options.query, user_id: userId, kind } }); }
   listChats(type, options = {}) { return this.client.get(ApiRoute.CHATS, { ...options, query: { ...options.query, type } }); }
   createPrivateChat(targetUserId, options = {}) { return this.client.post(ApiRoute.CHATS, { type: 'private', target_user_id: targetUserId }, options); }
   deleteChat(id, options = {}) { return this.client.delete(ApiRoute.CHATS, { ...options, query: { ...options.query, id } }); }
