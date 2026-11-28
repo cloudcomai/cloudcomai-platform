@@ -299,7 +299,7 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
             </div>
             {backupProgress && <p className="privacy-footnote" role="status">{backupProgress}</p>}
           </>}
-          <p className="privacy-footnote">Cloud backups are encrypted by the server before storage. Restore is available only when a valid backup exists and your registered email is verified.</p>
+          <p className="privacy-footnote">Cloud backups are encrypted by the server before storage. Restore is available only when a valid backup exists and your registered email is verified. Browser Wi-Fi detection is best-effort and may be unavailable; the preference cannot be guaranteed for every browser. Scheduled backups use server-side scheduling and do not depend on this browser remaining open.</p>
         </section>
         <section className="privacy-section">
           <h4><Download size={17} /> Local account export</h4>
