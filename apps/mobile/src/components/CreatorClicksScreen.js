@@ -76,7 +76,7 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
   };
 
   const publish = async () => {
-    if (!body.trim() || busy) return;
+    if ((mediaType === 'text' && !body.trim()) || busy) return;
     setBusy(true); setError('');
     try {
       if (mediaType === 'text') {
@@ -103,6 +103,7 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
       setAssets([]);
       setMediaType('text');
       await load();
+      await openProfile(Number(user?.id));
       setTab('profile');
     } catch (e) { setError(e.message || 'Unable to publish this broadcast.'); }
     finally { setBusy(false); }
