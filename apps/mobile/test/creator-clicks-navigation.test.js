@@ -22,3 +22,16 @@ test('Live Streaming is displayed as Coming Soon only', () => {
   assert.match(screen, /Live Streaming · Coming Soon/);
   assert.doesNotMatch(screen, /getUserMedia|RTCPeerConnection|WebRTC|MediaStream/);
 });
+
+test('Channel creation and broadcast publishing live only in the My channel tab', () => {
+  const feedStart = screen.indexOf("{tab === 'feed'");
+  const discoverStart = screen.indexOf("{tab === 'discover'");
+  const channelStart = screen.indexOf("{tab === 'profile'");
+  const footerStart = screen.indexOf('styles.footer');
+  const feed = screen.slice(feedStart, discoverStart);
+  const channel = screen.slice(channelStart, footerStart);
+  assert.doesNotMatch(feed, /Create my channel|Publish a broadcast|>Publish</);
+  assert.match(channel, /Create my channel/);
+  assert.match(channel, /Publish a broadcast/);
+  assert.match(channel, />Publish</);
+});
