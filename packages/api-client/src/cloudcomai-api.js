@@ -44,6 +44,9 @@ export class CloudComAiApi {
   restoreAccountBackup(options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'restore' }, options); }
   downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, { ...options, query: { ...options.query, export: '1' } }); }
 
+  listCreatorDirectory(query = '', options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'directory', q: query } }); }
+  followCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'follow', creator_id: creatorId }, options); }
+  unfollowCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'unfollow', creator_id: creatorId }, options); }
   listCreatorClicksFeed(options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'feed' } }); }
   listCreatorDirectory(query = '', options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'directory', q: query } }); }
   getCreatorClicksProfile(userId, options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'profile', user_id: userId } }); }
