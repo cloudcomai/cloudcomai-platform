@@ -45,10 +45,12 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
   const [relationship, setRelationship] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [trusted, setTrusted] = useState(false);
+  const [trustBusy, setTrustBusy] = useState(false);
   useEffect(() => {
     let active = true;
     Promise.all([platformApi.getUserProfile(userId), platformApi.getFriendRelationship(userId)])
-      .then(([p, r]) => { if (active) { setProfile(p.data?.user || p.data?.profile || p.data); setRelationship(r.data?.relationship || r.data); } })
+      .then(([p, r]) => { if (active) { const nextProfile = p.data?.user || p.data?.profile || p.data; setProfile(nextProfile); setTrusted(Boolean(nextProfile?.trusted_user)); setRelationship(r.data?.relationship || r.data); } })
       .catch(e => active && setError(e.message || 'Unable to load profile.'));
     return () => { active = false; };
   }, [userId]);
