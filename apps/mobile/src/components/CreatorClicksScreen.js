@@ -86,6 +86,43 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
     finally { setBusy(false); }
   };
 
+  const deletePost = post => {
+    if (Number(post.creator_id) !== Number(user?.id)) return;
+    Alert.alert('Delete post?', 'Only this selected post will be deleted. Your channel and other posts will remain.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete Post', style: 'destructive', onPress: async () => {
+        setBusy(true); setError('');
+        try {
+          await platformApi.deleteCreatorClick(post.id);
+          setPosts(current => current.filter(item => Number(item.id) !== Number(post.id)));
+          const refreshed = await platformApi.getCreatorClicksProfile(Number(user.id));
+          setProfile(refreshed?.data?.profile || null);
+          setPosts(refreshed?.data?.posts || []);
+        } catch (e) { setError(e.message || 'Unable to delete this post.'); }
+        finally { setBusy(false); }
+      } },
+    ]);
+  };
+
+  const deleteChannel = () => {
+    if (Number(profile?.user_id) !== Number(user?.id)) return;
+    const channelName = profile?.channel_name || profile?.display_name || 'your channel';
+    Alert.alert('Delete Creator Clicks channel?', 'This permanently removes "' + channelName + '" and its posts and followers. Your CloudComAI account, login, chats, contacts and Moments will remain unchanged.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete Channel', style: 'destructive', onPress: async () => {
+        setBusy(true); setError('');
+        try {
+          await platformApi.deleteCreatorClicksChannel();
+          setProfile(null);
+          setPosts([]);
+          await load();
+          setTab('profile');
+        } catch (e) { setError(e.message || 'Unable to delete your Creator Clicks channel.'); }
+        finally { setBusy(false); }
+      } },
+    ]);
+  };
+
   const card = [styles.card, { backgroundColor: theme.colors.surface || theme.colors.panel || theme.colors.background, borderColor: theme.colors.border }];
   const textColor = theme.colors.text;
   const mutedColor = theme.colors.secondary || '#64748b';
@@ -110,7 +147,7 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
       {tab === 'discover' ? <ScrollView contentContainerStyle={styles.content}>{creators.map(creator => <View key={creator.user_id} style={[card, styles.creatorRow]}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: textColor }]}>{creator.display_name}</Text><Text style={{ color: mutedColor }}>{creator.bio || creator.category} · {creator.follower_count} followers</Text></View><Pressable onPress={() => follow(creator)} disabled={busy || Number(creator.user_id) === Number(user?.id)} style={[styles.smallButton, { borderColor: theme.colors.border }]}><Text style={{ color: textColor }}>{creator.is_following ? 'Following' : 'Follow'}</Text></Pressable><Pressable disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onPress={() => openProfile(creator.user_id)} style={[styles.smallButton, { borderColor: theme.colors.border, opacity: creator.is_following || Number(creator.user_id) === Number(user?.id) ? 1 : 0.55 }]}><Text style={{ color: textColor }}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</Text></Pressable></View>)}{!creators.length ? <Text style={{ color: mutedColor, padding: 16 }}>No creator channels are available yet.</Text> : null}</ScrollView> : null}
       {tab === 'profile' ? <ScrollView contentContainerStyle={styles.content}>
         <View style={card}>
-          {profile ? <><Text style={[styles.cardTitle, { color: textColor }]}>{profile.display_name}</Text><Text style={{ color: textColor, marginVertical: 8 }}>{profile.bio || 'Welcome to my Creator Clicks channel.'}</Text><Text style={{ color: mutedColor }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' milestone' : ''}</Text></> : <><Text style={{ color: textColor }}>You have not created your Creator Clicks channel yet.</Text><Pressable disabled={busy} onPress={createProfile} style={[styles.primary, { backgroundColor: theme.colors.accent, marginTop: 12 }]}><Text style={styles.primaryText}>Create my channel</Text></Pressable></>}
+          {profile ? <><Text style={[styles.cardTitle, { color: textColor }]}>{profile.channel_name || profile.display_name}</Text><Text style={{ color: textColor, marginVertical: 8 }}>{profile.bio || 'Welcome to my Creator Clicks channel.'}</Text><Text style={{ color: mutedColor }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' milestone' : ''}</Text>{Number(profile.user_id) === Number(user?.id) ? <Pressable disabled={busy} onPress={deleteChannel} style={[styles.smallButton, { borderColor: '#dc2626', marginTop: 12 }]}><Text style={{ color: '#dc2626', fontWeight: '700' }}>Delete Channel</Text></Pressable> : null}</> : <><Text style={{ color: textColor }}>You have not created your Creator Clicks channel yet.</Text><Pressable disabled={busy} onPress={createProfile} style={[styles.primary, { backgroundColor: theme.colors.accent, marginTop: 12 }]}><Text style={styles.primaryText}>Create my channel</Text></Pressable></>}
         </View>
         {profile ? <View style={card}>
           <Text style={[styles.cardTitle, { color: textColor }]}>Publish a broadcast</Text>
@@ -118,6 +155,14 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
           <Text style={{ color: mutedColor, marginBottom: 10 }}>{Array.from(body).length}/300 characters · 90-day expiry</Text>
           <Pressable disabled={busy || !body.trim()} onPress={publish} style={[styles.primary, { backgroundColor: theme.colors.accent }]}><Text style={styles.primaryText}>Publish</Text></Pressable>
         </View> : null}
+        {posts.map(post => <View key={post.id} style={card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ color: mutedColor, fontSize: 12 }}>{post.created_at}</Text>
+            {Number(post.creator_id) === Number(user?.id) ? <Pressable disabled={busy} onPress={() => deletePost(post)}><Text style={{ color: '#dc2626', fontWeight: '700' }}>Delete Post</Text></Pressable> : null}
+          </View>
+          <Text style={[styles.postBody, { color: textColor }]}>{post.body}</Text>
+          <Text style={{ color: mutedColor }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</Text>
+        </View>)}
       </ScrollView> : null}
       <Text style={[styles.footer, { color: mutedColor }]}>Creator Clicks is separate from Chats and Moments. Live Streaming is not available yet.</Text>
     </SafeAreaView>
