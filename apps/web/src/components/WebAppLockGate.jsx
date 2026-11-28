@@ -20,18 +20,20 @@ export default function WebAppLockGate({ userId }) {
     const lock = () => { if (readWebAppLockConfig(userId)) { setLocked(true); setPin(''); setError(''); } };
     const onVisibility = () => { if (document.visibilityState === 'hidden') lock(); };
     document.addEventListener('visibilitychange', onVisibility);
+    const onPageShow = event => { if (event.persisted) lock(); };
     window.addEventListener('pagehide', lock);
-    window.addEventListener('pageshow', event => { if (event.persisted) lock(); });
+    window.addEventListener('pageshow', onPageShow);
     return () => {
       window.removeEventListener('cloudcomai:web-app-lock-changed', syncConfig);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', lock);
+      window.removeEventListener('pageshow', onPageShow);
     };
   }, [userId]);
 
   const unlock = async event => {
     event?.preventDefault?.();
-    if (busy || !/^\\d{4,6}$/.test(pin)) return;
+    if (busy || !/^\d{4,6}$/.test(pin)) return;
     setBusy(true);
     setError('');
     try {
@@ -53,9 +55,9 @@ export default function WebAppLockGate({ userId }) {
       <div aria-hidden="true" style={{ fontSize: 34, marginBottom: 12 }}>🔒</div>
       <h2 style={{ margin: '0 0 8px' }}>CloudComAI locked</h2>
       <p style={{ color: '#64748b', marginBottom: 20 }}>Enter your App Lock PIN to continue.</p>
-      <input autoFocus type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" maxLength={6} value={pin} onChange={event => setPin(event.target.value.replace(/\\D/g, '').slice(0, 6))} aria-label="App Lock PIN" placeholder="4–6 digit PIN" style={{ width: '100%', boxSizing: 'border-box', padding: 14, border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 20, textAlign: 'center', letterSpacing: 6 }} />
+      <input autoFocus type="password" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{4,6}" maxLength={6} value={pin} onChange={event => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} aria-label="App Lock PIN" placeholder="4–6 digit PIN" style={{ width: '100%', boxSizing: 'border-box', padding: 14, border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 20, textAlign: 'center', letterSpacing: 6 }} />
       {error && <p role="alert" style={{ color: '#b91c1c' }}>{error}</p>}
-      <button type="submit" disabled={busy || !/^\\d{4,6}$/.test(pin)} style={{ width: '100%', marginTop: 16, padding: 13, border: 0, borderRadius: 10, background: '#3157d5', color: '#fff', fontWeight: 700 }}>{busy ? 'Verifying…' : 'Unlock'}</button>
+      <button type="submit" disabled={busy || !/^\d{4,6}$/.test(pin)} style={{ width: '100%', marginTop: 16, padding: 13, border: 0, borderRadius: 10, background: '#3157d5', color: '#fff', fontWeight: 700 }}>{busy ? 'Verifying…' : 'Unlock'}</button>
       <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.5, marginTop: 18 }}>Browser App Lock is an additional privacy barrier, not equivalent to native secure storage. Anyone controlling this browser profile may be able to bypass or remove it.</p>
     </form>
   </div>;
