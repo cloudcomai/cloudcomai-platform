@@ -26,7 +26,7 @@ function cc_profile(PDO $pdo, int $ownerId, int $viewerId): array {
         (SELECT COUNT(*) FROM creator_clicks_posts x WHERE x.creator_id=p.user_id AND x.deleted_at IS NULL AND x.expires_at>UTC_TIMESTAMP()) AS post_count,
         EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.creator_id=p.user_id AND f.follower_id=?) AS is_following
         FROM creator_clicks_profiles p INNER JOIN users u ON u.id=p.user_id AND u.account_status="active"
-        WHERE p.user_id=? LIMIT 1');
+        WHERE p.user_id=? AND p.channel_deleted_at IS NULL LIMIT 1');
     $stmt->execute([$viewerId, $ownerId]);
     $row = $stmt->fetch();
     if (!$row) fail('Creator profile not found', 404);
@@ -36,6 +36,19 @@ function cc_profile(PDO $pdo, int $ownerId, int $viewerId): array {
     $row['is_following'] = (bool)$row['is_following'];
     $row['badge'] = $row['platform_verified_at'] !== null ? ($row['follower_count'] >= 10000 ? 'gold' : ($row['follower_count'] >= 1000 ? 'silver' : ($row['follower_count'] >= 100 ? 'bronze' : null))) : null;
     return $row;
+}
+function cc_queue_media_manifest(PDO $pdo, int $creatorId, ?string $manifest): void {
+    if (!$manifest) return;
+    $decoded = json_decode($manifest, true);
+    if (!is_array($decoded)) return;
+    $items = $decoded['files'] ?? $decoded;
+    if (!is_array($items)) return;
+    foreach ($items as $item) {
+        $filename = is_string($item) ? $item : (is_array($item) ? (string)($item['filename'] ?? '') : '');
+        if ($filename === '' || basename($filename) !== $filename || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$/', $filename)) continue;
+        $stmt = $pdo->prepare('INSERT IGNORE INTO creator_clicks_media_cleanup(creator_id,filename,status,created_at) VALUES(?,?,"pending",UTC_TIMESTAMP())');
+        $stmt->execute([$creatorId, $filename]);
+    }
 }
 function cc_post_row(array $row): array {
     $row['id'] = (int)$row['id'];
@@ -56,12 +69,13 @@ if ($method === 'GET') {
             (SELECT COUNT(*) FROM creator_clicks_follows f WHERE f.creator_id=p.user_id) AS follower_count,
             EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.creator_id=p.user_id AND f.follower_id=?) AS is_following
             FROM creator_clicks_profiles p INNER JOIN users u ON u.id=p.user_id AND u.account_status="active"
-            WHERE (?="" OR p.display_name LIKE ? OR p.bio LIKE ? OR p.category LIKE ?)
+            WHERE p.channel_deleted_at IS NULL AND (?="" OR p.display_name LIKE ? OR p.bio LIKE ? OR p.category LIKE ?)
+            AND NOT EXISTS(SELECT 1 FROM creator_clicks_follows followed WHERE followed.follower_id=? AND followed.creator_id=p.user_id)
             AND NOT EXISTS(SELECT 1 FROM creator_clicks_blocks b WHERE (b.blocker_id=? AND b.blocked_id=p.user_id) OR (b.blocker_id=p.user_id AND b.blocked_id=?))
             AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=p.user_id) OR (b.user_id=p.user_id AND b.blocked_user_id=?))
             ORDER BY follower_count DESC,p.updated_at DESC LIMIT 100');
         $like = '%' . $search . '%';
-        $stmt->execute([$userId, $search, $like, $like, $like, $userId, $userId, $userId, $userId]);
+        $stmt->execute([$userId, $search, $like, $like, $like, $userId, $userId, $userId, $userId, $userId]);
         $items = $stmt->fetchAll();
         foreach ($items as &$item) {
             $item['user_id'] = (int)$item['user_id'];
@@ -101,12 +115,12 @@ if ($method === 'GET') {
         FROM creator_clicks_posts p
         INNER JOIN creator_clicks_profiles c ON c.user_id=p.creator_id
         INNER JOIN users u ON u.id=p.creator_id AND u.account_status="active"
-        WHERE p.deleted_at IS NULL AND p.expires_at>UTC_TIMESTAMP()
-        AND (p.creator_id=? OR EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.creator_id=p.creator_id AND f.follower_id=?))
+        WHERE p.deleted_at IS NULL AND p.feed_expires_at>UTC_TIMESTAMP()
+        AND EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.creator_id=p.creator_id AND f.follower_id=?)
         AND NOT EXISTS(SELECT 1 FROM creator_clicks_blocks b WHERE (b.blocker_id=? AND b.blocked_id=p.creator_id) OR (b.blocker_id=p.creator_id AND b.blocked_id=?))
         AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=p.creator_id) OR (b.user_id=p.creator_id AND b.blocked_user_id=?))
         ORDER BY p.created_at DESC,p.id DESC LIMIT 100');
-    $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId, $userId, $userId]);
+    $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId, $userId]);
     out(['posts' => array_map('cc_post_row', $stmt->fetchAll())]);
 }
 
@@ -115,14 +129,20 @@ $action = strtolower(trim((string)($data['action'] ?? '')));
 
 if ($method === 'POST' && $action === 'profile') {
     $displayName = trim((string)($data['display_name'] ?? $user['name'] ?? ''));
+    $channelName = trim((string)($data['channel_name'] ?? $displayName));
     $bio = trim((string)($data['bio'] ?? ''));
     $category = trim((string)($data['category'] ?? 'Creator'));
     if ($displayName === '' || cc_length($displayName) > 80) fail('Creator name must contain 1 to 80 characters', 422);
+    if ($channelName === '' || cc_length($channelName) > 100) fail('Channel name must contain 1 to 100 characters', 422);
+    $existing = $pdo->prepare('SELECT channel_deleted_at FROM creator_clicks_profiles WHERE user_id=? LIMIT 1');
+    $existing->execute([$userId]);
+    $existingChannel = $existing->fetch();
+    if ($existingChannel && $existingChannel['channel_deleted_at'] !== null) fail('This Creator Clicks channel has been deleted and cannot be reopened', 409);
     if (cc_length($bio) > 300) fail('Creator bio must be 300 characters or fewer', 422);
     if ($category === '' || cc_length($category) > 60) fail('Choose a valid creator category', 422);
-    $stmt = $pdo->prepare('INSERT INTO creator_clicks_profiles(user_id,display_name,bio,category) VALUES(?,?,?,?)
-        ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),bio=VALUES(bio),category=VALUES(category),updated_at=UTC_TIMESTAMP()');
-    $stmt->execute([$userId, $displayName, $bio, $category]);
+    $stmt = $pdo->prepare('INSERT INTO creator_clicks_profiles(user_id,display_name,channel_name,bio,category) VALUES(?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),channel_name=VALUES(channel_name),bio=VALUES(bio),category=VALUES(category),updated_at=UTC_TIMESTAMP()');
+    $stmt->execute([$userId, $displayName, $channelName, $bio, $category]);
     out(['profile' => cc_profile($pdo, $userId, $userId)], 201);
 }
 
@@ -146,7 +166,7 @@ if ($method === 'POST' && $action === 'publish') {
     $profile = $pdo->prepare('SELECT user_id FROM creator_clicks_profiles WHERE user_id=?');
     $profile->execute([$userId]);
     if (!$profile->fetchColumn()) fail('Create your Creator Clicks profile before publishing', 409);
-    $stmt = $pdo->prepare('INSERT INTO creator_clicks_posts(creator_id,content_type,body,created_at,expires_at) VALUES(?, "text", ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()+INTERVAL 90 DAY)');
+    $stmt = $pdo->prepare('INSERT INTO creator_clicks_posts(creator_id,content_type,body,created_at,feed_expires_at,expires_at) VALUES(?, "text", ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()+INTERVAL 24 HOUR, UTC_TIMESTAMP()+INTERVAL 90 DAY)');
     $stmt->execute([$userId, $body]);
     out(['post_id' => (int)$pdo->lastInsertId(), 'expires_in_days' => 90], 201);
 }
@@ -198,12 +218,51 @@ if ($method === 'POST' && $action === 'report') {
 }
 
 if ($method === 'DELETE') {
+    $operation = strtolower(trim((string)($_GET['action'] ?? 'post')));
+    if ($operation === 'channel') {
+        $pdo->beginTransaction();
+        try {
+            $channel = $pdo->prepare('SELECT user_id,channel_deleted_at FROM creator_clicks_profiles WHERE user_id=? FOR UPDATE');
+            $channel->execute([$userId]);
+            $owned = $channel->fetch();
+            if (!$owned || $owned['channel_deleted_at'] !== null) fail('Creator Clicks channel not found', 404);
+            $posts = $pdo->prepare('SELECT id,media_manifest FROM creator_clicks_posts WHERE creator_id=?');
+            $posts->execute([$userId]);
+            $postRows = $posts->fetchAll();
+            foreach ($postRows as $post) cc_queue_media_manifest($pdo, $userId, $post['media_manifest'] ?? null);
+            $pdo->prepare('DELETE r FROM creator_clicks_reactions r INNER JOIN creator_clicks_posts p ON p.id=r.post_id WHERE p.creator_id=?')->execute([$userId]);
+            $pdo->prepare('DELETE v FROM creator_clicks_post_views v INNER JOIN creator_clicks_posts p ON p.id=v.post_id WHERE p.creator_id=?')->execute([$userId]);
+            $pdo->prepare('DELETE r FROM creator_clicks_reports r INNER JOIN creator_clicks_posts p ON p.id=r.post_id WHERE p.creator_id=?')->execute([$userId]);
+            $pdo->prepare('DELETE FROM creator_clicks_posts WHERE creator_id=?')->execute([$userId]);
+            $pdo->prepare('DELETE FROM creator_clicks_follows WHERE creator_id=? OR follower_id=?')->execute([$userId, $userId]);
+            $pdo->prepare('UPDATE creator_clicks_profiles SET channel_deleted_at=UTC_TIMESTAMP(),display_name="",channel_name="",bio="",category="Creator",avatar_path=NULL,channel_avatar_path=NULL,updated_at=UTC_TIMESTAMP() WHERE user_id=?')->execute([$userId]);
+            $pdo->commit();
+        } catch (Throwable $error) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+        out(['channel_deleted' => true, 'account_preserved' => true]);
+    }
+
     $postId = (int)($_GET['post_id'] ?? 0);
-    if ($postId <= 0) fail('Broadcast id is required', 422);
-    $stmt = $pdo->prepare('UPDATE creator_clicks_posts SET deleted_at=UTC_TIMESTAMP() WHERE id=? AND creator_id=? AND deleted_at IS NULL');
-    $stmt->execute([$postId, $userId]);
-    if ($stmt->rowCount() === 0) fail('Broadcast not found', 404);
-    out(['post_id' => $postId, 'deleted' => true]);
+    if ($postId <= 0) fail('Post id is required', 422);
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('SELECT id,media_manifest FROM creator_clicks_posts WHERE id=? AND creator_id=? AND deleted_at IS NULL FOR UPDATE');
+        $stmt->execute([$postId, $userId]);
+        $post = $stmt->fetch();
+        if (!$post) fail('Post not found or you do not own it', 404);
+        cc_queue_media_manifest($pdo, $userId, $post['media_manifest'] ?? null);
+        $pdo->prepare('DELETE FROM creator_clicks_reactions WHERE post_id=?')->execute([$postId]);
+        $pdo->prepare('DELETE FROM creator_clicks_post_views WHERE post_id=?')->execute([$postId]);
+        $pdo->prepare('DELETE FROM creator_clicks_reports WHERE post_id=?')->execute([$postId]);
+        $pdo->prepare('DELETE FROM creator_clicks_posts WHERE id=? AND creator_id=?')->execute([$postId, $userId]);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+    out(['post_id' => $postId, 'deleted' => true, 'channel_preserved' => true]);
 }
 
 fail('Unsupported Creator Clicks action', 405);
