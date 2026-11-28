@@ -281,9 +281,10 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
         <section className="privacy-section">
           <h4><Download size={17} /> Cloud backup & restore</h4>
           {backupLoading ? <p className="privacy-footnote">Loading cloud backup status…</p> : <>
-            <div className="storage-summary"><strong>{formatBackupDate(backup.last_backup_at)}</strong><span>Last successful backup</span></div>
+            <div className="storage-summary"><strong>{formatBackupDate(backup.last_backup_at)}</strong><span>Last successful backup · {backup.available ? 'Backup available' : 'No cloud backup available'}</span></div>
             <p className="privacy-footnote">Backup account: {backup.backup_account_email || 'No verified email'} · Size: {formatBytes(backup.backup_size)}</p>
-            {!backup.configured && <p className="privacy-error">{backup.status_error || (backup.unavailable ? 'Cloud backup status is unavailable. Retry by reopening Privacy & Account.' : 'Cloud backup is not configured on the server.')}</p>}
+            {!backup.configured && <p className="privacy-error">{backup.status_error || (backup.unavailable ? 'Cloud backup status is unavailable.' : 'Cloud backup is not configured on the server.')}</p>}
+            {backup.unavailable && <button type="button" onClick={() => refreshBackupStatus().catch(() => {})} disabled={backupBusy}>Retry backup status</button>}
             {backup.expired && <p className="privacy-error">The available cloud backup has expired and cannot be restored.</p>}
             {!backup.email_verified && <p className="privacy-error">Verify your registered email address to enable cloud backup and restore.</p>}
             <label className="privacy-toggle-row"><span><strong>Automatic backup</strong><small>Choose how often the server creates an encrypted backup.</small></span>
