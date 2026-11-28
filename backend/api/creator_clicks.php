@@ -58,6 +58,22 @@ function cc_post_row(array $row): array {
     $row['view_count'] = (int)($row['view_count'] ?? 0);
     $row['is_owner'] = (bool)($row['is_owner'] ?? false);
     $row['my_reaction'] = $row['my_reaction'] ?: null;
+    $manifest = json_decode((string)($row['media_manifest'] ?? ''), true);
+    $files = is_array($manifest) ? ($manifest['files'] ?? []) : [];
+    $row['media'] = [];
+    foreach (is_array($files) ? $files : [] as $file) {
+        if (!is_array($file) || empty($file['filename'])) continue;
+        $filename = basename((string)$file['filename']);
+        if (!preg_match('/^[a-f0-9]{32}\\.(jpg|png|webp|mp4|mov|webm)$/i', $filename)) continue;
+        $row['media'][] = [
+            'type' => (string)($file['type'] ?? 'image'),
+            'mime_type' => (string)($file['mime_type'] ?? ''),
+            'duration_seconds' => isset($file['duration_seconds']) ? (float)$file['duration_seconds'] : null,
+            'filename' => $filename,
+            'url' => 'v1/creator-clicks/media?post_id=' . (int)$row['id'] . '&file=' . rawurlencode($filename),
+        ];
+    }
+    unset($row['media_manifest']);
     return $row;
 }
 
@@ -94,7 +110,7 @@ if ($method === 'GET') {
             $canView->execute([$userId, $ownerId]);
             if (!$canView->fetchColumn()) fail('Follow this creator to view their broadcasts', 403);
         }
-        $stmt = $pdo->prepare('SELECT p.id,p.creator_id,p.content_type,p.body,p.created_at,p.expires_at,
+        $stmt = $pdo->prepare('SELECT p.id,p.creator_id,p.content_type,p.body,p.media_manifest,p.created_at,p.expires_at,
             (SELECT COUNT(*) FROM creator_clicks_reactions r WHERE r.post_id=p.id) AS reaction_count,
             (SELECT COUNT(*) FROM creator_clicks_post_views v WHERE v.post_id=p.id) AS view_count,
             EXISTS(SELECT 1 FROM creator_clicks_post_views v WHERE v.post_id=p.id AND v.viewer_id=?) AS viewed,
@@ -106,7 +122,7 @@ if ($method === 'GET') {
         $posts = array_map('cc_post_row', $stmt->fetchAll());
         out(['profile' => $profile, 'posts' => $posts]);
     }
-    $stmt = $pdo->prepare('SELECT p.id,p.creator_id,p.content_type,p.body,p.created_at,p.expires_at,
+    $stmt = $pdo->prepare('SELECT p.id,p.creator_id,p.content_type,p.body,p.media_manifest,p.created_at,p.expires_at,
         c.display_name,u.name,
         (SELECT COUNT(*) FROM creator_clicks_reactions r WHERE r.post_id=p.id) AS reaction_count,
         (SELECT COUNT(*) FROM creator_clicks_post_views v WHERE v.post_id=p.id) AS view_count,
@@ -162,13 +178,46 @@ if ($method === 'POST' && in_array($action, ['follow','unfollow'], true)) {
 
 if ($method === 'POST' && $action === 'publish') {
     $body = trim((string)($data['body'] ?? ''));
-    if ($body === '' || cc_length($body) > 300) fail('Text broadcasts must contain 1 to 300 characters', 422);
+    if (cc_length($body) > 300) fail('Captions must be 300 characters or fewer', 422);
+    $contentType = strtolower(trim((string)($data['content_type'] ?? 'text')));
+    if (!in_array($contentType, ['text','image','video'], true)) fail('Unsupported Creator Clicks content type', 422);
+    $mediaInput = $data['media'] ?? [];
+    if (!is_array($mediaInput)) fail('Media manifest must be a list', 422);
+    $files = [];
+    if ($contentType === 'text') {
+        if ($body === '' || $mediaInput) fail('Text posts require text and no media files', 422);
+    } elseif ($contentType === 'image') {
+        if (count($mediaInput) < 1 || count($mediaInput) > 5) fail('Image posts must contain between 1 and 5 images', 422);
+    } elseif ($contentType === 'video') {
+        if (count($mediaInput) !== 1) fail('Video posts must contain exactly one video', 422);
+    }
+    foreach ($mediaInput as $item) {
+        if (!is_array($item)) fail('Invalid media item', 422);
+        $filename = basename((string)($item['filename'] ?? ''));
+        $kind = (string)($item['type'] ?? '');
+        if ($filename === '' || basename($filename) !== (string)($item['filename'] ?? '') || !preg_match('/^[a-f0-9]{32}\\.(jpg|png|webp|mp4|mov|webm)$/i', $filename)) fail('Invalid media filename', 422);
+        $path = dirname(__DIR__) . '/uploads/creator-clicks/' . $userId . '/' . $filename;
+        if (!is_file($path)) fail('One or more uploaded media files are unavailable', 422);
+        $mime = cloudcomai_detect_mime_type($path);
+        if ($kind === 'image') {
+            if (!in_array($mime, ['image/jpeg','image/png','image/webp'], true) || filesize($path) > 10 * 1024 * 1024) fail('Images must be valid JPG, PNG or WebP files no larger than 10 MB', 422);
+        } elseif ($kind === 'video') {
+            if (!in_array($mime, ['video/mp4','video/quicktime','video/webm'], true)) fail('Invalid video media type', 422);
+            $duration = (float)($item['duration_seconds'] ?? 0);
+            if ($duration <= 0 || $duration > 160) fail('Videos must be 160 seconds or shorter', 422);
+        } else {
+            fail('Invalid media type', 422);
+        }
+        if (($contentType === 'image' && $kind !== 'image') || ($contentType === 'video' && $kind !== 'video')) fail('Media type does not match the post format', 422);
+        $files[] = ['filename' => $filename, 'type' => $kind, 'mime_type' => $mime, 'duration_seconds' => $kind === 'video' ? $duration : null];
+    }
     $profile = $pdo->prepare('SELECT user_id FROM creator_clicks_profiles WHERE user_id=? AND channel_deleted_at IS NULL');
     $profile->execute([$userId]);
     if (!$profile->fetchColumn()) fail('Create your Creator Clicks profile before publishing', 409);
-    $stmt = $pdo->prepare('INSERT INTO creator_clicks_posts(creator_id,content_type,body,created_at,feed_expires_at,expires_at) VALUES(?, "text", ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()+INTERVAL 24 HOUR, UTC_TIMESTAMP()+INTERVAL 90 DAY)');
-    $stmt->execute([$userId, $body]);
-    out(['post_id' => (int)$pdo->lastInsertId(), 'expires_in_days' => 90], 201);
+    $manifest = $files ? json_encode(['files' => $files], JSON_UNESCAPED_SLASHES) : null;
+    $stmt = $pdo->prepare('INSERT INTO creator_clicks_posts(creator_id,content_type,body,media_manifest,created_at,feed_expires_at,expires_at) VALUES(?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP()+INTERVAL 24 HOUR,UTC_TIMESTAMP()+INTERVAL 90 DAY)');
+    $stmt->execute([$userId, $contentType, $body, $manifest]);
+    out(['post_id' => (int)$pdo->lastInsertId(), 'content_type' => $contentType, 'expires_in_days' => 90, 'feed_visibility_hours' => 24], 201);
 }
 
 if ($method === 'POST' && $action === 'react') {
