@@ -16,18 +16,18 @@ test('web Privacy & Account exposes encrypted cloud backup settings and actions'
   for (const setting of ['automatic_frequency', 'include_videos', 'wifi_only']) assert.match(privacy, new RegExp(setting));
   assert.match(privacy, /email_verified/);
   assert.match(privacy, /restore_available/);
-  assert.match(privacy, /window\\.confirm/);
+  assert.match(privacy, /window\.confirm/);
 });
 
 test('web user profile exposes Trusted User enable and disable controls', () => {
-  assert.match(profile, /platformApi\\.trustUser/);
-  assert.match(profile, /platformApi\\.untrustUser/);
+  assert.match(profile, /platformApi\.trustUser/);
+  assert.match(profile, /platformApi\.untrustUser/);
   assert.match(profile, /Trusted User/);
   assert.match(profile, /trusted_user/);
 });
 
 test('private chat header continues to render the recipient avatar', () => {
   assert.match(canvas, /chatAvatarSrc && !chatAvatarFailed/);
-  assert.match(canvas, /mediaUrl\\('user', privateUserId\\)/);
-  assert.match(canvas, /selectedChat\\.other_user_id/);
+  assert.match(canvas, /mediaUrl\('user', privateUserId\)/);
+  assert.match(canvas, /selectedChat\.other_user_id/);
 });
