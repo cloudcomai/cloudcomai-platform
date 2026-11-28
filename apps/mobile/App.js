@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 import { createPollingMessageTransport, createReadTracker, formatMessageTimestamp, mergeMessageBatch } from '@cloudcomai/chat-core';
 import MomentsScreen from './src/components/MomentsScreen';
+import CreatorClicksScreen from './src/components/CreatorClicksScreen';
 import { extractFirstEmojiGrapheme } from './src/utils/momentReaction';
 
 const chatFontColorCache = new Map();
@@ -1003,6 +1004,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [momentsOpen, setMomentsOpen] = useState(false);
+  const [creatorClicksOpen, setCreatorClicksOpen] = useState(false);
   const [momentsTargetStoryId, setMomentsTargetStoryId] = useState(null);
   const lastBackPressRef = useRef(0);
   const [failedAvatarIds, setFailedAvatarIds] = useState(() => new Set());
@@ -1165,6 +1167,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         <Pressable style={styles.quickAction} onPress={() => setMomentsOpen(true)} accessibilityLabel="Open Moments"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>◉</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Moments</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => setSection('contacts')} accessibilityLabel="Open contacts"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>👥</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Contacts</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={onSettings} accessibilityLabel="Open settings"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>⚙</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Settings</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => setCreatorClicksOpen(true)} accessibilityLabel="Open Creator Clicks"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>✦</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Creator Clicks</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => openMenu('poll')} accessibilityLabel="Create poll"><View style={[styles.quickCircle,{backgroundColor:appTheme.colors.background,borderColor:appTheme.colors.accent}]}><Text style={[styles.quickIcon,{color:appTheme.colors.accent}]}>▥</Text></View><Text style={[styles.quickLabel,{color:appTheme.colors.text}]}>Polls</Text></Pressable>
       </ScrollView>
 
@@ -1220,6 +1223,7 @@ function ChatsScreen({ session, privacySettings, onLogout, onSettings, initialCh
         onChatCreated={chat => { setMenuVisible(false); setSection('private'); setChats(current => [chat, ...current.filter(item => Number(item.id) !== Number(chat.id) || item.isGroup)]); setSelectedChat(chat); }}
         onGroupCreated={group => { setMenuVisible(false); setSection('groups'); setChats(current => [group, ...current.filter(item => Number(item.id) !== Number(group.id) || !item.isGroup)]); setSelectedChat(group); }}
       />
+      {creatorClicksOpen ? <View style={[StyleSheet.absoluteFill, { zIndex: 1100, elevation: 1100 }]}><CreatorClicksScreen user={session.user} themeSettings={themeSettings} onBack={() => setCreatorClicksOpen(false)} /></View> : null}
       {momentsOpen ? (
         <View style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}>
           <MomentsScreen themeSettings={themeSettings} initialStoryId={momentsTargetStoryId} onBack={() => { setMomentsOpen(false); setMomentsTargetStoryId(null); }} />

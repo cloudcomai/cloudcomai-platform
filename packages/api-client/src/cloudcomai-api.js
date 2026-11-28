@@ -43,6 +43,27 @@ export class CloudComAiApi {
   createAccountBackup(input = {}, options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'backup', ...input }, options); }
   restoreAccountBackup(options = {}) { return this.client.post(ApiRoute.ACCOUNT_BACKUP, { action: 'restore' }, options); }
   downloadAccountBackup(options = {}) { return this.client.get(ApiRoute.ACCOUNT_BACKUP, { ...options, query: { ...options.query, export: '1' } }); }
+
+  listCreatorDirectory(query = '', options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'directory', q: query } }); }
+  followCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'follow', creator_id: creatorId }, options); }
+  unfollowCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'unfollow', creator_id: creatorId }, options); }
+  listCreatorClicksFeed(options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'feed' } }); }
+  listCreatorDirectory(query = '', options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'directory', q: query } }); }
+  getCreatorClicksProfile(userId, options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'profile', user_id: userId } }); }
+  saveCreatorClicksProfile(profile, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'profile', ...profile }, options); }
+  followCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'follow', creator_id: creatorId }, options); }
+  unfollowCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'unfollow', creator_id: creatorId }, options); }
+  publishCreatorClick(body, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'publish', body }, options); }
+  reactToCreatorClick(postId, reaction, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'react', post_id: postId, reaction }, options); }
+  viewCreatorClick(postId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'view', post_id: postId }, options); }
+  reportCreatorClick(postId, reason, details = '', options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'report', post_id: postId, reason, details }, options); }
+  deleteCreatorClick(postId, options = {}) { return this.client.delete(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, post_id: postId } }); }
+  deleteCreatorClicksChannel(options = {}) { return this.client.delete(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'channel' } }); }
+  uploadCreatorClicksMedia(formData, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS_MEDIA_UPLOAD, formData, options); }
+  getCreatorClicksMedia(postId, filename, options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS_MEDIA, { ...options, query: { ...options.query, post_id: postId, file: filename } }); }
+  publishCreatorClickMedia(input, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'publish', ...input }, options); }
+  uploadCreatorClicksProfilePicture(formData, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS_PROFILE_UPLOAD, formData, options); }
+  getCreatorClicksProfilePicture(userId, kind = 'creator', options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS_PROFILE_MEDIA, { ...options, query: { ...options.query, user_id: userId, kind } }); }
   listChats(type, options = {}) { return this.client.get(ApiRoute.CHATS, { ...options, query: { ...options.query, type } }); }
   createPrivateChat(targetUserId, options = {}) { return this.client.post(ApiRoute.CHATS, { type: 'private', target_user_id: targetUserId }, options); }
   deleteChat(id, options = {}) { return this.client.delete(ApiRoute.CHATS, { ...options, query: { ...options.query, id } }); }
