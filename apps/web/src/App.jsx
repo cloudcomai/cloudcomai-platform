@@ -24,6 +24,7 @@ import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
 import InvitationPage from './components/InvitationPage';
 import PrivacyAccountPanel from './components/PrivacyAccountPanel';
+import WebAppLockGate from './components/WebAppLockGate';
 import { PublicChatsPanel, PublicChatManagementPanel } from './components/WebCommunityPanels';
 import MomentsPanel from './components/MomentsPanel';
 import { inviteUrlFromResponse } from './utils/shareLink';
@@ -813,6 +814,7 @@ function App() {
 
     return (
         <div className={`app-container ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${modal === 'manage_members' ? 'group-management-active' : ''}`}>
+            <WebAppLockGate userId={user?.id} />
             <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
             <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} onJoinPublicChat={handleJoinPublicRoomFromDirectory} onLeavePublicChat={handleLeavePublicRoomFromDirectory} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
@@ -834,7 +836,7 @@ function App() {
                     : modal === 'moments' ? <MomentsPanel close={() => setModal(null)} onOpenChat={openExistingChat} />
                     : modal === 'saved_messages' || modal === 'sessions' ? <AccountToolsPanel key={modal} mode={modal} close={() => setModal(null)} onOpenChat={openExistingChat} onSessionRotated={acceptRotatedSession} onLogout={logout} onUnsave={id => setMessages(current => current.map(item => Number(item.id) === Number(id) ? { ...item, saved: false } : item))} />
                     : modal === 'google_contacts' ? <GoogleContactsPanel apiBridge={api} close={() => setModal(null)} />
-                    : modal === 'privacy_account' ? <PrivacyAccountPanel privacyApi={platformApi} close={() => setModal(null)} onSettingsChanged={handlePrivacySettingsChanged} />
+                    : modal === 'privacy_account' ? <PrivacyAccountPanel privacyApi={platformApi} userId={user?.id} close={() => setModal(null)} onSettingsChanged={handlePrivacySettingsChanged} />
                     : modal === 'poll' ? <PollModal selectedChat={selectedChat} apiBridge={api} initialPoll={pollEditTarget} close={() => { setPollEditTarget(null); setModal(null); }} onPollUpdated={updated => setMessages(prev => prev.map(message => Number(message.id) === Number(updated?.id) ? { ...message, ...updated } : message))} onPollCreated={pollMessageObject => setMessages(prev => {
                         const messageId = Number(pollMessageObject?.id || 0);
                         if (messageId) latestMessageIdRef.current = Math.max(latestMessageIdRef.current, messageId);
