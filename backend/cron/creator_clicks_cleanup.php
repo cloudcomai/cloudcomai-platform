@@ -62,8 +62,10 @@ foreach ($items->fetchAll() as $item) {
     }
     $referenced = $pdo->prepare('SELECT 1 FROM creator_clicks_posts WHERE creator_id=? AND deleted_at IS NULL AND JSON_SEARCH(media_manifest,"one",?) IS NOT NULL LIMIT 1');
     $referenced->execute([$creatorId, $filename]);
-    if ($referenced->fetchColumn()) {
-        $pdo->prepare('UPDATE creator_clicks_media_cleanup SET status="failed",attempts=0,last_error="Retained: referenced by another post" WHERE id=?')->execute([$id]);
+    $profileReference = $pdo->prepare('SELECT 1 FROM creator_clicks_profiles WHERE user_id=? AND (avatar_path=? OR channel_avatar_path=?) LIMIT 1');
+    $profileReference->execute([$creatorId, $filename, $filename]);
+    if ($referenced->fetchColumn() || $profileReference->fetchColumn()) {
+        $pdo->prepare('UPDATE creator_clicks_media_cleanup SET status="failed",attempts=0,last_error="Retained: media is still referenced" WHERE id=?')->execute([$id]);
         continue;
     }
     $base = realpath(__DIR__ . '/../uploads/creator-clicks');
