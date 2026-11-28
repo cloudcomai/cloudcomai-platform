@@ -62,4 +62,4 @@ Implement Creator Clicks as an isolated creator discovery and one-way broadcast 
 
 ## Current status
 
-This branch initially contained only this implementation guardrails document. Runtime implementation must be delivered incrementally with evidence-backed validation. Live Streaming remains Coming Soon and is explicitly excluded from the current implementation.
+This branch now contains the first foundation slice: isolated Creator Clicks tables, an authenticated directory/feed/profile/follow/text-broadcast API, shared API-client methods, independent Web and Mobile entry points, and initial regression tests. Image/video/voice/poll media publishing, secure media serving, cleanup workers, notifications, moderation UI, analytics, unseen rings, and full verification workflows remain incomplete. Live Streaming remains Coming Soon and is explicitly excluded from the current implementation.
