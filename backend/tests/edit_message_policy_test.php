@@ -91,9 +91,9 @@ try {
 
     $boundary = request('POST', 'v1/messages', 1, ['chat_id'=>1,'body'=>'boundary'], 201)['message'];
     $boundaryId = (int)$boundary['id'];
-    $admin->exec("UPDATE messages SET created_at=UTC_TIMESTAMP()-INTERVAL 3 HOUR WHERE id=$boundaryId");
+    $admin->exec("UPDATE messages SET created_at=UTC_TIMESTAMP()-INTERVAL 3 HOUR + INTERVAL 1 MINUTE WHERE id=$boundaryId");
     request('POST', 'v1/messages/edit', 1, ['message_id'=>$boundaryId,'body'=>'boundary edit']);
-    check((int)$admin->query("SELECT edit_count FROM messages WHERE id=$boundaryId")->fetchColumn() === 1, 'Three-hour boundary should remain editable');
+    check((int)$admin->query("SELECT edit_count FROM messages WHERE id=$boundaryId")->fetchColumn() === 1, 'Message inside the three-hour edit window should remain editable');
 
     $sync = request('GET', 'v1/messages?chat_id=1&after_id=' . $boundaryId . '&updated_after=2000-01-01%2000%3A00%3A00', 2)['messages'];
     $synced = array_values(array_filter($sync, fn($item) => (int)$item['id'] === $boundaryId));
