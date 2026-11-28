@@ -58,7 +58,7 @@ export default function CreatorClicksPanel({ user, close }) {
   const load = useCallback(async () => {
     setError('');
     try {
-      const [feed, directory, own] = await Promise.all([
+      const [feed, directory, discover, own] = await Promise.all([
         platformApi.listCreatorClicksFeed(),
         platformApi.listCreatorDirectory(),
         platformApi.listCreatorClicksDiscoverFeed(),
