@@ -48,6 +48,7 @@ export class CloudComAiApi {
   followCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'follow', creator_id: creatorId }, options); }
   unfollowCreator(creatorId, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'unfollow', creator_id: creatorId }, options); }
   listCreatorClicksFeed(options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'feed' } }); }
+  listCreatorClicksDiscoverFeed(options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'discover' } }); }
   listCreatorDirectory(query = '', options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'directory', q: query } }); }
   getCreatorClicksProfile(userId, options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'profile', user_id: userId } }); }
   saveCreatorClicksProfile(profile, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'profile', ...profile }, options); }
