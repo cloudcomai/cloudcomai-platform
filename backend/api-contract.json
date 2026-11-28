@@ -56,6 +56,8 @@
     "v1/creator-clicks": { "handler": "creator_clicks.php", "methods": ["GET", "POST", "DELETE"], "auth": true },
     "v1/creator-clicks/media/upload": { "handler": "creator_clicks_media_upload.php", "methods": ["POST"], "auth": true, "contentType": "multipart/form-data" },
     "v1/creator-clicks/media": { "handler": "creator_clicks_media.php", "methods": ["GET"], "auth": true },
+    "v1/creator-clicks/profile/upload": { "handler": "creator_clicks_profile_upload.php", "methods": ["POST"], "auth": true, "contentType": "multipart/form-data" },
+    "v1/creator-clicks/profile-media": { "handler": "creator_clicks_profile_media.php", "methods": ["GET"], "auth": true },
     "v1/stories": { "handler": "stories.php", "methods": ["GET", "POST", "PUT", "DELETE"], "auth": true },
     "v1/stories/media": { "handler": "story_media.php", "methods": ["GET"], "auth": true },
     "v1/stories/media/upload": { "handler": "story_media_upload.php", "methods": ["POST"], "auth": true, "contentType": "multipart/form-data" },
