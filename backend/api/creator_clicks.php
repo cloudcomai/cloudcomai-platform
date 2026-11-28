@@ -79,6 +79,8 @@ function cc_post_row(array $row): array {
 }
 
 if ($method === 'GET') {
+    $limit = max(1, min(50, (int)($_GET['limit'] ?? 20)));
+    $beforeId = max(0, (int)($_GET['before_id'] ?? 0));
     $action = strtolower(trim((string)($_GET['action'] ?? 'feed')));
     if ($action === 'directory') {
         $search = trim((string)($_GET['q'] ?? ''));
@@ -118,8 +120,9 @@ if ($method === 'GET') {
             (SELECT r.reaction FROM creator_clicks_reactions r WHERE r.post_id=p.id AND r.user_id=? LIMIT 1) AS my_reaction,
             CASE WHEN p.creator_id=? THEN 1 ELSE 0 END AS is_owner
             FROM creator_clicks_posts p WHERE p.creator_id=? AND p.deleted_at IS NULL AND p.expires_at>UTC_TIMESTAMP()
-            ORDER BY p.created_at DESC,p.id DESC LIMIT 100');
-        $stmt->execute([$userId, $userId, $userId, $ownerId]);
+            AND (?=0 OR p.id<?)
+            ORDER BY p.created_at DESC,p.id DESC LIMIT ' . $limit);
+        $stmt->execute([$userId, $userId, $userId, $ownerId, $beforeId, $beforeId]);
         $posts = array_map('cc_post_row', $stmt->fetchAll());
         out(['profile' => $profile, 'posts' => $posts]);
     }
@@ -136,8 +139,9 @@ if ($method === 'GET') {
         AND EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.creator_id=p.creator_id AND f.follower_id=?)
         AND NOT EXISTS(SELECT 1 FROM creator_clicks_blocks b WHERE (b.blocker_id=? AND b.blocked_id=p.creator_id) OR (b.blocker_id=p.creator_id AND b.blocked_id=?))
         AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=p.creator_id) OR (b.user_id=p.creator_id AND b.blocked_user_id=?))
-        ORDER BY p.created_at DESC,p.id DESC LIMIT 100');
-    $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId, $userId]);
+        AND (?=0 OR p.id<?)
+        ORDER BY p.created_at DESC,p.id DESC LIMIT ' . $limit);
+    $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId, $userId, $beforeId, $beforeId]);
     out(['posts' => array_map('cc_post_row', $stmt->fetchAll())]);
 }
 
