@@ -50,7 +50,7 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
   const trustRequestRef = useRef(false);
   useEffect(() => {
     let active = true;
-    setProfile(null); setTrusted(false); setError('');
+    setProfile(null); setTrusted(false); setRelationship(null); setError('');
     Promise.all([platformApi.getUserProfile(userId), platformApi.getFriendRelationship(userId)])
       .then(([p, r]) => { if (active) { const nextProfile = p.data?.user || p.data?.profile || p.data; setProfile(nextProfile); setTrusted(Boolean(nextProfile?.trusted_user)); setRelationship(r.data?.relationship || r.data); } })
       .catch(e => active && setError(e.message || 'Unable to load profile.'));
