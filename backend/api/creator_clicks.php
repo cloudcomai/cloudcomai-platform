@@ -58,9 +58,10 @@ if ($method === 'GET') {
             FROM creator_clicks_profiles p INNER JOIN users u ON u.id=p.user_id AND u.account_status="active"
             WHERE (?="" OR p.display_name LIKE ? OR p.bio LIKE ? OR p.category LIKE ?)
             AND NOT EXISTS(SELECT 1 FROM creator_clicks_blocks b WHERE (b.blocker_id=? AND b.blocked_id=p.user_id) OR (b.blocker_id=p.user_id AND b.blocked_id=?))
+            AND NOT EXISTS(SELECT 1 FROM user_blocks b WHERE (b.user_id=? AND b.blocked_user_id=p.user_id) OR (b.user_id=p.user_id AND b.blocked_user_id=?))
             ORDER BY follower_count DESC,p.updated_at DESC LIMIT 100');
         $like = '%' . $search . '%';
-        $stmt->execute([$userId, $search, $like, $like, $like, $userId, $userId]);
+        $stmt->execute([$userId, $search, $like, $like, $like, $userId, $userId, $userId, $userId]);
         $items = $stmt->fetchAll();
         foreach ($items as &$item) {
             $item['user_id'] = (int)$item['user_id'];
