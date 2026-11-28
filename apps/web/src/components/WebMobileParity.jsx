@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { platformApi, mediaUrl } from '../services/platform';
 
 export function ForwardMessageDialog({ message, onClose }) {
@@ -47,8 +47,10 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
   const [busy, setBusy] = useState(false);
   const [trusted, setTrusted] = useState(false);
   const [trustBusy, setTrustBusy] = useState(false);
+  const trustRequestRef = useRef(false);
   useEffect(() => {
     let active = true;
+    setProfile(null); setTrusted(false); setError('');
     Promise.all([platformApi.getUserProfile(userId), platformApi.getFriendRelationship(userId)])
       .then(([p, r]) => { if (active) { const nextProfile = p.data?.user || p.data?.profile || p.data; setProfile(nextProfile); setTrusted(Boolean(nextProfile?.trusted_user)); setRelationship(r.data?.relationship || r.data); } })
       .catch(e => active && setError(e.message || 'Unable to load profile.'));
@@ -77,9 +79,12 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
     finally { setBusy(false); }
   };
   const toggleTrustedUser = async () => {
-    if (!profile || trustBusy || Number(userId) === Number(currentUserId) || status === 'blocked') return;
+    const profileRelationship = String(profile?.relationship?.status || '').toLowerCase();
+    const blocked = status === 'blocked' || profileRelationship === 'blocked' || profile?.blocked === true || profile?.is_blocked === true;
+    if (!profile || trustBusy || trustRequestRef.current || Number(userId) === Number(currentUserId) || profileRelationship === 'self' || blocked) return;
     const next = !trusted;
     if (next && !window.confirm(`Allow ${profile.name || profile.username || 'this user'} to receive, download, save, and forward attachments you send without approval?`)) return;
+    trustRequestRef.current = true;
     setTrustBusy(true);
     setError('');
     try {
@@ -89,6 +94,7 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
     } catch (e) {
       setError(e.message || 'Unable to update Trusted User.');
     } finally {
+      trustRequestRef.current = false;
       setTrustBusy(false);
     }
   };
@@ -107,7 +113,7 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
         : status === 'pending' && direction === 'incoming' ? <div className="parity-actions"><button disabled={busy} onClick={() => act('accept')}>Accept</button><button disabled={busy} onClick={() => act('decline')}>Decline</button></div>
         : status === 'pending' ? <div className="parity-actions"><span className="profile-friend-status">Request Sent</span><button disabled={busy || !requestId} onClick={() => act('cancel')}>{busy ? 'Please wait…' : 'Cancel Request'}</button></div>
         : <button disabled={busy || !profile} onClick={() => act('send')}>{busy ? 'Sending…' : 'Add Friend'}</button>}
-      {profile && Number(userId) !== Number(currentUserId) && status !== 'blocked' && <section className="privacy-section" style={{ width: '100%', marginTop: 12, textAlign: 'left' }}>
+      {profile && Number(userId) !== Number(currentUserId) && status !== 'blocked' && profile?.relationship?.status !== 'self' && profile?.relationship?.status !== 'blocked' && profile?.blocked !== true && profile?.is_blocked !== true && <section className="privacy-section" style={{ width: '100%', marginTop: 12, textAlign: 'left' }}>
         <label className="privacy-toggle-row">
           <span><strong>Trusted User</strong><small>Allow this user to receive, download, save, and forward attachments you send without approval.</small></span>
           <input type="checkbox" checked={trusted} disabled={trustBusy} onChange={toggleTrustedUser} aria-label="Trusted User" />
