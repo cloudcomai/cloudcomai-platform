@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { ApiRoute } from '@cloudcomai/api-client';
-import { platformApi, uploadMobileFile } from '../services/platform';
+import { API_BASE_URL, platformApi, sessionManager, uploadMobileFile } from '../services/platform';
 import { resolveChatTheme } from '../services/chatTheme';
 
 const reactions = ['👍','❤️','😂','🔥','👏','😍','😮','😢'];
@@ -17,6 +17,7 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
   const [body, setBody] = useState('');
   const [mediaType, setMediaType] = useState('text');
   const [assets, setAssets] = useState([]);
+  const [authToken, setAuthToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,7 +41,27 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
     }
   }, [user?.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); sessionManager.getToken().then(value => setAuthToken(value || '')).catch(() => {}); }, [load]);
+
+  const uploadProfilePicture = async kind => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.9 });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (Number(asset.fileSize || asset.size || 0) > 5 * 1024 * 1024) throw new Error('Creator profile pictures must be 5 MB or smaller.');
+      setBusy(true); setError('');
+      await uploadMobileFile(ApiRoute.CREATOR_CLICKS_PROFILE_UPLOAD, { ...asset, size: asset.fileSize || asset.size }, {
+        fieldName: 'file',
+        fallbackName: 'creator-profile.jpg',
+        fallbackMime: 'image/jpeg',
+        maxBytes: 5 * 1024 * 1024,
+        multipartPartMode: 'expo-file',
+        parameters: { kind },
+      });
+      await openProfile(Number(user?.id));
+    } catch (e) { setError(e.message || 'Unable to update the creator picture.'); }
+    finally { setBusy(false); }
+  };
 
   const pickMedia = async nextType => {
     setError('');
@@ -196,7 +217,14 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
       {tab === 'discover' ? <ScrollView contentContainerStyle={styles.content}>{creators.map(creator => <View key={creator.user_id} style={[card, styles.creatorRow]}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: textColor }]}>{creator.display_name}</Text><Text style={{ color: mutedColor }}>{creator.bio || creator.category} · {creator.follower_count} followers</Text></View><Pressable onPress={() => follow(creator)} disabled={busy || Number(creator.user_id) === Number(user?.id)} style={[styles.smallButton, { borderColor: theme.colors.border }]}><Text style={{ color: textColor }}>{creator.is_following ? 'Following' : 'Follow'}</Text></Pressable><Pressable disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onPress={() => openProfile(creator.user_id)} style={[styles.smallButton, { borderColor: theme.colors.border, opacity: creator.is_following || Number(creator.user_id) === Number(user?.id) ? 1 : 0.55 }]}><Text style={{ color: textColor }}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</Text></Pressable></View>)}{!creators.length ? <Text style={{ color: mutedColor, padding: 16 }}>No creator channels are available yet.</Text> : null}</ScrollView> : null}
       {tab === 'profile' ? <ScrollView contentContainerStyle={styles.content}>
         <View style={card}>
-          {profile ? <><Text style={[styles.cardTitle, { color: textColor }]}>{profile.channel_name || profile.display_name}</Text><Text style={{ color: textColor, marginVertical: 8 }}>{profile.bio || 'Welcome to my Creator Clicks channel.'}</Text><Text style={{ color: mutedColor }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' milestone' : ''}</Text>{Number(profile.user_id) === Number(user?.id) ? <Pressable disabled={busy} onPress={deleteChannel} style={[styles.smallButton, { borderColor: '#dc2626', marginTop: 12 }]}><Text style={{ color: '#dc2626', fontWeight: '700' }}>Delete Channel</Text></Pressable> : null}</> : <><Text style={{ color: textColor }}>You have not created your Creator Clicks channel yet.</Text><Pressable disabled={busy} onPress={createProfile} style={[styles.primary, { backgroundColor: theme.colors.accent, marginTop: 12 }]}><Text style={styles.primaryText}>Create my channel</Text></Pressable></>}
+          {profile ? <><View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <Image source={{ uri: API_BASE_URL + '/v1/creator-clicks/profile-media?kind=creator&user_id=' + Number(profile.user_id), headers: authToken ? { Authorization: 'Bearer ' + authToken } : {} }} style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.panel }} />
+            <Image source={{ uri: API_BASE_URL + '/v1/creator-clicks/profile-media?kind=channel&user_id=' + Number(profile.user_id), headers: authToken ? { Authorization: 'Bearer ' + authToken } : {} }} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: theme.colors.panel }} />
+            {Number(profile.user_id) === Number(user?.id) ? <View style={{ flex: 1, gap: 8 }}>
+              <Pressable onPress={() => uploadProfilePicture('creator')} style={[styles.smallButton, { borderColor: theme.colors.border }]}><Text style={{ color: textColor }}>Update creator picture</Text></Pressable>
+              <Pressable onPress={() => uploadProfilePicture('channel')} style={[styles.smallButton, { borderColor: theme.colors.border }]}><Text style={{ color: textColor }}>Update channel picture</Text></Pressable>
+            </View> : null}
+          </View><Text style={[styles.cardTitle, { color: textColor }]}>{profile.channel_name || profile.display_name}</Text><Text style={{ color: textColor, marginVertical: 8 }}>{profile.bio || 'Welcome to my Creator Clicks channel.'}</Text><Text style={{ color: mutedColor }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' milestone' : ''}</Text>{Number(profile.user_id) === Number(user?.id) ? <Pressable disabled={busy} onPress={deleteChannel} style={[styles.smallButton, { borderColor: '#dc2626', marginTop: 12 }]}><Text style={{ color: '#dc2626', fontWeight: '700' }}>Delete Channel</Text></Pressable> : null}</> : <><Text style={{ color: textColor }}>You have not created your Creator Clicks channel yet.</Text><Pressable disabled={busy} onPress={createProfile} style={[styles.primary, { backgroundColor: theme.colors.accent, marginTop: 12 }]}><Text style={styles.primaryText}>Create my channel</Text></Pressable></>}
         </View>
         {profile ? <View style={card}>
           <Text style={[styles.cardTitle, { color: textColor }]}>Publish a broadcast</Text>
