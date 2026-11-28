@@ -55,7 +55,7 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
       await platformApi.publishCreatorClick(body.trim());
       setBody('');
       await load();
-      setTab('feed');
+      setTab('profile');
     } catch (e) { setError(e.message || 'Unable to publish this broadcast.'); }
     finally { setBusy(false); }
   };
@@ -104,12 +104,21 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {busy ? <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 10 }} /> : null}
       {tab === 'feed' ? <ScrollView contentContainerStyle={styles.content}>
-        {!profile ? <View style={card}><Text style={[styles.cardTitle, { color: textColor }]}>Start your creator channel</Text><Text style={{ color: mutedColor, marginVertical: 8 }}>Create a channel profile before publishing broadcasts.</Text><Pressable disabled={busy} onPress={createProfile} style={[styles.primary, { backgroundColor: theme.colors.accent }]}><Text style={styles.primaryText}>Create my channel</Text></Pressable></View> : <View style={card}><Text style={[styles.cardTitle, { color: textColor }]}>Publish a broadcast</Text><TextInput multiline value={body} onChangeText={setBody} maxLength={300} placeholder="Share an update with your followers…" placeholderTextColor={mutedColor} style={[styles.input, { color: textColor, borderColor: theme.colors.border }]} /><Text style={{ color: mutedColor, marginBottom: 10 }}>{Array.from(body).length}/300 characters · 90-day expiry</Text><Pressable disabled={busy || !body.trim()} onPress={publish} style={[styles.primary, { backgroundColor: theme.colors.accent }]}><Text style={styles.primaryText}>Publish</Text></Pressable></View>}
         {posts.map(post => <View key={post.id} style={card}><Text style={[styles.cardTitle, { color: textColor }]}>{post.display_name || post.name || 'Creator'}</Text><Text style={[styles.postBody, { color: textColor }]}>{post.body}</Text><View style={styles.reactions}>{reactions.map(item => <Pressable key={item} onPress={() => react(post, item)} style={[styles.reaction, { borderColor: theme.colors.border }]}><Text>{item}</Text></Pressable>)}</View><Text style={{ color: mutedColor, marginTop: 8 }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</Text></View>)}
         {!posts.length ? <Text style={{ color: mutedColor, padding: 16 }}>No broadcasts yet. Discover and follow creators.</Text> : null}
       </ScrollView> : null}
       {tab === 'discover' ? <ScrollView contentContainerStyle={styles.content}>{creators.map(creator => <View key={creator.user_id} style={[card, styles.creatorRow]}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: textColor }]}>{creator.display_name}</Text><Text style={{ color: mutedColor }}>{creator.bio || creator.category} · {creator.follower_count} followers</Text></View><Pressable onPress={() => follow(creator)} disabled={busy || Number(creator.user_id) === Number(user?.id)} style={[styles.smallButton, { borderColor: theme.colors.border }]}><Text style={{ color: textColor }}>{creator.is_following ? 'Following' : 'Follow'}</Text></Pressable><Pressable disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onPress={() => openProfile(creator.user_id)} style={[styles.smallButton, { borderColor: theme.colors.border, opacity: creator.is_following || Number(creator.user_id) === Number(user?.id) ? 1 : 0.55 }]}><Text style={{ color: textColor }}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</Text></Pressable></View>)}{!creators.length ? <Text style={{ color: mutedColor, padding: 16 }}>No creator channels are available yet.</Text> : null}</ScrollView> : null}
-      {tab === 'profile' ? <ScrollView contentContainerStyle={styles.content}><View style={card}>{profile ? <><Text style={[styles.cardTitle, { color: textColor }]}>{profile.display_name}</Text><Text style={{ color: textColor, marginVertical: 8 }}>{profile.bio || 'Welcome to my Creator Clicks channel.'}</Text><Text style={{ color: mutedColor }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' milestone' : ''}</Text></> : <><Text style={{ color: textColor }}>You have not created a Creator Clicks channel yet.</Text><Pressable onPress={createProfile} style={[styles.primary, { backgroundColor: theme.colors.accent, marginTop: 12 }]}><Text style={styles.primaryText}>Create my channel</Text></Pressable></>}</View></ScrollView> : null}
+      {tab === 'profile' ? <ScrollView contentContainerStyle={styles.content}>
+        <View style={card}>
+          {profile ? <><Text style={[styles.cardTitle, { color: textColor }]}>{profile.display_name}</Text><Text style={{ color: textColor, marginVertical: 8 }}>{profile.bio || 'Welcome to my Creator Clicks channel.'}</Text><Text style={{ color: mutedColor }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' milestone' : ''}</Text></> : <><Text style={{ color: textColor }}>You have not created your Creator Clicks channel yet.</Text><Pressable disabled={busy} onPress={createProfile} style={[styles.primary, { backgroundColor: theme.colors.accent, marginTop: 12 }]}><Text style={styles.primaryText}>Create my channel</Text></Pressable></>}
+        </View>
+        {profile ? <View style={card}>
+          <Text style={[styles.cardTitle, { color: textColor }]}>Publish a broadcast</Text>
+          <TextInput multiline value={body} onChangeText={setBody} maxLength={300} placeholder="Share an update with your followers…" placeholderTextColor={mutedColor} style={[styles.input, { color: textColor, borderColor: theme.colors.border }]} />
+          <Text style={{ color: mutedColor, marginBottom: 10 }}>{Array.from(body).length}/300 characters · 90-day expiry</Text>
+          <Pressable disabled={busy || !body.trim()} onPress={publish} style={[styles.primary, { backgroundColor: theme.colors.accent }]}><Text style={styles.primaryText}>Publish</Text></Pressable>
+        </View> : null}
+      </ScrollView> : null}
       <Text style={[styles.footer, { color: mutedColor }]}>Creator Clicks is separate from Chats and Moments. Live Streaming is not available yet.</Text>
     </SafeAreaView>
   );
