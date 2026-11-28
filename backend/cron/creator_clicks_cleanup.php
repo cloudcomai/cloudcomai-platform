@@ -86,4 +86,23 @@ foreach ($items->fetchAll() as $item) {
         $pdo->prepare('UPDATE creator_clicks_media_cleanup SET status="failed",attempts=attempts+1,last_error="Unable to remove media file" WHERE id=?')->execute([$id]);
     }
 }
-echo json_encode(['expired_posts_checked' => count($expiredRows), 'media_files_deleted' => $deleted], JSON_UNESCAPED_SLASHES) . PHP_EOL;
+// Remove abandoned uploads that were never attached to a post or profile.
+$storageRoot = realpath(__DIR__ . '/../uploads/creator-clicks');
+$orphaned = 0;
+if ($storageRoot !== false) {
+    foreach (glob($storageRoot . DIRECTORY_SEPARATOR . '[0-9]*', GLOB_ONLYDIR) ?: [] as $creatorDirPath) {
+        $creatorId = (int)basename($creatorDirPath);
+        if ($creatorId <= 0) continue;
+        foreach (glob($creatorDirPath . DIRECTORY_SEPARATOR . '*') ?: [] as $filePath) {
+            $filename = basename($filePath);
+            if (!is_file($filePath) || !preg_match('/^[a-f0-9]{32}\\.(jpg|png|webp|mp4|mov|webm)$/i', $filename)) continue;
+            if ((int)filemtime($filePath) > time() - 86400) continue;
+            $postReference = $pdo->prepare('SELECT 1 FROM creator_clicks_posts WHERE creator_id=? AND deleted_at IS NULL AND JSON_SEARCH(media_manifest,"one",?) IS NOT NULL LIMIT 1');
+            $postReference->execute([$creatorId, $filename]);
+            $profileReference = $pdo->prepare('SELECT 1 FROM creator_clicks_profiles WHERE user_id=? AND (avatar_path=? OR channel_avatar_path=?) LIMIT 1');
+            $profileReference->execute([$creatorId, $filename, $filename]);
+            if (!$postReference->fetchColumn() && !$profileReference->fetchColumn() && @unlink($filePath)) $orphaned++;
+        }
+    }
+}
+echo json_encode(['expired_posts_checked' => count($expiredRows), 'media_files_deleted' => $deleted, 'abandoned_uploads_deleted' => $orphaned], JSON_UNESCAPED_SLASHES) . PHP_EOL;
