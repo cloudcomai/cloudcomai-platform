@@ -59,6 +59,9 @@ export class CloudComAiApi {
   reportCreatorClick(postId, reason, details = '', options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'report', post_id: postId, reason, details }, options); }
   deleteCreatorClick(postId, options = {}) { return this.client.delete(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, post_id: postId } }); }
   deleteCreatorClicksChannel(options = {}) { return this.client.delete(ApiRoute.CREATOR_CLICKS, { ...options, query: { ...options.query, action: 'channel' } }); }
+  uploadCreatorClicksMedia(formData, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS_MEDIA_UPLOAD, formData, options); }
+  getCreatorClicksMedia(postId, filename, options = {}) { return this.client.get(ApiRoute.CREATOR_CLICKS_MEDIA, { ...options, query: { ...options.query, post_id: postId, file: filename } }); }
+  publishCreatorClickMedia(input, options = {}) { return this.client.post(ApiRoute.CREATOR_CLICKS, { action: 'publish', ...input }, options); }
   listChats(type, options = {}) { return this.client.get(ApiRoute.CHATS, { ...options, query: { ...options.query, type } }); }
   createPrivateChat(targetUserId, options = {}) { return this.client.post(ApiRoute.CHATS, { type: 'private', target_user_id: targetUserId }, options); }
   deleteChat(id, options = {}) { return this.client.delete(ApiRoute.CHATS, { ...options, query: { ...options.query, id } }); }
