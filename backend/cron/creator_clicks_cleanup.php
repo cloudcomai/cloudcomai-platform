@@ -28,7 +28,8 @@ function cc_worker_queue_manifest(PDO $pdo, int $creatorId, ?string $manifest): 
 // is independent and does not delete channel history.
 $expired = $pdo->prepare('SELECT id,creator_id,media_manifest FROM creator_clicks_posts WHERE expires_at<=UTC_TIMESTAMP() AND deleted_at IS NULL ORDER BY expires_at,id LIMIT ' . $batchSize);
 $expired->execute();
-foreach ($expired->fetchAll() as $post) {
+$expiredRows = $expired->fetchAll();
+foreach ($expiredRows as $post) {
     $pdo->beginTransaction();
     try {
         $lock = $pdo->prepare('SELECT id,media_manifest FROM creator_clicks_posts WHERE id=? AND expires_at<=UTC_TIMESTAMP() AND deleted_at IS NULL FOR UPDATE');
@@ -62,7 +63,7 @@ foreach ($items->fetchAll() as $item) {
     $referenced = $pdo->prepare('SELECT 1 FROM creator_clicks_posts WHERE creator_id=? AND deleted_at IS NULL AND JSON_SEARCH(media_manifest,"one",?) IS NOT NULL LIMIT 1');
     $referenced->execute([$creatorId, $filename]);
     if ($referenced->fetchColumn()) {
-        $pdo->prepare('UPDATE creator_clicks_media_cleanup SET status="deleted",processed_at=UTC_TIMESTAMP(),last_error="Retained: referenced by another post" WHERE id=?')->execute([$id]);
+        $pdo->prepare('UPDATE creator_clicks_media_cleanup SET status="failed",attempts=0,last_error="Retained: referenced by another post" WHERE id=?')->execute([$id]);
         continue;
     }
     $base = realpath(__DIR__ . '/../uploads/creator-clicks');
@@ -83,4 +84,4 @@ foreach ($items->fetchAll() as $item) {
         $pdo->prepare('UPDATE creator_clicks_media_cleanup SET status="failed",attempts=attempts+1,last_error="Unable to remove media file" WHERE id=?')->execute([$id]);
     }
 }
-echo json_encode(['expired_posts_checked' => count($expired->fetchAll()), 'media_files_deleted' => $deleted], JSON_UNESCAPED_SLASHES) . PHP_EOL;
+echo json_encode(['expired_posts_checked' => count($expiredRows), 'media_files_deleted' => $deleted], JSON_UNESCAPED_SLASHES) . PHP_EOL;
