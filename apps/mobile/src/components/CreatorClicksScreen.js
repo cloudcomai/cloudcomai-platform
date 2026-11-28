@@ -1,12 +1,24 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import * as ImagePicker from 'expo-image-picker';
 import { ApiRoute } from '@cloudcomai/api-client';
 import { API_BASE_URL, platformApi, sessionManager, uploadMobileFile } from '../services/platform';
 import { resolveChatTheme } from '../services/chatTheme';
 
 const reactions = ['👍','❤️','😂','🔥','👏','😍','😮','😢'];
+
+function CreatorClickVideo({ uri, token }) {
+  const player = useVideoPlayer({ uri, headers: token ? { Authorization: 'Bearer ' + token } : {} }, instance => { instance.loop = false; });
+  return <VideoView player={player} style={{ width: '100%', height: 240, borderRadius: 10, marginVertical: 8 }} nativeControls contentFit="contain" />;
+}
+
+function CreatorClickMedia({ item, postId, token }) {
+  const uri = API_BASE_URL + '/v1/creator-clicks/media?post_id=' + Number(postId) + '&file=' + encodeURIComponent(item.filename);
+  if (item.type === 'video') return <CreatorClickVideo uri={uri} token={token} />;
+  return <Image source={{ uri, headers: token ? { Authorization: 'Bearer ' + token } : {} }} resizeMode="contain" style={{ width: '100%', height: 260, borderRadius: 10, marginVertical: 8 }} />;
+}
 
 export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
   const theme = resolveChatTheme(themeSettings);
@@ -211,7 +223,7 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {busy ? <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 10 }} /> : null}
       {tab === 'feed' ? <ScrollView contentContainerStyle={styles.content}>
-        {posts.map(post => <View key={post.id} style={card}><Text style={[styles.cardTitle, { color: textColor }]}>{post.display_name || post.name || 'Creator'}</Text><Text style={[styles.postBody, { color: textColor }]}>{post.body}</Text><View style={styles.reactions}>{reactions.map(item => <Pressable key={item} onPress={() => react(post, item)} style={[styles.reaction, { borderColor: theme.colors.border }]}><Text>{item}</Text></Pressable>)}</View><Text style={{ color: mutedColor, marginTop: 8 }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</Text></View>)}
+        {posts.map(post => <View key={post.id} style={card}><Text style={[styles.cardTitle, { color: textColor }]}>{post.display_name || post.name || 'Creator'}</Text><Text style={[styles.postBody, { color: textColor }]}>{post.body}</Text>{(post.media || []).map(item => <CreatorClickMedia key={item.filename} item={item} postId={post.id} token={authToken} />)}<View style={styles.reactions}>{reactions.map(item => <Pressable key={item} onPress={() => react(post, item)} style={[styles.reaction, { borderColor: theme.colors.border }]}><Text>{item}</Text></Pressable>)}</View><Text style={{ color: mutedColor, marginTop: 8 }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</Text></View>)}
         {!posts.length ? <Text style={{ color: mutedColor, padding: 16 }}>No broadcasts yet. Discover and follow creators.</Text> : null}
       </ScrollView> : null}
       {tab === 'discover' ? <ScrollView contentContainerStyle={styles.content}>{creators.map(creator => <View key={creator.user_id} style={[card, styles.creatorRow]}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: textColor }]}>{creator.display_name}</Text><Text style={{ color: mutedColor }}>{creator.bio || creator.category} · {creator.follower_count} followers</Text></View><Pressable onPress={() => follow(creator)} disabled={busy || Number(creator.user_id) === Number(user?.id)} style={[styles.smallButton, { borderColor: theme.colors.border }]}><Text style={{ color: textColor }}>{creator.is_following ? 'Following' : 'Follow'}</Text></Pressable><Pressable disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onPress={() => openProfile(creator.user_id)} style={[styles.smallButton, { borderColor: theme.colors.border, opacity: creator.is_following || Number(creator.user_id) === Number(user?.id) ? 1 : 0.55 }]}><Text style={{ color: textColor }}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</Text></Pressable></View>)}{!creators.length ? <Text style={{ color: mutedColor, padding: 16 }}>No creator channels are available yet.</Text> : null}</ScrollView> : null}
@@ -249,6 +261,7 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
             {Number(post.creator_id) === Number(user?.id) ? <Pressable disabled={busy} onPress={() => deletePost(post)}><Text style={{ color: '#dc2626', fontWeight: '700' }}>Delete Post</Text></Pressable> : null}
           </View>
           <Text style={[styles.postBody, { color: textColor }]}>{post.body}</Text>
+          {(post.media || []).map(item => <CreatorClickMedia key={item.filename} item={item} postId={post.id} token={authToken} />)}
           <Text style={{ color: mutedColor }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</Text>
         </View>)}
       </ScrollView> : null}
