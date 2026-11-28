@@ -260,9 +260,9 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
             </label>
             <ToggleRow label="Include videos" description="Include uploaded videos in the encrypted backup." checked={Boolean(backup.include_videos)} disabled={backupBusy || !backup.configured || !backup.email_verified} onChange={value => updateBackupSettings({ include_videos: value })} />
             <ToggleRow label="Backup over Wi-Fi only" description="Applied when the browser exposes network connection details." checked={backup.wifi_only !== false} disabled={backupBusy || !backup.configured || !backup.email_verified} onChange={value => updateBackupSettings({ wifi_only: value })} />
-            <div className="privacy-backup-actions">
+            <div className="privacy-backup-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="privacy-backup-button" onClick={createCloudBackup} disabled={backupBusy || !backup.configured || !backup.email_verified}>{backupBusy ? 'Please wait…' : 'Back up now'}</button>
-              {backup.restore_available && <button type="button" className="privacy-backup-button" onClick={restoreCloudBackup} disabled={backupBusy}>Restore backup</button>}
+              {backup.restore_available && <button type="button" className="privacy-backup-button" onClick={restoreCloudBackup} disabled={backupBusy || !backup.email_verified}>Restore backup</button>}
             </div>
             {backupProgress && <p className="privacy-footnote" role="status">{backupProgress}</p>}
           </>}
