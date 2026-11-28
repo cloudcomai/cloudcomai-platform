@@ -70,11 +70,7 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
     }
   }, [privacyApi]);
 
-  useEffect(() => {
-    let active = true;
-    refreshBackupStatus().catch(() => {});
-    return () => { active = false; };
-  }, [refreshBackupStatus]);
+  useEffect(() => { refreshBackupStatus().catch(() => {}); }, [refreshBackupStatus]);
 
   const updateSetting = async (key, value) => {
     setSaving(key);
