@@ -14,7 +14,7 @@ export default function WebAppLockSettings({ userId }) {
     event.preventDefault();
     if (busy) return;
     setError(''); setMessage('');
-    if (!/^\\d{4,6}$/.test(pin)) { setError('Use a 4 to 6 digit PIN.'); return; }
+    if (!/^\d{4,6}$/.test(pin)) { setError('Use a 4 to 6 digit PIN.'); return; }
     if (pin !== confirmPin) { setError('PIN confirmation does not match.'); return; }
     setBusy(true);
     try {
@@ -43,12 +43,12 @@ export default function WebAppLockSettings({ userId }) {
     <p className="privacy-footnote">Protect this browser session with a 4–6 digit PIN. The PIN is not stored; a salted PBKDF2-SHA-256 verifier is stored in this browser profile.</p>
     {enabled ? <form onSubmit={disable}>
       <p role="status">App Lock is enabled.</p>
-      <label className="privacy-toggle-row"><span><strong>Current PIN</strong><small>Verify your PIN before disabling App Lock.</small></span><input type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" maxLength={6} value={currentPin} onChange={event => setCurrentPin(event.target.value.replace(/\\D/g, '').slice(0, 6))} aria-label="Current App Lock PIN" /></label>
-      <button type="submit" disabled={busy || !/^\\d{4,6}$/.test(currentPin)}>{busy ? 'Please wait…' : 'Disable App Lock'}</button>
+      <label className="privacy-toggle-row"><span><strong>Current PIN</strong><small>Verify your PIN before disabling App Lock.</small></span><input type="password" inputMode="numeric" autoComplete="current-password" pattern="[0-9]{4,6}" maxLength={6} value={currentPin} onChange={event => setCurrentPin(event.target.value.replace(/\D/g, '').slice(0, 6))} aria-label="Current App Lock PIN" /></label>
+      <button type="submit" disabled={busy || !/^\d{4,6}$/.test(currentPin)}>{busy ? 'Please wait…' : 'Disable App Lock'}</button>
     </form> : <form onSubmit={enable}>
-      <label className="privacy-toggle-row"><span><strong>Create PIN</strong></span><input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" maxLength={6} value={pin} onChange={event => setPin(event.target.value.replace(/\\D/g, '').slice(0, 6))} aria-label="Create App Lock PIN" /></label>
-      <label className="privacy-toggle-row"><span><strong>Confirm PIN</strong></span><input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" maxLength={6} value={confirmPin} onChange={event => setConfirmPin(event.target.value.replace(/\\D/g, '').slice(0, 6))} aria-label="Confirm App Lock PIN" /></label>
-      <button type="submit" disabled={busy || !/^\\d{4,6}$/.test(pin) || !/^\\d{4,6}$/.test(confirmPin)}>{busy ? 'Please wait…' : 'Enable App Lock'}</button>
+      <label className="privacy-toggle-row"><span><strong>Create PIN</strong></span><input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" maxLength={6} value={pin} onChange={event => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} aria-label="Create App Lock PIN" /></label>
+      <label className="privacy-toggle-row"><span><strong>Confirm PIN</strong></span><input type="password" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,6}" maxLength={6} value={confirmPin} onChange={event => setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 6))} aria-label="Confirm App Lock PIN" /></label>
+      <button type="submit" disabled={busy || !/^\d{4,6}$/.test(pin) || !/^\d{4,6}$/.test(confirmPin)}>{busy ? 'Please wait…' : 'Enable App Lock'}</button>
     </form>}
     {error && <p role="alert" className="privacy-error">{error}</p>}
     {message && <p role="status" className="privacy-footnote">{message}</p>}
