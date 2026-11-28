@@ -5,6 +5,26 @@ const reactions = ['👍','❤️','😂','🔥','👏','😍','😮','😢'];
 const buttonStyle = { border: '1px solid #d7deeb', borderRadius: 10, padding: '9px 13px', background: '#fff', color: '#172033', cursor: 'pointer', fontWeight: 650 };
 const cardStyle = { border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, background: '#fff', marginBottom: 12 };
 
+function CreatorClickMedia({ item, postId }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    let active = true;
+    let objectUrl = '';
+    fetchApiBlob('v1/creator-clicks/media', { post_id: postId, file: item.filename })
+      .then(blob => {
+        if (!active || !blob) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {});
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [postId, item.filename]);
+  if (!url) return <p style={{ color: '#64748b' }}>Loading media…</p>;
+  return item.type === 'video'
+    ? <video src={url} controls playsInline style={{ width: '100%', maxHeight: 420, borderRadius: 10 }} />
+    : <img src={url} alt="Creator post" style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 10 }} />;
+}
+
 export default function CreatorClicksPanel({ user, close }) {
   const [tab, setTab] = useState('feed');
   const [posts, setPosts] = useState([]);
@@ -209,7 +229,7 @@ export default function CreatorClicksPanel({ user, close }) {
       </div>
       {error ? <p role="alert" style={{ color: '#b91c1c', background: '#fef2f2', padding: 10, borderRadius: 8 }}>{error}</p> : null}
       {tab === 'feed' && <>
-        {posts.length ? posts.map(post => <article key={post.id} style={cardStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><button type="button" onClick={() => openCreator(post.creator_id)} style={{ border: 0, padding: 0, background: 'transparent', fontWeight: 750, cursor: 'pointer' }}>{post.display_name || post.name || 'Creator'}</button><small style={{ color: '#64748b' }}>{post.created_at}</small></div><p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{post.body}</p><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{reactions.map(item => <button key={item} type="button" style={{ ...buttonStyle, padding: '5px 9px' }} onClick={() => react(post, item)}>{item}</button>)}<small style={{ alignSelf: 'center', color: '#64748b' }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</small></div></article>) : <p style={{ color: '#64748b' }}>No broadcasts yet. Follow a creator or publish your first update.</p>}
+        {posts.length ? posts.map(post => <article key={post.id} style={cardStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><button type="button" onClick={() => openCreator(post.creator_id)} style={{ border: 0, padding: 0, background: 'transparent', fontWeight: 750, cursor: 'pointer' }}>{post.display_name || post.name || 'Creator'}</button><small style={{ color: '#64748b' }}>{post.created_at}</small></div><p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{post.body}</p>{(post.media || []).map(item => <CreatorClickMedia key={item.filename} item={item} postId={post.id} />)}<div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{reactions.map(item => <button key={item} type="button" style={{ ...buttonStyle, padding: '5px 9px' }} onClick={() => react(post, item)}>{item}</button>)}<small style={{ alignSelf: 'center', color: '#64748b' }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</small></div></article>) : <p style={{ color: '#64748b' }}>No broadcasts yet. Follow a creator or publish your first update.</p>}
       </>}
       {tab === 'discover' && <div>{creators.length ? creators.map(creator => <article key={creator.user_id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 22, display: 'grid', placeItems: 'center', background: '#eaf0ff', color: '#3157d5', fontWeight: 800 }}>{(creator.display_name || creator.name || 'C').slice(0,1).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><strong>{creator.display_name}</strong><p style={{ margin: '3px 0', color: '#64748b' }}>{creator.bio || creator.category} · {creator.follower_count} followers</p></div><button type="button" style={buttonStyle} disabled={busy || Number(creator.user_id) === Number(user?.id)} onClick={() => toggleFollow(creator)}>{creator.is_following ? 'Following' : 'Follow'}</button><button type="button" style={buttonStyle} disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onClick={() => openCreator(creator.user_id)}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</button></article>) : <p style={{ color: '#64748b' }}>No creator channels are available yet.</p>}</div>}
       {tab === 'profile' && <>
@@ -242,6 +262,7 @@ export default function CreatorClicksPanel({ user, close }) {
             {Number(post.creator_id) === Number(user?.id) ? <button type="button" style={{ ...buttonStyle, color: '#b91c1c', borderColor: '#fecaca' }} disabled={busy} onClick={() => deletePost(post)}>Delete Post</button> : null}
           </div>
           <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{post.body}</p>
+          {(post.media || []).map(item => <CreatorClickMedia key={item.filename} item={item} postId={post.id} />)}
           <small style={{ color: '#64748b' }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</small>
         </article>) : null}
       </>}
