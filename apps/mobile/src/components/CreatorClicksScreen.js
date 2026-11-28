@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { platformApi } from '../services/platform';
+import * as ImagePicker from 'expo-image-picker';
+import { ApiRoute } from '@cloudcomai/api-client';
+import { platformApi, uploadMobileFile } from '../services/platform';
 import { resolveChatTheme } from '../services/chatTheme';
 
 const reactions = ['👍','❤️','😂','🔥','👏','😍','😮','😢'];
@@ -13,6 +15,8 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
   const [creators, setCreators] = useState([]);
   const [profile, setProfile] = useState(null);
   const [body, setBody] = useState('');
+  const [mediaType, setMediaType] = useState('text');
+  const [assets, setAssets] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,6 +42,29 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const pickMedia = async nextType => {
+    setError('');
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: nextType === 'image' ? ['images'] : ['videos'],
+        allowsMultipleSelection: nextType === 'image',
+        selectionLimit: nextType === 'image' ? 5 : 1,
+        allowsEditing: false,
+        quality: 0.9,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      if (nextType === 'image') {
+        if (result.assets.length > 5) throw new Error('Choose no more than 5 images per post.');
+        if (result.assets.some(item => Number(item.fileSize || item.size || 0) > 10 * 1024 * 1024)) throw new Error('Each image must be 10 MB or smaller.');
+      } else {
+        const duration = Number(result.assets[0].duration || 0) / 1000;
+        if (!duration || duration > 160) throw new Error('Videos must be 160 seconds or shorter.');
+      }
+      setMediaType(nextType);
+      setAssets(result.assets);
+    } catch (e) { setError(e.message || 'Unable to select media.'); }
+  };
+
   const createProfile = async () => {
     setBusy(true); setError('');
     try {
@@ -52,8 +79,29 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
     if (!body.trim() || busy) return;
     setBusy(true); setError('');
     try {
-      await platformApi.publishCreatorClick(body.trim());
+      if (mediaType === 'text') {
+        await platformApi.publishCreatorClick(body.trim());
+      } else {
+        if (!assets.length) throw new Error('Choose media before publishing.');
+        const uploaded = [];
+        for (const asset of assets) {
+          const isVideo = mediaType === 'video';
+          const response = await uploadMobileFile(ApiRoute.CREATOR_CLICKS_MEDIA_UPLOAD, { ...asset, size: asset.fileSize || asset.size }, {
+            fieldName: 'file',
+            fallbackName: isVideo ? 'creator-video.mp4' : 'creator-image.jpg',
+            fallbackMime: isVideo ? 'video/mp4' : 'image/jpeg',
+            maxBytes: isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024,
+            multipartPartMode: 'expo-file',
+          });
+          const item = response?.data || {};
+          if (!item.filename || !item.type) throw new Error('The media upload did not return a valid file.');
+          uploaded.push(item);
+        }
+        await platformApi.publishCreatorClickMedia({ content_type: mediaType, body: body.trim(), media: uploaded });
+      }
       setBody('');
+      setAssets([]);
+      setMediaType('text');
       await load();
       setTab('profile');
     } catch (e) { setError(e.message || 'Unable to publish this broadcast.'); }
@@ -151,9 +199,20 @@ export default function CreatorClicksScreen({ user, themeSettings, onBack }) {
         </View>
         {profile ? <View style={card}>
           <Text style={[styles.cardTitle, { color: textColor }]}>Publish a broadcast</Text>
-          <TextInput multiline value={body} onChangeText={setBody} maxLength={300} placeholder="Share an update with your followers…" placeholderTextColor={mutedColor} style={[styles.input, { color: textColor, borderColor: theme.colors.border }]} />
-          <Text style={{ color: mutedColor, marginBottom: 10 }}>{Array.from(body).length}/300 characters · 90-day expiry</Text>
-          <Pressable disabled={busy || !body.trim()} onPress={publish} style={[styles.primary, { backgroundColor: theme.colors.accent }]}><Text style={styles.primaryText}>Publish</Text></Pressable>
+          <View style={styles.reactions}>
+            {['text','image','video'].map(type => <Pressable key={type} onPress={() => { setMediaType(type); setAssets([]); if (type !== 'text') pickMedia(type); }} style={[styles.reaction, { borderColor: mediaType === type ? theme.colors.accent : theme.colors.border }]}><Text style={{ color: textColor }}>{type === 'text' ? 'Text' : type === 'image' ? 'Images' : 'Video'}</Text></Pressable>)}
+          </View>
+          <TextInput multiline value={body} onChangeText={setBody} maxLength={300} placeholder="Add a caption or description…" placeholderTextColor={mutedColor} style={[styles.input, { color: textColor, borderColor: theme.colors.border }]} />
+          {mediaType !== 'text' ? <View style={{ marginBottom: 10 }}>
+            <Pressable onPress={() => pickMedia(mediaType)} style={[styles.smallButton, { borderColor: theme.colors.border }]}><Text style={{ color: textColor }}>Choose {mediaType === 'image' ? 'images' : 'video'}</Text></Pressable>
+            {assets.map((asset, index) => <View key={asset.uri || index} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+              <Text numberOfLines={1} style={{ color: mutedColor, flex: 1 }}>{asset.fileName || asset.uri?.split('/').pop() || 'Selected media'}</Text>
+              <Pressable onPress={() => setAssets(current => current.filter((_, i) => i !== index))}><Text style={{ color: '#dc2626' }}>Remove</Text></Pressable>
+            </View>)}
+            <Text style={{ color: mutedColor, fontSize: 12 }}>{mediaType === 'image' ? 'Up to 5 images · 10 MB each' : 'One video · maximum 160 seconds'}</Text>
+          </View> : null}
+          <Text style={{ color: mutedColor, marginBottom: 10 }}>{Array.from(body).length}/300 characters · 24-hour feed · 90-day history</Text>
+          <Pressable disabled={busy || (mediaType === 'text' ? !body.trim() : !assets.length)} onPress={publish} style={[styles.primary, { backgroundColor: theme.colors.accent }]}><Text style={styles.primaryText}>Publish</Text></Pressable>
         </View> : null}
         {posts.map(post => <View key={post.id} style={card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
