@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { platformApi } from '../services/platform';
+import { platformApi, fetchApiBlob } from '../services/platform';
 
 const reactions = ['👍','❤️','😂','🔥','👏','😍','😮','😢'];
 const buttonStyle = { border: '1px solid #d7deeb', borderRadius: 10, padding: '9px 13px', background: '#fff', color: '#172033', cursor: 'pointer', fontWeight: 650 };
@@ -14,6 +14,8 @@ export default function CreatorClicksPanel({ user, close }) {
   const [mediaType, setMediaType] = useState('text');
   const [selectedMedia, setSelectedMedia] = useState([]);
   const [mediaPreviews, setMediaPreviews] = useState([]);
+  const [creatorAvatarUrl, setCreatorAvatarUrl] = useState('');
+  const [channelAvatarUrl, setChannelAvatarUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -38,6 +40,41 @@ export default function CreatorClicksPanel({ user, close }) {
   }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    let creatorObjectUrl = '';
+    let channelObjectUrl = '';
+    const loadPictures = async () => {
+      if (!profile?.user_id) { setCreatorAvatarUrl(''); setChannelAvatarUrl(''); return; }
+      try {
+        const blob = await fetchApiBlob('v1/creator-clicks/profile-media', { user_id: profile.user_id, kind: 'creator' });
+        if (active && blob) { creatorObjectUrl = URL.createObjectURL(blob); setCreatorAvatarUrl(creatorObjectUrl); }
+      } catch { if (active) setCreatorAvatarUrl(''); }
+      try {
+        const blob = await fetchApiBlob('v1/creator-clicks/profile-media', { user_id: profile.user_id, kind: 'channel' });
+        if (active && blob) { channelObjectUrl = URL.createObjectURL(blob); setChannelAvatarUrl(channelObjectUrl); }
+      } catch { if (active) setChannelAvatarUrl(''); }
+    };
+    void loadPictures();
+    return () => { active = false; if (creatorObjectUrl) URL.revokeObjectURL(creatorObjectUrl); if (channelObjectUrl) URL.revokeObjectURL(channelObjectUrl); };
+  }, [profile?.user_id, profile?.avatar_path, profile?.channel_avatar_path]);
+
+  const uploadProfilePicture = async (event, kind) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError('Creator profile pictures must be 5 MB or smaller.'); return; }
+    setBusy(true); setError('');
+    try {
+      const form = new FormData();
+      form.append('kind', kind);
+      form.append('file', file);
+      await platformApi.uploadCreatorClicksProfilePicture(form);
+      await openCreator(Number(user?.id));
+    } catch (e) { setError(e.message || 'Unable to update the creator picture.'); }
+    finally { setBusy(false); }
+  };
+
 
   useEffect(() => {
     const urls = selectedMedia.map(file => URL.createObjectURL(file));
@@ -177,7 +214,11 @@ export default function CreatorClicksPanel({ user, close }) {
       {tab === 'discover' && <div>{creators.length ? creators.map(creator => <article key={creator.user_id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 22, display: 'grid', placeItems: 'center', background: '#eaf0ff', color: '#3157d5', fontWeight: 800 }}>{(creator.display_name || creator.name || 'C').slice(0,1).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><strong>{creator.display_name}</strong><p style={{ margin: '3px 0', color: '#64748b' }}>{creator.bio || creator.category} · {creator.follower_count} followers</p></div><button type="button" style={buttonStyle} disabled={busy || Number(creator.user_id) === Number(user?.id)} onClick={() => toggleFollow(creator)}>{creator.is_following ? 'Following' : 'Follow'}</button><button type="button" style={buttonStyle} disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onClick={() => openCreator(creator.user_id)}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</button></article>) : <p style={{ color: '#64748b' }}>No creator channels are available yet.</p>}</div>}
       {tab === 'profile' && <>
         <div style={cardStyle}>
-          {profile ? <><h3 style={{ marginTop: 0 }}>{profile.channel_name || profile.display_name}</h3><p>{profile.bio || 'Welcome to my Creator Clicks channel.'}</p><p style={{ color: '#64748b' }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' creator milestone' : ''}</p>{Number(profile.user_id) === Number(user?.id) ? <><button type="button" style={buttonStyle} onClick={() => openCreator(Number(user?.id))}>Refresh channel</button><button type="button" style={{ ...buttonStyle, marginLeft: 8, borderColor: '#b91c1c', color: '#b91c1c' }} disabled={busy} onClick={deleteChannel}>Delete Channel</button></> : null}</> : <><p>You have not created your Creator Clicks channel yet.</p><button type="button" style={{ ...buttonStyle, background: '#3157d5', color: '#fff' }} disabled={busy} onClick={createProfile}>Create my channel</button></>}
+          {profile ? <><div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {creatorAvatarUrl ? <img src={creatorAvatarUrl} alt="Creator profile" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#eaf0ff', display: 'grid', placeItems: 'center' }}>Creator</div>}
+          {channelAvatarUrl ? <img src={channelAvatarUrl} alt="Channel profile" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover' }} /> : null}
+          {Number(profile.user_id) === Number(user?.id) ? <div><label style={{ display: 'block', fontSize: 12 }}>Creator picture <input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => uploadProfilePicture(event, 'creator')} /></label><label style={{ display: 'block', fontSize: 12, marginTop: 6 }}>Channel picture <input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => uploadProfilePicture(event, 'channel')} /></label></div> : null}
+        </div><h3 style={{ marginTop: 12 }}>{profile.channel_name || profile.display_name}</h3><p>{profile.bio || 'Welcome to my Creator Clicks channel.'}</p><p style={{ color: '#64748b' }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' creator milestone' : ''}</p>{Number(profile.user_id) === Number(user?.id) ? <><button type="button" style={buttonStyle} onClick={() => openCreator(Number(user?.id))}>Refresh channel</button><button type="button" style={{ ...buttonStyle, marginLeft: 8, borderColor: '#b91c1c', color: '#b91c1c' }} disabled={busy} onClick={deleteChannel}>Delete Channel</button></> : null}</> : <><p>You have not created your Creator Clicks channel yet.</p><button type="button" style={{ ...buttonStyle, background: '#3157d5', color: '#fff' }} disabled={busy} onClick={createProfile}>Create my channel</button></>}
         </div>
         {profile ? <form onSubmit={publish} style={cardStyle}>
           <strong>Publish a broadcast</strong>
