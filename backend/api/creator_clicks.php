@@ -75,6 +75,11 @@ if ($method === 'GET') {
     if ($action === 'profile') {
         $ownerId = (int)($_GET['user_id'] ?? $userId);
         $profile = cc_profile($pdo, $ownerId, $userId);
+        if ($ownerId !== $userId) {
+            $canView = $pdo->prepare('SELECT 1 FROM creator_clicks_follows WHERE follower_id=? AND creator_id=? LIMIT 1');
+            $canView->execute([$userId, $ownerId]);
+            if (!$canView->fetchColumn()) fail('Follow this creator to view their broadcasts', 403);
+        }
         $stmt = $pdo->prepare('SELECT p.id,p.creator_id,p.content_type,p.body,p.created_at,p.expires_at,
             (SELECT COUNT(*) FROM creator_clicks_reactions r WHERE r.post_id=p.id) AS reaction_count,
             (SELECT COUNT(*) FROM creator_clicks_post_views v WHERE v.post_id=p.id) AS view_count,
