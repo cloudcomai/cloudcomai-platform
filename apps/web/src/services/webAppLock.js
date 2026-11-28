@@ -38,7 +38,7 @@ export async function saveWebAppLockPin(userId, pin) {
   const saltHex = bytesToHex(salt);
   const hash = await derivePinHash(value, saltHex, ITERATIONS);
   window.localStorage.setItem(storageKey(userId), JSON.stringify({ version: VERSION, enabled: true, salt: saltHex, hash, iterations: ITERATIONS }));
-  window.dispatchEvent(new CustomEvent('cloudcomai:web-app-lock-changed'));
+  window.dispatchEvent(new CustomEvent('cloudcomai:web-app-lock-changed', { detail: { lockNow: false } }));
 }
 
 export async function verifyWebAppLockPin(userId, pin) {
