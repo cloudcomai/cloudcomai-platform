@@ -44,6 +44,7 @@ export default function CreatorClicksPanel({ user, close }) {
   const [tab, setTab] = useState('feed');
   const [posts, setPosts] = useState([]);
   const [creators, setCreators] = useState([]);
+  const [discoverPosts, setDiscoverPosts] = useState([]);
   const [profile, setProfile] = useState(null);
   const [body, setBody] = useState('');
   const [mediaType, setMediaType] = useState('text');
@@ -60,16 +61,19 @@ export default function CreatorClicksPanel({ user, close }) {
       const [feed, directory, own] = await Promise.all([
         platformApi.listCreatorClicksFeed(),
         platformApi.listCreatorDirectory(),
+        platformApi.listCreatorClicksDiscoverFeed(),
         platformApi.getCreatorClicksProfile(Number(user?.id)),
       ]);
       setPosts(feed?.data?.posts || []);
       setCreators(directory?.data?.creators || []);
+      setDiscoverPosts(discover?.data?.posts || []);
       setProfile(own?.data?.profile || null);
     } catch (e) {
       try {
-        const [feed, directory] = await Promise.all([platformApi.listCreatorClicksFeed(), platformApi.listCreatorDirectory()]);
+        const [feed, directory, discover] = await Promise.all([platformApi.listCreatorClicksFeed(), platformApi.listCreatorDirectory(), platformApi.listCreatorClicksDiscoverFeed()]);
         setPosts(feed?.data?.posts || []);
         setCreators(directory?.data?.creators || []);
+        setDiscoverPosts(discover?.data?.posts || []);
       } catch (inner) { setError(inner?.message || e?.message || 'Unable to load Creator Clicks.'); }
     }
   }, [user?.id]);
@@ -246,7 +250,19 @@ export default function CreatorClicksPanel({ user, close }) {
       {tab === 'feed' && <>
         {posts.length ? posts.map(post => <article key={post.id} style={cardStyle}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}><button type="button" onClick={() => openCreator(post.creator_id)} style={{ display: 'flex', alignItems: 'center', gap: 9, border: 0, padding: 0, background: 'transparent', fontWeight: 750, cursor: 'pointer' }}><CreatorClickAvatar userId={post.creator_id} /><span>{post.display_name || post.name || 'Creator'}</span></button><small style={{ color: '#64748b' }}>{post.created_at}</small></div><p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{post.body}</p>{(post.media || []).map(item => <CreatorClickMedia key={item.filename} item={item} postId={post.id} />)}<div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{reactions.map(item => <button key={item} type="button" style={{ ...buttonStyle, padding: '5px 9px' }} onClick={() => react(post, item)}>{item}</button>)}<small style={{ alignSelf: 'center', color: '#64748b' }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</small></div></article>) : <p style={{ color: '#64748b' }}>No broadcasts yet. Follow a creator or publish your first update.</p>}
       </>}
-      {tab === 'discover' && <div>{creators.length ? creators.map(creator => <article key={creator.user_id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12 }}><CreatorClickAvatar userId={creator.user_id} /><div style={{ flex: 1, minWidth: 0 }}><strong>{creator.display_name}</strong><p style={{ margin: '3px 0', color: '#64748b' }}>{creator.bio || creator.category} · {creator.follower_count} followers</p></div><button type="button" style={buttonStyle} disabled={busy || Number(creator.user_id) === Number(user?.id)} onClick={() => toggleFollow(creator)}>{creator.is_following ? 'Following' : 'Follow'}</button><button type="button" style={buttonStyle} disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onClick={() => openCreator(creator.user_id)}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</button></article>) : <p style={{ color: '#64748b' }}>No creator channels are available yet.</p>}</div>}
+      {tab === 'discover' && <div>{creators.length ? creators.map(creator => <article key={creator.user_id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12 }}><CreatorClickAvatar userId={creator.user_id} /><div style={{ flex: 1, minWidth: 0 }}><strong>{creator.display_name}</strong><p style={{ margin: '3px 0', color: '#64748b' }}>{creator.bio || creator.category} · {creator.follower_count} followers</p></div><button type="button" style={buttonStyle} disabled={busy || Number(creator.user_id) === Number(user?.id)} onClick={() => toggleFollow(creator)}>{creator.is_following ? 'Following' : 'Follow'}</button><button type="button" style={buttonStyle} disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onClick={() => openCreator(creator.user_id)}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</button></article>) : <p style={{ color: '#64748b' }}>No creator channels are available yet.</p>}
+        {discoverPosts.map(post => <article key={post.id} style={cardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <CreatorClickAvatar userId={post.creator_id} />
+            <strong>{post.display_name || post.name || 'Creator'}</strong>
+            <span style={{ flex: 1 }} />
+            <button type="button" style={buttonStyle} disabled={busy} onClick={() => toggleFollow({ user_id: post.creator_id, is_following: false })}>Follow</button>
+          </div>
+          <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{post.body}</p>
+          {(post.media || []).map(item => <CreatorClickMedia key={item.filename} item={item} postId={post.id} />)}
+          <small style={{ color: '#64748b' }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</small>
+        </article>)}
+      </div>}
       {tab === 'profile' && <>
         <div style={cardStyle}>
           {profile ? <><div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
