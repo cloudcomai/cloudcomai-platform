@@ -24,6 +24,7 @@ import NotificationPanel from './components/NotificationPanel';
 import PollModal from './components/PollModal';
 import InvitationPage from './components/InvitationPage';
 import PrivacyAccountPanel from './components/PrivacyAccountPanel';
+import WebAppLockGate from './components/WebAppLockGate';
 import { PublicChatsPanel, PublicChatManagementPanel } from './components/WebCommunityPanels';
 import MomentsPanel from './components/MomentsPanel';
 import { inviteUrlFromResponse } from './utils/shareLink';
@@ -813,6 +814,7 @@ function App() {
 
     return (
         <div className={`app-container ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${modal === 'manage_members' ? 'group-management-active' : ''}`}>
+            <WebAppLockGate userId={user?.id} />
             <Sidebar user={user} setModal={setModal} notificationUnreadCount={notificationUnreadCount} onLogout={logout} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} activeTab={activeTab} onTabChange={handleTabChange} setScreen={setScreen} />
 
             <ChatDirectory onLoadMore={() => refreshConversationList({ page: chatPageRef.current + 1, append: true })} onJoinPublicChat={handleJoinPublicRoomFromDirectory} onLeavePublicChat={handleLeavePublicRoomFromDirectory} searchQuery={searchQuery} setSearchQuery={setSearchQuery} chatFilter={chatFilter} setChatFilter={setChatFilter} filteredChats={filteredChats} selectedChat={selectedChat} setSelectedChat={handleSelectConversationRow} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setModal={setModal} activeTab={activeTab} topInterests={topInterests} onEditPreferences={() => setScreen('interests')} />
