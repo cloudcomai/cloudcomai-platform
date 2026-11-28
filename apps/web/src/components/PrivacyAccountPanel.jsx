@@ -31,6 +31,10 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
   const [searching, setSearching] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [downloading, setDownloading] = useState(false);
+  const [backup, setBackup] = useState({});
+  const [backupLoading, setBackupLoading] = useState(true);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupProgress, setBackupProgress] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,6 +113,76 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
     }
   };
 
+  const updateBackupSettings = async changes => {
+    setBackupBusy(true);
+    setError('');
+    try {
+      const response = await privacyApi.updateAccountBackupSettings({
+        automatic_frequency: changes.automatic_frequency ?? backup.automatic_frequency ?? 'off',
+        include_videos: changes.include_videos ?? Boolean(backup.include_videos),
+        wifi_only: changes.wifi_only ?? backup.wifi_only !== false,
+      });
+      setBackup(response.data.settings || response.data.backup || backup);
+    } catch (backupError) {
+      setError(backupError.message || 'Unable to update cloud backup settings.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const createCloudBackup = async () => {
+    if (backupBusy) return;
+    if (!backup.email_verified) {
+      setError('Verify your registered email address before using Cloud Backup.');
+      return;
+    }
+    const connection = navigator.connection;
+    if (backup.wifi_only !== false && connection?.type && connection.type !== 'wifi' && connection.type !== 'ethernet') {
+      setError('Connect to Wi-Fi or turn off the Wi-Fi-only backup setting.');
+      return;
+    }
+    setBackupBusy(true);
+    setError('');
+    setBackupProgress('Creating encrypted cloud backup…');
+    try {
+      const response = await privacyApi.createAccountBackup({ include_videos: Boolean(backup.include_videos) });
+      setBackup(response.data.backup || backup);
+      setBackupProgress('Cloud backup completed.');
+    } catch (backupError) {
+      setBackupProgress('');
+      setError(backupError.message || 'Unable to create cloud backup.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const restoreCloudBackup = async () => {
+    if (backupBusy || !backup.restore_available) return;
+    const confirmed = window.confirm('Restore your latest encrypted CloudComAI backup? Existing account data may be updated. Expired or deleted messages and rooms you have left cannot be restored.');
+    if (!confirmed) return;
+    setBackupBusy(true);
+    setError('');
+    setBackupProgress('Restoring cloud backup…');
+    try {
+      const response = await privacyApi.restoreAccountBackup();
+      const restored = response.data.restore || {};
+      setBackupProgress(`Restore completed: ${restored.chats || 0} chats and ${restored.messages || 0} messages restored.`);
+      const status = await privacyApi.getAccountBackupStatus();
+      setBackup(status.data.backup || backup);
+    } catch (backupError) {
+      setBackupProgress('');
+      setError(backupError.message || 'Unable to restore cloud backup.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const formatBackupDate = value => {
+    if (!value) return 'Never';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+  };
+
   const downloadBackup = async () => {
     setDownloading(true);
     setError('');
@@ -173,9 +247,31 @@ export default function PrivacyAccountPanel({ privacyApi, close, onSettingsChang
         </section>
 
         <section className="privacy-section">
-          <h4><Download size={17} /> Account backup</h4>
-          <p className="privacy-footnote">Download your profile, preferences, contacts, chats, messages, and attachment metadata as JSON. Media files are not embedded.</p>
-          <button type="button" className="privacy-backup-button" onClick={downloadBackup} disabled={downloading}>{downloading ? 'Preparing backup…' : 'Download account backup'}</button>
+          <h4><Download size={17} /> Cloud backup & restore</h4>
+          {backupLoading ? <p className="privacy-footnote">Loading cloud backup status…</p> : <>
+            <div className="storage-summary"><strong>{formatBackupDate(backup.last_backup_at)}</strong><span>Last successful backup</span></div>
+            <p className="privacy-footnote">Backup account: {backup.backup_account_email || 'No verified email'} · Size: {formatBytes(backup.backup_size)}</p>
+            {!backup.configured && <p className="privacy-error">{backup.status_error || 'Cloud backup is not configured on the server.'}</p>}
+            {!backup.email_verified && <p className="privacy-error">Verify your registered email address to enable cloud backup and restore.</p>}
+            <label className="privacy-toggle-row"><span><strong>Automatic backup</strong><small>Choose how often the server creates an encrypted backup.</small></span>
+              <select aria-label="Automatic backup frequency" value={backup.automatic_frequency || 'off'} disabled={backupBusy || !backup.configured || !backup.email_verified} onChange={event => updateBackupSettings({ automatic_frequency: event.target.value })}>
+                <option value="off">Off</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
+              </select>
+            </label>
+            <ToggleRow label="Include videos" description="Include uploaded videos in the encrypted backup." checked={Boolean(backup.include_videos)} disabled={backupBusy || !backup.configured || !backup.email_verified} onChange={value => updateBackupSettings({ include_videos: value })} />
+            <ToggleRow label="Backup over Wi-Fi only" description="Applied when the browser exposes network connection details." checked={backup.wifi_only !== false} disabled={backupBusy || !backup.configured || !backup.email_verified} onChange={value => updateBackupSettings({ wifi_only: value })} />
+            <div className="privacy-backup-actions">
+              <button type="button" className="privacy-backup-button" onClick={createCloudBackup} disabled={backupBusy || !backup.configured || !backup.email_verified}>{backupBusy ? 'Please wait…' : 'Back up now'}</button>
+              {backup.restore_available && <button type="button" className="privacy-backup-button" onClick={restoreCloudBackup} disabled={backupBusy}>Restore backup</button>}
+            </div>
+            {backupProgress && <p className="privacy-footnote" role="status">{backupProgress}</p>}
+          </>}
+          <p className="privacy-footnote">Cloud backups are encrypted by the server before storage. Restore is available only when a valid backup exists and your registered email is verified.</p>
+        </section>
+        <section className="privacy-section">
+          <h4><Download size={17} /> Local account export</h4>
+          <p className="privacy-footnote">Download your profile, preferences, contacts, chats, messages, and attachment metadata as JSON. This export is separate from encrypted cloud backup; media files are not embedded.</p>
+          <button type="button" className="privacy-backup-button" onClick={downloadBackup} disabled={downloading}>{downloading ? 'Preparing export…' : 'Download account data'}</button>
         </section>
       </>}
     </div>
