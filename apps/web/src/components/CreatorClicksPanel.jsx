@@ -69,7 +69,7 @@ export default function CreatorClicksPanel({ user, close }) {
 
   const publish = async event => {
     event?.preventDefault?.();
-    if (!body.trim() || busy) return;
+    if ((mediaType === 'text' && !body.trim()) || busy) return;
     setBusy(true); setError('');
     try {
       if (mediaType === 'text') {
@@ -92,6 +92,7 @@ export default function CreatorClicksPanel({ user, close }) {
       setSelectedMedia([]);
       setMediaType('text');
       await load();
+      await openCreator(Number(user?.id));
       setTab('profile');
     } catch (e) { setError(e.message || 'Unable to publish this broadcast.'); }
     finally { setBusy(false); }
