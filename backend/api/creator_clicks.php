@@ -21,7 +21,7 @@ function cc_blocked(PDO $pdo, int $a, int $b): bool {
     return (bool)$stmt->fetchColumn();
 }
 function cc_profile(PDO $pdo, int $ownerId, int $viewerId): array {
-    $stmt = $pdo->prepare('SELECT p.user_id,p.display_name,p.bio,p.category,p.platform_verified_at,p.created_at,p.updated_at,u.name,
+    $stmt = $pdo->prepare('SELECT p.user_id,p.display_name,p.channel_name,p.avatar_path,p.channel_avatar_path,p.bio,p.category,p.platform_verified_at,p.created_at,p.updated_at,u.name,
         (SELECT COUNT(*) FROM creator_clicks_follows f WHERE f.creator_id=p.user_id) AS follower_count,
         (SELECT COUNT(*) FROM creator_clicks_posts x WHERE x.creator_id=p.user_id AND x.deleted_at IS NULL AND x.expires_at>UTC_TIMESTAMP()) AS post_count,
         EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.creator_id=p.user_id AND f.follower_id=?) AS is_following
@@ -65,7 +65,7 @@ if ($method === 'GET') {
     $action = strtolower(trim((string)($_GET['action'] ?? 'feed')));
     if ($action === 'directory') {
         $search = trim((string)($_GET['q'] ?? ''));
-        $stmt = $pdo->prepare('SELECT p.user_id,p.display_name,p.bio,p.category,p.platform_verified_at,u.name,
+        $stmt = $pdo->prepare('SELECT p.user_id,p.display_name,p.channel_name,p.avatar_path,p.channel_avatar_path,p.bio,p.category,p.platform_verified_at,u.name,
             (SELECT COUNT(*) FROM creator_clicks_follows f WHERE f.creator_id=p.user_id) AS follower_count,
             EXISTS(SELECT 1 FROM creator_clicks_follows f WHERE f.creator_id=p.user_id AND f.follower_id=?) AS is_following
             FROM creator_clicks_profiles p INNER JOIN users u ON u.id=p.user_id AND u.account_status="active"
@@ -149,7 +149,7 @@ if ($method === 'POST' && $action === 'profile') {
 if ($method === 'POST' && in_array($action, ['follow','unfollow'], true)) {
     $creatorId = (int)($data['creator_id'] ?? 0);
     if ($creatorId <= 0 || $creatorId === $userId) fail('Choose another creator to follow', 422);
-    $profile = $pdo->prepare('SELECT user_id FROM creator_clicks_profiles WHERE user_id=?');
+    $profile = $pdo->prepare('SELECT user_id FROM creator_clicks_profiles WHERE user_id=? AND channel_deleted_at IS NULL');
     $profile->execute([$creatorId]);
     if (!$profile->fetchColumn() || cc_blocked($pdo, $userId, $creatorId)) fail('Creator is unavailable', 404);
     if ($action === 'follow') {
@@ -163,7 +163,7 @@ if ($method === 'POST' && in_array($action, ['follow','unfollow'], true)) {
 if ($method === 'POST' && $action === 'publish') {
     $body = trim((string)($data['body'] ?? ''));
     if ($body === '' || cc_length($body) > 300) fail('Text broadcasts must contain 1 to 300 characters', 422);
-    $profile = $pdo->prepare('SELECT user_id FROM creator_clicks_profiles WHERE user_id=?');
+    $profile = $pdo->prepare('SELECT user_id FROM creator_clicks_profiles WHERE user_id=? AND channel_deleted_at IS NULL');
     $profile->execute([$userId]);
     if (!$profile->fetchColumn()) fail('Create your Creator Clicks profile before publishing', 409);
     $stmt = $pdo->prepare('INSERT INTO creator_clicks_posts(creator_id,content_type,body,created_at,feed_expires_at,expires_at) VALUES(?, "text", ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()+INTERVAL 24 HOUR, UTC_TIMESTAMP()+INTERVAL 90 DAY)');
@@ -235,7 +235,7 @@ if ($method === 'DELETE') {
             $pdo->prepare('DELETE r FROM creator_clicks_reports r INNER JOIN creator_clicks_posts p ON p.id=r.post_id WHERE p.creator_id=?')->execute([$userId]);
             $pdo->prepare('DELETE FROM creator_clicks_posts WHERE creator_id=?')->execute([$userId]);
             $pdo->prepare('DELETE FROM creator_clicks_follows WHERE creator_id=? OR follower_id=?')->execute([$userId, $userId]);
-            $pdo->prepare('UPDATE creator_clicks_profiles SET channel_deleted_at=UTC_TIMESTAMP(),display_name="",channel_name="",bio="",category="Creator",avatar_path=NULL,channel_avatar_path=NULL,updated_at=UTC_TIMESTAMP() WHERE user_id=?')->execute([$userId]);
+            $pdo->prepare('UPDATE creator_clicks_profiles SET channel_deleted_at=UTC_TIMESTAMP(),channel_name="",bio="",category="Creator",avatar_path=NULL,channel_avatar_path=NULL,updated_at=UTC_TIMESTAMP() WHERE user_id=?')->execute([$userId]);
             $pdo->commit();
         } catch (Throwable $error) {
             if ($pdo->inTransaction()) $pdo->rollBack();
