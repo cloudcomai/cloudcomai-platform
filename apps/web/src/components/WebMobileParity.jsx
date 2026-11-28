@@ -74,6 +74,22 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
     } catch (e) { setError(e.message || 'Unable to update friendship.'); }
     finally { setBusy(false); }
   };
+  const toggleTrustedUser = async () => {
+    if (!profile || trustBusy || Number(userId) === Number(currentUserId) || status === 'blocked') return;
+    const next = !trusted;
+    if (next && !window.confirm(`Allow ${profile.name || profile.username || 'this user'} to receive, download, save, and forward attachments you send without approval?`)) return;
+    setTrustBusy(true);
+    setError('');
+    try {
+      if (next) await platformApi.trustUser(userId);
+      else await platformApi.untrustUser(userId);
+      setTrusted(next);
+    } catch (e) {
+      setError(e.message || 'Unable to update Trusted User.');
+    } finally {
+      setTrustBusy(false);
+    }
+  };
   const image = profile?.image_url || profile?.profile_image_url || profile?.avatar_url || (profile?.id ? mediaUrl('user', profile.id) : '');
   const name = profile?.display_name || profile?.name || profile?.username || 'User profile';
   const fields = [['Age', profile?.age_private ? null : profile?.age], ['Gender', profile?.gender_private ? null : profile?.gender]].filter(([, value]) => value !== null && value !== undefined && value !== '');
@@ -89,6 +105,12 @@ export function UserProfileDialog({ userId, currentUserId, onClose }) {
         : status === 'pending' && direction === 'incoming' ? <div className="parity-actions"><button disabled={busy} onClick={() => act('accept')}>Accept</button><button disabled={busy} onClick={() => act('decline')}>Decline</button></div>
         : status === 'pending' ? <div className="parity-actions"><span className="profile-friend-status">Request Sent</span><button disabled={busy || !requestId} onClick={() => act('cancel')}>{busy ? 'Please wait…' : 'Cancel Request'}</button></div>
         : <button disabled={busy || !profile} onClick={() => act('send')}>{busy ? 'Sending…' : 'Add Friend'}</button>}
+      {profile && Number(userId) !== Number(currentUserId) && status !== 'blocked' && <section className="privacy-section" style={{ width: '100%', marginTop: 12, textAlign: 'left' }}>
+        <label className="privacy-toggle-row">
+          <span><strong>Trusted User</strong><small>Allow this user to receive, download, save, and forward attachments you send without approval.</small></span>
+          <input type="checkbox" checked={trusted} disabled={trustBusy} onChange={toggleTrustedUser} aria-label="Trusted User" />
+        </label>
+      </section>}
       <button type="button" onClick={onClose}>Close</button>
     </div>
   </div>;
