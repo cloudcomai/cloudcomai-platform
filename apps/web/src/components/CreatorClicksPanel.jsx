@@ -87,6 +87,39 @@ export default function CreatorClicksPanel({ user, close }) {
     finally { setBusy(false); }
   };
 
+  const deletePost = async post => {
+    if (Number(post.creator_id) !== Number(user?.id)) return;
+    if (!window.confirm('Delete this post? Only this selected post will be deleted. Your Creator Clicks channel and other posts will remain.')) return;
+    setBusy(true); setError('');
+    try {
+      await platformApi.deleteCreatorClick(post.id);
+      setPosts(current => current.filter(item => Number(item.id) !== Number(post.id)));
+      if (Number(profile?.user_id) === Number(user?.id)) {
+        const refreshed = await platformApi.getCreatorClicksProfile(Number(user.id));
+        setProfile(refreshed?.data?.profile || null);
+        setPosts(refreshed?.data?.posts || []);
+      }
+    } catch (e) { setError(e.message || 'Unable to delete this post.'); }
+    finally { setBusy(false); }
+  };
+
+  const deleteChannel = async () => {
+    if (Number(profile?.user_id) !== Number(user?.id)) return;
+    const channelName = profile?.channel_name || profile?.display_name || 'my channel';
+    if (!window.confirm('Delete the entire Creator Clicks channel "' + channelName + '"? This removes its posts and followers. Your CloudComAI account, chats, contacts and Moments will remain.')) return;
+    const typed = window.prompt('Type the channel name to confirm deletion: ' + channelName);
+    if (typed !== channelName) return;
+    setBusy(true); setError('');
+    try {
+      await platformApi.deleteCreatorClicksChannel();
+      setProfile(null);
+      setPosts([]);
+      await load();
+      setTab('profile');
+    } catch (e) { setError(e.message || 'Unable to delete your Creator Clicks channel.'); }
+    finally { setBusy(false); }
+  };
+
   return (
     <section className="modal-content-card creator-clicks-panel" role="dialog" aria-modal="true" aria-label="Creator Clicks" style={{ width: 'min(900px, 96vw)', maxHeight: '90vh', overflow: 'auto', padding: 22 }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
@@ -105,13 +138,21 @@ export default function CreatorClicksPanel({ user, close }) {
       {tab === 'discover' && <div>{creators.length ? creators.map(creator => <article key={creator.user_id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 22, display: 'grid', placeItems: 'center', background: '#eaf0ff', color: '#3157d5', fontWeight: 800 }}>{(creator.display_name || creator.name || 'C').slice(0,1).toUpperCase()}</div><div style={{ flex: 1, minWidth: 0 }}><strong>{creator.display_name}</strong><p style={{ margin: '3px 0', color: '#64748b' }}>{creator.bio || creator.category} · {creator.follower_count} followers</p></div><button type="button" style={buttonStyle} disabled={busy || Number(creator.user_id) === Number(user?.id)} onClick={() => toggleFollow(creator)}>{creator.is_following ? 'Following' : 'Follow'}</button><button type="button" style={buttonStyle} disabled={!creator.is_following && Number(creator.user_id) !== Number(user?.id)} onClick={() => openCreator(creator.user_id)}>{creator.is_following || Number(creator.user_id) === Number(user?.id) ? "View" : "Follow to view"}</button></article>) : <p style={{ color: '#64748b' }}>No creator channels are available yet.</p>}</div>}
       {tab === 'profile' && <>
         <div style={cardStyle}>
-          {profile ? <><h3 style={{ marginTop: 0 }}>{profile.display_name}</h3><p>{profile.bio || 'Welcome to my Creator Clicks channel.'}</p><p style={{ color: '#64748b' }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' creator milestone' : ''}</p><button type="button" style={buttonStyle} onClick={() => openCreator(Number(user?.id))}>Refresh channel</button></> : <><p>You have not created your Creator Clicks channel yet.</p><button type="button" style={{ ...buttonStyle, background: '#3157d5', color: '#fff' }} disabled={busy} onClick={createProfile}>Create my channel</button></>}
+          {profile ? <><h3 style={{ marginTop: 0 }}>{profile.channel_name || profile.display_name}</h3><p>{profile.bio || 'Welcome to my Creator Clicks channel.'}</p><p style={{ color: '#64748b' }}>{profile.follower_count} followers · {profile.post_count} broadcasts {profile.badge ? '· ' + profile.badge + ' creator milestone' : ''}</p>{Number(profile.user_id) === Number(user?.id) ? <><button type="button" style={buttonStyle} onClick={() => openCreator(Number(user?.id))}>Refresh channel</button><button type="button" style={{ ...buttonStyle, marginLeft: 8, borderColor: '#b91c1c', color: '#b91c1c' }} disabled={busy} onClick={deleteChannel}>Delete Channel</button></> : null}</> : <><p>You have not created your Creator Clicks channel yet.</p><button type="button" style={{ ...buttonStyle, background: '#3157d5', color: '#fff' }} disabled={busy} onClick={createProfile}>Create my channel</button></>}
         </div>
         {profile ? <form onSubmit={publish} style={cardStyle}>
           <strong>Publish a broadcast</strong>
           <textarea value={body} onChange={e => setBody(e.target.value)} maxLength={300} placeholder="Share an update with your followers…" rows={3} style={{ display: 'block', width: '100%', margin: '10px 0', padding: 12, border: '1px solid #cbd5e1', borderRadius: 10, resize: 'vertical', boxSizing: 'border-box' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><small style={{ color: '#64748b' }}>{[...body].length}/300 characters · Posts expire after 90 days</small><button type="submit" style={{ ...buttonStyle, background: '#3157d5', color: '#fff' }} disabled={busy || !body.trim()}>Publish</button></div>
         </form> : null}
+        {posts.length ? posts.map(post => <article key={post.id} style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <small style={{ color: '#64748b' }}>{post.created_at}</small>
+            {Number(post.creator_id) === Number(user?.id) ? <button type="button" style={{ ...buttonStyle, color: '#b91c1c', borderColor: '#fecaca' }} disabled={busy} onClick={() => deletePost(post)}>Delete Post</button> : null}
+          </div>
+          <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{post.body}</p>
+          <small style={{ color: '#64748b' }}>{post.reaction_count || 0} reactions · {post.view_count || 0} views</small>
+        </article>) : null}
       </>}
       <footer style={{ marginTop: 16, color: '#64748b', fontSize: 12 }}>Creator Clicks is separate from Chats and Moments. Live Streaming is not available yet.</footer>
     </section>
