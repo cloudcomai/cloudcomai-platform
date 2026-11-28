@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../lib/bootstrap.php';
+require_once __DIR__ . '/../lib/media_upload.php';
 
 $user = auth_user();
 $userId = (int)$user['id'];
