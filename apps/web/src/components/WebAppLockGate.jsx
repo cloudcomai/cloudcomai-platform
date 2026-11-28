@@ -9,14 +9,16 @@ export default function WebAppLockGate({ userId }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const syncConfig = () => {
+    const syncConfig = event => {
       const nextEnabled = Boolean(readWebAppLockConfig(userId));
       setEnabled(nextEnabled);
-      if (nextEnabled) setLocked(true);
-      else { setLocked(false); setPin(''); setError(''); }
+      if (!nextEnabled) { setLocked(false); setPin(''); setError(''); }
+      else if (event?.detail?.lockNow) setLocked(true);
     };
     syncConfig();
     window.addEventListener('cloudcomai:web-app-lock-changed', syncConfig);
+    const onStorage = event => { if (event.key?.startsWith('cloudcomai.web.app-lock.')) syncConfig({ detail: { lockNow: true } }); };
+    window.addEventListener('storage', onStorage);
     const lock = () => { if (readWebAppLockConfig(userId)) { setLocked(true); setPin(''); setError(''); } };
     const onVisibility = () => { if (document.visibilityState === 'hidden') lock(); };
     document.addEventListener('visibilitychange', onVisibility);
@@ -25,6 +27,7 @@ export default function WebAppLockGate({ userId }) {
     window.addEventListener('pageshow', onPageShow);
     return () => {
       window.removeEventListener('cloudcomai:web-app-lock-changed', syncConfig);
+      window.removeEventListener('storage', onStorage);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', lock);
       window.removeEventListener('pageshow', onPageShow);
